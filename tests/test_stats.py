@@ -42,6 +42,11 @@ def test_standard_metrics_keys():
     }
 
 
+def test_metrics_are_plain_python_floats():  # NumPy scalars would serialize as "np.float64(...)"
+    out = standard_metrics(Model(Config(seed=2)))
+    assert all(type(v) is float for v in out.values()), {k: type(v) for k, v in out.items()}
+
+
 def test_spatial_fractions():
     m = tiny_model(np.full((6, 6), 3))
     put_agent(m, 4, 4)  # NE quadrant

@@ -35,7 +35,7 @@ def histogram(values: Sequence[float], bins: int = 10) -> tuple[np.ndarray, np.n
 
 
 def _fraction(flags: list[bool]) -> float:
-    return sum(flags) / len(flags) if flags else math.nan
+    return sum(bool(f) for f in flags) / len(flags) if flags else math.nan
 
 
 def standard_metrics(model) -> dict[str, float]:
