@@ -59,7 +59,7 @@ Seeds per experiment as registered (5 or 10). Fast suite 83 passed; `pytest -m s
    | m3 v1 / v2 / v3 / v4.5 | 225 / 228 / 255 / 260 | 219 / 237 / 249 / 262 | 192 / 214 / 231 / 246 |
    | m3 v5.5 / v6.5 / v8 / v10.5 | 260 / 287 / 280 / 287 | 267 / 271 / 275 / 281 | 249 / 249 / 252 / 254 |
 
-   The metabolism-1 curve is flat, so it matches at any time; that explains why only the m2/m3 points miss. The book defines carrying capacity as the asymptotic level, so the target stays at t=450–500. Moving the window would be choosing a measurement time to make the targets pass. **Decision needed.**
+   The metabolism-1 curve is flat, so it matches at any time; that explains why only the m2/m3 points miss. **Decided (user, 2026-10-21): carrying capacity is measured at t=500**, the book's asymptotic definition; these rows stay "near" as a documented discrepancy.
    Also tested and rejected: metabolism fixed at the mean, and a 0..2m spread.
 2. **II-6 diagonal waves are not reproduced** by either variant (NE share at t=200: 0.049 for the text's 400 agents, 0.013 for the measured 284; band 0.15–1.0). The 400-agent block drains its interior and sends a few agents NE, but no coherent bands.
    Ruled out: the block layout, the endowment, and "agents must move" (which also breaks II-1's static end state).
