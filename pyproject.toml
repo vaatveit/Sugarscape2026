@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sugarscape"
+version = "0.1.0"
+description = "A faithful re-creation of Epstein & Axtell's Sugarscape (Growing Artificial Societies, 1996)"
+requires-python = ">=3.12"
+dependencies = ["numpy", "matplotlib"]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.setuptools.packages.find]
+include = ["sugarscape*", "experiments*", "replication*"]
+
+[tool.setuptools.package-data]
+"sugarscape.maps" = ["*.txt"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers -m 'not slow'"
+markers = ["slow: replication runs (select with -m slow)"]
