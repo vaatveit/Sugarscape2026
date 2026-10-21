@@ -607,6 +607,14 @@ checklist of ambiguities and as a tiebreaker **only where the book is silent**.
 3. Conflict resolution under synchronous updating (not relevant: the book is
    explicitly sequential and asynchronous, Ch II fn 12).
 
+## Findings from the Chapter II replication (2026-10-21)
+- **Default initial endowment is most likely U[25,50]** for the landscape runs (II-1, II-2, II-6...):
+  only that range reproduces Fig II-4's curve shape (no deaths until t≈7, ≈255 at t≈48).
+  The wealth run II-3 states 5–25 explicitly.
+- **Animation II-6 block**: 20×19 at the SW corner with ≈284 agents (measured from frame 1).
+- **Fig II-5**: the construction of "mean metabolism" populations is unknown; see
+  docs/replication/chapter-2.md for what was ruled out.
+
 ## Open questions / gaps to resolve before implementation
 1. **Sugar and spice capacity maps.** Only shown as figures (II-1, IV-1). Need the
    original 50×50 capacity data (commonly circulated as `sugar-map.txt`), or a faithful
