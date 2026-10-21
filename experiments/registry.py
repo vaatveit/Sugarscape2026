@@ -136,3 +136,76 @@ register(Experiment(
     steps=200,
     seeds=5,
 ))
+
+
+# --- Chapter III: Sex, Culture, and Conflict ---------------------------------------------
+
+# p.57: childbearing from 12-15; ends 40-50 (women), 50-60 (men); natural death 60-100;
+# initial endowments 50-100.
+CH3_SEX = dict(sex=True, max_age=(60, 100), endowment=(50, 100))
+TAGS = 11  # p.74
+BLUE_BLOCK, RED_BLOCK = (0, 0, 20, 20), (30, 30, 20, 20)  # Animations III-9, III-12 frame 1
+
+
+def _blocks(n: int) -> tuple[tuple[str, int, int, int, int, int], ...]:
+    """Blue block SW, Red block NE, n agents each (densities measured from frame 1; our call)."""
+    return (("blue", *BLUE_BLOCK, n), ("red", *RED_BLOCK, n))
+
+
+register(Experiment(
+    id="III-1", title="Sexual reproduction: steady population and evolution (Figs III-1, III-2)",
+    rules="({G1}, {M, S})", config=Config(**CH3_SEX), steps=2500, seeds=5))
+register(Experiment(
+    id="III-3", title="Small oscillations: fertility ends 10 years earlier (Fig III-3, p.64)",
+    rules="({G1}, {M, S})",
+    config=Config(**CH3_SEX, female_fertility_end=(30, 40), male_fertility_end=(40, 50)),
+    steps=2500, seeds=5))
+register(Experiment(
+    id="III-4", title="Large oscillations: reproduction needs 10-40 sugar (Fig III-4, p.65)",
+    rules="({G1}, {M, S})", config=Config(**{**CH3_SEX, "endowment": (10, 40)}), steps=2500, seeds=5))
+register(Experiment(
+    id="III-5", title="Extinction: both changes combined (Fig III-5, p.66)",
+    rules="({G1}, {M, S})",
+    config=Config(**{**CH3_SEX, "endowment": (10, 40)}, female_fertility_end=(30, 40), male_fertility_end=(40, 50)),
+    steps=1500, seeds=10))
+register(Experiment(
+    id="III-7", title="Inheritance retards selection, raises inequality (Fig III-7, p.67)",
+    rules="({G1}, {M, S, I})", config=Config(**CH3_SEX, inheritance=True), steps=1000, seeds=5))
+register(Experiment(
+    id="III-8", title="Cultural transmission: tribes converge (Animation III-6, Fig III-8, p.74)",
+    rules="({G1}, {M, K})", config=Config(tag_length=TAGS, culture=True, endowment=CH2_ENDOWMENT),
+    steps=3000, seeds=5))
+register(Experiment(
+    id="III-9", title="Combat, reward = victim's wealth (Animations III-9, III-10, p.83)",
+    rules="({G1}, {C_inf})",
+    config=Config(tag_length=TAGS, combat_alpha=math.inf, endowment=CH2_ENDOWMENT, initial_blocks=_blocks(270)),
+    steps=1000, seeds=10))
+register(Experiment(
+    id="III-11", title="Combat C2 with same-tribe replacement: war of attrition (Animation III-11, p.86)",
+    rules="({G1}, {C2, R[60,100]})",
+    config=Config(tag_length=TAGS, combat_alpha=2, endowment=CH2_ENDOWMENT, max_age=(60, 100), replacement=True,
+                  replacement_same_tribe=True, initial_blocks=_blocks(200)),
+    steps=1000, seeds=5))
+register(Experiment(
+    id="III-12", title="Colliding waves, no combat (Animation III-12, p.86)",
+    rules="({G1}, {M})",
+    config=Config(tag_length=TAGS, vision=(1, 10), endowment=CH2_ENDOWMENT, initial_blocks=_blocks(370)),
+    steps=200, seeds=5))
+register(Experiment(
+    id="III-13", title="Combat C2 suppresses the waves (Animation III-13, p.86)",
+    rules="({G1}, {C2})",
+    config=Config(tag_length=TAGS, vision=(1, 10), combat_alpha=2, endowment=CH2_ENDOWMENT,
+                  initial_blocks=_blocks(370)),
+    steps=200, seeds=5))
+register(Experiment(
+    id="III-14", title="Combat and assimilation (Animation III-14, p.90)",
+    rules="({G1}, {C_inf, K})",
+    config=Config(tag_length=TAGS, combat_alpha=math.inf, culture=True, endowment=CH2_ENDOWMENT,
+                  initial_blocks=_blocks(270)),
+    steps=1000, seeds=10))
+register(Experiment(
+    id="III-15", title="Proto-history (Animation III-15, p.92)",
+    rules="({G1}, {M, S, K})",
+    # "A small, low density, primordial soup": 100 agents (our call).
+    config=Config(**CH3_SEX, initial_population=100, tag_length=TAGS, culture=True),
+    steps=1000, seeds=20))
