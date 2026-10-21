@@ -1,0 +1,57 @@
+"""Agent sex rule S (pp.55-57, App. B p.183)."""
+
+from sugarscape.rules.culture import cross_tags
+
+VON_NEUMANN = ((1, 0), (-1, 0), (0, 1), (0, -1))
+
+
+def is_fertile(agent) -> bool:
+    """Of childbearing age and holding at least the sugar it was endowed with at birth (p.55)."""
+    return (
+        agent.alive
+        and agent.sex is not None
+        and agent.fertility_start <= agent.age < agent.fertility_end
+        and agent.sugar >= agent.initial_sugar
+    )
+
+
+def _empty_sites(model, agent) -> list[tuple[int, int]]:
+    sites = (model.landscape.wrap(agent.x + dx, agent.y + dy) for dx, dy in VON_NEUMANN)
+    return [s for s in sites if model.agent_at(*s) is None]
+
+
+def mate(model, agent) -> list:
+    """Rule S: for each neighbor, in random order: if of the opposite sex, both fertile, and an
+    empty site exists next to either parent, a child is born there (p.56).
+
+    Each parent gives half of its own initial endowment (p.55). The child takes vision, metabolism,
+    and maximum age each from a random parent (Table III-1) and crossed tags (p.78); its sex is a
+    coin flip and its childbearing ages are drawn for its sex (our call). Placement among the empty
+    sites is uniformly random (our call).
+    """
+    rng = model.rng
+    children = []
+    neighbors = model.neighbors_of(agent)
+    for i in rng.permutation(len(neighbors)):
+        other = neighbors[int(i)]
+        if other.sex is None or other.sex == agent.sex or not (is_fertile(agent) and is_fertile(other)):
+            continue
+        sites = list(dict.fromkeys(_empty_sites(model, agent) + _empty_sites(model, other)))
+        if not sites:
+            continue
+        x, y = sites[int(rng.integers(len(sites)))]
+        parents = (agent, other)
+        vision = parents[int(rng.integers(2))].vision
+        metabolism = parents[int(rng.integers(2))].metabolism
+        max_age = parents[int(rng.integers(2))].max_age
+        endowment = agent.initial_sugar / 2 + other.initial_sugar / 2
+        agent.sugar -= agent.initial_sugar / 2
+        other.sugar -= other.initial_sugar / 2
+        child = model.new_agent(x, y, vision, metabolism, endowment, max_age)
+        model._assign_sex(child, "F" if rng.integers(2) == 0 else "M")
+        if agent.tags is not None and other.tags is not None:
+            child.tags = cross_tags(rng, agent.tags, other.tags)
+        agent.children.append(child)
+        other.children.append(child)
+        children.append(child)
+    return children
