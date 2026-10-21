@@ -9,7 +9,7 @@ from sugarscape.agent import Agent
 from sugarscape.config import Config
 from sugarscape.landscape import Landscape
 from sugarscape.maps import load_map
-from sugarscape.rules import movement, sex
+from sugarscape.rules import combat, culture, movement, sex
 from sugarscape.rules.culture import random_tags
 
 VON_NEUMANN = ((1, 0), (-1, 0), (0, 1), (0, -1))
@@ -130,13 +130,19 @@ class Model:
         for agent in order:
             if not agent.alive:
                 continue
-            movement.move(self, agent)
+            if cfg.combat_alpha is not None:
+                combat.combat_move(self, agent)
+            else:
+                movement.move(self, agent)
             movement.metabolize(self, agent)
             if not agent.alive:
                 continue
             agent.neighbors = self.neighbors_of(agent)
             if cfg.sex:
                 sex.mate(self, agent)
+            if cfg.culture:
+                culture.transmit(self, agent)
+                culture.update_friends(agent, agent.neighbors)
 
         # End of period: aging and old-age death, replacement, then the environment.
         for agent in self.agents:
