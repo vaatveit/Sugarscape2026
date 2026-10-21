@@ -63,4 +63,4 @@ def metabolize(model, agent) -> None:
         _, beta = model.config.pollution
         model.landscape.pollution[agent.x, agent.y] += beta * agent.metabolism  # consumption (p.47)
     if agent.sugar <= 0:
-        model.kill(agent)
+        model.die(agent)

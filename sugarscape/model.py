@@ -1,7 +1,7 @@
 """The model: agents on a landscape, advanced one period at a time by `step()`."""
 
 import math
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 
 import numpy as np
 
@@ -10,6 +10,7 @@ from sugarscape.config import Config
 from sugarscape.landscape import Landscape
 from sugarscape.maps import load_map
 from sugarscape.rules import movement
+from sugarscape.rules.culture import random_tags
 
 VON_NEUMANN = ((1, 0), (-1, 0), (0, 1), (0, -1))
 
@@ -26,7 +27,7 @@ class Model:
         self._grid: list[list[Agent | None]] = [[None] * config.height for _ in range(config.width)]
         self.agents: list[Agent] = []
         self.t = 0
-        self.deaths_this_step = 0
+        self.dead_this_step: list[Agent] = []
         self._next_id = 0
         self._place_initial_population()
 
@@ -73,12 +74,15 @@ class Model:
         self.agents.append(agent)
         return agent
 
-    def spawn_random_agent(self) -> Agent:
-        """A new agent with random genetics, endowment, and max age at a random empty site (R, p.32)."""
+    def spawn_random_agent(self, tribe: str | None = None) -> Agent:
+        """A new agent with random genetics, endowment, and max age at a random empty site (R, p.32).
+
+        With a tribe, its random tags are drawn to belong to that tribe (same-tribe R, p.86).
+        """
         site = self.random_empty_site()
         if site is None:
             raise ValueError("no empty site for a new agent: the lattice is full")
-        return self._spawn_at(*site)
+        return self._spawn_at(*site, tribe=tribe)
 
     def move_agent(self, agent: Agent, x: int, y: int) -> None:
         x, y = self.landscape.wrap(x, y)
@@ -94,14 +98,30 @@ class Model:
         agent.alive = False
         self._grid[agent.x][agent.y] = None
         self.agents.remove(agent)
-        self.deaths_this_step += 1
+        self.dead_this_step.append(agent)
+
+    @property
+    def deaths_this_step(self) -> int:
+        return len(self.dead_this_step)
+
+    def die(self, agent: Agent, excluded_heirs: Collection[Agent] = ()) -> None:
+        """Every death goes through here: inheritance I (p.67) when enabled, then removal.
+
+        The positive part of the agent's wealth is split equally among its living children,
+        skipping `excluded_heirs` (agents dying in the same batch; Kehoe's reading).
+        """
+        if self.config.inheritance and agent.sugar > 0:
+            heirs = [c for c in agent.children if c.alive and c not in excluded_heirs]
+            for heir in heirs:
+                heir.sugar += agent.sugar / len(heirs)
+        self.kill(agent)
 
     # --- time ----------------------------------------------------------------------------
 
     def step(self) -> None:
         """One period, in the order fixed by the design (docs/superpowers/specs, Scheduling)."""
         cfg = self.config
-        self.deaths_this_step = 0
+        self.dead_this_step = []
         for agent in self.agents:
             agent.moved = False
 
@@ -116,13 +136,14 @@ class Model:
                 agent.neighbors = self.neighbors_of(agent)
 
         # End of period: aging and old-age death, replacement, then the environment.
-        for agent in list(self.agents):
+        for agent in self.agents:
             agent.age += 1
-            if agent.age >= agent.max_age:
-                self.kill(agent)
+        dying = [a for a in self.agents if a.age >= a.max_age]
+        for agent in dying:
+            self.die(agent, excluded_heirs=dying)
         if cfg.replacement:
-            for _ in range(self.deaths_this_step):
-                self.spawn_random_agent()
+            for dead in list(self.dead_this_step):
+                self.spawn_random_agent(dead.tribe if cfg.replacement_same_tribe else None)
 
         if cfg.seasons is not None:
             beta, gamma = cfg.seasons
@@ -149,6 +170,14 @@ class Model:
 
     def _place_initial_population(self) -> None:
         cfg = self.config
+        if cfg.initial_blocks:
+            for tribe, x0, y0, w, h, n in cfg.initial_blocks:
+                sites = [(x0 + i, y0 + j) for i in range(w) for j in range(h) if self._grid[x0 + i][y0 + j] is None]
+                if n > len(sites):
+                    raise ValueError(f"{n} {tribe} agents do not fit in {len(sites)} empty block sites")
+                for i in self.rng.choice(len(sites), size=n, replace=False):
+                    self._spawn_at(*sites[int(i)], tribe=tribe)
+            return
         if cfg.placement == "block":
             x0, y0, w, h = cfg.block
             sites = [self.landscape.wrap(x0 + i, y0 + j) for i in range(w) for j in range(h)]
@@ -164,10 +193,23 @@ class Model:
     def _draw(self, bounds: tuple[int, int]) -> int:
         return int(self.rng.integers(bounds[0], bounds[1], endpoint=True))
 
-    def _spawn_at(self, x: int, y: int) -> Agent:
+    def _spawn_at(self, x: int, y: int, tribe: str | None = None) -> Agent:
         cfg = self.config
         vision = self._draw(cfg.vision)
         metabolism = self._draw(cfg.metabolism)
         sugar = self._draw(cfg.endowment)
         max_age = self._draw(cfg.max_age) if cfg.max_age is not None else math.inf
-        return self.new_agent(x, y, vision, metabolism, sugar, max_age)
+        agent = self.new_agent(x, y, vision, metabolism, sugar, max_age)
+        # Chapter III draws come after the Chapter II ones so Chapter II streams are unchanged.
+        if cfg.tag_length:
+            agent.tags = random_tags(self.rng, cfg.tag_length, tribe)
+        if cfg.sex:
+            self._assign_sex(agent, "F" if self.rng.integers(2) == 0 else "M")
+        return agent
+
+    def _assign_sex(self, agent: Agent, sex: str) -> None:
+        """Sex and childbearing ages, each a random value in the stated range (p.57 fn 4)."""
+        cfg = self.config
+        agent.sex = sex
+        agent.fertility_start = self._draw(cfg.fertility_start)
+        agent.fertility_end = self._draw(cfg.female_fertility_end if sex == "F" else cfg.male_fertility_end)
