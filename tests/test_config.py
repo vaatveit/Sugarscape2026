@@ -51,3 +51,22 @@ def test_invalid_values_rejected_early(bad):
 
 def test_winter_growback_defaults_to_fractional():  # design: "winter growback is fractional"
     assert Config().winter_growback == "fractional"
+
+
+def test_chapter3_defaults_are_off():
+    c = Config()
+    assert not (c.sex or c.inheritance or c.culture) and c.combat_alpha is None and c.tag_length == 0
+
+
+@pytest.mark.parametrize("bad", [
+    {"tag_length": 10}, {"tag_length": -1}, {"culture": True}, {"combat_alpha": 2.0},
+    {"tag_length": 11, "combat_alpha": -1.0}, {"female_fertility_end": (50, 40)},
+    {"tag_length": 11, "initial_blocks": (("green", 0, 0, 5, 5, 10),)},
+    {"tag_length": 11, "initial_blocks": (("blue", 0, 0, 5, 5, 26),)},
+    {"tag_length": 11, "initial_blocks": (("blue", 48, 0, 5, 5, 10),)},
+    {"initial_blocks": (("blue", 0, 0, 5, 5, 10),)},
+    {"replacement_same_tribe": True, "max_age": (60, 100)},
+])
+def test_chapter3_invalid_values_rejected(bad):
+    with pytest.raises(ValueError):
+        Config(**bad)

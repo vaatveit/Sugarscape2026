@@ -79,3 +79,10 @@ def test_model_uses_configured_winter_mode(mode, expected):
     m.landscape.sugar[:] = 0
     m.step(); m.step()                   # t=0,1: north summer, south winter
     assert m.landscape.sugar[0, 0] == expected and m.landscape.sugar[0, 3] == 2.0
+
+
+def test_chapter2_stream_unchanged_by_chapter3_fields():
+    from experiments.run import run_seed
+    s = run_seed("II-4", 0)
+    assert (s[100]["population"], s[100]["mean_vision"], s[500]["gini"]) == (
+        246.0, 3.6341463414634148, 0.3975282613501283)

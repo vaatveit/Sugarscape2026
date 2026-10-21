@@ -8,6 +8,7 @@ from dataclasses import dataclass
 
 PLACEMENTS = ("random", "block")
 WINTER_MODES = ("fractional", "pulse")
+TRIBES = ("blue", "red")
 
 
 @dataclass(frozen=True)
@@ -40,6 +41,20 @@ class Config:
     diffusion_period: int | None = None  # alpha of D_alpha (p.48)
     diffusion_start: int = 0
 
+    # Chapter III. Every new random draw is gated by one of these, so Chapter II runs keep
+    # their exact random streams.
+    sex: bool = False  # rule S (p.56)
+    fertility_start: tuple[int, int] = (12, 15)  # p.57, both sexes
+    female_fertility_end: tuple[int, int] = (40, 50)  # p.57
+    male_fertility_end: tuple[int, int] = (50, 60)  # p.57
+    inheritance: bool = False  # rule I (p.67)
+    tag_length: int = 0  # 0 = no cultural tags; K needs an odd length (p.72-73; 11 standard)
+    culture: bool = False  # rule K: tag flipping + group membership (p.73)
+    combat_alpha: float | None = None  # None = movement M; math.inf = C_inf (p.83)
+    # (tribe "blue"|"red", x0, y0, w, h, n); non-empty replaces placement/initial_population
+    initial_blocks: tuple[tuple[str, int, int, int, int, int], ...] = ()
+    replacement_same_tribe: bool = False  # R with newcomers of the dead agent's tribe (p.86)
+
     seed: int = 0
 
     def __post_init__(self) -> None:
@@ -71,5 +86,24 @@ class Config:
         if self.pollution is not None and min(self.pollution) < 0:
             raise ValueError(f"pollution coefficients must be >= 0, not {self.pollution}")
         _, _, w, h = self.block
+        for name in ("fertility_start", "female_fertility_end", "male_fertility_end"):
+            rng = getattr(self, name)
+            if rng[0] > rng[1]:
+                raise ValueError(f"{name} range {rng} has low > high")
+        if self.tag_length < 0 or (self.tag_length and self.tag_length % 2 == 0):
+            raise ValueError(f"tag_length must be 0 or odd (so groups have a majority), not {self.tag_length}")
+        if self.tag_length == 0 and (self.culture or self.combat_alpha is not None or self.initial_blocks):
+            raise ValueError("culture, combat, and tribal blocks need cultural tags (tag_length > 0)")
+        if self.combat_alpha is not None and self.combat_alpha < 0:
+            raise ValueError(f"combat_alpha must be >= 0, not {self.combat_alpha}")
+        for tribe, x0, y0, bw, bh, n in self.initial_blocks:
+            if tribe not in TRIBES:
+                raise ValueError(f"block tribe must be one of {TRIBES}, not {tribe!r}")
+            if not (0 <= x0 and 0 <= y0 and x0 + bw <= self.width and y0 + bh <= self.height and bw >= 1 and bh >= 1):
+                raise ValueError(f"block {(tribe, x0, y0, bw, bh, n)} must lie inside the {self.width}x{self.height} grid")
+            if not 0 <= n <= bw * bh:
+                raise ValueError(f"block {(tribe, x0, y0, bw, bh, n)} cannot hold {n} agents")
+        if self.replacement_same_tribe and not self.replacement:
+            raise ValueError("replacement_same_tribe needs replacement=True")
         if self.placement == "block" and not (1 <= w <= self.width and 1 <= h <= self.height):
             raise ValueError(f"block {self.block} must have 1 <= w <= {self.width} and 1 <= h <= {self.height}")
