@@ -71,3 +71,11 @@ def test_step_regrows_sites_at_end_of_period():
     m.landscape.sugar[:] = 0
     m.step()
     assert m.landscape.sugar.max() == 1.0 and m.t == 1
+
+
+@pytest.mark.parametrize("mode, expected", [("fractional", 0.25), ("pulse", 1.0)])
+def test_model_uses_configured_winter_mode(mode, expected):
+    m = tiny_model(np.full((3, 4), 4), seasons=(8, 50), winter_growback=mode)
+    m.landscape.sugar[:] = 0
+    m.step(); m.step()                   # t=0,1: north summer, south winter
+    assert m.landscape.sugar[0, 0] == expected and m.landscape.sugar[0, 3] == 2.0

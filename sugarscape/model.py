@@ -126,10 +126,14 @@ class Model:
 
         if cfg.seasons is not None:
             beta, gamma = cfg.seasons
-            self.landscape.seasonal_growback(self.t, cfg.growback_rate, beta, gamma)
+            self.landscape.seasonal_growback(self.t, cfg.growback_rate, beta, gamma, cfg.winter_growback)
         else:
             self.landscape.growback(cfg.growback_rate)
-        if cfg.diffusion_period and self.t >= cfg.diffusion_start and self.t % cfg.diffusion_period == 0:
+        if (
+            cfg.diffusion_period is not None
+            and self.t >= cfg.diffusion_start
+            and self.t % cfg.diffusion_period == 0
+        ):
             self.landscape.diffuse()
         self.t += 1
 

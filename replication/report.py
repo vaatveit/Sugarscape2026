@@ -11,7 +11,7 @@ from pathlib import Path
 import numpy as np
 
 from experiments.registry import EXPERIMENTS
-from experiments.run import load_results, run_experiment
+from experiments.run import load_results, results_current, run_experiment
 from replication.targets import TARGETS, Series, Target
 
 
@@ -22,13 +22,21 @@ class Result:
     observed_min: float
     observed_max: float
     status: str  # "pass" | "near" | "fail"
+    n_valid: int = 0  # seeds whose statistic is a number
+    n_runs: int = 0
 
 
 def evaluate(target: Target, runs: list[Series]) -> Result:
-    """pass: mean within [low, high]; near: within the band widened by half its width each side."""
+    """pass: mean within [low, high]; near: within the band widened by half its width each side.
+
+    Seeds whose statistic is nan (e.g. extinct at the sampled time) cannot pass: any nan seed caps
+    the status at "near", and fewer than half valid seeds is a "fail".
+    """
     values = [v for v in (target.statistic(s) for s in runs) if not math.isnan(v)]
-    if not values:
-        return Result(target, math.nan, math.nan, math.nan, "fail")
+    n_valid, n_runs = len(values), len(runs)
+    if n_valid == 0 or n_valid * 2 < n_runs:
+        stats = (float(np.mean(values)), float(min(values)), float(max(values))) if values else (math.nan,) * 3
+        return Result(target, *stats, "fail", n_valid, n_runs)
     mean = float(np.mean(values))
     half = (target.high - target.low) / 2
     if target.low <= mean <= target.high:
@@ -37,7 +45,9 @@ def evaluate(target: Target, runs: list[Series]) -> Result:
         status = "near"
     else:
         status = "fail"
-    return Result(target, mean, float(min(values)), float(max(values)), status)
+    if status == "pass" and n_valid < n_runs:
+        status = "near"
+    return Result(target, mean, float(min(values)), float(max(values)), status, n_valid, n_runs)
 
 
 def _fmt(v: float | None) -> str:
@@ -52,8 +62,8 @@ def write_report(results: list[Result], path: Path) -> None:
         f"{sum(r.status == 'near' for r in results)} near, "
         f"{sum(r.status == 'fail' for r in results)} fail, of {len(results)} targets.",
         "",
-        "| Experiment | Target | Source | Book | Band | Observed mean [min–max] | Status |",
-        "|---|---|---|---|---|---|---|",
+        "| Experiment | Target | Source | Book | Band | Observed mean [min–max] | Seeds | Status |",
+        "|---|---|---|---|---|---|---|---|",
     ]
     for r in results:
         t = r.target
@@ -61,18 +71,16 @@ def write_report(results: list[Result], path: Path) -> None:
         observed = f"{_fmt(r.observed_mean)} [{_fmt(r.observed_min)}–{_fmt(r.observed_max)}]"
         lines.append(
             f"| {t.experiment} | {name} | {t.source} | {_fmt(t.book_value)} | "
-            f"{_fmt(t.low)}–{_fmt(t.high)} | {observed} | {r.status} |"
+            f"{_fmt(t.low)}–{_fmt(t.high)} | {observed} | {r.n_valid}/{r.n_runs} | {r.status} |"
         )
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     Path(path).write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def load_or_run(exp_id: str, out_dir: Path = Path("results"), jobs: int = 1, rerun: bool = False) -> list[Series]:
-    """Saved results when every seed's CSV exists, else a fresh run."""
-    if not rerun:
-        runs = load_results(exp_id, out_dir)
-        if len(runs) >= EXPERIMENTS[exp_id].seeds:
-            return runs
+    """Saved results when they were produced by the experiment's current settings, else a fresh run."""
+    if not rerun and results_current(exp_id, out_dir):
+        return load_results(exp_id, out_dir)
     return run_experiment(exp_id, jobs=jobs, out_dir=out_dir)
 
 

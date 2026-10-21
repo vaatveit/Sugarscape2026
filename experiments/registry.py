@@ -100,8 +100,18 @@ register(Experiment(
     id="II-6",
     title="Diagonal waves of migrators from a block start (Animation II-6, p.43)",
     rules="({G1}, {M})",
-    # Block measured from Animation II-6 frame 1: 20 columns x 19 rows at the SW corner holding
-    # ~284 agents (75% density), not 400 packed solid.
+    # p.42: "In all other respects the agents and sugarscape are exactly as in animation II-2",
+    # so 400 agents; the 20x20 SW block is our reading of frame 1.
+    config=Config(vision=(1, 10), placement="block", block=(0, 0, 20, 20), endowment=CH2_ENDOWMENT),
+    steps=300,
+    seeds=5,
+))
+
+register(Experiment(
+    id="II-6-measured",
+    title="II-6 with the block measured from Animation II-6 frame 1 (variant)",
+    rules="({G1}, {M})",
+    # Blob count of frame 1: 20 columns x 19 rows at the SW corner holding ~284 agents (75%).
     config=Config(vision=(1, 10), placement="block", block=(0, 0, 20, 19), initial_population=284,
                   endowment=CH2_ENDOWMENT),
     steps=300,

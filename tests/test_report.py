@@ -57,3 +57,22 @@ def test_report_lists_every_target(tmp_path):
     write_report([evaluate(t, [SERIES])], tmp_path / "R.md")
     text = (tmp_path / "R.md").read_text(encoding="utf-8")
     assert "pop" in text and "pass" in text and "(proxy)" in text
+
+
+def test_ratio_of_windows_nan_when_reference_extinct():  # Review Focus 1 at the report layer
+    s = [{"t": 0, "population": 0.0}, {"t": 1, "population": 0.0}]
+    assert math.isnan(ratio_of_windows("population", (1, 1), (0, 0))(s))
+
+
+def test_nan_seed_downgrades_pass_and_is_counted():
+    dead = [{"t": 5, "population": math.nan}]
+    t = Target("X", "pop", 395, 390, 400, value_at("population", 5), "test")
+    r = evaluate(t, [SERIES, dead])
+    assert (r.status, r.n_valid, r.n_runs) == ("near", 1, 2)
+    assert evaluate(t, [SERIES, dead, dead]).status == "fail"  # fewer than half valid
+
+
+def test_report_shows_valid_seed_count(tmp_path):
+    t = Target("X", "pop", 395, 390, 400, value_at("population", 5), "test")
+    write_report([evaluate(t, [SERIES, [{"t": 5, "population": math.nan}]])], tmp_path / "R.md")
+    assert "1/2" in (tmp_path / "R.md").read_text(encoding="utf-8")

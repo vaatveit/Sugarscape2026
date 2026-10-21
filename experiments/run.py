@@ -26,6 +26,24 @@ def result_dir(exp_id: str, out_dir: Path) -> Path:
     return Path(out_dir) / exp_id.replace("/", "_")
 
 
+def fingerprint(exp_id: str) -> str:
+    """The settings that produced an experiment's results (rules, Config, steps).
+
+    Covers settings, not code: after a model change, re-run with --rerun.
+    """
+    exp = EXPERIMENTS[exp_id]
+    return f"{exp.rules}\nsteps={exp.steps}\n{exp.config!r}\n"
+
+
+def results_current(exp_id: str, out_dir: Path = Path("results")) -> bool:
+    """True when saved results exist for every seed and match the experiment's current settings."""
+    folder = result_dir(exp_id, out_dir)
+    fp = folder / "fingerprint.txt"
+    if not fp.exists() or fp.read_text(encoding="utf-8") != fingerprint(exp_id):
+        return False
+    return len(list(folder.glob("seed*.csv"))) >= EXPERIMENTS[exp_id].seeds
+
+
 def run_seed(exp_id: str, seed_index: int) -> Series:
     exp = EXPERIMENTS[exp_id]
     model = Model(replace(exp.config, seed=exp.config.seed + seed_index))
@@ -45,8 +63,11 @@ def run_experiment(
         runs = [run_seed(exp_id, k) for k in range(n)]
     folder = result_dir(exp_id, out_dir)
     folder.mkdir(parents=True, exist_ok=True)
+    for old in folder.glob("seed*.csv"):
+        old.unlink()
     for k, series in enumerate(runs):
         _write_csv(folder / f"seed{k}.csv", series)
+    (folder / "fingerprint.txt").write_text(fingerprint(exp_id), encoding="utf-8")
     _plot(exp_id, runs, folder / "summary.png")
     return runs
 

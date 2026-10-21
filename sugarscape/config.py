@@ -7,6 +7,7 @@ gaps the book leaves open; see docs/book-notes.md.
 from dataclasses import dataclass
 
 PLACEMENTS = ("random", "block")
+WINTER_MODES = ("fractional", "pulse")
 
 
 @dataclass(frozen=True)
@@ -31,6 +32,9 @@ class Config:
     # Environment.
     growback_rate: float = 1.0  # alpha in G_alpha (p.23); math.inf = G_inf (p.26)
     seasons: tuple[int, int] | None = None  # (beta, gamma) of S_alpha,beta,gamma (p.44)
+    # Winter grows "alpha units per beta time intervals" (p.44). "fractional" adds alpha/beta
+    # every period (design spec); "pulse" adds alpha on periods with t % beta == 0.
+    winter_growback: str = "fractional"
     pollution: tuple[float, float] | None = None  # (alpha, beta) of P_alpha,beta (p.47)
     pollution_start: int = 0
     diffusion_period: int | None = None  # alpha of D_alpha (p.48)
@@ -54,3 +58,18 @@ class Config:
             raise ValueError("replacement R[a,b] needs a max_age range [a, b]")
         if self.placement not in PLACEMENTS:
             raise ValueError(f"placement must be one of {PLACEMENTS}, not {self.placement!r}")
+        if self.winter_growback not in WINTER_MODES:
+            raise ValueError(f"winter_growback must be one of {WINTER_MODES}, not {self.winter_growback!r}")
+        if self.initial_population < 0:
+            raise ValueError(f"initial_population must be >= 0, not {self.initial_population}")
+        if self.growback_rate < 0:
+            raise ValueError(f"growback_rate must be >= 0, not {self.growback_rate}")
+        if self.seasons is not None and min(self.seasons) < 1:
+            raise ValueError(f"seasons (beta, gamma) must both be >= 1, not {self.seasons}")
+        if self.diffusion_period is not None and self.diffusion_period < 1:
+            raise ValueError(f"diffusion_period must be None or >= 1, not {self.diffusion_period}")
+        if self.pollution is not None and min(self.pollution) < 0:
+            raise ValueError(f"pollution coefficients must be >= 0, not {self.pollution}")
+        _, _, w, h = self.block
+        if self.placement == "block" and not (1 <= w <= self.width and 1 <= h <= self.height):
+            raise ValueError(f"block {self.block} must have 1 <= w <= {self.width} and 1 <= h <= {self.height}")

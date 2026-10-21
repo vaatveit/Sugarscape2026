@@ -45,8 +45,13 @@ def value_at(metric: str, t: int) -> Statistic:
 
 
 def ratio_of_windows(metric: str, a: tuple[int, int], b: tuple[int, int]) -> Statistic:
-    """mean(metric over window a) / mean(metric over window b)."""
-    return lambda series: window_mean(metric, *a)(series) / window_mean(metric, *b)(series)
+    """mean(metric over window a) / mean(metric over window b); nan if b's mean is 0 or nan."""
+
+    def stat(series: Series) -> float:
+        num, den = window_mean(metric, *a)(series), window_mean(metric, *b)(series)
+        return math.nan if den == 0 or math.isnan(den) else num / den
+
+    return stat
 
 
 def seasonal_amplitude(metric: str, start: int, gamma: int, settle: int) -> Statistic:
@@ -82,6 +87,8 @@ TARGETS += [
     Target("II-4-gini", "long-run Gini", 0.503, 0.45, 0.56, window_mean("gini", 300, 500),
            "Anim II-4, p.37"),
     Target("II-6", "wave reaches NE peak", None, 0.15, 1.0, value_at("ne_fraction", 200),
+           "Anim II-6, p.43", proxy=True),
+    Target("II-6-measured", "wave reaches NE peak", None, 0.15, 1.0, value_at("ne_fraction", 200),
            "Anim II-6, p.43", proxy=True),
     Target("II-7", "high-vision agents migrate", None, 0.3, 1.0,
            seasonal_amplitude("north_frac_high_vision", 100, 50, 10), "Anim II-7, p.45", proxy=True),

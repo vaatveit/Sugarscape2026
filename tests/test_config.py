@@ -36,3 +36,18 @@ def test_unknown_placement_rejected():
 def test_config_is_frozen():
     with pytest.raises(dataclasses.FrozenInstanceError):
         Config().seed = 3
+
+
+@pytest.mark.parametrize("bad", [
+    {"seasons": (8, 0)}, {"seasons": (0, 50)}, {"diffusion_period": 0}, {"growback_rate": -1.0},
+    {"initial_population": -1}, {"pollution": (-1.0, 1.0)},
+    {"placement": "block", "block": (0, 0, 60, 60)}, {"placement": "block", "block": (0, 0, 0, 5)},
+    {"winter_growback": "sometimes"},
+])
+def test_invalid_values_rejected_early(bad):
+    with pytest.raises(ValueError):
+        Config(**bad)
+
+
+def test_winter_growback_defaults_to_fractional():  # design: "winter growback is fractional"
+    assert Config().winter_growback == "fractional"

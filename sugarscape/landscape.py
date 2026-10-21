@@ -24,16 +24,22 @@ class Landscape:
         """p.44 fn 33: the top half is in summer while (t mod 2*gamma) / gamma < 1."""
         return (t % (2 * gamma)) < gamma
 
-    def seasonal_growback(self, t: int, alpha: float, beta: int, gamma: int) -> None:
+    def seasonal_growback(
+        self, t: int, alpha: float, beta: int, gamma: int, winter: str = "fractional"
+    ) -> None:
         """S_alpha,beta,gamma (p.44): summer grows alpha per period; winter alpha per beta periods.
 
-        Winter is read literally: alpha is added on periods where t % beta == 0 (our call;
-        the alternative is alpha/beta every period).
+        winter="fractional" adds alpha/beta each period (design spec); "pulse" adds alpha on
+        periods where t % beta == 0.
         """
         north = np.zeros(self.capacity.shape, dtype=bool)
         north[:, self.height // 2 :] = True
         summer = north if self.is_summer_north(t, gamma) else ~north
-        rate = np.where(summer, alpha, alpha if t % beta == 0 else 0.0)
+        if winter == "fractional":
+            winter_rate = alpha / beta
+        else:
+            winter_rate = alpha if t % beta == 0 else 0.0
+        rate = np.where(summer, alpha, winter_rate)
         np.minimum(self.sugar + rate, self.capacity, out=self.sugar)
 
     def diffuse(self) -> None:

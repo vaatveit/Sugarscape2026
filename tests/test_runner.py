@@ -1,5 +1,6 @@
 from experiments.registry import EXPERIMENTS
-from experiments.run import load_results, matching_ids, run_experiment
+from experiments.run import load_results, matching_ids, results_current, run_experiment
+from replication.report import load_or_run
 
 
 def test_same_seed_same_csv(tmp_path):
@@ -39,3 +40,13 @@ def test_id_matching_is_exact_or_slash_prefix():
 
 def test_tiny_experiment_registered():
     assert EXPERIMENTS["TEST-tiny"].steps == 5 and EXPERIMENTS["TEST-tiny"].seeds == 2
+
+
+def test_results_fingerprint_detects_changed_settings(tmp_path):
+    assert not results_current("TEST-tiny", tmp_path)              # nothing saved yet
+    run_experiment("TEST-tiny", out_dir=tmp_path)
+    assert results_current("TEST-tiny", tmp_path)
+    (tmp_path / "TEST-tiny" / "fingerprint.txt").write_text("stale settings")
+    assert not results_current("TEST-tiny", tmp_path)
+    load_or_run("TEST-tiny", out_dir=tmp_path)                    # reruns instead of reusing
+    assert results_current("TEST-tiny", tmp_path)

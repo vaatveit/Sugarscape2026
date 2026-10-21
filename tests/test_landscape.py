@@ -44,7 +44,7 @@ def test_winter_grows_alpha_every_beta_periods():
     ls = Landscape(cap)
     ls.sugar[:] = 0
     for t in range(8):  # t=0..7, north summer
-        ls.seasonal_growback(t, alpha=1, beta=8, gamma=50)
+        ls.seasonal_growback(t, alpha=1, beta=8, gamma=50, winter="pulse")
     assert ls.sugar[0, 1] == 4.0  # north: +1 per period, capped
     assert ls.sugar[0, 0] == 1.0  # south: +1 only at t=0
 
@@ -56,3 +56,10 @@ def test_diffusion_averages_von_neumann_neighbors_on_torus():
     assert ls.pollution[1, 1] == 0.0
     assert ls.pollution[0, 1] == ls.pollution[1, 0] == 1.0
     assert ls.pollution.sum() == pytest.approx(4.0)
+
+
+def test_winter_fractional_grows_alpha_over_beta_each_period():  # design: fractional winter
+    ls = Landscape(np.full((1, 2), 4))
+    ls.sugar[:] = 0
+    ls.seasonal_growback(0, alpha=1, beta=8, gamma=50)
+    assert ls.sugar[0, 0] == 0.125 and ls.sugar[0, 1] == 1.0

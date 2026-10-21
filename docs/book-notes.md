@@ -611,8 +611,8 @@ checklist of ambiguities and as a tiebreaker **only where the book is silent**.
 - **Default initial endowment is most likely U[25,50]** for the landscape runs (II-1, II-2, II-6...):
   only that range reproduces Fig II-4's curve shape (no deaths until t≈7, ≈255 at t≈48).
   The wealth run II-3 states 5–25 explicitly.
-- **Animation II-6 block**: 20×19 at the SW corner with ≈284 agents (measured from frame 1).
-- **Fig II-5**: the construction of "mean metabolism" populations is unknown; see
+- **Animation II-6 block**: the text implies 400 agents ("exactly as in II-2"); frame 1 shows a 20×19 block with ≈284 agents. Both are registered (II-6, II-6-measured).
+- **Fig II-5**: our t≈50 populations match all 18 points within ±5%; at t=500 the m2/m3 points run 10–20% low. See
   docs/replication/chapter-2.md for what was ruled out.
 
 ## Open questions / gaps to resolve before implementation
