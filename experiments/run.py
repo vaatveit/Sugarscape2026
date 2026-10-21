@@ -16,7 +16,7 @@ from matplotlib.figure import Figure
 
 from experiments.registry import EXPERIMENTS
 from sugarscape.model import Model
-from sugarscape.stats import standard_metrics
+from sugarscape.stats import society_metrics, standard_metrics
 
 Series = list[dict[str, float]]
 PLOTTED = ("population", "gini", "mean_vision", "mean_metabolism")
@@ -48,7 +48,10 @@ def run_seed(exp_id: str, seed_index: int) -> Series:
     exp = EXPERIMENTS[exp_id]
     model = Model(replace(exp.config, seed=exp.config.seed + seed_index))
     series: Series = []
-    model.run(exp.steps, observer=lambda m: series.append({"t": m.t, **standard_metrics(m)}))
+    model.run(
+        exp.steps,
+        observer=lambda m: series.append({"t": m.t, **standard_metrics(m), **society_metrics(m)}),
+    )
     return series
 
 

@@ -5,6 +5,8 @@ from collections.abc import Sequence
 
 import numpy as np
 
+from sugarscape.rules.culture import closeness
+
 
 def safe_mean(values: Sequence[float]) -> float:
     values = list(values)
@@ -63,4 +65,42 @@ def standard_metrics(model) -> dict[str, float]:
         "north_frac_high_vision": _fraction([a.y >= half_h for a in high]),
         "north_frac_low_vision": _fraction([a.y >= half_h for a in low]),
         "summer_north": summer_north,
+    }
+
+
+def society_metrics(model) -> dict[str, float]:
+    """Chapter III measurements: tribes (p.73), genealogy (p.68), and friends (p.79).
+
+    Sides of the anti-diagonal stand in for the two mountains: SW when x + y < width.
+    """
+    agents = model.agents
+    width = model.config.width
+    blue = [a for a in agents if a.tribe == "blue"]
+    red = [a for a in agents if a.tribe == "red"]
+    tagged = len(blue) + len(red)
+
+    def side(group, sw: bool) -> float:
+        return float(sum((a.x + a.y < width) == sw for a in group))
+
+    best, mean_close = [], []
+    for a in agents:
+        friends = [f for f, _ in a.friends if f.alive and f.tags is not None]
+        if a.tags is None or not friends:
+            continue
+        scores = [closeness(a.tags, f.tags) for f in friends]
+        best.append(max(scores))
+        mean_close.append(sum(scores) / len(scores))
+    return {
+        "n_blue": float(len(blue)),
+        "n_red": float(len(red)),
+        "blue_fraction": len(blue) / tagged if tagged else math.nan,
+        "sw_blue": side(blue, True),
+        "sw_red": side(red, True),
+        "ne_blue": side(blue, False),
+        "ne_red": side(red, False),
+        "blue_xy": safe_mean(a.x + a.y for a in blue),
+        "red_xy": safe_mean(a.x + a.y for a in red),
+        "mean_children": safe_mean(len(a.children) for a in agents) if agents else 0.0,
+        "best_friend_closeness": safe_mean(best),
+        "friend_closeness": safe_mean(mean_close),
     }
