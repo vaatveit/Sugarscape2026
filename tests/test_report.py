@@ -1,5 +1,7 @@
 import math
 
+import pytest
+
 from replication.report import evaluate, write_report
 from replication.targets import (
     Target,
@@ -76,3 +78,71 @@ def test_report_shows_valid_seed_count(tmp_path):
     t = Target("X", "pop", 395, 390, 400, value_at("population", 5), "test")
     write_report([evaluate(t, [SERIES, [{"t": 5, "population": math.nan}]])], tmp_path / "R.md")
     assert "1/2" in (tmp_path / "R.md").read_text(encoding="utf-8")
+
+
+from replication.targets import (  # noqa: E402  (Chapter III helpers)
+    both_persist,
+    centroid_shift,
+    dominant_period,
+    extinct_by,
+    relative_std,
+    tribal_outcome,
+    window_max,
+    window_min,
+    window_range,
+)
+
+
+def sine(period, n=2000, amp=300.0, base=600.0):
+    return [{"t": t, "population": base + amp * math.sin(2 * math.pi * t / period)} for t in range(n)]
+
+
+def test_dominant_period_finds_cycle():
+    assert abs(dominant_period("population", 0, 1999)(sine(125)) - 125) <= 1
+    assert abs(dominant_period("population", 0, 1999)(sine(200)) - 200) <= 1
+
+
+def test_dominant_period_flat_or_extinct_is_nan():  # Review Focus 5
+    flat = [{"t": t, "population": 0.0} for t in range(100)]
+    assert math.isnan(dominant_period("population", 0, 99)(flat))
+    rising = [{"t": t, "population": float(t)} for t in range(100)]
+    assert math.isnan(dominant_period("population", 0, 99)(rising))
+    assert math.isnan(dominant_period("population", 0, 99)([]))
+
+
+def test_window_extremes_and_relative_std():
+    s = sine(100, n=400)
+    assert window_min("population", 0, 399)(s) == pytest.approx(300, abs=1)
+    assert window_max("population", 0, 399)(s) == pytest.approx(900, abs=1)
+    assert window_range("population", 0, 399)(s) == pytest.approx(600, abs=1)
+    assert relative_std("population", 0, 399)(s) == pytest.approx(300 / math.sqrt(2) / 600, rel=0.02)
+    assert math.isnan(window_min("population", 500, 600)(s))
+
+
+def outcome_row(sb, sr, nb, nr):
+    return [{"t": 0, "sw_blue": sb, "sw_red": sr, "ne_blue": nb, "ne_red": nr, "n_blue": sb + nb, "n_red": sr + nr}]
+
+
+def test_tribal_outcomes():
+    assert tribal_outcome(0, "opposite")(outcome_row(100, 0, 0, 90)) == 1.0
+    assert tribal_outcome(0, "opposite")(outcome_row(100, 0, 90, 0)) == 0.0
+    assert tribal_outcome(0, "blue_both")(outcome_row(100, 2, 90, 0)) == 1.0
+    assert tribal_outcome(0, "red_both")(outcome_row(100, 2, 90, 0)) == 0.0
+    assert tribal_outcome(0, "three_patterns")(outcome_row(0, 50, 0, 40)) == 1.0
+    assert tribal_outcome(0, "three_patterns")(outcome_row(60, 40, 50, 50)) == 0.0
+    assert tribal_outcome(0, "pure_sides")(outcome_row(100, 0, 90, 0)) == 1.0
+    assert tribal_outcome(0, "pure_sides")(outcome_row(60, 40, 90, 0)) == 0.0
+    assert tribal_outcome(0, "opposite")(outcome_row(0, 0, 0, 0)) == 0.0  # extinct: no pattern
+
+
+def test_both_persist_and_extinct_by():
+    assert both_persist(0, 0.2)(outcome_row(30, 0, 0, 100)) == 1.0
+    assert both_persist(0, 0.3)(outcome_row(30, 0, 0, 100)) == 0.0
+    assert both_persist(0, 0.1)(outcome_row(0, 0, 0, 0)) == 0.0
+    assert extinct_by(1)([{"t": 0, "population": 5.0}, {"t": 1, "population": 0.0}]) == 1.0
+    assert extinct_by(1)([{"t": 0, "population": 5.0}, {"t": 1, "population": 2.0}]) == 0.0
+
+
+def test_centroid_shift():
+    s = [{"t": 0, "blue_xy": 20.0}, {"t": 50, "blue_xy": 35.0}]
+    assert centroid_shift("blue_xy", 0, 50)(s) == 15.0

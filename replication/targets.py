@@ -69,6 +69,134 @@ def seasonal_amplitude(metric: str, start: int, gamma: int, settle: int) -> Stat
     return stat
 
 
+
+# --- Chapter III: regimes and outcomes ----------------------------------------------------
+
+
+def _window(series: Series, metric: str, t0: int, t1: int) -> list[float]:
+    return [v for v in _values(series, metric, t0, t1) if not math.isnan(v)]
+
+
+def window_min(metric: str, t0: int, t1: int) -> Statistic:
+    return lambda series: float(min(w)) if (w := _window(series, metric, t0, t1)) else math.nan
+
+
+def window_max(metric: str, t0: int, t1: int) -> Statistic:
+    return lambda series: float(max(w)) if (w := _window(series, metric, t0, t1)) else math.nan
+
+
+def window_range(metric: str, t0: int, t1: int) -> Statistic:
+    return lambda series: float(max(w) - min(w)) if (w := _window(series, metric, t0, t1)) else math.nan
+
+
+def relative_std(metric: str, t0: int, t1: int) -> Statistic:
+    """Standard deviation / mean over the window (nan when empty or the mean is 0)."""
+
+    def stat(series: Series) -> float:
+        w = _window(series, metric, t0, t1)
+        if not w or np.mean(w) == 0:
+            return math.nan
+        return float(np.std(w) / np.mean(w))
+
+    return stat
+
+
+def dominant_period(metric: str, t0: int, t1: int) -> Statistic:
+    """Lag of the first positive autocorrelation peak after the autocorrelation first turns
+    negative; nan for flat, monotone, or too-short series (no oscillation)."""
+
+    def stat(series: Series) -> float:
+        x = np.asarray(_window(series, metric, t0, t1), dtype=float)
+        if len(x) < 4:
+            return math.nan
+        x = x - x.mean()
+        if not np.any(x):
+            return math.nan
+        n = len(x)
+        ac = np.correlate(x, x, "full")[n - 1 :]
+        ac = ac / ac[0]
+        negative = np.nonzero(ac < 0)[0]
+        if len(negative) == 0:
+            return math.nan
+        for j in range(int(negative[0]) + 1, n - 1):
+            if ac[j] > 0 and ac[j] >= ac[j - 1] and ac[j] >= ac[j + 1]:
+                return float(j)
+        return math.nan
+
+    return stat
+
+
+def _row_at(series: Series, t: int) -> dict[str, float] | None:
+    return next((row for row in series if row["t"] == t), None)
+
+
+def extinct_by(t: int) -> Statistic:
+    """1.0 if the population is 0 at t, else 0.0 (nan if t wasn't recorded)."""
+
+    def stat(series: Series) -> float:
+        row = _row_at(series, t)
+        return math.nan if row is None else float(row["population"] == 0)
+
+    return stat
+
+
+def _side(blue: float, red: float) -> tuple[str, float] | None:
+    total = blue + red
+    if total == 0:
+        return None
+    return ("blue", blue / total) if blue >= red else ("red", red / total)
+
+
+def tribal_outcome(t: int, kind: str, purity: float = 0.95) -> Statistic:
+    """Indicator of a tribal pattern at t, from the SW/NE side counts (p.83, p.92 fn 32).
+
+    "opposite": each side has a majority tribe with share >= purity, and they differ;
+    "blue_both"/"red_both": both sides are majority that tribe with share >= purity;
+    "three_patterns": one tribe extinct (the other alive), or "opposite";
+    "pure_sides": every non-empty side has majority share >= purity, any colors (p.74 fn 22).
+    """
+
+    def stat(series: Series) -> float:
+        row = _row_at(series, t)
+        if row is None:
+            return math.nan
+        sw = _side(row["sw_blue"], row["sw_red"])
+        ne = _side(row["ne_blue"], row["ne_red"])
+        both = sw is not None and ne is not None and sw[1] >= purity and ne[1] >= purity
+        if kind == "opposite":
+            return float(both and sw[0] != ne[0])
+        if kind in ("blue_both", "red_both"):
+            colour = kind.split("_")[0]
+            return float(both and sw[0] == ne[0] == colour)
+        if kind == "three_patterns":
+            one_left = (row["n_blue"] == 0) != (row["n_red"] == 0)
+            return float(one_left or (both and sw[0] != ne[0]))
+        if kind == "pure_sides":
+            sides = [s for s in (sw, ne) if s is not None]
+            return float(bool(sides) and all(share >= purity for _, share in sides))
+        raise ValueError(f"unknown tribal outcome {kind!r}")
+
+    return stat
+
+
+def both_persist(t: int, min_share: float) -> Statistic:
+    """1.0 if the smaller tribe holds at least min_share of tagged agents at t."""
+
+    def stat(series: Series) -> float:
+        row = _row_at(series, t)
+        if row is None:
+            return math.nan
+        total = row["n_blue"] + row["n_red"]
+        return float(total > 0 and min(row["n_blue"], row["n_red"]) / total >= min_share)
+
+    return stat
+
+
+def centroid_shift(metric: str, t0: int, t1: int) -> Statistic:
+    """value(t1) - value(t0), e.g. how far a tribe's mean x + y moved."""
+    return lambda series: value_at(metric, t1)(series) - value_at(metric, t0)(series)
+
+
 TARGETS: list[Target] = []
 
 
