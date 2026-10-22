@@ -38,6 +38,7 @@
 
 Run: `python -m replication.report --chapter II --rerun --jobs 8` on 2026-10-21 (branch feat/foundation-ch2, after the final-review fix pass).
 Re-run 2026-10-22 (branch feat/founder-ages) after founders with finite lives began at ages U[0, max age) (user decision; see the Chapter III record): only II-4-gini has finite lives; its long-run Gini moved from 0.478 to 0.477 (still a pass). Every other row is identical.
+Re-run 2026-10-22 (branch feat/threshold-default) after the default fertility threshold became 0.83 (user decision; see the Chapter III record): every row identical (no Chapter II run uses rule S).
 Seeds per experiment as registered (5 or 10). Fast suite 83 passed; `pytest -m slow`: 19 passed, 12 failed (the 12 "near" rows).
 
 ## Evidence-based parameter choices

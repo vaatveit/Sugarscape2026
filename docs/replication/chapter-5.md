@@ -13,6 +13,7 @@
 
 Run: `python -m replication.report --chapter V --jobs 8` on 2026-10-21 (branch feat/chapter-5). 10 seeds each, 500 periods.
 Fast suite 229 passed. Re-run after the final-review fix (E order: transmission, then immune response). Chapter II, III and IV regression runs on this branch: every row identical to their records.
+Re-run 2026-10-22 (branch feat/threshold-default) after the default fertility threshold became 0.83 (user decision; see the Chapter III record): every row identical (no Chapter V run uses rule S).
 
 ## Choices
 

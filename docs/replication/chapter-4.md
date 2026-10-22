@@ -1,6 +1,6 @@
 # Replication report
 
-18 pass, 8 near, 15 fail, of 41 targets.
+19 pass, 8 near, 14 fail, of 41 targets.
 
 | Experiment | Target | Source | Book | Band | Observed mean [min–max] | Seeds | Status |
 |---|---|---|---|---|---|---|---|
@@ -34,22 +34,23 @@
 | IV-13/notrade/v5.5 | Gini without trade | Fig IV-13, p.123 | 0.34 | 0.29–0.39 | 0.3207 [0.3169–0.3274] | 10/10 | pass |
 | IV-13/notrade/v10 | Gini without trade | Fig IV-13, p.123 | 0.33 | 0.28–0.38 | 0.3261 [0.3191–0.3362] | 10/10 | pass |
 | IV-13/notrade/v14.5 | Gini without trade | Fig IV-13, p.123 | 0.31 | 0.26–0.36 | 0.3335 [0.3218–0.3436] | 10/10 | pass |
-| IV-14 | dispersion with S | Fig IV-14, p.124 | 0.37 | 0.28–0.48 | — [—–—] | 0/5 | fail |
+| IV-14 | dispersion with S | Fig IV-14, p.124 | 0.37 | 0.28–0.48 | 0.3905 [0.314–0.5082] | 5/5 | pass |
 | IV-15 | dispersion, cultural preferences | Fig IV-16, p.126 | 0.45 | 0.3–0.6 | 0.1832 [0.1432–0.2285] | 5/5 | near |
 | IV-15 | trades per period | p.125 | 1000 | 500–1500 | 266.8 [145.2–354.7] | 5/5 | near |
-| IV-17 | dispersion with S and K | Fig IV-17, p.127 | 0.45 | 0.35–0.55 | — [—–—] | 0/5 | fail |
+| IV-17 | dispersion with S and K | Fig IV-17, p.127 | 0.45 | 0.35–0.55 | 0.3324 [0.3324–0.3324] | 1/5 | fail |
 | IV-A3 | price before pollution (ln p) | Anim IV-3, p.128 | 0 | -0.2–0.2 | 0.02095 [-0.06898–0.1112] | 10/10 | pass |
 | IV-A3 | sugar price spike (proxy) | Anim IV-3 | 3.5 | 2–6 | 2.332 [1.782–2.887] | 10/10 | pass |
 | IV-A3 | recovery by t≈300 (ln p) | Anim IV-3, p.129 | 0 | -0.25–0.25 | 0.5952 [0.04745–0.9893] | 10/10 | fail |
 | IV-18 | long-run mean foresight | Fig IV-18, p.130 | 4.9 | 4.25–5.5 | — [—–—] | 0/5 | fail |
-| IV-A5 | active loans (proxy) | Anim IV-5, p.134 | 187 | 50–400 | 105.6 [96.36–117.5] | 5/5 | pass |
-| IV-A5 | agents both lending and borrowing (proxy) | Anim IV-5 | 21 | 5–100 | 20.94 [18.98–22.84] | 5/5 | pass |
-| IV-A5 | hierarchy levels (proxy) | p.133 | 5 | 3–8 | 7 [6–8] | 5/5 | pass |
+| IV-A5 | active loans (proxy) | Anim IV-5, p.134 | 187 | 50–400 | 149.5 [124.2–179] | 5/5 | pass |
+| IV-A5 | agents both lending and borrowing (proxy) | Anim IV-5 | 21 | 5–100 | 28.73 [22.89–36.45] | 5/5 | pass |
+| IV-A5 | hierarchy levels (proxy) | p.133 | 5 | 3–8 | 6.8 [6–7] | 5/5 | pass |
 
 Run: `python -m replication.report --chapter IV --jobs 8` on 2026-10-21 (branch feat/chapter-4). Seeds as registered (5 or 10).
 Fast suite 201 passed. IV-14, IV-17 and IV-18 were re-run after the fertility decision below.
 Re-run 2026-10-22 (branch feat/founder-ages) after founders with finite lives began at ages U[0, max age) (user decision; see the Chapter III record): the table above. Changed rows are listed under Founder ages.
 Chapter II and III regression runs on this branch: every row identical to docs/replication/chapter-2.md and chapter-3.md.
+Re-run 2026-10-22 (branch feat/threshold-default) after the default fertility threshold became 0.83 (user decision; see the Chapter III record): the table above. Changed rows are listed under Default fertility threshold.
 
 ## Choices made from evidence or by necessity
 
@@ -84,6 +85,13 @@ Chapter II and III regression runs on this branch: every row identical to docs/r
 Founders with finite lives now start at ages U[0, max age) (Chapter III record). In this chapter:
 - **The reproduction runs die out.** IV-14 (extinct in all 5 seeds, at t=110–218), IV-17 (5/5, t=112–186) and IV-18 (5/5, t=99–116) lose their whole population, so their price-dispersion and foresight rows have no values (pass → fail, near → fail, near → fail). The book shows all three running for 1000 periods. Spread ages mean the founders die of old age within ≈100 periods, and our births (≈2.5 per period in III-1) can't replace them; the two-good landscape makes it worse.
 - **Replacement and credit runs barely move.** IV-12, IV-13 and IV-A5 replace the dead, so their rows shift by less than 0.02 (dispersion, Gini) or a few loans, and every status is unchanged.
+
+## Default fertility threshold (2026-10-22)
+
+The fertility threshold (and credit's requirement, which uses it) is now 0.83 of the birth endowment (Chapter III record). In this chapter:
+- **IV-14 survives.** 0 of 5 seeds extinct (was 5/5); its price dispersion is 0.39 (book ≈0.37, fail → pass).
+- **IV-17 and IV-18 still die out:** IV-17 in 4 of 5 seeds (t=127–232; the survivor's dispersion is 0.33 against ≈0.45, fail), IV-18 in all 5 (t=143–228).
+- **Credit (IV-A5)** lends more: 150 active loans (was 106) and 29 agents both lending and borrowing (was 21), still within their proxy bands.
 
 ## Visual comparison
 

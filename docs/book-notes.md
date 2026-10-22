@@ -148,6 +148,8 @@ Twin-peaked sugarscape, G1, movement M throughout.
   initial endowment**. First generation gets random initial endowments (fn 2).
 - To be a parent an agent must currently have **at least the amount of sugar it was
   endowed with at birth**. (Chapter IV credit lets agents borrow for this.)
+  **Our default departs from this (user decision, 2026-10-22):** 0.83 of the birth endowment, fitted to
+  Fig III-1's steady population; p.55's rule runs as the VAR-book experiments.
 
 ### Sex rule S (p. 56)
 - Select a neighboring agent at random;

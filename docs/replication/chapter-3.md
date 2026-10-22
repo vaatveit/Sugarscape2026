@@ -1,21 +1,21 @@
 # Replication report
 
-10 pass, 4 near, 11 fail, of 25 targets.
+11 pass, 4 near, 10 fail, of 25 targets.
 
 | Experiment | Target | Source | Book | Band | Observed mean [min–max] | Seeds | Status |
 |---|---|---|---|---|---|---|---|
-| III-1 | steady population | Fig III-1, p.58 | 500 | 400–600 | 359.8 [340.6–381.7] | 5/5 | near |
-| III-1 | small fluctuations | p.57 | 0.1 | 0–0.1 | 0.05902 [0.04226–0.07614] | 5/5 | pass |
-| III-1 | mean vision at t≈900 | Fig III-2, p.63 | 5.3 | 4.8–5.8 | 5.685 [5.357–5.925] | 5/5 | pass |
-| III-1 | mean metabolism, t=300–900 | Fig III-2, p.63 | 1 | 0.9–1.15 | 1.001 [1–1.002] | 5/5 | pass |
-| III-3 | oscillation period | p.64 | 200 | 150–250 | 493 [349–637] | 2/5 | fail |
-| III-3 | population floor | p.64 | 250 | 200–350 | 18.4 [0–48] | 5/5 | fail |
-| III-3 | agents that ever lived | p.64 fn 10 | 1.25e+04 | 1e+04–1.5e+04 | 1613 [454–3734] | 5/5 | fail |
-| III-4 | oscillation period | p.65 | 125 | 100–150 | 117.8 [114–122] | 5/5 | pass |
-| III-4 | oscillation range | Fig III-4, p.65 | 1000 | 600–1400 | 119.6 [104–137] | 5/5 | fail |
+| III-1 | steady population | Fig III-1, p.58 | 500 | 400–600 | 478.3 [442.4–523.5] | 5/5 | pass |
+| III-1 | small fluctuations | p.57 | 0.1 | 0–0.1 | 0.065 [0.05515–0.07192] | 5/5 | pass |
+| III-1 | mean vision at t≈900 | Fig III-2, p.63 | 5.3 | 4.8–5.8 | 5.636 [5.526–5.774] | 5/5 | pass |
+| III-1 | mean metabolism, t=300–900 | Fig III-2, p.63 | 1 | 0.9–1.15 | 1.001 [1–1.004] | 5/5 | pass |
+| III-3 | oscillation period | p.64 | 200 | 150–250 | 438 [210–699] | 3/5 | fail |
+| III-3 | population floor | p.64 | 250 | 200–350 | 32.8 [0–85] | 5/5 | fail |
+| III-3 | agents that ever lived | p.64 fn 10 | 1.25e+04 | 1e+04–1.5e+04 | 3690 [518–6347] | 5/5 | fail |
+| III-4 | oscillation period | p.65 | 125 | 100–150 | 116.2 [112–121] | 5/5 | pass |
+| III-4 | oscillation range | Fig III-4, p.65 | 1000 | 600–1400 | 106.2 [82–121] | 5/5 | fail |
 | III-5 | extinction frequency (proxy) | Fig III-5, p.66 | — | 0.5–1 | 0 [0–0] | 10/10 | fail |
-| III-7 | Gini with inheritance | p.67 | 0.743 | 0.65–0.85 | 0.3461 [0.318–0.3866] | 5/5 | fail |
-| III-7 | mean vision at t≈900 | Fig III-7, p.68 | 4.3 | 3.9–4.7 | 5.134 [4.81–5.5] | 5/5 | fail |
+| III-7 | Gini with inheritance | p.67 | 0.743 | 0.65–0.85 | 0.31 [0.2969–0.3345] | 5/5 | fail |
+| III-7 | mean vision at t≈900 | Fig III-7, p.68 | 4.3 | 3.9–4.7 | 5.194 [4.577–5.544] | 5/5 | fail |
 | III-8 | each side culturally pure (proxy) | p.74 | — | 0.8–1 | 0.4 [0–1] | 5/5 | fail |
 | III-8 | time until every side is pure | p.74 | 2700 | 1350–5400 | — [—–—] | 0/5 | fail |
 | III-8 | best-friend closeness | Anim III-8, p.80 | 0.91 | 0.8–1 | 0.9819 [0.9791–0.9857] | 5/5 | pass |
@@ -25,19 +25,21 @@
 | III-12 | Red wave advances SW (proxy) | Anim III-12, p.88 | — | -60–-10 | -4.652 [-5.752–-3.575] | 5/5 | near |
 | III-13 | combat suppresses Blue's wave (proxy) | Anim III-13, p.89 | — | -5–5 | 9.62 [9.024–10.73] | 5/5 | near |
 | III-14 | no runaway hegemony (proxy) | p.90 | — | 0.5–1 | 0.5 [0–1] | 10/10 | pass |
-| III-15 | Red and Blue on opposite mountains | p.92 fn 32 | 0.45 | 0.3–0.5 | 0.05 [0–1] | 20/20 | fail |
+| III-15 | Red and Blue on opposite mountains | p.92 fn 32 | 0.45 | 0.3–0.5 | 0 [0–0] | 20/20 | fail |
 | III-15 | Red dominates both | p.92 fn 32 | 0.25 | 0.1–0.4 | 0.2 [0–1] | 20/20 | pass |
-| III-15 | Blue dominates both | p.92 fn 32 | 0.25 | 0.1–0.4 | 0.1 [0–1] | 20/20 | pass |
-| III-15 | extinction (small frequency) | p.92 fn 32 | — | 0–0.15 | 0.3 [0–1] | 20/20 | fail |
+| III-15 | Blue dominates both | p.92 fn 32 | 0.25 | 0.1–0.4 | 0.5 [0–1] | 20/20 | near |
+| III-15 | extinction (small frequency) | p.92 fn 32 | — | 0–0.15 | 0.1 [0–1] | 20/20 | pass |
 
 Run: `python -m replication.report --chapter III --jobs 8` on 2026-10-21 (branch feat/chapter-3, after the final-review fix pass). Seeds as registered (5, 10, or 20).
 Fast suite 144 passed; `pytest -m slow tests/test_replication_ch3.py`: 11 passed, 13 failed (the near + fail rows).
 Re-run 2026-10-22 (branch feat/repro-calibration) after the calibration settings changed every fingerprint: every row identical, plus the new III-3 row for footnote 10.
 Re-run 2026-10-22 (branch feat/founder-ages) after founders with finite lives began at ages U[0, max age) (user decision; see the Chapter III record): the table above. Changed rows are listed under Founder ages.
 Chapter II regression run on the same branch: 19 pass / 12 near / 0 fail, every row identical to docs/replication/chapter-2.md.
+Re-run 2026-10-22 (branch feat/threshold-default) after the default fertility threshold became 0.83 (user decision; see "Default fertility threshold" below): the table above.
 
 ## Choices made from evidence or by necessity
 
+- **Fertility threshold 0.83 of the birth endowment (user decision, 2026-10-22).** p.55 requires the whole endowment (1.0). The default 0.83 is a fitted departure, fitted to Fig III-1's steady population alone (Calibrated reproduction variant, below). The book's rule runs unchanged as `VAR-book/<id>`.
 - **Combat blocks** measured from frame 1 of Animations III-9 and III-12: Blue 20×20 at the SW corner, Red 20×20 at the NE corner, ≈270 agents each (III-9/14) and ≈370 each (III-12/13). III-11 uses 200 each ("fix the population at 400", p.86).
 - **Proto-history** starts with 100 agents ("small, low density"); the book gives no number.
 - **Culture runs go to absorption** (III-8, III-15 run to t=6000 and are classified there): the book describes eventual states ("ultimately converge", p.74; fn 22; fn 32's frequencies), the same principle as the t=500 carrying-capacity decision.
@@ -325,6 +327,32 @@ In III-1 the gap opens in the first generation. Our population matches at t=20 (
 - **`child_share` doesn't carry over:** it is unstable and worse than the faithful rule on most rows.
 - **Under spread founder ages** (the default since the Founder ages section above), `CAL-thr` keeps III-1 in band (478) but loses the out-of-sample gains: III-3's floor is 33 and its agents 3,690, III-4's range is 106, and VI-3 dies out in 2 of 5 seeds. The table above was produced with age-0 founders.
 - **Reading:** a fertility test somewhat below the full birth endowment is consistent with the book's population levels across Chapters III and VI, but it isn't the whole missing piece. The timing results (periods, extinction, VI-2's early crash) point to something else as well, probably in the founders' setup. The variant stays a labelled departure from p.55; the book-faithful runs remain the reported results.
+
+## Default fertility threshold (2026-10-22)
+
+**Decision (user, 2026-10-22):** the fitted threshold becomes the default, `Config.fertility_threshold` = 0.83 (formerly the `CAL-thr` variant). It applies wherever rule S or credit runs: Chapters III, IV and VI.
+- **The book's rule is kept as a variant.** `VAR-book/<id>` runs p.55 as written (threshold 1.0) on III-1, III-3, III-4, III-5, VI-2 and VI-3, and `VAR-share/<id>` runs the fitted child share at p.55's threshold, both with the same targets (`python -m replication.report --chapter VAR`). The `CAL-` experiments are gone.
+- **`VAR-book` reproduces the previous book-faithful rows exactly** (III-1 359.8, III-3 floor 18.4, VI-3 first peak 271.8), so the variant is the old default with the same random streams.
+- **Unit tests of p.55's arithmetic** (credit amounts, the infertile cases) now set threshold 1.0 explicitly. The III-1 stream pin was re-recorded.
+
+**What changed** (5 seeds unless stated; previous = book's threshold, spread founder ages):
+
+| Row | Previous | Now |
+|---|---|---|
+| III-1 steady population (book ≈500) | 360 near | **478 pass** |
+| III-3 floor / agents that ever lived / period | 18 / 1,613 / 493 | 33 / 3,690 / 438, still fail |
+| III-4 range (book ≈1000) | 120 | 106, fail |
+| III-5 extinction | 0/10 | 0/10, fail |
+| III-15 extinction (book: rare) | 6/20 fail | **2/20 pass** |
+| III-15 Blue dominates both (book ≈25%) | 10% pass | 50% near |
+| IV-14 / IV-17 / IV-18 extinct | 5/5 / 5/5 / 5/5 | **0/5** / 4/5 / 5/5 |
+| IV-14 dispersion with S (book 0.37) | no survivors, fail | **0.39 pass** |
+| VI-1 extinct | 4/5 | 5/5 |
+| VI-2 crash at t≈20 (book 130) / extinct | 212 / 2/10 | 213 / 1/10 |
+| VI-3 extinct / floor / ceiling (book ≈700 / ≈1200) | 2/5 / 153 / 358 | 2/5 / 204 / 534 |
+
+**Totals:** III 10/4/11 → 11/4/10 (pass/near/fail); IV 18/8/15 → 19/8/14; VI 17/5/16 → 17/5/16; II and V unchanged.
+**Reading:** the level rows the threshold was fitted to now pass, and two extinction problems ease (III-15, IV-14). The dynamics rows (III-3's floor and period, III-4's swings, III-5's extinction, VI-3's waves) remain far from the book, as the earlier diagnostics predicted.
 
 ## Visual comparison
 
