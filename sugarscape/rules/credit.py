@@ -28,6 +28,11 @@ def _amount_due(model, principal: float) -> float:
     return principal * (1 + r / 100 * d)
 
 
+def _requirement(model, agent) -> float:
+    """The sugar having a child requires: the birth endowment (p.55), scaled in the calibrated variant."""
+    return model.config.fertility_threshold * agent.initial_sugar
+
+
 def available_to_lend(model, agent) -> float:
     """Too old to have children: half its current wealth; of childbearing age: wealth beyond what
     having children needs (its own initial endowment, p.55); otherwise nothing (p.132)."""
@@ -35,8 +40,9 @@ def available_to_lend(model, agent) -> float:
         return 0.0
     if agent.age >= agent.fertility_end:
         return agent.sugar / 2
-    if agent.fertility_start <= agent.age and agent.sugar > agent.initial_sugar:
-        return agent.sugar - agent.initial_sugar
+    need = _requirement(model, agent)
+    if agent.fertility_start <= agent.age and agent.sugar > need:
+        return agent.sugar - need
     return 0.0
 
 
@@ -44,7 +50,7 @@ def shortfall(model, agent) -> float:
     """Of childbearing age without the wealth to have a child: how much it lacks (p.132)."""
     if agent.sex is None or not (agent.fertility_start <= agent.age < agent.fertility_end):
         return 0.0
-    return max(agent.initial_sugar - agent.sugar, 0.0)
+    return max(_requirement(model, agent) - agent.sugar, 0.0)
 
 
 def creditworthy(model, borrower, amount_due: float) -> bool:

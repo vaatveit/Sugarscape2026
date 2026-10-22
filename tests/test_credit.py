@@ -137,3 +137,10 @@ def test_all_rules_society_runs():  # Animation VI-1 rule set; Review Focus 5
         m.step()
         assert all(m.agent_at(a.x, a.y) is a for a in m.agents)
         assert all(loan.lender.alive and loan.borrower.alive for loan in m.loans)
+
+
+def test_credit_follows_the_variant_fertility_threshold():  # needs and surpluses use the same requirement
+    m = credit_model(fertility_threshold=0.5)
+    rich = person(m, 3, 3, 20, 70.0)
+    poor = person(m, 3, 4, 20, 20.0)  # endowed with 60: fertile at 30
+    assert shortfall(m, poor) == 10.0 and available_to_lend(m, rich) == 40.0

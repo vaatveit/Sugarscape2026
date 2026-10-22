@@ -101,3 +101,10 @@ def test_chapter5_invalid_values_rejected(bad):  # Review Focus 1
 
 def test_credit_allowed_on_the_spice_landscape():  # Animation VI-1
     assert Config(spice=True, sex=True, credit=(10, 10.0)).credit == (10, 10.0)
+
+
+@pytest.mark.parametrize("bad", [{"sex": True, "fertility_threshold": 0.0}, {"sex": True, "child_share": 0.0},
+                                 {"sex": True, "child_share": 1.5}])
+def test_reproduction_variant_values_rejected(bad):
+    with pytest.raises(ValueError):
+        Config(**bad)

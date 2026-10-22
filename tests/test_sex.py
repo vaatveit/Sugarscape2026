@@ -90,3 +90,17 @@ def test_sugar_only_children_have_no_spice():
     f, h = couple(m)
     child = mate(m, f)[0]
     assert child.spice == 0.0 and child.spice_metabolism == 0
+
+
+def test_fertility_threshold_variant():  # calibrated variant (Chapter III record), not p.55's rule
+    m = tiny_model(np.ones((6, 6), dtype=int), sex=True, fertility_threshold=0.8)
+    f, h = couple(m, sugar=48.0)  # endowed with 60: the variant asks for 48
+    assert is_fertile(f, 0.8) and not is_fertile(f)
+    assert len(mate(m, f)) == 1
+
+
+def test_child_share_variant():  # calibrated variant: each parent gives a quarter, not half
+    m = tiny_model(np.ones((6, 6), dtype=int), sex=True, child_share=0.25)
+    f, h = couple(m)
+    kid = mate(m, f)[0]
+    assert kid.sugar == kid.initial_sugar == 30.0 and f.sugar == h.sugar == 45.0
