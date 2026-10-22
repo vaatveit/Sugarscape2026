@@ -195,6 +195,9 @@ Baseline (Fig III-1, constant population) uses rule S with default parameters (s
 - **Fig III-3, small oscillations:** S with fertility ending 10 years earlier:
   women childbearing ends between ages 30 and 40; men between 40 and 50.
   Population oscillates ~250–500 (never below ~250), period ~200 years, over 2500 steps.
+  Read from the plot (2026-10-22): starts ≈405, rises to ≈450 by t≈50, dips to ≈250 at t≈190; then
+  peaks ≈415–465 at t≈340, 548, 754, 960, 1175, 1405, 1627, 1833, 2151, 2397 (≈225 apart),
+  troughs ≈240–330, mean ≈365.
   Footnote 10: ~12,500 agents inhabit the sugarscape over the 2500 periods.
   Average agent lifetime ≈ 80 years (so no agent lives through a full swing).
 - **Fig III-4, large oscillations:** restore default infertility ages, but reduce the

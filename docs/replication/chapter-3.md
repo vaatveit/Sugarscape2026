@@ -58,7 +58,7 @@ Re-run 2026-10-22 (branch feat/threshold-default) after the default fertility th
 
 1. **Population dynamics are too damped and too low under S.** Steady population ≈369 vs ≈500 (III-1); small-oscillation run nearly dies out (floor 24 vs ≈250; period ≈720 vs ≈200) (III-3); large-oscillation run swings ≈144 vs ≈1000 around a high mean (III-4); the combined run never goes extinct (III-5). Animation III-2 shows the book's population spilling into the lowlands; ours stays on the peaks.
    **State of the question (final review's flow accounting, III-1 seed 0, t=200–600):** births (4.6–4.7/period) equal old-age deaths, starvation is 0. Agents harvest ≈870 sugar/period and burn ≈350, and **≈520 (60% of all harvest) is destroyed at old-age deaths**. Only 45% of fertile-age agents meet the wealth test (mean wealth 82 vs threshold ≈75). After a birth, regaining half the endowment (≈37.5) takes ≈25 periods. **Births are wealth-cycle-limited, not partner-limited.** Founders start exactly at the threshold, so those with negative net income are sterile for life: lifetime children by metabolism m=1: 168 (98 agents), m=2: 72, m=3: 21, **m=4: 0 (113 agents)**. The book's Fig III-4 boom (400 → ≈1500 by t≈45) would need net income ≳2.5/period per agent, close to the whole map's regrowth, which the rule as written can't supply. So the gap is likely an unstated detail of the original's wealth accounting.
-   Ruled out: random initial ages (worse); Moore mating neighbors (+2–6%); fertility end inclusive (no change); evolution speed (ours is as fast or faster); food supply (Chapter II metabolism-1 capacities match within 2%). Sensitivity: removing the parents' cost fills the lattice (≈2000); a threshold of half the endowment gives ≈950 (III-1). Neither is the book's rule. **III-3 sits on a knife-edge**: small changes (Moore + inclusive end) move its floor from 46 to 179, so its miss carries little diagnostic weight.
+   Ruled out: random initial ages (worse); Moore mating neighbors (+2–6%); fertility end inclusive (no change); evolution speed (ours is as fast or faster); food supply (Chapter II metabolism-1 capacities match within 2%). Sensitivity: removing the parents' cost fills the lattice (≈2000); a threshold of half the endowment gives ≈950 (III-1). Neither is the book's rule. **III-3 sits on a knife-edge**: small changes (Moore + inclusive end) move its floor from 46 to 179, so its miss carries little diagnostic weight. (Explained 2026-10-22: the knife-edge is whether both mountains survive the founding crash; see "III-3's floor and period" below.)
    **Probe of two wealth-accounting hypotheses (2026-10-21, user-requested; 3 seeds, 1000 periods, all 8 combinations with founder ages):**
 
    | Founder ages | Founders' fertility threshold | Child's recorded endowment | III-1 t20 / t85 / t240 / t330 / late (book 470 / 570 / 415 / 545 / 500) | III-4 first peak, trough, late range, period (book 1554@71, 343, ≈1000, 125–136) |
@@ -353,6 +353,60 @@ In III-1 the gap opens in the first generation. Our population matches at t=20 (
 
 **Totals:** III 10/4/11 → 11/4/10 (pass/near/fail); IV 18/8/15 → 19/8/14; VI 17/5/16 → 17/5/16; II and V unchanged.
 **Reading:** the level rows the threshold was fitted to now pass, and two extinction problems ease (III-15, IV-14). The dynamics rows (III-3's floor and period, III-4's swings, III-5's extinction, VI-3's waves) remain far from the book, as the earlier diagnostics predicted.
+
+## III-3's floor and period (2026-10-22)
+
+Diagnostics of III-3 (fertility ends 10 years earlier) under the defaults (θ=0.83, spread founder ages); nothing here changes the model. 10 seeds per case unless stated.
+
+**The book's run** (Fig III-3, read from the plot): it starts near 405, rises to ≈450 by t≈50, and dips to ≈250 at t≈190. It then cycles regularly, with peaks of ≈415–465 at t≈340, 548, 754, 960, 1175, 1405, 1627, 1833, 2151 and 2397 (≈225 apart). Troughs are ≈240–330 and the mean ≈365.
+
+**Our low floor is a lost mountain.** The founding crash takes each mountain down to 10–50 agents by t≈150. Below ≈30–40 agents a mountain dies out (see below), and nobody re-founds it. A society on one mountain holds about half as many agents as one on both:
+
+| Founder ages, θ | Both mountains | One mountain | Extinct | Level t≥500 (both / one) | Floor t≥300 (both / one) |
+|---|---|---|---|---|---|
+| Spread, 0.83 (default) | 0 | 7 | 3 | — / 156 | — / 72 |
+| Age 0, 0.83 | 9 | 1 | 0 | 300 / 164 | 185 / 89 |
+| Spread, 1.0 (`VAR-book`) | 0 | 2 | 8 | — / 100 | — / 46 |
+| Age 0, 1.0 | 1 | 4 | 5 | 214 / 88 | 127 / 38 |
+
+- **Genetics don't account for the split.** Late mean vision (4.5–6.0), maximum age (61–93) and birth endowment (70–81) overlap between one- and two-mountain runs.
+- **The number of mountains held does.** The one age-0 run that lost a mountain settles where spread-founder runs do (164 against 156).
+- **The book's run must have kept both:** its floor (≈250) is above anything one of our mountains holds.
+
+**Why a thinned mountain dies out** (per mountain quadrant, t=50–1000, 16 runs of both founder settings):
+
+| Agents on the mountain | Births per agent per period | Fertile agents with a fertile partner adjacent | Fertile-age agents holding enough sugar |
+|---|---|---|---|
+| under 10 | 0 | 0% | 98% |
+| 10–20 | 0.008 | 1.2% | 91% |
+| 20–40 | 0.011 | 2.3% | 83% |
+| 40–160 | 0.013 | 2.1–2.5% | 59–74% |
+| 160–240 | 0.012 | 1.9% | 52% |
+
+- **Below ≈30–40 agents, births fall short of deaths** (≈1/80 per agent per period). Nearly every fertile-age agent holds enough sugar, but partners stop meeting: an Allee effect from contact limited to von Neumann neighbors.
+- **An emptied mountain is never re-founded.** In these runs 10 of 32 mountains emptied and none returned to 10 agents. Children are born next to a parent, and an agent moving greedily within vision 6 can't see the other mountain across the valley.
+
+**Why the founding crash is so deep.**
+- **Spread founders:** in the first 50 periods they average 2.2 births per period against 4.6 old-age deaths and 1.2 starvations.
+- **The book's rise to ≈450 by t≈50** needs ≈6–7 births per period against those deaths. This is Fig III-1's early-birth deficit (Birth-rate decomposition, above: ≈6.5 needed, ≈2.5 achieved), here with fertile windows 10 years shorter.
+- **Age-0 founders reproduce the book's shape** (400 → ≈520 by t≈50 → ≈140 at t≈150), because they all come of age together, but overshoot both ways.
+
+**Given both mountains, the cycle runs near the book's period at about half its amplitude.** Age-0 founders, the 9 runs that kept both mountains; peaks and troughs from a 41-period moving average, swings of at least 40:
+
+| | Book | Ours |
+|---|---|---|
+| Mean level | ≈365 | ≈300 |
+| Peaks | ≈450 | ≈350 (300–376) |
+| Troughs | ≈280 (240–330) | ≈255 (213–286) |
+| Peak-to-peak | ≈225, regular | median 206–286 in 5 of 9 runs; 330–670 in the rest, where small swings blur into noise |
+
+- **The registered period statistic is unreliable on series this irregular.** The first autocorrelation peak gives 201–699 for one-mountain runs and 207–1701 for two-mountain ones.
+- **The low peaks are the long-run level's shortfall** (What sets the long-run level, above), with the shorter window.
+
+**Reading:**
+- **Floor:** III-3's floor misses because the founding crash, an instance of the open early-birth problem, empties a mountain that our rules can't re-found. A founding phase that keeps both mountains would likely bring it near the book; age-0 founders give 185 against a band of 200–350.
+- **Period:** it misses mainly because a one-mountain society barely oscillates. A two-mountain society already cycles near the book's period, though with half the swing.
+- Nothing here points to a cause separate from the early birth rate and the long-run level.
 
 ## Visual comparison
 
