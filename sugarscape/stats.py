@@ -57,7 +57,7 @@ def standard_metrics(model) -> dict[str, float]:
         "mean_vision": safe_mean(a.vision for a in agents),
         "mean_metabolism": safe_mean(a.metabolism for a in agents),
         "mean_sugar": safe_mean(a.sugar for a in agents),
-        "gini": gini([a.sugar for a in agents]),
+        "gini": gini([a.sugar + a.spice for a in agents]),  # spice is 0.0 on the sugar-only landscape
         "mean_neighbors": safe_mean(len(a.neighbors) for a in agents),
         "moved": float(sum(a.moved for a in agents)),
         "ne_fraction": _fraction([a.x >= half_w and a.y >= half_h for a in agents]),
@@ -106,4 +106,47 @@ def society_metrics(model) -> dict[str, float]:
         "mean_children": safe_mean(len(a.children) for a in agents) if agents else 0.0,
         "best_friend_closeness": safe_mean(best),
         "friend_closeness": safe_mean(mean_close),
+    }
+
+
+def _longest_chain(edges: dict) -> int:
+    """Longest lender -> borrower path (in loans) through the credit network; cycle-safe."""
+
+    def walk(node, on_path: set) -> int:
+        best = 0
+        for nxt in edges.get(node, ()):
+            if nxt not in on_path:
+                best = max(best, 1 + walk(nxt, on_path | {nxt}))
+        return best
+
+    return max((walk(n, {n}) for n in edges), default=0)
+
+
+def economic_metrics(model) -> dict[str, float]:
+    """Chapter IV measurements: trade prices and volume (pp.108-110), foresight (p.129), credit (p.133).
+
+    Price statistics are over this period's exchanges: the geometric mean price (fn 25), the mean
+    of ln p, and the standard deviation of ln p (Figs IV-5 to IV-17).
+    """
+    agents = model.agents
+    log_prices = [math.log(d.price) for d in model.trade_log]
+    lenders = {id(loan.lender) for loan in model.loans}
+    borrowers = {id(loan.borrower) for loan in model.loans}
+    edges: dict = {}
+    for loan in model.loans:
+        edges.setdefault(id(loan.lender), set()).add(id(loan.borrower))
+    return {
+        "mean_spice": safe_mean(a.spice for a in agents) if agents else math.nan,
+        "trades": float(len(log_prices)),
+        "mean_price": math.exp(float(np.mean(log_prices))) if log_prices else math.nan,
+        "mean_log_price": float(np.mean(log_prices)) if log_prices else math.nan,
+        "price_sd": float(np.std(log_prices)) if log_prices else math.nan,
+        "sugar_traded": float(sum(d.sugar for d in model.trade_log)),
+        "spice_traded": float(sum(d.spice for d in model.trade_log)),
+        "mean_foresight": safe_mean(a.foresight for a in agents),
+        "n_loans": float(len(model.loans)),
+        "n_lenders": float(len(lenders)),
+        "n_borrowers": float(len(borrowers)),
+        "n_both": float(len(lenders & borrowers)),
+        "credit_depth": float(_longest_chain(edges)),
     }
