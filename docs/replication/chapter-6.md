@@ -1,32 +1,32 @@
 # Replication report
 
-17 pass, 9 near, 12 fail, of 38 targets.
+17 pass, 5 near, 16 fail, of 38 targets.
 
 | Experiment | Target | Source | Book | Band | Observed mean [min–max] | Seeds | Status |
 |---|---|---|---|---|---|---|---|
-| VI-1 | population at t≈50 | Anim VI-1 fr. 6 | 155 | 125–185 | 101.4 [95.5–114] | 5/5 | near |
-| VI-1 | Gini of total wealth | Anim VI-1 fr. 5 | 0.246 | 0.2–0.3 | 0.3012 [0.2809–0.3365] | 5/5 | near |
-| VI-1 | average neighbors | Anim VI-1 fr. 2 | 0.7 | 0.56–0.84 | 0.4668 [0.4216–0.4872] | 5/5 | near |
-| VI-1 | average fertility | Anim VI-1 fr. 8 | 1.3 | 1.04–1.56 | 0.5691 [0.4421–0.6643] | 5/5 | fail |
-| VI-1 | best-friend closeness | Anim VI-1 fr. 10 | 0.86 | 0.76–0.96 | 0.7465 [0.7215–0.7657] | 5/5 | near |
-| VI-1 | friend closeness | Anim VI-1 fr. 10 | 0.79 | 0.69–0.89 | 0.6045 [0.5813–0.6318] | 5/5 | near |
-| VI-1 | mean price (ln p) | Anim VI-1 fr. 11 | 0 | -0.2–0.2 | 0.0111 [-0.03713–0.05755] | 5/5 | pass |
-| VI-1 | price dispersion | Anim VI-1 fr. 12 | 0.35 | 0.28–0.42 | 0.3737 [0.3348–0.405] | 5/5 | pass |
-| VI-1 | trades per period | Anim VI-1 fr. 13 | 125 | 100–150 | 48.76 [43.68–56.51] | 5/5 | fail |
-| VI-1 | active loans | Anim VI-1 fr. 15-16 | 215 | 108–322 | 3.381 [0–5.857] | 5/5 | near |
-| VI-1 | agents both lending and borrowing | Anim VI-1 fr. 15-16 | 37 | 18–56 | 0.3429 [0–0.9048] | 5/5 | near |
+| VI-1 | population at t≈50 | Anim VI-1 fr. 6 | 155 | 125–185 | 36.17 [27.33–42.67] | 5/5 | fail |
+| VI-1 | Gini of total wealth | Anim VI-1 fr. 5 | 0.246 | 0.2–0.3 | 0.318 [0.2791–0.3546] | 5/5 | near |
+| VI-1 | average neighbors | Anim VI-1 fr. 2 | 0.7 | 0.56–0.84 | 0.3326 [0.3005–0.3817] | 5/5 | fail |
+| VI-1 | average fertility | Anim VI-1 fr. 8 | 1.3 | 1.04–1.56 | 0.2596 [0.07718–0.3982] | 5/5 | fail |
+| VI-1 | best-friend closeness | Anim VI-1 fr. 10 | 0.86 | 0.76–0.96 | 0.726 [0.6745–0.7739] | 5/5 | near |
+| VI-1 | friend closeness | Anim VI-1 fr. 10 | 0.79 | 0.69–0.89 | 0.6366 [0.6127–0.6838] | 5/5 | near |
+| VI-1 | mean price (ln p) | Anim VI-1 fr. 11 | 0 | -0.2–0.2 | -0.02138 [-0.1754–0.1494] | 5/5 | pass |
+| VI-1 | price dispersion | Anim VI-1 fr. 12 | 0.35 | 0.28–0.42 | 0.334 [0.3213–0.3484] | 5/5 | pass |
+| VI-1 | trades per period | Anim VI-1 fr. 13 | 125 | 100–150 | 11.79 [7.732–17.42] | 5/5 | fail |
+| VI-1 | active loans | Anim VI-1 fr. 15-16 | 215 | 108–322 | 0.2095 [0–1.048] | 5/5 | fail |
+| VI-1 | agents both lending and borrowing | Anim VI-1 fr. 15-16 | 37 | 18–56 | 0 [0–0] | 5/5 | near |
 | VI-1 | infected fraction dips | Anim VI-1 fr. 17 | 0.6 | 0.5–0.7 | 0 [0–0] | 5/5 | fail |
-| VI-1 | infected fraction recovers | Anim VI-1 fr. 17 | 0.85 | 0.75–0.95 | 0 [0–0] | 5/5 | fail |
-| VI-1 | average diseases | Anim VI-1 fr. 18 | 2.26 | 1.81–2.71 | 0 [0–0] | 5/5 | fail |
-| VI-1 | spread of diseases per agent | Anim VI-1 fr. 18 | 1.47 | 1.18–1.76 | 0 [0–0] | 5/5 | fail |
-| VI-2 | crash by t≈20 | Anim VI-2, p.160 | 130 | 104–156 | 289.2 [252.6–307.4] | 10/10 | fail |
-| VI-2 | extinction frequency (proxy) | Anim VI-2, p.159 | — | 0.5–1 | 0 [0–0] | 10/10 | fail |
-| VI-3 | early decline as without trade (vs VI-2) | p.159 | 1 | 0.8–1.25 | 1.113 [1.063–1.152] | 5/5 | pass |
-| VI-3 | near-extinction minimum | Anim VI-3, p.161 | 65 | 52–78 | 118.6 [75–214] | 5/5 | fail |
-| VI-3 | first peak | Anim VI-3, p.161 | 1190 | 952–1428 | 419.6 [235–718] | 5/5 | fail |
-| VI-3 | oscillation floor | p.159 | 700 | 560–840 | 300.8 [122–537] | 5/5 | fail |
-| VI-3 | oscillation ceiling | Anim VI-3, p.161 | 1200 | 960–1440 | 721.4 [658–754] | 5/5 | near |
-| VI-3 | oscillation period | p.159 | 115 | 92–138 | 340.5 [204–477] | 2/5 | fail |
+| VI-1 | infected fraction recovers | Anim VI-1 fr. 17 | 0.85 | 0.75–0.95 | 0 [0–0] | 4/5 | fail |
+| VI-1 | average diseases | Anim VI-1 fr. 18 | 2.26 | 1.81–2.71 | 0 [0–0] | 4/5 | fail |
+| VI-1 | spread of diseases per agent | Anim VI-1 fr. 18 | 1.47 | 1.18–1.76 | 0 [0–0] | 4/5 | fail |
+| VI-2 | crash by t≈20 | Anim VI-2, p.160 | 130 | 104–156 | 211.9 [190–234.8] | 10/10 | fail |
+| VI-2 | extinction frequency (proxy) | Anim VI-2, p.159 | — | 0.5–1 | 0.2 [0–1] | 10/10 | fail |
+| VI-3 | early decline as without trade (vs VI-2) | p.159 | 1 | 0.8–1.25 | 1.152 [1.112–1.174] | 5/5 | pass |
+| VI-3 | near-extinction minimum | Anim VI-3, p.161 | 65 | 52–78 | 26.6 [5–57] | 5/5 | fail |
+| VI-3 | first peak | Anim VI-3, p.161 | 1190 | 952–1428 | 271.8 [0–772] | 5/5 | fail |
+| VI-3 | oscillation floor | p.159 | 700 | 560–840 | 153.4 [0–517] | 5/5 | fail |
+| VI-3 | oscillation ceiling | Anim VI-3, p.161 | 1200 | 960–1440 | 358.4 [0–832] | 5/5 | fail |
+| VI-3 | oscillation period | p.159 | 115 | 92–138 | 258.7 [224–317] | 3/5 | fail |
 | VI-4 | equilibrium: nobody moves | p.166 | 0 | 0–0 | 0 [0–0] | 10/10 | pass |
 | VI-4 | more segregated than the start (proxy) | Anim VI-4, p.166 | — | 1.05–2 | 1.249 [1.213–1.291] | 10/10 | pass |
 | VI-5 | never settles (proxy) | p.166 | — | 1–2000 | 3.333 [3.02–3.574] | 10/10 | pass |
@@ -46,6 +46,7 @@
 Run: `python -m replication.report --chapter VI --jobs 8` on 2026-10-22 (branch feat/chapter-6). Seeds × periods: VI-1 5×500, VI-2 10×200, VI-3 5×1000, VI-4 to VI-9 10×500. `pytest -m slow tests/test_replication_ch6.py`: 17 passed, 21 failed (the near and fail rows).
 
 Fast suite 265 passed. Regression on this branch:
+Re-run 2026-10-22 (branch feat/founder-ages) after founders with finite lives began at ages U[0, max age) (user decision; see the Chapter III record): the table above. Changed rows are listed under Founder ages.
 - `--chapter V --rerun` and an IV-A5 re-run: every row is identical to their records.
 - All 72 Chapter II–V results stay current, because their settings didn't change.
 - The four stream pins (II, III, IV, V) pass.
@@ -110,6 +111,14 @@ Fast suite 265 passed. Regression on this branch:
    - So the sparse society is the main cause, and our creditworthiness reading the second.
 5. **VI-5 is more segregated than VI-4:** 1.20×, against a band of 0.9–1.1 for "comparable". VI-4 freezes after about 2 periods at a modest level. With lifetimes the pattern keeps reorganizing, and each newcomer settles where it is satisfied, which ratchets segregation up. The book's own pictures for VI-4 and VI-5 also differ, so "comparable" may be loose. Recorded as near.
 6. **Weak proxy:** "size bounded by the most nearsighted" passes trivially. Groups of ≈10 never approach the 15-site minimum vision, so these runs never test the bound. The unit test (vision 3–4, a block of 12) does exercise it.
+
+## Founder ages (2026-10-22)
+
+Founders with finite lives now start at ages U[0, max age) (Chapter III record). In this chapter:
+- **VI-2's crash takes the book's shape.** 212 at t≈20 (was 289; book 130), and 2 of 10 seeds go extinct (was 0). The founders' early old-age deaths are the crash the book shows.
+- **VI-3 dips like the book but doesn't recover reliably.** Its minimum falls to 27 (book ≈65; was 119), but 2 of 5 seeds die out, and the survivors don't reach the book's 700–1200 waves (ceiling 358 near → fail).
+- **VI-1 dies out** in 4 of 5 seeds (t=99–200); about 36 agents remain at t=50 (book ≈155). Neighbors, loans and trades fall with it (3 rows near → fail).
+- Schelling and Ring World are unaffected.
 
 ## Visual comparison
 

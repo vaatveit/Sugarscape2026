@@ -160,6 +160,10 @@ Twin-peaked sugarscape, G1, movement M throughout.
   from one parent or the other with equal probability (Table III-1).
 
 ### Default S parameters — Fig III-1 ({G1},{M,S}) (p. 57)
+- **Founders' ages (decided 2026-10-22, user):** U[0, max age) when lives are finite. Animation III-1's
+  first frame shows 417 agents spread over all ages (63, 49, 45, 64, 45, 55, 49, 30, 13, 4 per decade),
+  Fig III-1 starts near 417, VI-2 has births at t≈1–3, and Ascape uses randomInRange(0, deathAge).
+  Newborns and replacements start at 0.
 Each period = one "year". Per-agent values random in the stated ranges (fn 4):
 - Childbearing begins between ages **12 and 15** (both sexes);
 - Women's childbearing ends between **40 and 50**; men's between **50 and 60**;

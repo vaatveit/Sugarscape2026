@@ -1,21 +1,21 @@
 # Replication report
 
-11 pass, 4 near, 10 fail, of 25 targets.
+10 pass, 4 near, 11 fail, of 25 targets.
 
 | Experiment | Target | Source | Book | Band | Observed mean [min–max] | Seeds | Status |
 |---|---|---|---|---|---|---|---|
-| III-1 | steady population | Fig III-1, p.58 | 500 | 400–600 | 368.9 [360.4–376] | 5/5 | near |
-| III-1 | small fluctuations | p.57 | 0.1 | 0–0.1 | 0.05514 [0.04277–0.07192] | 5/5 | pass |
-| III-1 | mean vision at t≈900 | Fig III-2, p.63 | 5.3 | 4.8–5.8 | 5.606 [5.248–5.944] | 5/5 | pass |
-| III-1 | mean metabolism, t=300–900 | Fig III-2, p.63 | 1 | 0.9–1.15 | 1 [1–1] | 5/5 | pass |
-| III-3 | oscillation period | p.64 | 200 | 150–250 | 722.7 [428–1028] | 3/5 | fail |
-| III-3 | population floor | p.64 | 250 | 200–350 | 24.2 [0–59] | 5/5 | fail |
-| III-3 | agents that ever lived | p.64 fn 10 | 1.25e+04 | 1e+04–1.5e+04 | 2593 [593–4312] | 5/5 | fail |
-| III-4 | oscillation period | p.65 | 125 | 100–150 | 118.2 [115–123] | 5/5 | pass |
-| III-4 | oscillation range | Fig III-4, p.65 | 1000 | 600–1400 | 143.8 [104–259] | 5/5 | fail |
+| III-1 | steady population | Fig III-1, p.58 | 500 | 400–600 | 359.8 [340.6–381.7] | 5/5 | near |
+| III-1 | small fluctuations | p.57 | 0.1 | 0–0.1 | 0.05902 [0.04226–0.07614] | 5/5 | pass |
+| III-1 | mean vision at t≈900 | Fig III-2, p.63 | 5.3 | 4.8–5.8 | 5.685 [5.357–5.925] | 5/5 | pass |
+| III-1 | mean metabolism, t=300–900 | Fig III-2, p.63 | 1 | 0.9–1.15 | 1.001 [1–1.002] | 5/5 | pass |
+| III-3 | oscillation period | p.64 | 200 | 150–250 | 493 [349–637] | 2/5 | fail |
+| III-3 | population floor | p.64 | 250 | 200–350 | 18.4 [0–48] | 5/5 | fail |
+| III-3 | agents that ever lived | p.64 fn 10 | 1.25e+04 | 1e+04–1.5e+04 | 1613 [454–3734] | 5/5 | fail |
+| III-4 | oscillation period | p.65 | 125 | 100–150 | 117.8 [114–122] | 5/5 | pass |
+| III-4 | oscillation range | Fig III-4, p.65 | 1000 | 600–1400 | 119.6 [104–137] | 5/5 | fail |
 | III-5 | extinction frequency (proxy) | Fig III-5, p.66 | — | 0.5–1 | 0 [0–0] | 10/10 | fail |
-| III-7 | Gini with inheritance | p.67 | 0.743 | 0.65–0.85 | 0.3301 [0.3006–0.3601] | 5/5 | fail |
-| III-7 | mean vision at t≈900 | Fig III-7, p.68 | 4.3 | 3.9–4.7 | 5.292 [5.088–5.398] | 5/5 | fail |
+| III-7 | Gini with inheritance | p.67 | 0.743 | 0.65–0.85 | 0.3461 [0.318–0.3866] | 5/5 | fail |
+| III-7 | mean vision at t≈900 | Fig III-7, p.68 | 4.3 | 3.9–4.7 | 5.134 [4.81–5.5] | 5/5 | fail |
 | III-8 | each side culturally pure (proxy) | p.74 | — | 0.8–1 | 0.4 [0–1] | 5/5 | fail |
 | III-8 | time until every side is pure | p.74 | 2700 | 1350–5400 | — [—–—] | 0/5 | fail |
 | III-8 | best-friend closeness | Anim III-8, p.80 | 0.91 | 0.8–1 | 0.9819 [0.9791–0.9857] | 5/5 | pass |
@@ -26,13 +26,14 @@
 | III-13 | combat suppresses Blue's wave (proxy) | Anim III-13, p.89 | — | -5–5 | 9.62 [9.024–10.73] | 5/5 | near |
 | III-14 | no runaway hegemony (proxy) | p.90 | — | 0.5–1 | 0.5 [0–1] | 10/10 | pass |
 | III-15 | Red and Blue on opposite mountains | p.92 fn 32 | 0.45 | 0.3–0.5 | 0.05 [0–1] | 20/20 | fail |
-| III-15 | Red dominates both | p.92 fn 32 | 0.25 | 0.1–0.4 | 0.3 [0–1] | 20/20 | pass |
-| III-15 | Blue dominates both | p.92 fn 32 | 0.25 | 0.1–0.4 | 0.3 [0–1] | 20/20 | pass |
-| III-15 | extinction (small frequency) | p.92 fn 32 | — | 0–0.15 | 0 [0–0] | 20/20 | pass |
+| III-15 | Red dominates both | p.92 fn 32 | 0.25 | 0.1–0.4 | 0.2 [0–1] | 20/20 | pass |
+| III-15 | Blue dominates both | p.92 fn 32 | 0.25 | 0.1–0.4 | 0.1 [0–1] | 20/20 | pass |
+| III-15 | extinction (small frequency) | p.92 fn 32 | — | 0–0.15 | 0.3 [0–1] | 20/20 | fail |
 
 Run: `python -m replication.report --chapter III --jobs 8` on 2026-10-21 (branch feat/chapter-3, after the final-review fix pass). Seeds as registered (5, 10, or 20).
 Fast suite 144 passed; `pytest -m slow tests/test_replication_ch3.py`: 11 passed, 13 failed (the near + fail rows).
 Re-run 2026-10-22 (branch feat/repro-calibration) after the calibration settings changed every fingerprint: every row identical, plus the new III-3 row for footnote 10.
+Re-run 2026-10-22 (branch feat/founder-ages) after founders with finite lives began at ages U[0, max age) (user decision; see the Chapter III record): the table above. Changed rows are listed under Founder ages.
 Chapter II regression run on the same branch: 19 pass / 12 near / 0 fail, every row identical to docs/replication/chapter-2.md.
 
 ## Choices made from evidence or by necessity
@@ -73,6 +74,30 @@ Chapter II regression run on the same branch: 19 pass / 12 near / 0 fail, every 
 2. **Inheritance barely raises inequality** (III-7 Gini 0.33 vs 0.743) **or slows selection** (vision 5.29 vs ≈4.3). With I, recycled wealth funds births in the wealth-limited regime and the population triples (≈1,370 at t=1000) instead of dynasties keeping wealth. This is the same unknown as item 1.
 3. **Culture never quite absorbs.** III-8 at t=6000: sides sit at 91–98% one color (2 of 5 runs have both sides ≥95%), and no run reaches 100% on every side (book: all agents Blue after ≈2700). A few holdout agents per side never convert. Tag positions drift like a voter model (one NE position went 83% → 95% → 34% zeros between t=1000 and 3000), consistent with the book's process but slower to finish. III-15: mountains usually end the same color (single-color dominance 60%), Red and Blue on opposite mountains only 5% (book ≈45%).
 4. **Waves (III-12) are not reproduced** — the same failure as II-6. Measured as net NE-ward travel (unwrapped across the map's edges), Blue advances ≈8 and Red ≈5 by t=50, with or without combat (III-13: ≈9.6). There is no wave to suppress, so III-13 says nothing yet.
+
+## Founder ages (2026-10-22)
+
+**Decision (user, 2026-10-22):** in runs with finite lives, founders start at ages U[0, max age); newborns and replacements start at 0 (`Config.founder_ages`, default `"uniform"`; `"zero"` restores the old behavior). Immortal runs draw nothing and are unchanged.
+
+**Evidence:**
+- **Animation III-1's first frame** (the age histogram for Fig III-1) holds 417 agents spread across every decade: 63, 49, 45, 64, 45, 55, 49, 30, 13, 4. Ages U[0, max age) with max ages 60–100 predict ≈51 per decade to 60, then 42, 29, 16, 5. Age-0 founders would put all 400 in the first bin.
+- **Fig III-1** starts near 417 and climbs at once. With spread ages our first period gives 418; with age-0 founders nobody can breed before age 12.
+- **VI-2** shows births in its first three periods.
+- **Ascape's code** uses `randomInRange(0, deathAge)`.
+
+**What changed in this chapter** (5 seeds unless stated):
+
+| Row | Age-0 founders | Spread ages |
+|---|---|---|
+| III-1 steady population | 369 near | 360 near |
+| III-1 early curve t=20 / 85 (book 470 / 570) | 465 / 333 | 356 / 136 |
+| III-3 floor / agents that ever lived | 24 / 2,593 | 18 / 1,613 |
+| III-3 period | 723 (3/5) | 493 (5/5) |
+| III-4 range | 144 | 120 |
+| III-7 Gini / vision | 0.33 / 5.29 | 0.35 / 5.13 |
+| III-15 extinction (book: rare) | 0/20 | **6/20, pass → fail** |
+
+**Why it hurts:** with spread ages nearly every founder dies of old age within about 85 periods, and the book's society replaces them, climbing to 570 by t=85 (≈6.5 births per period). Ours manages ≈2.5 per period (diagnostic run with the 0.83 threshold, 2 seeds). The first-period baby boom (≈60 births) leaves ≈120 parents at half their endowment, so until t≈50 fertile-age agents average 51–54 sugar against a requirement near 62. And with ≈0.85 neighbors per agent, only 0–4 qualifying agents have a qualifying partner next to them at any moment. The founders' ages are now right; the birth rate is the open problem.
 
 ## Calibrated reproduction variant (2026-10-22)
 
@@ -132,6 +157,7 @@ In III-1 the gap opens in the first generation. Our population matches at t=20 (
   - III-5's extinction;
   - VI-2's crash timing, which happens before anyone can reproduce and so can't depend on this setting.
 - **`child_share` doesn't carry over:** it is unstable and worse than the faithful rule on most rows.
+- **Under spread founder ages** (the default since the Founder ages section above), `CAL-thr` keeps III-1 in band (478) but loses the out-of-sample gains: III-3's floor is 33 and its agents 3,690, III-4's range is 106, and VI-3 dies out in 2 of 5 seeds. The table above was produced with age-0 founders.
 - **Reading:** a fertility test somewhat below the full birth endowment is consistent with the book's population levels across Chapters III and VI, but it isn't the whole missing piece. The timing results (periods, extinction, VI-2's early crash) point to something else as well, probably in the founders' setup. The variant stays a labelled departure from p.55; the book-faithful runs remain the reported results.
 
 ## Visual comparison

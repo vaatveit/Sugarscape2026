@@ -10,7 +10,7 @@
 | II-4 | mean metabolism at t=500 | p.32 | 1.8 | 1.6–2 | 1.852 [1.792–1.901] | 10/10 | pass |
 | II-4 | mean neighbors | Anim II-5, p.41 | 0.9 | 0.75–1.05 | 0.7967 [0.7577–0.8436] | 10/10 | pass |
 | II-4-gini | initial Gini | Anim II-4, p.38 | 0.23 | 0.2–0.26 | 0.2297 [0.2175–0.2462] | 10/10 | pass |
-| II-4-gini | long-run Gini | Anim II-4, p.37 | 0.503 | 0.45–0.56 | 0.4781 [0.4687–0.4891] | 10/10 | pass |
+| II-4-gini | long-run Gini | Anim II-4, p.37 | 0.503 | 0.45–0.56 | 0.4772 [0.4685–0.4822] | 10/10 | pass |
 | II-6 | wave reaches NE peak (proxy) | Anim II-6, p.43 | — | 0.15–1 | 0.04887 [0.03349–0.0625] | 5/5 | near |
 | II-6-measured | wave reaches NE peak (proxy) | Anim II-6, p.43 | — | 0.15–1 | 0.01339 [0.006667–0.02649] | 5/5 | near |
 | II-7 | high-vision agents migrate (proxy) | Anim II-7, p.45 | — | 0.3–1 | 0.5175 [0.4888–0.5488] | 5/5 | pass |
@@ -37,6 +37,7 @@
 | II-5/m3/v10.5 | carrying capacity | Fig II-5, p.31 | 287 | 258.3–315.7 | 253.6 [247.7–260.4] | 10/10 | near |
 
 Run: `python -m replication.report --chapter II --rerun --jobs 8` on 2026-10-21 (branch feat/foundation-ch2, after the final-review fix pass).
+Re-run 2026-10-22 (branch feat/founder-ages) after founders with finite lives began at ages U[0, max age) (user decision; see the Chapter III record): only II-4-gini has finite lives; its long-run Gini moved from 0.478 to 0.477 (still a pass). Every other row is identical.
 Seeds per experiment as registered (5 or 10). Fast suite 83 passed; `pytest -m slow`: 19 passed, 12 failed (the 12 "near" rows).
 
 ## Evidence-based parameter choices
