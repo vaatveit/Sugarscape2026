@@ -1,6 +1,6 @@
 # Replication report
 
-11 pass, 4 near, 9 fail, of 24 targets.
+11 pass, 4 near, 10 fail, of 25 targets.
 
 | Experiment | Target | Source | Book | Band | Observed mean [min–max] | Seeds | Status |
 |---|---|---|---|---|---|---|---|
@@ -10,6 +10,7 @@
 | III-1 | mean metabolism, t=300–900 | Fig III-2, p.63 | 1 | 0.9–1.15 | 1 [1–1] | 5/5 | pass |
 | III-3 | oscillation period | p.64 | 200 | 150–250 | 722.7 [428–1028] | 3/5 | fail |
 | III-3 | population floor | p.64 | 250 | 200–350 | 24.2 [0–59] | 5/5 | fail |
+| III-3 | agents that ever lived | p.64 fn 10 | 1.25e+04 | 1e+04–1.5e+04 | 2593 [593–4312] | 5/5 | fail |
 | III-4 | oscillation period | p.65 | 125 | 100–150 | 118.2 [115–123] | 5/5 | pass |
 | III-4 | oscillation range | Fig III-4, p.65 | 1000 | 600–1400 | 143.8 [104–259] | 5/5 | fail |
 | III-5 | extinction frequency (proxy) | Fig III-5, p.66 | — | 0.5–1 | 0 [0–0] | 10/10 | fail |
@@ -31,6 +32,7 @@
 
 Run: `python -m replication.report --chapter III --jobs 8` on 2026-10-21 (branch feat/chapter-3, after the final-review fix pass). Seeds as registered (5, 10, or 20).
 Fast suite 144 passed; `pytest -m slow tests/test_replication_ch3.py`: 11 passed, 13 failed (the near + fail rows).
+Re-run 2026-10-22 (branch feat/repro-calibration) after the calibration settings changed every fingerprint: every row identical, plus the new III-3 row for footnote 10.
 Chapter II regression run on the same branch: 19 pass / 12 near / 0 fail, every row identical to docs/replication/chapter-2.md.
 
 ## Choices made from evidence or by necessity
@@ -71,6 +73,66 @@ Chapter II regression run on the same branch: 19 pass / 12 near / 0 fail, every 
 2. **Inheritance barely raises inequality** (III-7 Gini 0.33 vs 0.743) **or slows selection** (vision 5.29 vs ≈4.3). With I, recycled wealth funds births in the wealth-limited regime and the population triples (≈1,370 at t=1000) instead of dynasties keeping wealth. This is the same unknown as item 1.
 3. **Culture never quite absorbs.** III-8 at t=6000: sides sit at 91–98% one color (2 of 5 runs have both sides ≥95%), and no run reaches 100% on every side (book: all agents Blue after ≈2700). A few holdout agents per side never convert. Tag positions drift like a voter model (one NE position went 83% → 95% → 34% zeros between t=1000 and 3000), consistent with the book's process but slower to finish. III-15: mountains usually end the same color (single-color dominance 60%), Red and Blue on opposite mountains only 5% (book ≈45%).
 4. **Waves (III-12) are not reproduced** — the same failure as II-6. Measured as net NE-ward travel (unwrapped across the map's edges), Blue advances ≈8 and Red ≈5 by t=50, with or without combat (III-13: ≈9.6). There is no wave to suppress, so III-13 says nothing yet.
+
+## Calibrated reproduction variant (2026-10-22)
+
+**Why.** The sex rule as the book states it doesn't reproduce the book's own population figures, and other replications confirm this is the published rule, not our code:
+- **Kehoe's DCU thesis** (§7.3.5) implemented the rule formally; his population collapsed before t=2500 under every updating strategy, and he concluded it must be "clarified by the original developers".
+- **MASON** (Bigbee, Cioffi-Revilla and Luke 2007) graded III-1, III-3 and III-5 as general matches. Its source uses our map (identical up to rotation) and our charging rule. Its child placement ignores occupancy, so births are never limited by space and overwritten agents keep acting off the grid; not a reading we can adopt.
+- **Ascape** (Brookings) departs from the text: founders at random ages, children cost at most 5 sugar, and a child's fertility threshold is a fresh random draw.
+- **Kremer-Herman and Gupta (2023)** default to exactly our reading.
+
+**Readings probed first** (3 seeds; none adopted, none reproduces the figures together):
+- **Founders at random ages:** fixes VI-2's crash, but worsens III-1 and VI-3.
+- **A child's threshold redrawn at random:** no effect.
+- **Ascape's cheap children:** III-1 goes extinct, or settles near 210.
+- **Mating before metabolism:** negligible.
+- **The current site never a destination:** III-3 dies out.
+- **p.65 as a 10–40 fertility threshold with 50–100 endowments:** more growth, no crashes; III-5 is never extinct.
+
+In III-1 the gap opens in the first generation. Our population matches at t=20 (464 against 470) but falls to 324 by t=85, while the book's rises to 570. Only 17–25% of fertile-age agents hold their endowment, so births run at ≈3.5 per period; no child starves.
+
+**Protocol.** Two settings, each defaulting to the book's rule (`Config.fertility_threshold` = 1.0, `child_share` = 0.5).
+- **Fitting:** each was fitted to one number only, III-1's steady population (500; mean over t=500–1500, 5 seeds).
+- **Freezing:** the fitted values were frozen before any other run.
+- **Validation:** each setting then ran unchanged on III-1's other rows, III-3, III-4, III-5, VI-2 and VI-3, as experiments `CAL-thr/…` and `CAL-share/…` with the same targets (`python -m replication.report --chapter CAL`).
+
+| Setting | Grid (III-1 mean population) | Fitted |
+|---|---|---|
+| `fertility_threshold` | 0.5: 942, 0.6: 858, 0.7: 738, 0.8: 530, **0.83: 506**, 0.84: 476, 0.9: 423, 1.0: 367 | **0.83** |
+| `child_share` | 0.3–0.4: ≈1650, 0.45: 1538, 0.49: 933, 0.495: 703, **0.4975: 496**, 0.499: 396, 0.5: 367 | **0.4975** |
+
+`child_share` below 0.5 compounds across generations: a smaller gift lowers the child's endowment, and that endowment is the child's own fertility threshold. So the population is hypersensitive to it, which already counts against it as a hidden detail of the original.
+
+**Validation** (the fitted III-1 population row is excluded; book = the book-faithful runs):
+
+| Target | Book value | Book-faithful | `fertility_threshold` 0.83 | `child_share` 0.4975 |
+|---|---|---|---|---|
+| III-1 fluctuation (≤0.10) | 0.10 | 0.055 pass | 0.074 pass | 0.226 fail |
+| III-1 vision / metabolism | 5.3 / 1.0 | pass / pass | 5.65 pass / 1.0 pass | 5.69 pass / 1.0 pass |
+| III-3 period | 200 | 723 (3/5) fail | 315 fail | none found, fail |
+| III-3 floor | 250 | 24 fail | 174 near | 51 fail |
+| III-3 agents that ever lived (fn 10) | 12,500 | 2,593 fail | 8,739 near | 5,144 fail |
+| III-4 period | 125 | 118 pass | 123 pass | 261 fail |
+| III-4 range | 1000 | 144 fail | 304 near | 449 near |
+| III-5 extinction | yes | 0/10 fail | 0/10 fail | 0/10 fail |
+| VI-2 crash by t≈20 / extinction | 130 / yes | 289 / 0/10 | 295 / 0/10 | 291 / 0/10 |
+| VI-3 minimum | 65 | 119 fail | 201 fail | 155 fail |
+| VI-3 first peak | 1190 | 420 fail | 848 near | 678 fail |
+| VI-3 floor / ceiling after t=250 | 700 / 1200 | 301 fail / 721 near | **705 pass** / 929 near | 547 near / 882 near |
+| VI-3 period | 115 | 341 (2/5) fail | 194 fail | none found, fail |
+
+**What this shows.**
+- **`fertility_threshold` = 0.83 carries over partly.** Fitted only to III-1's level, it improves almost every out-of-sample reproduction row:
+  - III-3's floor rises from 24 to 174 and its agent count from 2,593 to 8,739 (book 12,500);
+  - III-4's swings double;
+  - VI-3 recovers to the book's 700 floor, with a ceiling of 929 and a first peak of 848, where the faithful run levels off near 700.
+- **What it still misses:**
+  - the oscillation periods (III-3 315 against 200, VI-3 194 against 115);
+  - III-5's extinction;
+  - VI-2's crash timing, which happens before anyone can reproduce and so can't depend on this setting.
+- **`child_share` doesn't carry over:** it is unstable and worse than the faithful rule on most rows.
+- **Reading:** a fertility test somewhat below the full birth endowment is consistent with the book's population levels across Chapters III and VI, but it isn't the whole missing piece. The timing results (periods, extinction, VI-2's early crash) point to something else as well, probably in the founders' setup. The variant stays a labelled departure from p.55; the book-faithful runs remain the reported results.
 
 ## Visual comparison
 

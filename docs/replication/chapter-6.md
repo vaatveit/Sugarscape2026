@@ -95,6 +95,8 @@ Fast suite 265 passed. Regression on this branch:
    Founders at a spread of ages would explain the bars at the foot of Animation VI-2: births at t≈1–3, which age-0 founders can't produce. Combined with two-good fertility, they reproduce VI-2's crash and extinction closely. But under the same readings the trading society dies too, so the book's recovery is still missing.
 
    Neither reading was adopted. Founder ages made III-1 worse in Chapter III, and sugar-only fertility is a user decision. Whatever lets the book's trading society grow to 1200 is the same missing piece as Chapter III's population level.
+
+   **Calibrated variant (2026-10-22; see the Chapter III record).** A fertility test at 0.83 of the birth endowment, fitted only to III-1's steady population, lifts VI-3 to the book's floor (705, pass), a ceiling of 929 and a first peak of 848. It doesn't fix the period (194), the early minimum (201) or VI-2, whose crash comes before anyone can reproduce. The variant is a labelled departure from p.55; the rows above remain the book-faithful results.
 2. **VI-1's disease clears within ≈5 periods.** Active diseases per agent fall from 4.7 at t=0 to 0.2 at t=5, while the book still shows 2.26 per agent and 85% infected at t≈120. This is V-2's open discrepancy from the Chapter V record: diseases are learned faster than they spread. Births of susceptible children don't sustain it.
 3. **VI-1's society is smaller and sparser** than the book's:
    - ≈101 agents at t=50 (book ≈155);

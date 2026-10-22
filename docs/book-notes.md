@@ -190,6 +190,8 @@ Baseline (Fig III-1, constant population) uses rule S with default parameters (s
   Average agent lifetime ≈ 80 years (so no agent lives through a full swing).
 - **Fig III-4, large oscillations:** restore default infertility ages, but reduce the
   sugar necessary for reproduction (initial-endowment range) to **10 to 40**.
+  (MASON reads this as a flat fertility threshold, 25 for III-4 and 10 for III-5, with
+  endowments kept at 50–100; probed 2026-10-22 as a 10–40 threshold, not adopted.)
   Amplitude starts >1000 (≈350 to ≈1600), diminishing to ~800; period ≈125 years.
 - **Fig III-5, extinction:** both changes combined → three growth surges
   (peaks ~1250, ~1450, ~1400) then extinction around t≈550.
