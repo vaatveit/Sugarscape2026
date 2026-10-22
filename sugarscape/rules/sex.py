@@ -6,13 +6,16 @@ VON_NEUMANN = ((1, 0), (-1, 0), (0, 1), (0, -1))
 
 
 def is_fertile(agent) -> bool:
-    """Of childbearing age and holding at least the sugar it was endowed with at birth (p.55)."""
+    """Of childbearing age and holding at least the sugar it was endowed with at birth (p.55).
+
+    The wealth test is sugar only, as p.55 states, also on the sugar-and-spice landscape (user
+    decision, 2026-10-21); parents still give half their initial spice to each child.
+    """
     return (
         agent.alive
         and agent.sex is not None
         and agent.fertility_start <= agent.age < agent.fertility_end
         and agent.sugar >= agent.initial_sugar
-        and agent.spice >= agent.initial_spice  # both 0.0 on the sugar-only landscape
     )
 
 

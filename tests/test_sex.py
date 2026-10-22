@@ -82,15 +82,15 @@ def test_mating_near_full_lattice_runs():  # Review Focus 4
     assert len(m.agents) <= 2500
 
 
-def test_fertility_needs_both_endowments():
+def test_fertility_needs_only_the_sugar_endowment():  # p.55 names sugar only (user decision)
     m = tiny_model(np.ones((6, 6), dtype=int), sex=True, spice=True, foresight=(0, 10))
     f, h = couple(m)
     for a, phi in ((f, 2), (h, 2)):
-        a.initial_spice, a.spice, a.spice_metabolism, a.foresight = 40.0, 39.0, 1, phi
-    assert mate(m, f) == []
-    f.spice = h.spice = 40.0
+        a.initial_spice, a.spice, a.spice_metabolism, a.foresight = 40.0, 10.0, 1, phi
+    assert is_fertile(f) and is_fertile(h)  # spice below its endowment doesn't matter
     child = mate(m, f)[0]
-    assert child.spice == child.initial_spice == 40.0 and f.spice == 20.0 and h.spice == 20.0
+    assert child.spice == child.initial_spice == 40.0  # each parent still gives half its initial spice
+    assert f.spice == h.spice == 10.0 - 20.0
     assert child.spice_metabolism == 1 and child.foresight == 2
 
 

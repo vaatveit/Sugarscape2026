@@ -1,6 +1,6 @@
 # Replication report
 
-18 pass, 8 near, 15 fail, of 41 targets.
+19 pass, 10 near, 12 fail, of 41 targets.
 
 | Experiment | Target | Source | Book | Band | Observed mean [min–max] | Seeds | Status |
 |---|---|---|---|---|---|---|---|
@@ -34,20 +34,20 @@
 | IV-13/notrade/v5.5 | Gini without trade | Fig IV-13, p.123 | 0.34 | 0.29–0.39 | 0.3206 [0.3158–0.3262] | 10/10 | pass |
 | IV-13/notrade/v10 | Gini without trade | Fig IV-13, p.123 | 0.33 | 0.28–0.38 | 0.327 [0.3208–0.3361] | 10/10 | pass |
 | IV-13/notrade/v14.5 | Gini without trade | Fig IV-13, p.123 | 0.31 | 0.26–0.36 | 0.3304 [0.3271–0.3353] | 10/10 | pass |
-| IV-14 | dispersion with S | Fig IV-14, p.124 | 0.37 | 0.28–0.48 | 0.2768 [0.2768–0.2768] | 1/5 | fail |
+| IV-14 | dispersion with S | Fig IV-14, p.124 | 0.37 | 0.28–0.48 | 0.312 [0.2936–0.3389] | 5/5 | pass |
 | IV-15 | dispersion, cultural preferences | Fig IV-16, p.126 | 0.45 | 0.3–0.6 | 0.1832 [0.1432–0.2285] | 5/5 | near |
 | IV-15 | trades per period | p.125 | 1000 | 500–1500 | 266.8 [145.2–354.7] | 5/5 | near |
-| IV-17 | dispersion with S and K | Fig IV-17, p.127 | 0.45 | 0.35–0.55 | 0.2574 [0.2574–0.2574] | 1/5 | fail |
+| IV-17 | dispersion with S and K | Fig IV-17, p.127 | 0.45 | 0.35–0.55 | 0.312 [0.2831–0.3349] | 5/5 | near |
 | IV-A3 | price before pollution (ln p) | Anim IV-3, p.128 | 0 | -0.2–0.2 | 0.02095 [-0.06898–0.1112] | 10/10 | pass |
 | IV-A3 | sugar price spike (proxy) | Anim IV-3 | 3.5 | 2–6 | 2.332 [1.782–2.887] | 10/10 | pass |
 | IV-A3 | recovery by t≈300 (ln p) | Anim IV-3, p.129 | 0 | -0.25–0.25 | 0.5952 [0.04745–0.9893] | 10/10 | fail |
-| IV-18 | long-run mean foresight | Fig IV-18, p.130 | 4.9 | 4.25–5.5 | 6.674 [6.674–6.674] | 1/5 | fail |
+| IV-18 | long-run mean foresight | Fig IV-18, p.130 | 4.9 | 4.25–5.5 | 4.116 [1.893–5.729] | 3/5 | near |
 | IV-A5 | active loans (proxy) | Anim IV-5, p.134 | 187 | 50–400 | 100.4 [94.98–104.6] | 5/5 | pass |
 | IV-A5 | agents both lending and borrowing (proxy) | Anim IV-5 | 21 | 5–100 | 20.03 [19.2–21.5] | 5/5 | pass |
 | IV-A5 | hierarchy levels (proxy) | p.133 | 5 | 3–8 | 6.8 [6–8] | 5/5 | pass |
 
 Run: `python -m replication.report --chapter IV --jobs 8` on 2026-10-21 (branch feat/chapter-4). Seeds as registered (5 or 10).
-Fast suite 199 passed; `pytest -m slow tests/test_replication_ch4.py`: 18 passed, 23 failed (the near + fail rows).
+Fast suite 201 passed. IV-14, IV-17 and IV-18 were re-run after the fertility decision below.
 Chapter II and III regression runs on this branch: every row identical to docs/replication/chapter-2.md and chapter-3.md.
 
 ## Choices made from evidence or by necessity
@@ -56,6 +56,7 @@ Chapter II and III regression runs on this branch: every row identical to docs/r
 - **Pollution devalues the site's resources** in the two-commodity movement rule: W(w1 + x1/(1+p), w2 + x2/(1+p)), the analog of p.47's sugar/(1+p). The plan's first form (Kehoe: the agent's whole welfare divided by 1+p) let pollution swamp every choice. After diffusion no one returned to the peaks, the population collapsed, and the price rose to 8. Fixed with a failing test first.
 - **Populations:** 200 agents where p.108 states it; 400 for the Fig IV-6 and IV-13 sweeps, where the book is silent.
 - **Metabolism 1–5 for both goods** in every Chapter IV run (p.108). The book doesn't state Fig IV-6's metabolism; a 1–4 range lands closer to its numbers (164 / 138 at mean vision 3 vs book 158 / 120), but switching would be tuning to the target.
+- **Fertility tests sugar only** (user decision, 2026-10-21): an agent can have children when it holds at least its birth endowment of sugar, as p.55 states; spice isn't tested, though parents still give half their initial spice to each child. Our first version also required spice, which halved births and wiped out 4 of 5 seeds in IV-14, IV-17 and IV-18.
 - **Credit:** creditworthy when last period's income × d covers this loan and the borrower's other debts; simple interest; renegotiated remainders are re-lent on the same terms.
 
 ## What matches
@@ -63,6 +64,7 @@ Chapter II and III regression runs on this branch: every row identical to docs/r
 - **Price formation (Figs IV-3, IV-5):** mean price ≈1.0 and price dispersion falls to ≈0.05 by t=1000.
 - **Market thickness (Figs IV-9, IV-12):** dispersion ≈0.01 with vision 1–15. Long-run dispersion falls with lifespan: 0.46 / 0.29 / 0.20 / 0.09 at lifespans 80 / 300 / 550 / 980, against the book's ≈0.5 / 0.3 / 0.2 / 0.15.
 - **Gini at mean vision 10–14.5** with and without trade.
+- **Trade with reproduction (Fig IV-14):** price dispersion 0.31 (book ≈0.37), all 5 seeds alive.
 - **Pollution and prices (Animation IV-3):** price ≈1 before pollution and a sugar-price spike after it (2.3, book ≈3.5).
 - **Credit (Animation IV-5):** ≈100 active loans, ≈20 agents both lending and borrowing (book frame: 21), hierarchies 6–8 levels deep (book "as many as five").
 
@@ -70,8 +72,8 @@ Chapter II and III regression runs on this branch: every row identical to docs/r
 
 1. **Carrying capacity (Fig IV-6) runs ≈25% low at t=450–500, with and without trade.** Trade raises it by ≈20–30%, close to the book's ratio. **At t=45–60 our populations match the book's ten points within ±5%** (one at +19%), the same pattern as Fig II-5. It is carried as a discrepancy under the user's t=500 decision.
    **Important caveat (final review, verified):** in the two-commodity model the long-run population is **a survival fraction, not a carrying capacity**. It scales with the starting population: at mean vision 3, survivors at t=500 are 29 / 63 / 122 / 199 with trade from 100 / 200 / 400 / 800 starters (ratio 0.29 / 0.32 / 0.30 / 0.25), and 25 / 49 / 101 / 177 without trade (ratio ≈0.25). The Chapter II landscape is resource-limited instead (ratios 0.68 → 0.44). Survival is decided by each agent's total metabolism against what the sites it can see regrow: in IV-3 every survivor has m1 + m2 ≤ 5. The sugar peaks carry spice ≤ 2, and the nearest rich spice is 10–14 steps away. So the IV-6 levels depend on the unstated 400 starters, and the ±10% rows compare against a quantity this model doesn't define. The low population also explains IV-3's low trade volume (34/period vs ≈150): 66 agents with 0.44 neighbors each.
-2. **Reproduction runs (IV-14, IV-17, IV-18) die out in 4 of 5 seeds.** Founders starve (≈100 by t=50), and the rest die of old age at t=60–100 (all start at age 0). Only ≈20 children are ever born, too few to sustain the population; the one surviving seed booms to ≈600. Only one seed is valid, so each target fails on the half-valid rule.
-   **The main lever is our own fertility rule.** We require spice ≥ the initial spice endowment as well as sugar (our extension of p.55, which names sugar only). At t=25, 48 of 133 fertile-age agents pass the sugar test but only 22 pass both. Sensitivity (5 seeds, t=500) with sugar-only fertility: IV-14 survives in **5/5** seeds (vs 1/5), IV-18 in **3/5** (vs 1/5). **Decision needed:** keep both-goods fertility, or follow p.55's sugar-only wording.
+2. **Reproduction runs after the sugar-only fertility decision.** IV-14 survives in 5/5 seeds and passes. IV-17 survives in 5/5 seeds but its dispersion is 0.31 vs ≈0.45 (near). IV-18 (foresight) survives in 3/5 seeds; mean foresight over the survivors is 4.1 (range 1.9–5.7) vs ≈4.9 (near).
+   The die-off is still steep: populations fall to ≈35–170 by t=100 before booming to ≈600–750. With the earlier both-goods test, 4 of 5 seeds died out; at t=25, 48 of 133 fertile-age agents passed the sugar test but only 22 passed both.
 3. **Pollution recovery is slow:** the sugar price peaks near t≈250 (book ≈165) and is still ≈1.7 at t=300 (book ≈1.0 by ≈260). This is a thin-market statistic: the population falls 77 → 39 over t=100–300 with 5–29 trades per period, and the t=250 price rests on 5 trades. Consumption pollution lands wherever agents sit, so both mountains get polluted (mean 6.9 on sugar sites vs 4.4 on spice sites at t=150). Agents on the spice mountain can't see rich sugar, so spice piles up and the sugar price drifts up until they return around t≈250. No code defect found.
 4. **Price dispersion is lower than the book's in thin markets:** vision 1 gives 0.16 (book ≈0.3); cultural preferences give 0.18 (book ≈0.45) with 267 trades/period (book ≈1000). The low population thins trading.
 5. **Inequality without trade at low vision:** Gini 0.30 at mean vision 1.5 (book 0.43). Trade raises Gini in our runs at every vision below 10 (book: at 3.5–5.5).
