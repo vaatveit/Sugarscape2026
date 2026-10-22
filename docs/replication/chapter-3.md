@@ -205,6 +205,35 @@ Diagnostics of III-1 after t=300 (book rule, spread founder ages, 5 seeds, 27,80
 - **The animation run (≈670–1,020):** even with no waiting, a woman must net ≈37.5 by about age 45, i.e. ≈1.0 per year from birth. Ours falls below that at N≈700. Near 1,000 agents it would take nearly all of the map's regrowth (2,069 units per period at most, ≈2,000 needed), where ours harvests ≈78%.
 - **A shared cause with Chapter II is possible.** Fig II-5's metabolism-2 points are 18% low at t=500 (Chapter II record, open discrepancy 1). If the book read them at the asymptote rather than near t≈50, that gap and this one would both say that our harvest per agent falls off faster with density than the book's. At N≈250 we match (II-4's 224, II-3's wealth). This is consistent, not proven, and no movement detail tested so far produces it; "agents must move" was rejected in Chapter II.
 
+## Movement and harvest at high density (2026-10-22)
+
+Can a movement or harvest detail raise income at high density enough to lift the level? Diagnostics only; nothing here changes the model.
+
+**Where regrowth goes unharvested** (evolved agents: metabolism 1, vision 5–6, immortal, rich; t=100–300):
+
+| N | Harvest per agent | Agents on capacity 3–4 sites, harvest each | Capacity-2 sites full at period end | Agents on capacity-2 sites, harvest each |
+|---|---|---|---|---|
+| 350 | 2.45 | 296, 2.64 | 96% | 28, 2.00 |
+| 500 | 2.12 | 334, 2.34 | 84% | 122, 2.00 |
+| 700 | 1.98 | 361, 2.17 | 64% | 279, 2.00 |
+
+- **The peaks are grazed bare and the lowlands go unharvested.** The 782 peak sites regrow at most 782 units per period, and the agents on them harvest nearly all of it.
+- **Greedy movement caps the average.** Agents go to the richest site they see, so they crowd the peaks until a peak site is worth about what a full capacity-2 site offers (2). Average harvest can't rise much above 2 + (782 − 2k)/N, where k is the number of agents on the peaks: ≈2.2–2.3 at N=500, against our 2.12.
+
+**The text pins rule M except for the agent's own site** (p.25; App. B: "considering only unoccupied positions, find the nearest position producing maximum welfare"). Variants, 3 seeds:
+
+| Movement | Harvest per agent at N=350 / 500 / 700 | Fig II-5 m2 v2, v5.5 at t≈50 / t=500 (book 365, 390) | m3 v3 at t≈50 / t=500 (255) | II-4 at t=500 (224) | III-1 level (≈500) |
+|---|---|---|---|---|---|
+| Nearest richest, own site at distance 0 (current) | 2.45 / 2.13 / 1.99 | 369, 399 / 304, 314 | 257 / 236 | 228 | 352 |
+| Own site excluded ("must move") | 2.48 / 2.20 / 2.06 | 409, 413 / 320, 331 | 273 / 248 | 240 | 357 |
+| A random one of the richest, ignoring "nearest" | 2.62 / 2.32 / 2.07 | 417, 434 / 323, 333 | 279 / 248 | 245 | 452 |
+
+**Findings:**
+- **No movement detail the text allows raises high-density income enough.** "Must move" adds ≈3% income and nothing to the level, and Chapter II already rejected it (II-1's static end state).
+- **Ignoring "nearest" is the only variant that helps.** It adds 9% income at N=500 and lifts III-1 to 452, which shows how sensitive the level is to income. But it contradicts p.25's "select the nearest one". It also breaks Fig II-5's matches at t≈50 (+12–14%) and puts II-4 at the band's edge.
+- **Chapter II's metabolism-2 gap doesn't share this cause.** Every variant leaves the t=500 metabolism-2 points 15–20% low, so the shared-cause idea in "What sets the long-run level" above finds no support from movement.
+- **What remains is contact.** In our model women need ≈1.45 net income per year largely because each child waits ≈8 periods for an adjacent fertile partner. Free contact alone gives 509. Our mean neighbor count in Chapter II is 0.80 (band pass, but below the book's 0.9 in all 10 seeds), so local spacing is the next place to look.
+
 ## Calibrated reproduction variant (2026-10-22)
 
 **Why.** The sex rule as the book states it doesn't reproduce the book's own population figures, and other replications confirm this is the published rule, not our code:
