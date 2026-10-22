@@ -9,7 +9,7 @@ from sugarscape.agent import Agent
 from sugarscape.config import Config
 from sugarscape.landscape import Landscape
 from sugarscape.maps import load_map
-from sugarscape.rules import combat, culture, movement, sex
+from sugarscape.rules import combat, culture, movement, sex, trade
 from sugarscape.rules.culture import random_tags
 
 VON_NEUMANN = ((1, 0), (-1, 0), (0, 1), (0, -1))
@@ -29,6 +29,7 @@ class Model:
         self.agents: list[Agent] = []
         self.t = 0
         self.dead_this_step: list[Agent] = []
+        self.trade_log: list[trade.Exchange] = []  # this period's exchanges (rule T)
         self._next_id = 0
         self._place_initial_population()
 
@@ -129,6 +130,7 @@ class Model:
         """One period, in the order fixed by the design (docs/superpowers/specs, Scheduling)."""
         cfg = self.config
         self.dead_this_step = []
+        self.trade_log = []
         for agent in self.agents:
             agent.moved = False
 
@@ -150,6 +152,8 @@ class Model:
             if cfg.culture:
                 culture.transmit(self, agent)
                 culture.update_friends(agent, agent.neighbors)
+            if cfg.trade:
+                trade.trade_with_neighbors(self, agent)
 
         # End of period: aging and old-age death, replacement, then the environment.
         for agent in self.agents:
