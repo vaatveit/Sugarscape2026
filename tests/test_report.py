@@ -176,3 +176,12 @@ def test_first_time_pure():
     s = [row(0, 50, 50, 40, 40), row(10, 100, 0, 80, 1), row(20, 100, 0, 0, 81)]
     assert first_time_pure()(s) == 20.0
     assert math.isnan(first_time_pure()(s[:2]))
+
+
+def test_baseline_target_is_a_paired_ratio():
+    t = Target("X", "ratio", None, 0.9, 1.1, window_mean("population", 0, 0), "src", baseline="Y")
+    runs = [[{"t": 0, "population": 10.0}], [{"t": 0, "population": 30.0}]]
+    base = runs + [[{"t": 0, "population": 5.0}]]  # extra baseline seed is ignored
+    r = evaluate(t, runs, base)
+    assert (r.observed_mean, r.n_runs, r.status) == (1.0, 2, "pass")
+    assert evaluate(t, runs, [[{"t": 0, "population": 0.0}]] * 2).status == "fail"  # nan per seed

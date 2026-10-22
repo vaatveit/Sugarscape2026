@@ -1,3 +1,5 @@
+import pytest
+
 from experiments.registry import EXPERIMENTS
 from experiments.run import load_results, matching_ids, results_current, run_experiment
 from replication.report import load_or_run
@@ -50,3 +52,10 @@ def test_results_fingerprint_detects_changed_settings(tmp_path):
     assert not results_current("TEST-tiny", tmp_path)
     load_or_run("TEST-tiny", out_dir=tmp_path)                    # reruns instead of reusing
     assert results_current("TEST-tiny", tmp_path)
+
+
+@pytest.mark.parametrize("exp_id, metric", [("TEST-schelling", "like_fraction"), ("TEST-ring", "mean_group_size")])
+def test_variant_experiments_run(tmp_path, exp_id, metric):
+    runs = run_experiment(exp_id, out_dir=tmp_path)
+    assert len(runs) == 2 and len(runs[0]) == 6 and metric in runs[0][0]
+    assert load_results(exp_id, tmp_path) == runs and (tmp_path / exp_id / "summary.png").exists()

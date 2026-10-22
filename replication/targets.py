@@ -24,6 +24,9 @@ class Target:
     statistic: Statistic  # per-seed value
     source: str  # e.g. "Fig II-4, p.31"
     proxy: bool = False  # True when measuring a qualitative claim
+    # When set, each seed's value is the statistic divided by the same statistic on this
+    # experiment's seed of the same index (the book's comparative claims, Chapter VI).
+    baseline: str | None = None
 
 
 def _values(series: Series, metric: str, t0: float = -math.inf, t1: float = math.inf) -> list[float]:
@@ -381,4 +384,71 @@ TARGETS += [
            "Anim V-3, p.151"),
     Target("V-2", "spread of diseases per agent", 1.0, 0.8, 1.2, window_mean("sd_diseases", 300, 500),
            "Anim V-3, p.151"),
+]
+
+
+# --- Chapter VI ----------------------------------------------------------------------------
+# VI-1 values are read from Animation VI-1's panels (frame times estimated from their axes).
+# Bands: ±20% of a reading, ±0.1 for shares, ±50% for credit counts (one run, small numbers).
+
+TARGETS += [
+    Target("VI-1", "population at t≈50", 155, 125, 185, window_mean("population", 45, 50), "Anim VI-1 fr. 6"),
+    Target("VI-1", "Gini of total wealth", 0.246, 0.20, 0.30, window_mean("gini", 40, 50), "Anim VI-1 fr. 5"),
+    Target("VI-1", "average neighbors", 0.7, 0.56, 0.84, window_mean("mean_neighbors", 1, 50), "Anim VI-1 fr. 2"),
+    Target("VI-1", "average fertility", 1.3, 1.04, 1.56, window_mean("mean_children", 50, 60), "Anim VI-1 fr. 8"),
+    Target("VI-1", "best-friend closeness", 0.86, 0.76, 0.96, window_mean("best_friend_closeness", 50, 70),
+           "Anim VI-1 fr. 10"),
+    Target("VI-1", "friend closeness", 0.79, 0.69, 0.89, window_mean("friend_closeness", 50, 70), "Anim VI-1 fr. 10"),
+    Target("VI-1", "mean price (ln p)", 0.0, -0.2, 0.2, window_mean("mean_log_price", 1, 95), "Anim VI-1 fr. 11"),
+    Target("VI-1", "price dispersion", 0.35, 0.28, 0.42, window_mean("price_sd", 1, 95), "Anim VI-1 fr. 12"),
+    Target("VI-1", "trades per period", 125, 100, 150, window_mean("trades", 25, 95), "Anim VI-1 fr. 13"),
+    Target("VI-1", "active loans", 215, 108, 322, window_mean("n_loans", 100, 120), "Anim VI-1 fr. 15-16"),
+    Target("VI-1", "agents both lending and borrowing", 37, 18, 56, window_mean("n_both", 100, 120),
+           "Anim VI-1 fr. 15-16"),
+    Target("VI-1", "infected fraction dips", 0.6, 0.5, 0.7, window_min("fraction_sick", 50, 100), "Anim VI-1 fr. 17"),
+    Target("VI-1", "infected fraction recovers", 0.85, 0.75, 0.95, window_mean("fraction_sick", 110, 120),
+           "Anim VI-1 fr. 17"),
+    Target("VI-1", "average diseases", 2.26, 1.81, 2.71, window_mean("mean_diseases", 115, 125), "Anim VI-1 fr. 18"),
+    Target("VI-1", "spread of diseases per agent", 1.47, 1.18, 1.76, window_mean("sd_diseases", 115, 125),
+           "Anim VI-1 fr. 18"),
+]
+# p.159: VI-2 and VI-3 differ only in trade, so paired seeds start from the identical society.
+TARGETS += [
+    Target("VI-2", "crash by t≈20", 130, 104, 156, window_mean("population", 18, 22), "Anim VI-2, p.160"),
+    Target("VI-2", "extinction frequency", None, 0.5, 1.0, extinct_by(200), "Anim VI-2, p.159", proxy=True),
+    Target("VI-3", "early decline as without trade", 1.0, 0.8, 1.25, window_mean("population", 0, 75), "p.159",
+           baseline="VI-2"),
+    Target("VI-3", "near-extinction minimum", 65, 52, 78, window_min("population", 40, 120), "Anim VI-3, p.161"),
+    Target("VI-3", "first peak", 1190, 952, 1428, window_max("population", 150, 300), "Anim VI-3, p.161"),
+    Target("VI-3", "oscillation floor", 700, 560, 840, window_min("population", 250, 1000), "p.159"),
+    Target("VI-3", "oscillation ceiling", 1200, 960, 1440, window_max("population", 250, 1000), "Anim VI-3, p.161"),
+    Target("VI-3", "oscillation period", 115, 92, 138, dominant_period("population", 200, 1000), "p.159"),
+]
+TARGETS += [
+    Target("VI-4", "equilibrium: nobody moves", 0.0, 0, 0, window_mean("moved", 400, 500), "p.166"),
+    Target("VI-4", "more segregated than the start", None, 1.05, 2.0,
+           ratio_of_windows("like_fraction", (500, 500), (0, 0)), "Anim VI-4, p.166", proxy=True),
+    Target("VI-5", "never settles", None, 1, 2000, window_mean("moved", 400, 500), "p.166", proxy=True),
+    Target("VI-5", "segregation comparable", None, 0.9, 1.1, window_mean("like_fraction", 300, 500), "p.166",
+           proxy=True, baseline="VI-4"),
+    Target("VI-6", "far higher segregation", None, 1.2, 2.0, window_mean("like_fraction", 300, 500), "p.170",
+           proxy=True, baseline="VI-5"),
+    Target("VI-7", "high segregation endures", None, 0.9, 1.1, window_mean("like_fraction", 300, 500), "p.170",
+           proxy=True, baseline="VI-6"),
+]
+TARGETS += [
+    Target("VI-8", "agents cluster into groups", None, 2, 20,
+           ratio_of_windows("mean_group_size", (400, 500), (0, 0)), "p.172", proxy=True),
+    Target("VI-8", "slow agents are absorbed", None, 0.8, 1.0, window_mean("clustered_fraction", 400, 500), "p.172",
+           proxy=True),
+    Target("VI-8", "groups outpace loners", None, 1.5, 40, window_mean("speed_ratio", 1, 500), "p.172", proxy=True),
+    Target("VI-8", "groups of comparable size", None, 0, 0.5, window_mean("group_size_cv", 400, 500), "p.172",
+           proxy=True),
+    Target("VI-8", "size bounded by the most nearsighted", None, 0.9, 1.0,
+           window_mean("within_vision_bound", 100, 500), "p.175", proxy=True),
+    Target("VI-9", "megagroup breaks up", None, 2, 30, window_mean("largest_group", 200, 500), "p.174", proxy=True),
+    Target("VI-9", "into several groups", None, 2, 20, window_mean("n_groups", 200, 500), "p.174", proxy=True),
+    Target("VI-9", "like-sized cliques", None, 0, 0.5, window_mean("group_size_cv", 200, 500), "p.174", proxy=True),
+    Target("VI-9", "size bounded by the most nearsighted", None, 0.9, 1.0,
+           window_mean("within_vision_bound", 100, 500), "p.175", proxy=True),
 ]

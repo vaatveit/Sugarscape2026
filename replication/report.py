@@ -26,14 +26,27 @@ class Result:
     n_runs: int = 0
 
 
-def evaluate(target: Target, runs: list[Series]) -> Result:
+def _per_seed(target: Target, runs: list[Series], baseline_runs: list[Series] | None) -> list[float]:
+    """The target's statistic per seed; with a baseline, its ratio to the statistic on the baseline
+    experiment's seed of the same index (seeds pair by index, the shorter list sets the count)."""
+    if target.baseline is None:
+        return [target.statistic(s) for s in runs]
+    values = []
+    for run, base in zip(runs, baseline_runs or []):
+        num, den = target.statistic(run), target.statistic(base)
+        values.append(math.nan if den == 0 or math.isnan(den) else num / den)
+    return values
+
+
+def evaluate(target: Target, runs: list[Series], baseline_runs: list[Series] | None = None) -> Result:
     """pass: mean within [low, high]; near: within the band widened by half its width each side.
 
     Seeds whose statistic is nan (e.g. extinct at the sampled time) cannot pass: any nan seed caps
     the status at "near", and fewer than half valid seeds is a "fail".
     """
-    values = [v for v in (target.statistic(s) for s in runs) if not math.isnan(v)]
-    n_valid, n_runs = len(values), len(runs)
+    per_seed = _per_seed(target, runs, baseline_runs)
+    values = [v for v in per_seed if not math.isnan(v)]
+    n_valid, n_runs = len(values), len(per_seed)
     if n_valid == 0 or n_valid * 2 < n_runs:
         stats = (float(np.mean(values)), float(min(values)), float(max(values))) if values else (math.nan,) * 3
         return Result(target, *stats, "fail", n_valid, n_runs)
@@ -68,6 +81,8 @@ def write_report(results: list[Result], path: Path) -> None:
     for r in results:
         t = r.target
         name = f"{t.name} (proxy)" if t.proxy else t.name
+        if t.baseline:
+            name = f"{name} (vs {t.baseline})"
         observed = f"{_fmt(r.observed_mean)} [{_fmt(r.observed_min)}–{_fmt(r.observed_max)}]"
         lines.append(
             f"| {t.experiment} | {name} | {t.source} | {_fmt(t.book_value)} | "
@@ -95,10 +110,11 @@ def main(argv: list[str] | None = None) -> None:
     cache: dict[str, list[Series]] = {}
     results = []
     for t in targets:
-        if t.experiment not in cache:
-            cache[t.experiment] = load_or_run(t.experiment, args.out, args.jobs, args.rerun)
-            print(f"{t.experiment}: {len(cache[t.experiment])} seeds", flush=True)
-        results.append(evaluate(t, cache[t.experiment]))
+        for exp_id in filter(None, (t.experiment, t.baseline)):
+            if exp_id not in cache:
+                cache[exp_id] = load_or_run(exp_id, args.out, args.jobs, args.rerun)
+                print(f"{exp_id}: {len(cache[exp_id])} seeds", flush=True)
+        results.append(evaluate(t, cache[t.experiment], cache[t.baseline] if t.baseline else None))
     write_report(results, args.out / "REPORT.md")
     print(f"wrote {args.out / 'REPORT.md'}")
 

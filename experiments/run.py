@@ -7,6 +7,7 @@ A prefix such as "II-5" runs every id of the form "II-5/...".
 import argparse
 import csv
 import math
+import warnings
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import replace
 from pathlib import Path
@@ -15,11 +16,26 @@ import numpy as np
 from matplotlib.figure import Figure
 
 from experiments.registry import EXPERIMENTS
+from sugarscape.config import Config
 from sugarscape.model import Model
 from sugarscape.stats import disease_metrics, economic_metrics, society_metrics, standard_metrics
+from sugarscape.variants.ringworld import RingConfig, RingModel, ring_metrics
+from sugarscape.variants.schelling import SchellingConfig, SchellingModel, schelling_metrics
 
 Series = list[dict[str, float]]
 PLOTTED = ("population", "gini", "mean_vision", "mean_metabolism")
+
+
+def sugarscape_metrics(m: Model) -> dict[str, float]:
+    return {**standard_metrics(m), **society_metrics(m), **economic_metrics(m), **disease_metrics(m)}
+
+
+# Each kind of config: the model it builds, the metrics recorded each period, and the plotted ones.
+KINDS = {
+    Config: (Model, sugarscape_metrics, PLOTTED),
+    SchellingConfig: (SchellingModel, schelling_metrics, ("like_fraction", "fraction_satisfied", "moved", "population")),
+    RingConfig: (RingModel, ring_metrics, ("mean_group_size", "largest_group", "clustered_fraction", "speed_ratio")),
+}
 
 
 def result_dir(exp_id: str, out_dir: Path) -> Path:
@@ -46,14 +62,10 @@ def results_current(exp_id: str, out_dir: Path = Path("results")) -> bool:
 
 def run_seed(exp_id: str, seed_index: int) -> Series:
     exp = EXPERIMENTS[exp_id]
-    model = Model(replace(exp.config, seed=exp.config.seed + seed_index))
+    make_model, metrics, _ = KINDS[type(exp.config)]
+    model = make_model(replace(exp.config, seed=exp.config.seed + seed_index))
     series: Series = []
-    model.run(
-        exp.steps,
-        observer=lambda m: series.append(
-            {"t": m.t, **standard_metrics(m), **society_metrics(m), **economic_metrics(m), **disease_metrics(m)}
-        ),
-    )
+    model.run(exp.steps, observer=lambda m: series.append({"t": m.t, **metrics(m)}))
     return series
 
 
@@ -111,11 +123,13 @@ def _read_csv(path: Path) -> Series:
 def _plot(exp_id: str, runs: list[Series], path: Path) -> None:
     exp = EXPERIMENTS[exp_id]
     fig = Figure(figsize=(10, 7))
-    for i, metric in enumerate(PLOTTED):
+    for i, metric in enumerate(KINDS[type(exp.config)][2]):
         ax = fig.add_subplot(2, 2, i + 1)
         for series in runs:
             ax.plot([r["t"] for r in series], [r[metric] for r in series], color="0.75", lw=0.8)
-        mean = np.nanmean([[r[metric] for r in s] for s in runs], axis=0)
+        with warnings.catch_warnings():  # periods where every seed is nan plot as gaps
+            warnings.simplefilter("ignore", RuntimeWarning)
+            mean = np.nanmean([[r[metric] for r in s] for s in runs], axis=0)
         ax.plot([r["t"] for r in runs[0]], mean, color="C0", lw=1.6)
         ax.set_title(metric)
         ax.set_xlabel("t")

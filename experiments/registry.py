@@ -4,6 +4,8 @@ import math
 from dataclasses import dataclass
 
 from sugarscape.config import Config
+from sugarscape.variants.ringworld import RingConfig
+from sugarscape.variants.schelling import SchellingConfig
 
 
 @dataclass(frozen=True)
@@ -11,7 +13,7 @@ class Experiment:
     id: str  # book label, e.g. "II-4"; sweep points use "II-5/m2/v5.5"
     title: str
     rules: str  # book notation, e.g. "({G1}, {M})"
-    config: Config  # its seed is the base seed; run k uses base + k
+    config: Config | SchellingConfig | RingConfig  # its seed is the base seed; run k uses base + k
     steps: int
     seeds: int
 
@@ -36,6 +38,12 @@ register(
         seeds=2,
     )
 )
+register(Experiment(
+    id="TEST-schelling", title="Tiny Schelling smoke experiment for runner tests", rules="Schelling",
+    config=SchellingConfig(width=10, height=10, population=60, max_age=(5, 8)), steps=5, seeds=2))
+register(Experiment(
+    id="TEST-ring", title="Tiny Ring World smoke experiment for runner tests", rules="Ring World",
+    config=RingConfig(sites=30, population=8, vision=(3, 6)), steps=5, seeds=2))
 
 
 # --- Chapter II: Life and Death on the Sugarscape ---------------------------------------
@@ -309,3 +317,47 @@ register(Experiment(
     id="V-2", title="Endemic disease: 25 diseases, 10 per agent (Animations V-2, V-3, pp.147-151)",
     rules="({G1}, {M, E})", config=Config(endowment=CH2_ENDOWMENT, disease_list=25, diseases_per_agent=10),
     steps=500, seeds=10))
+
+
+# --- Chapter VI: Conclusions ----------------------------------------------------------------
+
+register(Experiment(
+    id="VI-1", title="All rules on: an artificial society (Animation VI-1, pp.154-157)",
+    rules="({G1}, {M, S, K, T, L10,10, E})",
+    # Chapter IV agents (200 starters, frame 6). Disease uses V-2's endemic setting and cultural
+    # preferences are off: the rule set names neither (our calls). Credit lends sugar (p.55).
+    config=Config(**{**NEO, **CH4_SEX}, tag_length=TAGS, culture=True, credit=(10, 10.0),
+                  disease_list=25, diseases_per_agent=10),
+    steps=500, seeds=5))
+# p.159: 500 agents on Chapter IV's landscape; the two runs differ only in trade, so seed k of
+# each starts from the identical society. Max age 60-100 is the "eighty years on average".
+register(Experiment(
+    id="VI-2", title="Indecomposability: extinction without trade (Animation VI-2, p.160)",
+    rules="({G1}, {M, S})", config=Config(**{**NEO, **CH4_SEX, "trade": False, "initial_population": 500}),
+    steps=200, seeds=10))
+register(Experiment(
+    id="VI-3", title="Indecomposability: recovery to long waves with trade (Animation VI-3, p.161)",
+    rules="({G1}, {M, S, T})", config=Config(**{**NEO, **CH4_SEX, "initial_population": 500}),
+    steps=1000, seeds=5))
+
+# pp.165-170: the Schelling variant, von Neumann neighbors, random acceptable site, torus.
+register(Experiment(
+    id="VI-4", title="Schelling, 25% preference: equilibrium (Animation VI-4, p.166)",
+    rules="Schelling", config=SchellingConfig(), steps=500, seeds=10))
+register(Experiment(
+    id="VI-5", title="Schelling, 25%, lifetimes 80-100 (Animation VI-5, p.166)",
+    rules="Schelling", config=SchellingConfig(max_age=(80, 100)), steps=500, seeds=10))
+register(Experiment(
+    id="VI-6", title="Schelling, 50%, lifetimes 80-100 (Animation VI-6, p.170)",
+    rules="Schelling", config=SchellingConfig(preference=(0.5, 0.5), max_age=(80, 100)), steps=500, seeds=10))
+register(Experiment(
+    id="VI-7", title="Schelling, preferences 25-50%, lifetimes 80-100 (Animation VI-7, p.170)",
+    rules="Schelling", config=SchellingConfig(preference=(0.25, 0.5), max_age=(80, 100)), steps=500, seeds=10))
+
+# pp.170-176: Ring World.
+register(Experiment(
+    id="VI-8", title="Ring World: flocking from random positions (Animation VI-8, p.173)",
+    rules="Ring World", config=RingConfig(), steps=500, seeds=10))
+register(Experiment(
+    id="VI-9", title="Ring World: a megagroup of 40 disaggregates (Animation VI-9, p.174)",
+    rules="Ring World", config=RingConfig(placement="block"), steps=500, seeds=10))
