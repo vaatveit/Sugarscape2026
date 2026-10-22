@@ -178,6 +178,33 @@ Follow-up diagnostics of the decomposition above (III-1, spread founder ages, 3 
 - **The long-run level is ours alone to miss.** The book's runs settle at ≈500 (Fig III-1) and ≈670–1,020 (the animation run); ours settles at ≈360. A lower threshold reaches either level (θ≈0.83 and θ≈0.75), but then the crash is shallower than the animation's (207 and 262 against ≤172).
 - **Remaining question:** why the book's selected, long-run population breeds more than ours under the same written rule. Income, cost, contact, placement and timing don't account for it.
 
+## What sets the long-run level (2026-10-22)
+
+Diagnostics of III-1 after t=300 (book rule, spread founder ages, 5 seeds, 27,802 completed lives); nothing here changes the model.
+
+**Ruled out:**
+- **Absolute wealth.** Animation II-3's run (250 agents, G1, R[60,100], endowment 5–25) is the book's only absolute wealth record. Its late frame (bins of 27 to 270) holds 122, 37, 28, 25, 18, 7, 9, 2, 0, 2 agents, a mean of ≈52.5. Ours at t=500–1000 holds 106, 49, 32, 26, 16, 8, 10, 2, 1, 0, with means of 50–54. Accumulation rates match at that density.
+- **Lifespan.** Maximum age doesn't drift: the mean of the living stays at 79–80 and agents die at 78–79. The 70–79 / 0–9 age-bin ratio is ≈0.7, within Animation III-1's 0.68–1.0. Drawing children's maximum age fresh instead of inheriting it changes nothing.
+
+**The level is set by women's wealth cycle:**
+
+| | Women | Men |
+|---|---|---|
+| Children per completed life | 1.90 (0/1/2/3: 6% / 6% / **81%** / 7%) | 1.92 (8% / 15% / 52% / 24%) |
+| Fertile-age years, of which wealth-fertile | 30.1, **8.5** | 40.0, 21.9 |
+| Net income while of fertile age | 1.44 per year | 1.45 |
+| Wealth at fertility start | 1.25 × threshold (all ≥ 1) | 1.26 × |
+| Age at first child; gap to the next | 18.4; 12.5 years | 24.0; 14.5 |
+
+- A woman starts fertile life a quarter above her threshold. The first child costs half her endowment. The second needs it re-earned, which takes 12.5 years on average including the wait for a partner. A third would need another 37.5 sugar (≈26 years), past the end of her window, so nearly every woman stops at two.
+- The population therefore settles where a woman's net income just fits two children into her window: ≈1.45 per year.
+- Net income of evolved agents (metabolism 1, vision 5–6) by population: **N=250 +1.87, 350 +1.46, 500 +1.12, 700 +0.99, 1,000 +0.61.** 1.45 is reached at N≈350, our level.
+
+**What the book's levels would require under the written rule:**
+- **Fig III-1 (≈500):** about 30% more net income per agent at N=500 than our map and movement give (≈1.45 against 1.12), or much shorter waits for partners. Free contact gives 509 (Birth-rate decomposition, above).
+- **The animation run (≈670–1,020):** even with no waiting, a woman must net ≈37.5 by about age 45, i.e. ≈1.0 per year from birth. Ours falls below that at N≈700. Near 1,000 agents it would take nearly all of the map's regrowth (2,069 units per period at most, ≈2,000 needed), where ours harvests ≈78%.
+- **A shared cause with Chapter II is possible.** Fig II-5's metabolism-2 points are 18% low at t=500 (Chapter II record, open discrepancy 1). If the book read them at the asymptote rather than near t≈50, that gap and this one would both say that our harvest per agent falls off faster with density than the book's. At N≈250 we match (II-4's 224, II-3's wealth). This is consistent, not proven, and no movement detail tested so far produces it; "agents must move" was rejected in Chapter II.
+
 ## Calibrated reproduction variant (2026-10-22)
 
 **Why.** The sex rule as the book states it doesn't reproduce the book's own population figures, and other replications confirm this is the published rule, not our code:
