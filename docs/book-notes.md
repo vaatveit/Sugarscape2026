@@ -501,6 +501,23 @@ Baseline (Fig III-1, constant population) uses rule S with default parameters (s
   megagroup of 40 breaks into like-sized groups (VI-9). Group size limited by the
   vision of the most nearsighted member (leapfrogging mechanism).
 
+### Chapter VI readings and decisions (2026-10-22)
+Read from the figures for the Chapter VI targets; frame times are estimates from their axes.
+- **VI-1 panels:** neighbors 0.7 (fr. 2); Gini 0.246 (fr. 5); population 200 → ≈155 at t≈50 (fr. 6);
+  average fertility 1.3 (fr. 8); best-friend / all-friend closeness 0.86 / 0.79 (fr. 10); price ≈1
+  and ln-price sd 0.3–0.4 over t≈1–95 (fr. 11–12); ≈100–150 trades per period (fr. 13); active
+  loans 211/219, lenders 138/145, borrowers 105/106, both 36/38 (fr. 15–16); infected fraction
+  1.0 → ≈0.6 (t≈80) → ≈0.85 (t≈120) (fr. 17); average diseases 2.26, sd 1.47 (fr. 18).
+- **VI-2:** 510 → ≈290 (t=10) → ≈130 (t=20) → ≈90 (t=40) → ≈50 (t=60) → ≈15 (t=100) → 0 by t≈140.
+- **VI-3:** minimum ≈65 at t≈70–90; 500 at t≈165; peaks ≈1190 (t≈213), 1165 (330), 1215 (452);
+  troughs ≈690 (272), 670 (390); bottom panel peaks reach ≈1250; peak spacing ≈117–122.
+- **Decisions:** credit on the sugar-and-spice landscape lends sugar only (fertility tests sugar
+  only, p.55). VI-1 uses Chapter IV agents (200), tags 11, K, T, L(10,10%), disease 25/10 (V-2's
+  endemic setting; our call), no cultural preferences, no I. VI-2/VI-3: 500 Chapter IV agents with
+  max age U[60,100]; the runs differ only in T. Schelling: no neighbors = satisfied; a newcomer
+  with no acceptable site goes to any empty site. Ring World: integer sugar, counterclockwise =
+  increasing index, an agent with a full field of view stays, groups allow one-site gaps.
+
 ---
 
 ## Appendix A — Software notes (pp. 179–181)
