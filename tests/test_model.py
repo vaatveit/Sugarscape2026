@@ -95,3 +95,12 @@ def test_chapter3_stream_unchanged_by_chapter4_fields():
     m.run(200)
     o = standard_metrics(m)
     assert (o["population"], o["mean_vision"], o["gini"]) == (374.0, 4.708556149732621, 0.16341810946378743)
+
+
+def test_chapter4_stream_unchanged_by_chapter5_fields():
+    from experiments.registry import EXPERIMENTS
+    from sugarscape.stats import economic_metrics, standard_metrics
+    m = Model(EXPERIMENTS["IV-3"].config)
+    m.run(100)
+    o, e = standard_metrics(m), economic_metrics(m)
+    assert (o["population"], e["mean_spice"], o["gini"]) == (77.0, 95.68948135466673, 0.3796649448208389)

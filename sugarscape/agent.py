@@ -31,8 +31,18 @@ class Agent:
     spice_metabolism: int = 0
     foresight: int = 0  # phi (p.129)
     last_income: float = 0.0  # last period's sugar harvest minus metabolism (credit, p.132)
+    # Chapter V
+    immune_genotype: list[int] | None = None  # untrained template, passed to children (p.146)
+    immune: list[int] | None = None  # trained phenotype (p.146)
+    diseases: list[tuple[int, ...]] = field(default_factory=list)  # active infections
+    disease_fee: float = 0.0  # extra sugar metabolism per active disease (p.143)
     disp_x: int = 0  # net displacement since birth, unwrapped across the torus edges
     disp_y: int = 0
+
+    @property
+    def sugar_burn(self) -> float:
+        """Sugar metabolism including the fee for each active disease (p.143)."""
+        return self.metabolism + self.disease_fee * len(self.diseases)
 
     @property
     def tribe(self) -> str | None:

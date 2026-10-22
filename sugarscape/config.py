@@ -65,6 +65,13 @@ class Config:
     credit: tuple[int, float] | None = None  # (duration d, rate r percent) of L_dr (p.132); sugar only
     pollution_stop: int | None = None  # pollution generation off from this t (p.128)
 
+    # Chapter V. New draws are gated by disease_list > 0 and come after earlier draws.
+    disease_list: int = 0  # master disease list size (p.147); 0 = no disease
+    diseases_per_agent: int = 0  # distinct diseases offered to each initial agent (p.147)
+    disease_length: tuple[int, int] = (1, 10)  # p.147
+    immune_length: int = 50  # p.147
+    disease_fee: float = 1.0  # extra sugar metabolism per active disease ("say, one", p.143)
+
     seed: int = 0
 
     def __post_init__(self) -> None:
@@ -133,6 +140,16 @@ class Config:
                 raise ValueError("credit needs each agent's income, which combat movement doesn't record")
             if d < 1 or r < 0:
                 raise ValueError(f"credit duration must be >= 1 and rate >= 0, not {self.credit}")
+        if self.disease_list < 0 or self.diseases_per_agent < 0:
+            raise ValueError("disease_list and diseases_per_agent must be >= 0")
+        if self.diseases_per_agent > self.disease_list:
+            raise ValueError(f"cannot offer {self.diseases_per_agent} distinct diseases from a list of {self.disease_list}")
+        if self.disease_length[0] < 1 or self.disease_length[0] > self.disease_length[1]:
+            raise ValueError(f"disease_length {self.disease_length} must be a range starting at >= 1")
+        if self.disease_length[1] >= self.immune_length:
+            raise ValueError("diseases must be shorter than immune systems (p.141)")
+        if self.disease_fee < 0:
+            raise ValueError(f"disease_fee must be >= 0, not {self.disease_fee}")
         if self.pollution_stop is not None and self.pollution_stop <= self.pollution_start:
             raise ValueError("pollution_stop must come after pollution_start")
         if self.replacement_same_tribe and not self.replacement:

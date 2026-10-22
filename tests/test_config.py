@@ -87,3 +87,13 @@ def test_chapter4_invalid_values_rejected(bad):
 def test_credit_with_combat_rejected():  # combat doesn't record income, so nobody could borrow
     with pytest.raises(ValueError):
         Config(sex=True, credit=(10, 10.0), tag_length=11, combat_alpha=2.0)
+
+
+@pytest.mark.parametrize("bad", [
+    {"disease_list": 3, "diseases_per_agent": 4}, {"disease_list": 5, "disease_length": (1, 50)},
+    {"disease_list": 5, "disease_length": (0, 4)}, {"disease_list": 5, "disease_fee": -1.0},
+    {"disease_list": 5, "disease_length": (6, 3)}, {"disease_list": -1}, {"disease_list": 5, "diseases_per_agent": -1},
+])
+def test_chapter5_invalid_values_rejected(bad):  # Review Focus 1
+    with pytest.raises(ValueError):
+        Config(**bad)
