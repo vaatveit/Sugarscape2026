@@ -120,6 +120,11 @@ class Model:
     def deaths_this_step(self) -> int:
         return len(self.dead_this_step)
 
+    @property
+    def agents_ever(self) -> int:
+        """Every agent created so far, living or dead (ids are issued in sequence)."""
+        return self._next_id
+
     def die(self, agent: Agent, excluded_heirs: Collection[Agent] = ()) -> None:
         """Every death goes through here: inheritance I (p.67) when enabled, then removal.
 

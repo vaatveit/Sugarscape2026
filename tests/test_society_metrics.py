@@ -10,7 +10,7 @@ from sugarscape.stats import society_metrics
 
 KEYS = {"n_blue", "n_red", "blue_fraction", "sw_blue", "sw_red", "ne_blue", "ne_red", "blue_xy", "red_xy",
         "blue_advance", "red_advance",
-        "mean_children", "best_friend_closeness", "friend_closeness"}
+        "mean_children", "best_friend_closeness", "friend_closeness", "agents_ever"}
 
 
 def test_tribeless_population_gives_zero_counts_and_nan():  # Review Focus 3
@@ -60,3 +60,10 @@ def test_advance_is_toroidal_displacement():  # wrapping step counts as 1, not 4
     assert (a.disp_x, a.disp_y) == (-1, 1)
     out = society_metrics(m)
     assert out["blue_advance"] == 0.0 and math.isnan(out["red_advance"])
+
+
+def test_agents_ever_counts_the_dead():  # p.64 fn 10: "some 12,500 agents inhabit the sugarscape"
+    m = Model(Config(initial_population=0))
+    agents = [m.new_agent(i, 0, 1, 1, 10.0) for i in range(3)]
+    m.kill(agents[0])
+    assert society_metrics(m)["agents_ever"] == 3.0

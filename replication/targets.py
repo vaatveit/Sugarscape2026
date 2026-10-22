@@ -289,6 +289,7 @@ TARGETS += [
            "Fig III-2, p.63"),
     Target("III-3", "oscillation period", 200, 150, 250, dominant_period("population", 300, 2500), "p.64"),
     Target("III-3", "population floor", 250, 200, 350, window_min("population", 300, 2500), "p.64"),
+    Target("III-3", "agents that ever lived", 12500, 10000, 15000, value_at("agents_ever", 2500), "p.64 fn 10"),
     Target("III-4", "oscillation period", 125, 100, 150, dominant_period("population", 300, 2500), "p.65"),
     Target("III-4", "oscillation range", 1000, 600, 1400, window_range("population", 1500, 2500), "Fig III-4, p.65"),
     Target("III-5", "extinction frequency", None, 0.5, 1.0, extinct_by(1500), "Fig III-5, p.66", proxy=True),

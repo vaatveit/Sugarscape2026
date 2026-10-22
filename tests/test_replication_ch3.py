@@ -15,7 +15,7 @@ def test_chapter3_experiments_registered():
 
 
 def test_every_chapter3_target_has_an_experiment():
-    assert len(CH3) == 24  # + III-8 time to purity
+    assert len(CH3) == 25  # + III-8 time to purity, III-3 agents ever
     assert all(t.experiment in EXPERIMENTS for t in CH3)
 
 

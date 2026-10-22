@@ -106,6 +106,7 @@ def society_metrics(model) -> dict[str, float]:
         "mean_children": safe_mean(len(a.children) for a in agents) if agents else 0.0,
         "best_friend_closeness": safe_mean(best),
         "friend_closeness": safe_mean(mean_close),
+        "agents_ever": float(model.agents_ever),  # p.64 fn 10 counts every agent that lived
     }
 
 
