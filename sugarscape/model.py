@@ -218,6 +218,12 @@ class Model:
             agent.tags = random_tags(self.rng, cfg.tag_length, tribe)
         if cfg.sex:
             self._assign_sex(agent, "F" if self.rng.integers(2) == 0 else "M")
+        # Chapter IV draws come last so earlier chapters' streams are unchanged.
+        if cfg.spice:
+            agent.spice_metabolism = self._draw(cfg.spice_metabolism)
+            agent.spice = agent.initial_spice = float(self._draw(cfg.spice_endowment or cfg.endowment))
+            if cfg.foresight is not None:
+                agent.foresight = self._draw(cfg.foresight)
         return agent
 
     def _assign_sex(self, agent: Agent, sex: str) -> None:
