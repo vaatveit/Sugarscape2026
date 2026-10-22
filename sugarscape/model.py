@@ -43,6 +43,11 @@ class Model:
             for agent in self.agents:  # p.147: initial agents get distinct diseases from the list
                 for i in self.rng.choice(len(self.disease_list), size=config.diseases_per_agent, replace=False):
                     disease.infect(agent, self.disease_list[int(i)])
+        # Founders of a society with finite lives start at ages U[0, max age) (Config.founder_ages). Drawn
+        # last, and only with finite lives, so immortal runs keep their random streams.
+        if config.max_age is not None and config.founder_ages == "uniform":
+            for agent in self.agents:
+                agent.age = int(self.rng.integers(0, int(agent.max_age)))
 
     # --- occupancy -----------------------------------------------------------------------
 

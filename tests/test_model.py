@@ -94,7 +94,8 @@ def test_chapter3_stream_unchanged_by_chapter4_fields():
     m = Model(EXPERIMENTS["III-1"].config)
     m.run(200)
     o = standard_metrics(m)
-    assert (o["population"], o["mean_vision"], o["gini"]) == (374.0, 4.708556149732621, 0.16341810946378743)
+    # Re-pinned 2026-10-22 when founders with finite lives began at spread ages (user decision).
+    assert (o["population"], o["mean_vision"], o["gini"]) == (340.0, 4.511764705882353, 0.17160128197603264)
 
 
 def test_chapter4_stream_unchanged_by_chapter5_fields():
@@ -113,3 +114,20 @@ def test_chapter5_stream_unchanged_by_chapter6():
     m.run(100)
     o, d = standard_metrics(m), disease_metrics(m)
     assert (o["population"], d["mean_diseases"], o["gini"]) == (226.0, 0.035398230088495575, 0.3672217775038755)
+
+
+def test_founders_with_finite_lives_start_at_spread_ages():  # Animation III-1 frame 1; Fig III-1 starts near 417
+    m = Model(Config(sex=True, max_age=(60, 100), endowment=(50, 100), seed=3))
+    ages = [a.age for a in m.agents]
+    assert all(0 <= a.age < a.max_age for a in m.agents)
+    assert min(ages) < 10 and max(ages) > 60 and 35 < np.mean(ages) < 45  # U[0, max age): mean about 39.5
+
+
+def test_founder_ages_zero_option_and_immortals_start_at_zero():
+    assert all(a.age == 0 for a in Model(Config(sex=True, max_age=(60, 100), founder_ages="zero")).agents)
+    assert all(a.age == 0 for a in Model(Config(seed=1)).agents)  # immortal: no age draws at all
+
+
+def test_newcomers_start_at_age_zero():  # replacements (p.32) and newborns (p.56) are born, not founders
+    m = Model(Config(max_age=(60, 100), replacement=True, seed=4))
+    assert m.spawn_random_agent().age == 0

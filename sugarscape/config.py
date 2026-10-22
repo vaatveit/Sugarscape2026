@@ -9,6 +9,7 @@ from dataclasses import dataclass
 PLACEMENTS = ("random", "block")
 WINTER_MODES = ("fractional", "pulse")
 TRIBES = ("blue", "red")
+FOUNDER_AGES = ("uniform", "zero")
 
 
 @dataclass(frozen=True)
@@ -28,6 +29,10 @@ class Config:
     metabolism: tuple[int, int] = (1, 4)  # p.24
     endowment: tuple[int, int] = (5, 25)  # p.33; runs II-1/II-2 don't state it (our call)
     max_age: tuple[int, int] | None = None  # None = immortal unless starving (p.25)
+    # With finite lives, founders start at ages U[0, max age): Animation III-1's first frame (an age
+    # spread, 417 agents), Fig III-1 starting near 417, VI-2's early births, Ascape's code.
+    # "zero" starts every founder at birth. Newborns and replacements are always age 0.
+    founder_ages: str = "uniform"  # "uniform" | "zero"
     replacement: bool = False  # R[a,b] (p.32); requires max_age
 
     # Environment.
@@ -92,6 +97,8 @@ class Config:
             )
         if self.replacement and self.max_age is None:
             raise ValueError("replacement R[a,b] needs a max_age range [a, b]")
+        if self.founder_ages not in FOUNDER_AGES:
+            raise ValueError(f"founder_ages must be one of {FOUNDER_AGES}, not {self.founder_ages!r}")
         if self.placement not in PLACEMENTS:
             raise ValueError(f"placement must be one of {PLACEMENTS}, not {self.placement!r}")
         if self.winter_growback not in WINTER_MODES:

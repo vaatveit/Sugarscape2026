@@ -108,3 +108,8 @@ def test_credit_allowed_on_the_spice_landscape():  # Animation VI-1
 def test_reproduction_variant_values_rejected(bad):
     with pytest.raises(ValueError):
         Config(**bad)
+
+
+def test_unknown_founder_ages_rejected():
+    with pytest.raises(ValueError):
+        Config(founder_ages="old")
