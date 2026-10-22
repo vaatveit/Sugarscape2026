@@ -80,3 +80,22 @@ def test_mating_near_full_lattice_runs():  # Review Focus 4
     for _ in range(3):
         m.step()
     assert len(m.agents) <= 2500
+
+
+def test_fertility_needs_both_endowments():
+    m = tiny_model(np.ones((6, 6), dtype=int), sex=True, spice=True, foresight=(0, 10))
+    f, h = couple(m)
+    for a, phi in ((f, 2), (h, 2)):
+        a.initial_spice, a.spice, a.spice_metabolism, a.foresight = 40.0, 39.0, 1, phi
+    assert mate(m, f) == []
+    f.spice = h.spice = 40.0
+    child = mate(m, f)[0]
+    assert child.spice == child.initial_spice == 40.0 and f.spice == 20.0 and h.spice == 20.0
+    assert child.spice_metabolism == 1 and child.foresight == 2
+
+
+def test_sugar_only_children_have_no_spice():
+    m = tiny_model(np.ones((6, 6), dtype=int), sex=True)
+    f, h = couple(m)
+    child = mate(m, f)[0]
+    assert child.spice == 0.0 and child.spice_metabolism == 0

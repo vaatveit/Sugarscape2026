@@ -12,6 +12,7 @@ def is_fertile(agent) -> bool:
         and agent.sex is not None
         and agent.fertility_start <= agent.age < agent.fertility_end
         and agent.sugar >= agent.initial_sugar
+        and agent.spice >= agent.initial_spice  # both 0.0 on the sugar-only landscape
     )
 
 
@@ -51,6 +52,12 @@ def mate(model, agent) -> list:
         model._assign_sex(child, "F" if rng.integers(2) == 0 else "M")
         if agent.tags is not None and other.tags is not None:
             child.tags = cross_tags(rng, agent.tags, other.tags)
+        if model.config.spice:  # Chapter IV: draws come last so earlier streams are unchanged
+            agent.spice -= agent.initial_spice / 2
+            other.spice -= other.initial_spice / 2
+            child.spice = child.initial_spice = agent.initial_spice / 2 + other.initial_spice / 2
+            child.spice_metabolism = parents[int(rng.integers(2))].spice_metabolism
+            child.foresight = parents[int(rng.integers(2))].foresight
         agent.children.append(child)
         other.children.append(child)
         children.append(child)

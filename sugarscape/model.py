@@ -114,10 +114,13 @@ class Model:
         The positive part of the agent's wealth is split equally among its living children,
         skipping `excluded_heirs` (agents dying in the same batch; Kehoe's reading).
         """
-        if self.config.inheritance and agent.sugar > 0:
+        if self.config.inheritance:
             heirs = [c for c in agent.children if c.alive and c not in excluded_heirs]
             for heir in heirs:
-                heir.sugar += agent.sugar / len(heirs)
+                if agent.sugar > 0:
+                    heir.sugar += agent.sugar / len(heirs)
+                if agent.spice > 0:
+                    heir.spice += agent.spice / len(heirs)
         self.kill(agent)
 
     # --- time ----------------------------------------------------------------------------
