@@ -240,7 +240,8 @@ for _trade in (True, False):
             id=f"IV-6/{'trade' if _trade else 'notrade'}/v{_v:g}",
             title=f"Carrying capacity {'with' if _trade else 'without'} trade, mean vision {_v} (Fig IV-6, p.112)",
             rules="({G1}, {M, T})" if _trade else "({G1}, {M})",
-            # 400 starters (book silent): the asymptote is approached from above.
+            # 400 starters (book silent). Long-run population scales with the starting number here
+            # (survival fraction ~0.25-0.3); see docs/replication/chapter-4.md.
             config=Config(**{**NEO, "trade": _trade, "initial_population": 400, "vision": _vision_for_mean(_v)}),
             steps=500, seeds=10))
 

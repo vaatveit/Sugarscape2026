@@ -82,3 +82,8 @@ def test_chapter3_invalid_values_rejected(bad):
 def test_chapter4_invalid_values_rejected(bad):
     with pytest.raises(ValueError):
         Config(**bad)
+
+
+def test_credit_with_combat_rejected():  # combat doesn't record income, so nobody could borrow
+    with pytest.raises(ValueError):
+        Config(sex=True, credit=(10, 10.0), tag_length=11, combat_alpha=2.0)

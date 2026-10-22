@@ -106,3 +106,13 @@ def test_credit_runs_in_the_model():
         m.step()
         assert all(l.lender.alive and l.borrower.alive for l in m.loans)
     assert m.loans
+
+
+def test_debt_owed_to_a_dead_parent_is_extinguished_not_self_lent():
+    m = credit_model(inheritance=True)
+    lender = person(m, 3, 3, 50, 100.0)
+    kid = person(m, 3, 4, 20, 20.0)
+    lender.children = [kid]
+    seek_credit(m, kid)
+    m.die(lender)
+    assert all(loan.lender is not loan.borrower for loan in m.loans) and m.loans == []

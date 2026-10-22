@@ -100,7 +100,8 @@ def on_death(model, agent, excluded_heirs: Collection = ()) -> None:
         if loan.borrower is agent:
             continue
         if loan.lender is agent:
-            heirs = [c for c in agent.children if c.alive and c not in excluded_heirs]
+            # An heir who is the borrower would owe itself: that debt is simply extinguished.
+            heirs = [c for c in agent.children if c.alive and c not in excluded_heirs and c is not loan.borrower]
             if model.config.inheritance and heirs:
                 k = len(heirs)
                 keep.extend(Loan(h, loan.borrower, loan.principal / k, loan.due / k, loan.due_t) for h in heirs)

@@ -129,6 +129,8 @@ class Config:
                 raise ValueError("credit is implemented for the one-commodity landscape (p.133)")
             if not self.sex:
                 raise ValueError("credit L_dr lends for childbearing; it needs sex=True")
+            if self.combat_alpha is not None:
+                raise ValueError("credit needs each agent's income, which combat movement doesn't record")
             if d < 1 or r < 0:
                 raise ValueError(f"credit duration must be >= 1 and rate >= 0, not {self.credit}")
         if self.pollution_stop is not None and self.pollution_stop <= self.pollution_start:
