@@ -79,3 +79,16 @@ def test_sick_society_runs():  # smoke: no crash, deaths allowed
     m.run(30)
     assert all(a.alive and len(set(a.diseases)) == len(a.diseases) for a in m.agents)
     assert all(t.alive for _, t in m.infection_log)
+
+
+def test_one_bit_disease_is_passed_on_before_it_is_learned():  # p.143; design: transmission, then response
+    m = tiny_model(np.ones((5, 5), dtype=int), disease_list=1, diseases_per_agent=0)
+    sick = put_agent(m, 2, 2)
+    well = put_agent(m, 2, 3)
+    sick.immune, sick.immune_genotype = [1, 1, 0] + [0] * 7, [0] * 10
+    well.immune, well.immune_genotype = [0] * 10, [0] * 10
+    for a in (sick, well):
+        a.disease_fee = 1.0
+    sick.diseases = [(1, 1, 1)]  # one bit from sick's window 110
+    m.step()
+    assert sick.diseases == [] and well.diseases[:1] == [(1, 1, 1)]

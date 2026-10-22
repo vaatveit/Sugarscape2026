@@ -171,8 +171,10 @@ class Model:
             if cfg.credit is not None:
                 credit.seek_credit(self, agent)
             if cfg.disease_list:
-                disease.immune_response(agent)  # E: immune response, then transmission (p.145)
+                # E: transmission, then immune response (design §Scheduling). A one-bit disease
+                # costs one period and can still be passed on in it (p.143).
                 disease.transmit(self, agent)
+                disease.immune_response(agent)
 
         # End of period: aging and old-age death, replacement, then the environment.
         for agent in self.agents:
