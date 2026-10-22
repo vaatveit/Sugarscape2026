@@ -31,8 +31,10 @@ def _per_seed(target: Target, runs: list[Series], baseline_runs: list[Series] | 
     experiment's seed of the same index (seeds pair by index, the shorter list sets the count)."""
     if target.baseline is None:
         return [target.statistic(s) for s in runs]
+    if baseline_runs is None:
+        raise ValueError(f"{target.experiment}: {target.name} needs {target.baseline} runs as its baseline")
     values = []
-    for run, base in zip(runs, baseline_runs or []):
+    for run, base in zip(runs, baseline_runs):
         num, den = target.statistic(run), target.statistic(base)
         values.append(math.nan if den == 0 or math.isnan(den) else num / den)
     return values

@@ -185,3 +185,9 @@ def test_baseline_target_is_a_paired_ratio():
     r = evaluate(t, runs, base)
     assert (r.observed_mean, r.n_runs, r.status) == (1.0, 2, "pass")
     assert evaluate(t, runs, [[{"t": 0, "population": 0.0}]] * 2).status == "fail"  # nan per seed
+
+
+def test_baseline_target_without_baseline_runs_is_an_error():  # final review: not a silent fail
+    t = Target("X", "ratio", None, 0.9, 1.1, window_mean("population", 0, 0), "src", baseline="Y")
+    with pytest.raises(ValueError, match="needs Y"):
+        evaluate(t, [[{"t": 0, "population": 10.0}]])

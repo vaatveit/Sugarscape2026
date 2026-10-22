@@ -80,7 +80,13 @@ class RingModel:
 
     def choose_site(self, agent: Harvester) -> int | None:
         """The nearest unoccupied site with the most sugar among the `vision` sites ahead; None
-        when every site in view is occupied (p.172)."""
+        when every site in view is occupied (p.172).
+
+        Unlike the main model's M, the agent's own site is not a candidate: "each agent moves
+        once each time period" (p.172) and lone agents keep "hopping along" (p.172), so an agent
+        with a free site in view always moves; it stays only when its whole view is occupied
+        (p.175). Our reading; it decides whether a loner trailing a group's eaten wake moves.
+        """
         best = None  # (sugar, site); strict > keeps the nearest on ties
         for d in range(1, agent.vision + 1):
             site = (agent.position + d) % self.config.sites
