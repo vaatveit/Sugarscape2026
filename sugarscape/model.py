@@ -9,7 +9,7 @@ from sugarscape.agent import Agent
 from sugarscape.config import Config
 from sugarscape.landscape import Landscape
 from sugarscape.maps import load_map
-from sugarscape.rules import combat, credit, culture, movement, sex, trade
+from sugarscape.rules import combat, credit, culture, disease, movement, sex, trade
 from sugarscape.rules.culture import random_tags
 
 VON_NEUMANN = ((1, 0), (-1, 0), (0, 1), (0, -1))
@@ -32,7 +32,17 @@ class Model:
         self.trade_log: list[trade.Exchange] = []  # this period's exchanges (rule T)
         self.loans: list[credit.Loan] = []  # active loans (rule L)
         self._next_id = 0
+        self.infection_log: list[tuple[Agent, Agent]] = []  # this period's (source, target) infections
+        # p.147: a master list of random diseases, each of random length (drawn only with disease on).
+        self.disease_list: list[tuple[int, ...]] = [
+            tuple(int(b) for b in self.rng.integers(0, 2, size=self._draw(config.disease_length)))
+            for _ in range(config.disease_list)
+        ]
         self._place_initial_population()
+        if config.diseases_per_agent:
+            for agent in self.agents:  # p.147: initial agents get distinct diseases from the list
+                for i in self.rng.choice(len(self.disease_list), size=config.diseases_per_agent, replace=False):
+                    disease.infect(agent, self.disease_list[int(i)])
 
     # --- occupancy -----------------------------------------------------------------------
 
@@ -134,6 +144,7 @@ class Model:
         cfg = self.config
         self.dead_this_step = []
         self.trade_log = []
+        self.infection_log = []
         for agent in self.agents:
             agent.moved = False
 
@@ -159,6 +170,9 @@ class Model:
                 trade.trade_with_neighbors(self, agent)
             if cfg.credit is not None:
                 credit.seek_credit(self, agent)
+            if cfg.disease_list:
+                disease.immune_response(agent)  # E: immune response, then transmission (p.145)
+                disease.transmit(self, agent)
 
         # End of period: aging and old-age death, replacement, then the environment.
         for agent in self.agents:
@@ -238,6 +252,11 @@ class Model:
             agent.spice = agent.initial_spice = float(self._draw(cfg.spice_endowment or cfg.endowment))
             if cfg.foresight is not None:
                 agent.foresight = self._draw(cfg.foresight)
+        # Chapter V draws come last so earlier chapters' streams are unchanged.
+        if cfg.disease_list:
+            agent.immune_genotype = [int(b) for b in self.rng.integers(0, 2, size=cfg.immune_length)]
+            agent.immune = list(agent.immune_genotype)  # the phenotype trains on a copy (p.146)
+            agent.disease_fee = cfg.disease_fee
         return agent
 
     def _assign_sex(self, agent: Agent, sex: str) -> None:

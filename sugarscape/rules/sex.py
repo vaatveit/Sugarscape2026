@@ -61,6 +61,10 @@ def mate(model, agent) -> list:
             child.spice = child.initial_spice = agent.initial_spice / 2 + other.initial_spice / 2
             child.spice_metabolism = parents[int(rng.integers(2))].spice_metabolism
             child.foresight = parents[int(rng.integers(2))].foresight
+        if model.config.disease_list:  # Chapter V: untrained genotypes are crossed (p.146)
+            child.immune_genotype = cross_tags(rng, agent.immune_genotype, other.immune_genotype)
+            child.immune = list(child.immune_genotype)
+            child.disease_fee = model.config.disease_fee
         agent.children.append(child)
         other.children.append(child)
         children.append(child)

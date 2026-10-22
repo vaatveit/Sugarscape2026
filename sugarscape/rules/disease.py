@@ -48,3 +48,17 @@ def immune_response(agent) -> None:
     infection; a disease is cleared the moment the immune system matches it, so a one-bit gap costs
     one period of illness (p.143)."""
     agent.diseases = [d for d in agent.diseases if not immune_step(agent.immune, d)]
+
+
+def transmit(model, agent) -> None:
+    """Agent disease transmission rule (p.145): for each neighbor, a disease that currently afflicts
+    the agent is selected at random and given to the neighbor. New infections are logged as
+    (source, target) for the transmission network (p.150)."""
+    if not agent.diseases:
+        return
+    neighbors = model.neighbors_of(agent)
+    for i in model.rng.permutation(len(neighbors)):
+        other = neighbors[int(i)]
+        disease = agent.diseases[int(model.rng.integers(len(agent.diseases)))]
+        if other.immune is not None and infect(other, disease):
+            model.infection_log.append((agent, other))

@@ -1,18 +1,9 @@
 import numpy as np
 
-from conftest import put_agent, tiny_model
+from conftest import couple, put_agent, tiny_model
 from sugarscape.config import Config
 from sugarscape.model import Model
 from sugarscape.rules.sex import is_fertile, mate
-
-
-def couple(m, sugar=60.0):
-    f = put_agent(m, 2, 2, sugar=sugar)
-    f.sex, f.fertility_start, f.fertility_end, f.initial_sugar = "F", 12, 40, 60.0
-    h = put_agent(m, 2, 3, sugar=sugar)
-    h.sex, h.fertility_start, h.fertility_end, h.initial_sugar = "M", 12, 50, 60.0
-    f.age = h.age = 20
-    return f, h
 
 
 def test_child_born_with_half_of_each_initial_endowment():  # p.55

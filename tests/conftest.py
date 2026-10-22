@@ -24,3 +24,12 @@ _tagged_ids = iter(range(10_000, 10**9))
 def make_tagged(tags) -> Agent:
     """A free-standing agent (not on any grid) with the given cultural tags."""
     return Agent(next(_tagged_ids), 0, 0, 1, 1, 10.0, 10.0, math.inf, tags=list(tags))
+
+
+def couple(m, sugar=60.0):
+    f = put_agent(m, 2, 2, sugar=sugar)
+    f.sex, f.fertility_start, f.fertility_end, f.initial_sugar = "F", 12, 40, 60.0
+    h = put_agent(m, 2, 3, sugar=sugar)
+    h.sex, h.fertility_start, h.fertility_end, h.initial_sugar = "M", 12, 50, 60.0
+    f.age = h.age = 20
+    return f, h

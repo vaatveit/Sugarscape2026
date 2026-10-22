@@ -18,7 +18,7 @@ def welfare(agent, w1: float, w2: float, cultural: bool = False) -> float:
     convention); a zero exponent makes that factor 1.
     """
     f = preference_fraction(agent, cultural)
-    a1, a2 = agent.metabolism * f, agent.spice_metabolism * (1 - f)
+    a1, a2 = agent.sugar_burn * f, agent.spice_metabolism * (1 - f)  # sugar_burn: metabolism + disease fees
     mu = a1 + a2
     w1, w2 = max(w1, 0.0), max(w2, 0.0)
     left = w1 ** (a1 / mu) if a1 else 1.0
@@ -33,7 +33,7 @@ def mrs(agent, cultural: bool = False) -> float:
     holding or a preference weight is zero.
     """
     f = preference_fraction(agent, cultural)
-    a1, a2 = agent.metabolism * f, agent.spice_metabolism * (1 - f)
+    a1, a2 = agent.sugar_burn * f, agent.spice_metabolism * (1 - f)  # sugar_burn: metabolism + disease fees
     w1, w2 = max(agent.sugar, 0.0), max(agent.spice, 0.0)
     numerator = math.inf if a2 == 0 else w2 / a2
     denominator = math.inf if a1 == 0 else w1 / a1

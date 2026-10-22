@@ -49,7 +49,7 @@ def welfare_scorer(model, agent):
     ls = model.landscape
     cultural = model.config.cultural_preferences
     phi = agent.foresight
-    base1 = agent.sugar - phi * agent.metabolism
+    base1 = agent.sugar - phi * agent.sugar_burn
     base2 = agent.spice - phi * agent.spice_metabolism
 
     def score(x: int, y: int) -> float:
@@ -91,12 +91,13 @@ def metabolize(model, agent) -> None:
 
     Pollution comes from sugar only: spice is a clean good (p.127).
     """
-    agent.sugar -= agent.metabolism
-    agent.last_income -= agent.metabolism
+    burn = agent.sugar_burn  # metabolism plus the fee for each active disease (p.143)
+    agent.sugar -= burn
+    agent.last_income -= burn
     if model.config.spice:
         agent.spice -= agent.spice_metabolism
     if pollution_active(model):
         _, beta = model.config.pollution
-        model.landscape.pollution[agent.x, agent.y] += beta * agent.metabolism  # consumption (p.47)
+        model.landscape.pollution[agent.x, agent.y] += beta * burn  # consumption (p.47)
     if agent.sugar <= 0 or (model.config.spice and agent.spice <= 0):
         model.die(agent)
