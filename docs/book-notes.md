@@ -176,6 +176,8 @@ Each period = one "year". Per-agent values random in the stated ranges (fn 4):
 - Animation III-1 age histograms (10-year bins 0–100) approximately stationary, e.g.
   63,49,45,64,45,55,49,30,13,4 → 52,70,71,63,67,64,65,47,13,6.
 - Animations III-2/III-3: agents fill a NE–SW diagonal band connecting the peaks.
+  They show one run (same frames, two colorings), the source of Fig III-2 (p.61), and not Fig III-1's:
+  agents counted per frame 384, 172 (all on the peaks), 325, 876, 669, 1,019 (counted 2026-10-22).
   Vision colored blue (1–3)/red (4–6); metabolism blue/red below/above initial mean.
   Selection favors high vision and low metabolism; metabolism falls faster than
   vision rises; vision rise not strictly monotone.

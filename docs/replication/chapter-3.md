@@ -139,6 +139,45 @@ Diagnostic probes of III-1 under the current defaults (spread founder ages, book
 - **Why:** the unselected founders (mean metabolism 2.5) burn more than they harvest, so almost no one can re-earn the half-endowment a second birth costs. Births come from each agent's one "free" first event, at the threshold it was born with. Meanwhile ≈29,000 sugar, nearly all of the founders' 30,000 endowment, is lost at old-age deaths by t=85: it dies with post-fertile founders and never funds a birth.
 - **So the book's early curve needs much cheaper births relative to early incomes,** or much higher early incomes, than rule S as read allows. The map's regrowth ceiling (2,069 sites at one unit each per period) is above what our agents harvest (953), so higher incomes aren't ruled out; but they would have to come from the same movement rule that matches Chapter II's carrying capacities. This points at the cost or threshold of reproduction, not at contact, placement, or timing, which were probed earlier. It remains unresolved.
 
+## Income, cost and threshold (2026-10-22)
+
+Follow-up diagnostics of the decomposition above (III-1, spread founder ages, 3 seeds unless stated). Nothing here changes the model.
+
+**The text leaves no room on cost or threshold.** p.55: "Dad contributes an amount equal to one half of whatever his initial endowment had been, and likewise for mom"; parents "must have amassed at least the amount of sugar with which they were endowed at birth". p.65 calls the endowment range "the amount of sugar necessary for reproduction". Footnote 3 (multiple births "occasionally"; fertile agents "rarely possess enough wealth to have multiple children in a single period") doesn't discriminate: every variant below has 2+ births in at most 2% of turns with a birth.
+
+**Higher incomes are ruled out.**
+- Chapter II validates the harvest rule: all 18 Fig II-5 points match within ±5% at t≈45–60, where the book read them (Chapter II record).
+- N immortal, non-breeding agents with III-1's genetics earn, per agent per period over t=1–85: N=300 +0.06 net (harvest 2.56), N=400 −0.21 (2.32), N=500 −0.44 (2.10), N=600 −0.53 (2.00). At the book's early population the unselected agents run a deficit.
+- Doubling regrowth (G2, twice any income Chapter II allows) still gives only 234 agents at t=85 (book 570); G1.5 gives 177.
+
+**Threshold θ (share of the birth endowment a parent must hold) and cost k (share each parent gives).** Child's recorded endowment = parents' mean, so cheap births don't compound:
+
+| θ | k | t=20 / 85 / 240 (book 470 / 570 / 415) | Mean t=300–1000 (book ≈500) |
+|---|---|---|---|
+| 1.0 | 0.5 (book) | 364 / 129 / 368 | 352 |
+| 1.0 | 0.25 / 0.1 | 366 / 141 / 291; 387 / 121 / 298 | 281; 277 |
+| 0.75 | 0.5 / 0.25 / 0.1 | 408 / 265 / 603; 447 / 281 / 581; 483 / 261 / 396 | 637; 579; 435 |
+| 0.5 | 0.5 / 0.25 / 0.1 | 445 / 453 / 1113; 520 / 579 / 837; 565 / 712 / 925 | 936; 918; 855 |
+
+- **A cheaper child alone doesn't help:** the child starts further below its own threshold.
+- **The threshold is the only lever, and no value fits Fig III-1's whole curve.** θ=0.5 reproduces the boom but settles near 900; θ≈0.83 fits the late level but not the boom. In every case the late population is birth-limited: starvation is zero after t=300.
+- **A margin for founders only can't make the boom:** even with no wealth test for founders, t=85 reaches 287 (others θ=1) or 344 (others θ=0.83).
+
+**The book's two runs of these rules disagree.** Animation III-2 and III-3 show one run (identical frames, different coloring); Fig III-2's evolution curves come "from animations III-2 and III-3" (p.61). Agents counted in its six frames (dark blobs; counts stable across three thresholds; frame 1 gives 384 of 400): **384 → 172 → 325 → 876 → 669 → 1,019**. Frame 2 is confined to the two peaks. Fig III-1 (and Animation III-1's 417–535-agent histograms) never exceed ≈575, so the animations are a different run.
+
+| Our III-1 (5 seeds) | Lowest N before t=400 | Share then on sites of capacity ≥3 | Mean (range) t=300–1500 |
+|---|---|---|---|
+| Spread founders, θ=1 (book) | 126 at t≈94 | 0.99 | 358 (304–407) |
+| Spread, θ=0.83 | 207 at t≈87 | 0.96 | 480 (401–548) |
+| Spread, θ=0.75 | 262 at t≈81 | 0.92 | 651 (522–754) |
+| Age-0 founders, θ=1 | 217 at t≈130 | 0.96 | 367 (314–410) |
+| Age-0, θ=0.83 | 336 at t≈111 | 0.86 | 506 (426–574) |
+
+**What this shows:**
+- **The early dynamics depend on the run.** The animation run crashes to ≤172 agents on the peaks, as ours does under the book's rule with spread founder ages (126, 99% on the peaks), while Fig III-1's run climbs to 570. So Fig III-1's early boom isn't a robust feature of the book's model, and it carries little weight as evidence against the rule.
+- **The long-run level is ours alone to miss.** The book's runs settle at ≈500 (Fig III-1) and ≈670–1,020 (the animation run); ours settles at ≈360. A lower threshold reaches either level (θ≈0.83 and θ≈0.75), but then the crash is shallower than the animation's (207 and 262 against ≤172).
+- **Remaining question:** why the book's selected, long-run population breeds more than ours under the same written rule. Income, cost, contact, placement and timing don't account for it.
+
 ## Calibrated reproduction variant (2026-10-22)
 
 **Why.** The sex rule as the book states it doesn't reproduce the book's own population figures, and other replications confirm this is the published rule, not our code:
