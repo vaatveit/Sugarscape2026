@@ -234,6 +234,37 @@ Can a movement or harvest detail raise income at high density enough to lift the
 - **Chapter II's metabolism-2 gap doesn't share this cause.** Every variant leaves the t=500 metabolism-2 points 15–20% low, so the shared-cause idea in "What sets the long-run level" above finds no support from movement.
 - **What remains is contact.** In our model women need ≈1.45 net income per year largely because each child waits ≈8 periods for an adjacent fertile partner. Free contact alone gives 509. Our mean neighbor count in Chapter II is 0.80 (band pass, but below the book's 0.9 in all 10 seeds), so local spacing is the next place to look.
 
+## How agents end up next to each other (2026-10-22)
+
+Diagnostics only; nothing here changes the model.
+
+**Chapter II spacing.** Our statistic is the book's: the mean length of each agent's post-move von Neumann neighbor list (pp.39–41, fn 29). Animation II-5 prints "Average neighbors: 0.9" (standard deviation 0.8–0.9) in all six frames. Ours in II-4's run (5 seeds):
+
+| Movement | t=1–5 | 5–20 | 20–60 | 60–150 | 150–500 | II-1 still moving at t=80–100 |
+|---|---|---|---|---|---|---|
+| Own site at distance 0, wins ties (current) | 0.77 | 0.85 | 0.83 | 0.80 | 0.79 | 0.00 |
+| Own site excluded ("must move") | 0.80 | 0.89 | 0.91 | 0.89 | 0.88 | 0.98 |
+| Random one of the richest, ignoring "nearest" | 0.88 | 1.00 | 0.97 | 0.96 | 0.97 | — |
+
+- **"Must move" reproduces the book's spacing at every stage, but p.28 rules it out.** On a ridge "no point on the level 3 sugar terrace is an improvement … So you stick on the ridge": the own site counts and wins ties. Under must-move, 98% of II-1's agents are still moving at t=80–100.
+- **The 0.80 vs 0.9 gap stays open** (the target passes its band). It doesn't matter for III-1: must-move leaves III-1's neighbors at 1.24 (against 1.23), the share of fertile agents with a fertile partner adjacent unchanged (1.4% against 1.5%), and the level at 357 (against 352).
+
+**Who stands next to a fertile agent at its mating turn** (III-1, t=300–1000, 5 seeds, 265,840 turns, 1.21 neighbors per turn):
+
+| Neighbor | Share | Of which the agent's parent or child |
+|---|---|---|
+| Same sex | 52% | 3% |
+| Opposite sex, too young | 8% | 5% |
+| Opposite sex, past fertility | 20% | 3% |
+| Opposite sex, fertile age, short of wealth | 14% | 3% |
+| Opposite sex, fertile (a partner) | 5.2% | 2% |
+
+- **Kin don't crowd out partners:** only 2–5% of neighbors are parents or children.
+- **Partners are met by near-random mixing.** 91% of agents move each period, so a fertile agent gets ≈1.2 fresh neighbors per period. Each is an eligible partner with probability ≈0.10 (half the population's 20% fertile share), giving a wait of ≈1/(1.2 × 0.10) ≈ 8 periods, as measured. The snapshot's 5.2% is below random mixing's 10.1% only because adjacent fertile pairs mate at once.
+- **So spacing can't shorten the wait** without many more neighbors per agent. The level responds weakly even then: Moore neighbors +2–6%, radius 2 (24 sites) 417, unrestricted contact 509.
+
+**Where this leaves the long-run level.** Within the written rules, none of income (movement, harvest, map), contact (spacing, kin, neighborhood), placement, timing, lifespan or cost raises it to the book's ≈500. Only departures do: unrestricted contact, a fertility threshold near 0.83 of the endowment (the `CAL-thr` variant), or ignoring "nearest" in M (452).
+
 ## Calibrated reproduction variant (2026-10-22)
 
 **Why.** The sex rule as the book states it doesn't reproduce the book's own population figures, and other replications confirm this is the published rule, not our code:

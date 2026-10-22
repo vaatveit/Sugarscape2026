@@ -41,8 +41,9 @@ Rule-system notation: `({environment rules}, {agent rules})`, e.g. `({G1}, {M, S
 - fn 10: move distance = vision (can move up to v sites in one direction).
 - Wealth += collected; wealth −= metabolism. If wealth ≤ 0 → agent starves, removed.
   If it doesn't starve it lives forever (in base runs).
-- (Ambiguity to resolve: whether the agent's current site counts as a candidate.
-  Common implementations include it at distance 0.)
+- The agent's current site counts as a candidate at distance 0 and wins ties: p.28 explains II-1's
+  agents staying on a ridge because "no point on the level 3 sugar terrace is an improvement".
+  (Excluding it reproduces Animation II-5's 0.9 neighbors but leaves 98% of II-1's agents moving.)
 
 ### Scheduling (p. 26)
 - Each agent moves once per period; **agent order randomized each period**.
