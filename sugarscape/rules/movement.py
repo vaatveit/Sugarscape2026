@@ -43,7 +43,9 @@ def pollution_active(model) -> bool:
 
 def welfare_scorer(model, agent):
     """Two-commodity site score: W(w1 + sugar, w2 + spice) (App. B), evaluated as if phi periods
-    ahead (eq. 6: holdings reduced by phi * metabolism), divided by 1 + pollution (Kehoe's form)."""
+    ahead (eq. 6: holdings reduced by phi * metabolism). Pollution devalues the site's resources,
+    x / (1 + pollution), as in the one-commodity rule (p.47 fn 37); dividing the agent's whole
+    welfare instead (Kehoe) would let pollution swamp every choice."""
     ls = model.landscape
     cultural = model.config.cultural_preferences
     phi = agent.foresight
@@ -51,8 +53,10 @@ def welfare_scorer(model, agent):
     base2 = agent.spice - phi * agent.spice_metabolism
 
     def score(x: int, y: int) -> float:
-        value = welfare(agent, max(base1, 0.0) + ls.sugar[x, y], max(base2, 0.0) + ls.spice[x, y], cultural)
-        return value / (1.0 + ls.pollution[x, y])
+        devalue = 1.0 + ls.pollution[x, y]
+        return welfare(
+            agent, max(base1, 0.0) + ls.sugar[x, y] / devalue, max(base2, 0.0) + ls.spice[x, y] / devalue, cultural
+        )
 
     return score
 

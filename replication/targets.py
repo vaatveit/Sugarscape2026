@@ -312,3 +312,57 @@ TARGETS += [
     Target("III-15", "Blue dominates both", 0.25, 0.1, 0.4, tribal_outcome(6000, "blue_both"), "p.92 fn 32"),
     Target("III-15", "extinction (small frequency)", None, 0, 0.15, extinct_by(6000), "p.92 fn 32"),
 ]
+
+
+# --- Chapter IV ----------------------------------------------------------------------------
+
+TARGETS += [
+    Target("IV-3", "mean price (ln p)", 0.0, -0.1, 0.1, window_mean("mean_log_price", 500, 1000), "Fig IV-3, p.109"),
+    Target("IV-3", "price dispersion at t≈1000", 0.05, 0, 0.1, window_mean("price_sd", 900, 1000), "Fig IV-5, p.110"),
+    Target("IV-3", "trades per period", 150, 100, 200, window_mean("trades", 1, 1000), "p.109"),
+]
+FIG_IV_6 = {"trade": {1: 100, 2: 128, 3: 158, 6: 173, 10: 185}, "notrade": {1: 82, 2: 90, 3: 120, 6: 157, 10: 177}}
+TARGETS += [
+    Target(f"IV-6/{kind}/v{v}", "carrying capacity", cc, 0.9 * cc, 1.1 * cc,
+           window_mean("population", 450, 500), "Fig IV-6, p.112")
+    for kind, points in FIG_IV_6.items() for v, cc in points.items()
+]
+TARGETS += [
+    Target("IV-7", "mean price, vision 1 (ln p)", 0.0, -0.15, 0.15, window_mean("mean_log_price", 1, 1000), "p.117"),
+    Target("IV-7", "dispersion stays high", 0.3, 0.2, 0.45, window_mean("price_sd", 800, 1000), "Fig IV-8, p.118"),
+    Target("IV-9", "dispersion with vision 1-15", 0.03, 0, 0.08, window_mean("price_sd", 800, 1000), "Fig IV-9, p.119"),
+    Target("IV-12/a80", "dispersion, lifespan 60-100", 0.5, 0.4, 0.6, window_mean("price_sd", 200, 1000),
+           "Figs IV-10, IV-12"),
+    Target("IV-12/a300", "dispersion, lifespan 280-320", 0.3, 0.22, 0.38, window_mean("price_sd", 800, 1000),
+           "Fig IV-12"),
+    Target("IV-12/a550", "dispersion, lifespan 530-570", 0.2, 0.12, 0.28, window_mean("price_sd", 800, 1000),
+           "Fig IV-12"),
+    Target("IV-12/a980", "dispersion, lifespan 960-1000", 0.15, 0.08, 0.22, window_mean("price_sd", 800, 1000),
+           "Figs IV-11, IV-12"),
+]
+FIG_IV_13 = {"trade": {1.5: 0.41, 3.5: 0.42, 5.5: 0.44, 10: 0.37, 14.5: 0.38},
+             "notrade": {1.5: 0.43, 3.5: 0.39, 5.5: 0.34, 10: 0.33, 14.5: 0.31}}
+TARGETS += [
+    Target(f"IV-13/{kind}/v{v:g}", f"Gini {'with' if kind == 'trade' else 'without'} trade", g, g - 0.05, g + 0.05,
+           window_mean("gini", 300, 500), "Fig IV-13, p.123")
+    for kind, points in FIG_IV_13.items() for v, g in points.items()
+]
+TARGETS += [
+    Target("IV-14", "dispersion with S", 0.37, 0.28, 0.48, window_mean("price_sd", 300, 1000), "Fig IV-14, p.124"),
+    Target("IV-15", "dispersion, cultural preferences", 0.45, 0.3, 0.6, window_mean("price_sd", 500, 1000),
+           "Fig IV-16, p.126"),
+    Target("IV-15", "trades per period", 1000, 500, 1500, window_mean("trades", 1, 1000), "p.125"),
+    Target("IV-17", "dispersion with S and K", 0.45, 0.35, 0.55, window_mean("price_sd", 400, 1000),
+           "Fig IV-17, p.127"),
+    Target("IV-A3", "price before pollution (ln p)", 0.0, -0.2, 0.2, window_mean("mean_log_price", 50, 100),
+           "Anim IV-3, p.128"),
+    Target("IV-A3", "sugar price spike", 3.5, 2, 6, window_max("mean_price", 140, 200), "Anim IV-3", proxy=True),
+    Target("IV-A3", "recovery by t≈300 (ln p)", 0.0, -0.25, 0.25, window_mean("mean_log_price", 280, 300),
+           "Anim IV-3, p.129"),
+    Target("IV-18", "long-run mean foresight", 4.9, 4.25, 5.5, window_mean("mean_foresight", 400, 1000),
+           "Fig IV-18, p.130"),
+    Target("IV-A5", "active loans", 187, 50, 400, window_mean("n_loans", 200, 500), "Anim IV-5, p.134", proxy=True),
+    Target("IV-A5", "agents both lending and borrowing", 21, 5, 100, window_mean("n_both", 200, 500), "Anim IV-5",
+           proxy=True),
+    Target("IV-A5", "hierarchy levels", 5, 3, 8, window_max("credit_depth", 200, 500), "p.133", proxy=True),
+]

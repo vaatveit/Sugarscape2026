@@ -93,3 +93,17 @@ def test_spawned_agents_get_spice_and_foresight():
     m = Model(Config(spice=True, foresight=(0, 10), initial_population=50, endowment=(25, 50)))
     assert all(25 <= a.spice == a.initial_spice <= 50 and 1 <= a.spice_metabolism <= 5 for a in m.agents)
     assert all(0 <= a.foresight <= 10 for a in m.agents)
+
+
+def test_pollution_devalues_the_site_not_the_agent():  # p.47: score is the site's sugar / (1 + pollution)
+    # A well-off agent should still take a rich, mildly polluted site over an empty clean one:
+    # W(50 + 4/2, 50) > W(50, 50). Dividing the agent's whole welfare by 1 + p would reverse this.
+    cap = np.zeros((7, 7), dtype=int)
+    cap[3, 4] = 4
+    m = tiny_model(cap, spice=True, pollution=(1.0, 1.0))
+    m.landscape.set_spice(np.zeros((7, 7), dtype=int))
+    m.landscape.pollution[3, 4] = 1.0
+    g = put_agent(m, 3, 3)
+    g.sugar, g.spice, g.metabolism, g.spice_metabolism = 50.0, 50.0, 1, 1
+    move(m, g)
+    assert (g.x, g.y) == (3, 4)

@@ -1,0 +1,80 @@
+# Replication report
+
+18 pass, 8 near, 15 fail, of 41 targets.
+
+| Experiment | Target | Source | Book | Band | Observed mean [min–max] | Seeds | Status |
+|---|---|---|---|---|---|---|---|
+| IV-3 | mean price (ln p) | Fig IV-3, p.109 | 0 | -0.1–0.1 | 0.005596 [-0.04266–0.1004] | 10/10 | pass |
+| IV-3 | price dispersion at t≈1000 | Fig IV-5, p.110 | 0.05 | 0–0.1 | 0.04685 [0.02442–0.08003] | 10/10 | pass |
+| IV-3 | trades per period | p.109 | 150 | 100–200 | 34.09 [23.97–55.06] | 10/10 | fail |
+| IV-6/trade/v1 | carrying capacity | Fig IV-6, p.112 | 100 | 90–110 | 78.94 [62–87.37] | 10/10 | fail |
+| IV-6/trade/v2 | carrying capacity | Fig IV-6, p.112 | 128 | 115.2–140.8 | 97.02 [81.16–128.2] | 10/10 | fail |
+| IV-6/trade/v3 | carrying capacity | Fig IV-6, p.112 | 158 | 142.2–173.8 | 116.2 [103–141.8] | 10/10 | fail |
+| IV-6/trade/v6 | carrying capacity | Fig IV-6, p.112 | 173 | 155.7–190.3 | 133.2 [120–161.4] | 10/10 | fail |
+| IV-6/trade/v10 | carrying capacity | Fig IV-6, p.112 | 185 | 166.5–203.5 | 140.5 [126–169] | 10/10 | fail |
+| IV-6/notrade/v1 | carrying capacity | Fig IV-6, p.112 | 82 | 73.8–90.2 | 60.34 [50–68.2] | 10/10 | fail |
+| IV-6/notrade/v2 | carrying capacity | Fig IV-6, p.112 | 90 | 81–99 | 76.47 [65–93] | 10/10 | near |
+| IV-6/notrade/v3 | carrying capacity | Fig IV-6, p.112 | 120 | 108–132 | 95.09 [75–111] | 10/10 | fail |
+| IV-6/notrade/v6 | carrying capacity | Fig IV-6, p.112 | 157 | 141.3–172.7 | 119.5 [106.3–139] | 10/10 | fail |
+| IV-6/notrade/v10 | carrying capacity | Fig IV-6, p.112 | 177 | 159.3–194.7 | 127.1 [113.7–146.3] | 10/10 | fail |
+| IV-7 | mean price, vision 1 (ln p) | p.117 | 0 | -0.15–0.15 | -0.03075 [-0.2105–0.0844] | 5/5 | pass |
+| IV-7 | dispersion stays high | Fig IV-8, p.118 | 0.3 | 0.2–0.45 | 0.1553 [0.1133–0.1733] | 5/5 | near |
+| IV-9 | dispersion with vision 1-15 | Fig IV-9, p.119 | 0.03 | 0–0.08 | 0.01402 [0.009624–0.01882] | 5/5 | pass |
+| IV-12/a80 | dispersion, lifespan 60-100 | Figs IV-10, IV-12 | 0.5 | 0.4–0.6 | 0.4553 [0.4431–0.4629] | 5/5 | pass |
+| IV-12/a300 | dispersion, lifespan 280-320 | Fig IV-12 | 0.3 | 0.22–0.38 | 0.285 [0.2614–0.2978] | 5/5 | pass |
+| IV-12/a550 | dispersion, lifespan 530-570 | Fig IV-12 | 0.2 | 0.12–0.28 | 0.2004 [0.1776–0.2244] | 5/5 | pass |
+| IV-12/a980 | dispersion, lifespan 960-1000 | Figs IV-11, IV-12 | 0.15 | 0.08–0.22 | 0.09408 [0.08168–0.1041] | 5/5 | pass |
+| IV-13/trade/v1.5 | Gini with trade | Fig IV-13, p.123 | 0.41 | 0.36–0.46 | 0.3537 [0.345–0.3603] | 10/10 | near |
+| IV-13/trade/v3.5 | Gini with trade | Fig IV-13, p.123 | 0.42 | 0.37–0.47 | 0.3616 [0.3542–0.3666] | 10/10 | near |
+| IV-13/trade/v5.5 | Gini with trade | Fig IV-13, p.123 | 0.44 | 0.39–0.49 | 0.3673 [0.3653–0.371] | 10/10 | near |
+| IV-13/trade/v10 | Gini with trade | Fig IV-13, p.123 | 0.37 | 0.32–0.42 | 0.3682 [0.3651–0.3717] | 10/10 | pass |
+| IV-13/trade/v14.5 | Gini with trade | Fig IV-13, p.123 | 0.38 | 0.33–0.43 | 0.371 [0.361–0.3784] | 10/10 | pass |
+| IV-13/notrade/v1.5 | Gini without trade | Fig IV-13, p.123 | 0.43 | 0.38–0.48 | 0.3007 [0.2928–0.3071] | 10/10 | fail |
+| IV-13/notrade/v3.5 | Gini without trade | Fig IV-13, p.123 | 0.39 | 0.34–0.44 | 0.3131 [0.304–0.3207] | 10/10 | near |
+| IV-13/notrade/v5.5 | Gini without trade | Fig IV-13, p.123 | 0.34 | 0.29–0.39 | 0.3206 [0.3158–0.3262] | 10/10 | pass |
+| IV-13/notrade/v10 | Gini without trade | Fig IV-13, p.123 | 0.33 | 0.28–0.38 | 0.327 [0.3208–0.3361] | 10/10 | pass |
+| IV-13/notrade/v14.5 | Gini without trade | Fig IV-13, p.123 | 0.31 | 0.26–0.36 | 0.3304 [0.3271–0.3353] | 10/10 | pass |
+| IV-14 | dispersion with S | Fig IV-14, p.124 | 0.37 | 0.28–0.48 | 0.2768 [0.2768–0.2768] | 1/5 | fail |
+| IV-15 | dispersion, cultural preferences | Fig IV-16, p.126 | 0.45 | 0.3–0.6 | 0.1832 [0.1432–0.2285] | 5/5 | near |
+| IV-15 | trades per period | p.125 | 1000 | 500–1500 | 266.8 [145.2–354.7] | 5/5 | near |
+| IV-17 | dispersion with S and K | Fig IV-17, p.127 | 0.45 | 0.35–0.55 | 0.2574 [0.2574–0.2574] | 1/5 | fail |
+| IV-A3 | price before pollution (ln p) | Anim IV-3, p.128 | 0 | -0.2–0.2 | 0.02095 [-0.06898–0.1112] | 10/10 | pass |
+| IV-A3 | sugar price spike (proxy) | Anim IV-3 | 3.5 | 2–6 | 2.332 [1.782–2.887] | 10/10 | pass |
+| IV-A3 | recovery by t≈300 (ln p) | Anim IV-3, p.129 | 0 | -0.25–0.25 | 0.5952 [0.04745–0.9893] | 10/10 | fail |
+| IV-18 | long-run mean foresight | Fig IV-18, p.130 | 4.9 | 4.25–5.5 | 6.674 [6.674–6.674] | 1/5 | fail |
+| IV-A5 | active loans (proxy) | Anim IV-5, p.134 | 187 | 50–400 | 100.4 [94.98–104.6] | 5/5 | pass |
+| IV-A5 | agents both lending and borrowing (proxy) | Anim IV-5 | 21 | 5–100 | 20.03 [19.2–21.5] | 5/5 | pass |
+| IV-A5 | hierarchy levels (proxy) | p.133 | 5 | 3–8 | 6.8 [6–8] | 5/5 | pass |
+
+Run: `python -m replication.report --chapter IV --jobs 8` on 2026-10-21 (branch feat/chapter-4). Seeds as registered (5 or 10).
+Fast suite 199 passed; `pytest -m slow tests/test_replication_ch4.py`: 18 passed, 23 failed (the near + fail rows).
+Chapter II and III regression runs on this branch: every row identical to docs/replication/chapter-2.md and chapter-3.md.
+
+## Choices made from evidence or by necessity
+
+- **Spice map:** the sugar map mirrored east–west (peaks NW and SE, Fig IV-1).
+- **Pollution devalues the site's resources** in the two-commodity movement rule: W(w1 + x1/(1+p), w2 + x2/(1+p)), the analog of p.47's sugar/(1+p). The plan's first form (Kehoe: the agent's whole welfare divided by 1+p) let pollution swamp every choice. After diffusion no one returned to the peaks, the population collapsed, and the price rose to 8. Fixed with a failing test first.
+- **Populations:** 200 agents where p.108 states it; 400 for the Fig IV-6 and IV-13 sweeps, where the book is silent.
+- **Metabolism 1–5 for both goods** in every Chapter IV run (p.108). The book doesn't state Fig IV-6's metabolism; a 1–4 range lands closer to its numbers (164 / 138 at mean vision 3 vs book 158 / 120), but switching would be tuning to the target.
+- **Credit:** creditworthy when last period's income × d covers this loan and the borrower's other debts; simple interest; renegotiated remainders are re-lent on the same terms.
+
+## What matches
+
+- **Price formation (Figs IV-3, IV-5):** mean price ≈1.0 and price dispersion falls to ≈0.05 by t=1000.
+- **Market thickness (Figs IV-9, IV-12):** dispersion ≈0.01 with vision 1–15. Long-run dispersion falls with lifespan: 0.46 / 0.29 / 0.20 / 0.09 at lifespans 80 / 300 / 550 / 980, against the book's ≈0.5 / 0.3 / 0.2 / 0.15.
+- **Gini at mean vision 10–14.5** with and without trade.
+- **Pollution and prices (Animation IV-3):** price ≈1 before pollution and a sugar-price spike after it (2.3, book ≈3.5).
+- **Credit (Animation IV-5):** ≈100 active loans, ≈20 agents both lending and borrowing (book frame: 21), hierarchies 6–8 levels deep (book "as many as five").
+
+## Open discrepancies (investigated)
+
+1. **Carrying capacity (Fig IV-6) runs ≈25% low at t=450–500, with and without trade.** Trade raises it by ≈20–30%, close to the book's ratio. **At t=45–60 our populations match the book's ten points within ±5%** (one at +19%): the same pattern as Fig II-5, carried as a discrepancy under the user's t=500 decision. The low population also explains IV-3's low trade volume (34/period vs ≈150).
+2. **Reproduction runs (IV-14, IV-17, IV-18) die out in 4 of 5 seeds.** The founders starve (200 → ≈20 by t=100) before their children can sustain the population. The one surviving seed booms to ≈600. Only one seed is valid, so each target fails on the half-valid rule. Fixing this needs the Chapter III population question resolved; nothing tuned.
+3. **Pollution recovery is slow:** the sugar price peaks near t≈250 (book ≈165) and is still ≈1.7 at t=300 (book ≈1.0 by ≈260).
+4. **Price dispersion is lower than the book's in thin markets:** vision 1 gives 0.16 (book ≈0.3); cultural preferences give 0.18 (book ≈0.45) with 267 trades/period (book ≈1000). The low population thins trading.
+5. **Inequality without trade at low vision:** Gini 0.30 at mean vision 1.5 (book 0.43). Trade raises Gini in our runs at every vision below 10 (book: at 3.5–5.5).
+
+## Visual comparison
+
+- **Trade network (Animation IV-4):** short links between neighbors, densest in the first periods (341 trades at t=1), thinning as MRSs converge. Wrapped edges show as long lines.
+- **Credit network (Animation IV-5):** green lenders, red borrowers, yellow agents doing both, with loan edges inside each colony; as in the book.

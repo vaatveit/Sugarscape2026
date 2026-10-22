@@ -210,3 +210,87 @@ register(Experiment(
     # "A small, low density, primordial soup": 100 agents (our call).
     config=Config(**CH3_SEX, initial_population=100, tag_length=TAGS, culture=True),
     steps=6000, seeds=20))  # fn 32's frequencies are eventual outcomes: run to absorption
+
+
+# --- Chapter IV: Sugar and Spice ------------------------------------------------------------
+
+# p.108: 200 infinitely lived agents; metabolisms U[1,5] for each good; vision U[1,5];
+# endowments U[25,50] for both goods.
+NEO = dict(spice=True, trade=True, metabolism=(1, 5), spice_metabolism=(1, 5), vision=(1, 5),
+           endowment=(25, 50), initial_population=200)
+# p.123 (Fig IV-14): puberty 12-15; childbearing ends 35-45 (women), 45-55 (men); death 60-100.
+CH4_SEX = dict(sex=True, fertility_start=(12, 15), female_fertility_end=(35, 45), male_fertility_end=(45, 55),
+               max_age=(60, 100))
+VISION_CAP = 24  # vision must stay below half the 50-site grid
+
+
+def _vision_for_mean(mean: float) -> tuple[int, int]:
+    """Mean k as (1, 2k - 1), shifted to (2k - 24, 24) above the vision cap (our call)."""
+    high = round(2 * mean - 1)
+    return (1, high) if high <= VISION_CAP else (round(2 * mean) - VISION_CAP, VISION_CAP)
+
+
+register(Experiment(
+    id="IV-3", title="Neoclassical agents: price convergence (Figs IV-3 to IV-5, p.108)",
+    rules="({G1}, {M, T})", config=Config(**NEO), steps=1000, seeds=10))
+
+for _trade in (True, False):
+    for _v in (1, 2, 3, 6, 10):
+        register(Experiment(
+            id=f"IV-6/{'trade' if _trade else 'notrade'}/v{_v:g}",
+            title=f"Carrying capacity {'with' if _trade else 'without'} trade, mean vision {_v} (Fig IV-6, p.112)",
+            rules="({G1}, {M, T})" if _trade else "({G1}, {M})",
+            # 400 starters (book silent): the asymptote is approached from above.
+            config=Config(**{**NEO, "trade": _trade, "initial_population": 400, "vision": _vision_for_mean(_v)}),
+            steps=500, seeds=10))
+
+register(Experiment(
+    id="IV-7", title="Vision 1: thin market, high price variance (Figs IV-7, IV-8, p.117)",
+    rules="({G1}, {M, T})", config=Config(**{**NEO, "vision": (1, 1)}), steps=1000, seeds=5))
+register(Experiment(
+    id="IV-9", title="Vision 1-15: thick market, low price variance (Fig IV-9, p.119)",
+    rules="({G1}, {M, T})", config=Config(**{**NEO, "vision": (1, 15)}), steps=1000, seeds=5))
+
+# Fig IV-12: long-run price dispersion vs average lifetime; (60,100) and (960,1000) are Figs IV-10, IV-11.
+for _a, _b in ((60, 100), (280, 320), (530, 570), (960, 1000)):
+    register(Experiment(
+        id=f"IV-12/a{(_a + _b) // 2}", title=f"Price dispersion with lifetimes {_a}-{_b} (Figs IV-10 to IV-12)",
+        rules=f"({{G1}}, {{M, R[{_a},{_b}], T}})",
+        config=Config(**NEO, max_age=(_a, _b), replacement=True), steps=1000, seeds=5))
+
+for _trade in (True, False):
+    for _v in (1.5, 3.5, 5.5, 10, 14.5):
+        register(Experiment(
+            id=f"IV-13/{'trade' if _trade else 'notrade'}/v{_v:g}",
+            title=f"Gini {'with' if _trade else 'without'} trade, mean vision {_v} (Fig IV-13, p.123)",
+            rules="({G1}, {M, R[60,100], T})" if _trade else "({G1}, {M, R[60,100]})",
+            config=Config(**{**NEO, "trade": _trade, "initial_population": 400, "vision": _vision_for_mean(_v)},
+                          max_age=(60, 100), replacement=True),
+            steps=500, seeds=10))
+
+register(Experiment(
+    id="IV-14", title="Trade with sexual reproduction (Fig IV-14, p.124)",
+    rules="({G1}, {M, S, T})", config=Config(**{**NEO, **CH4_SEX}), steps=1000, seeds=5))
+register(Experiment(
+    id="IV-15", title="Culturally varying preferences (Figs IV-15, IV-16, p.125)",
+    rules="({G1}, {M, K, T})",
+    config=Config(**NEO, tag_length=TAGS, culture=True, cultural_preferences=True), steps=1000, seeds=5))
+register(Experiment(
+    id="IV-17", title="Cultural preferences with sexual reproduction (Fig IV-17, p.127)",
+    rules="({G1}, {M, S, K, T})",
+    config=Config(**{**NEO, **CH4_SEX}, tag_length=TAGS, culture=True, cultural_preferences=True),
+    steps=1000, seeds=5))
+register(Experiment(
+    id="IV-A3", title="Pollution and prices (Animation IV-3, pp.127-129)",
+    rules="({G1, D1}, {M, T, P})",
+    # Sugar is dirty from t=100; at t=150 pollution stops and diffusion starts (p.128).
+    config=Config(**NEO, pollution=(1.0, 1.0), pollution_start=100, pollution_stop=150,
+                  diffusion_period=1, diffusion_start=150),
+    steps=300, seeds=10))
+register(Experiment(
+    id="IV-18", title="Evolution of foresight (Fig IV-18, p.130)",
+    rules="({G1}, {M, S})", config=Config(**{**NEO, **CH4_SEX, "trade": False}, foresight=(0, 10)),
+    steps=1000, seeds=5))
+register(Experiment(
+    id="IV-A5", title="Credit networks on the sugar-only landscape (Animation IV-5, p.133)",
+    rules="({G1}, {M, S, L10,10})", config=Config(**CH3_SEX, credit=(10, 10.0)), steps=500, seeds=5))
