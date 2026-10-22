@@ -55,6 +55,16 @@ class Config:
     initial_blocks: tuple[tuple[str, int, int, int, int, int], ...] = ()
     replacement_same_tribe: bool = False  # R with newcomers of the dead agent's tribe (p.86)
 
+    # Chapter IV. New draws are gated by these and come after earlier draws.
+    spice: bool = False  # second commodity (p.96); spice map = sugar map mirrored east-west
+    spice_metabolism: tuple[int, int] = (1, 5)  # p.108
+    spice_endowment: tuple[int, int] | None = None  # None = same range as endowment
+    foresight: tuple[int, int] | None = None  # phi range (p.129); None = myopic
+    cultural_preferences: bool = False  # eq. 5 (p.124); needs tags
+    trade: bool = False  # rule T (p.105); needs spice
+    credit: tuple[int, float] | None = None  # (duration d, rate r percent) of L_dr (p.132); sugar only
+    pollution_stop: int | None = None  # pollution generation off from this t (p.128)
+
     seed: int = 0
 
     def __post_init__(self) -> None:
@@ -103,6 +113,26 @@ class Config:
                 raise ValueError(f"block {(tribe, x0, y0, bw, bh, n)} must lie inside the {self.width}x{self.height} grid")
             if not 0 <= n <= bw * bh:
                 raise ValueError(f"block {(tribe, x0, y0, bw, bh, n)} cannot hold {n} agents")
+        for name in ("spice_metabolism", "spice_endowment", "foresight"):
+            rng = getattr(self, name)
+            if rng is not None and rng[0] > rng[1]:
+                raise ValueError(f"{name} range {rng} has low > high")
+        if not self.spice and (self.trade or self.cultural_preferences or self.foresight is not None):
+            raise ValueError("trade, cultural preferences, and foresight need the second commodity (spice=True)")
+        if self.cultural_preferences and self.tag_length == 0:
+            raise ValueError("cultural preferences need cultural tags (tag_length > 0)")
+        if self.spice and self.combat_alpha is not None:
+            raise ValueError("combat is defined for sugar only (p.83); not with spice")
+        if self.credit is not None:
+            d, r = self.credit
+            if self.spice:
+                raise ValueError("credit is implemented for the one-commodity landscape (p.133)")
+            if not self.sex:
+                raise ValueError("credit L_dr lends for childbearing; it needs sex=True")
+            if d < 1 or r < 0:
+                raise ValueError(f"credit duration must be >= 1 and rate >= 0, not {self.credit}")
+        if self.pollution_stop is not None and self.pollution_stop <= self.pollution_start:
+            raise ValueError("pollution_stop must come after pollution_start")
         if self.replacement_same_tribe and not self.replacement:
             raise ValueError("replacement_same_tribe needs replacement=True")
         if self.placement == "block" and not (1 <= w <= self.width and 1 <= h <= self.height):

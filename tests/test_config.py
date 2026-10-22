@@ -70,3 +70,15 @@ def test_chapter3_defaults_are_off():
 def test_chapter3_invalid_values_rejected(bad):
     with pytest.raises(ValueError):
         Config(**bad)
+
+
+@pytest.mark.parametrize("bad", [
+    {"trade": True}, {"foresight": (0, 10)}, {"cultural_preferences": True, "spice": True},
+    {"spice": True, "tag_length": 11, "combat_alpha": 2.0}, {"spice": True, "credit": (10, 10.0), "sex": True},
+    {"credit": (10, 10.0)}, {"sex": True, "credit": (0, 10.0)}, {"sex": True, "credit": (10, -1.0)},
+    {"spice": True, "spice_metabolism": (5, 1)}, {"spice": True, "foresight": (10, 0)},
+    {"pollution": (1.0, 1.0), "pollution_start": 100, "pollution_stop": 100},
+])
+def test_chapter4_invalid_values_rejected(bad):
+    with pytest.raises(ValueError):
+        Config(**bad)

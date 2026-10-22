@@ -86,3 +86,12 @@ def test_chapter2_stream_unchanged_by_chapter3_fields():
     s = run_seed("II-4", 0)
     assert (s[100]["population"], s[100]["mean_vision"], s[500]["gini"]) == (
         246.0, 3.6341463414634148, 0.3975282613501283)
+
+
+def test_chapter3_stream_unchanged_by_chapter4_fields():
+    from experiments.registry import EXPERIMENTS
+    from sugarscape.stats import standard_metrics
+    m = Model(EXPERIMENTS["III-1"].config)
+    m.run(200)
+    o = standard_metrics(m)
+    assert (o["population"], o["mean_vision"], o["gini"]) == (374.0, 4.708556149732621, 0.16341810946378743)

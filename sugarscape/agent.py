@@ -25,6 +25,12 @@ class Agent:
     children: list["Agent"] = field(default_factory=list)
     tags: list[int] | None = None  # cultural tag string (p.72)
     friends: list[tuple["Agent", int]] = field(default_factory=list)  # (friend, Hamming distance at encounter)
+    # Chapter IV
+    spice: float = 0.0
+    initial_spice: float = 0.0
+    spice_metabolism: int = 0
+    foresight: int = 0  # phi (p.129)
+    last_income: float = 0.0  # last period's sugar harvest minus metabolism (credit, p.132)
     disp_x: int = 0  # net displacement since birth, unwrapped across the torus edges
     disp_y: int = 0
 

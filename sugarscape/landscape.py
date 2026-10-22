@@ -6,12 +6,18 @@ import numpy as np
 class Landscape:
     """A torus of sites indexed [x, y] (x east, y north, y = 0 the southern row)."""
 
-    def __init__(self, capacity: np.ndarray) -> None:
+    def __init__(self, capacity: np.ndarray, spice_capacity: np.ndarray | None = None) -> None:
         self.capacity = np.asarray(capacity, dtype=int).copy()
         self.width, self.height = self.capacity.shape
         # p.21: "the sugar level at every site initially at its capacity value".
         self.sugar = self.capacity.astype(float)
         self.pollution = np.zeros(self.capacity.shape, dtype=float)
+        self.set_spice(np.zeros(self.capacity.shape, dtype=int) if spice_capacity is None else spice_capacity)
+
+    def set_spice(self, spice_capacity: np.ndarray) -> None:
+        """Spice capacity and level (p.96: each site has a spice level and capacity)."""
+        self.spice_capacity = np.asarray(spice_capacity, dtype=int).copy()
+        self.spice = self.spice_capacity.astype(float)
 
     def wrap(self, x: int, y: int) -> tuple[int, int]:
         return x % self.width, y % self.height
@@ -19,6 +25,7 @@ class Landscape:
     def growback(self, rate: float) -> None:
         """G_alpha (p.23 fn 3): r(t+1) = min(r(t) + alpha, c); alpha = inf gives G_inf (p.26)."""
         np.minimum(self.sugar + rate, self.capacity, out=self.sugar)
+        np.minimum(self.spice + rate, self.spice_capacity, out=self.spice)
 
     def is_summer_north(self, t: int, gamma: int) -> bool:
         """p.44 fn 33: the top half is in summer while (t mod 2*gamma) / gamma < 1."""
@@ -41,6 +48,7 @@ class Landscape:
             winter_rate = alpha if t % beta == 0 else 0.0
         rate = np.where(summer, alpha, winter_rate)
         np.minimum(self.sugar + rate, self.capacity, out=self.sugar)
+        np.minimum(self.spice + rate, self.spice_capacity, out=self.spice)  # same rule for spice (Kehoe)
 
     def diffuse(self) -> None:
         """D_alpha (p.48): each site's new pollution is the mean over its von Neumann neighbors."""

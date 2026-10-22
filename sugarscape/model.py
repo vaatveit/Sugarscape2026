@@ -23,7 +23,8 @@ class Model:
             capacity = load_map(config.sugar_map)
         if capacity.shape != (config.width, config.height):
             raise ValueError(f"capacity shape {capacity.shape} != ({config.width}, {config.height})")
-        self.landscape = Landscape(capacity)
+        # Fig IV-1: spice mountains NW and SE, i.e. the sugar map mirrored east-west.
+        self.landscape = Landscape(capacity, capacity[::-1, :] if config.spice else None)
         self._grid: list[list[Agent | None]] = [[None] * config.height for _ in range(config.width)]
         self.agents: list[Agent] = []
         self.t = 0
