@@ -150,3 +150,16 @@ def economic_metrics(model) -> dict[str, float]:
         "n_both": float(len(lenders & borrowers)),
         "credit_depth": float(_longest_chain(edges)),
     }
+
+
+def disease_metrics(model) -> dict[str, float]:
+    """Chapter V measurements: active diseases per agent (Animation V-3's "average diseases" and
+    standard deviation), the share of agents sick (p.147), and new infections (p.150)."""
+    counts = [len(a.diseases) for a in model.agents]
+    return {
+        "mean_diseases": safe_mean(counts),
+        "sd_diseases": float(np.std(counts)) if counts else math.nan,
+        "fraction_sick": _fraction([c > 0 for c in counts]),
+        "new_infections": float(len(model.infection_log)),
+        "diseases_circulating": float(len({d for a in model.agents for d in a.diseases})),
+    }
