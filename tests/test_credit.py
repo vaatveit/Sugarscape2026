@@ -116,3 +116,24 @@ def test_debt_owed_to_a_dead_parent_is_extinguished_not_self_lent():
     seek_credit(m, kid)
     m.die(lender)
     assert all(loan.lender is not loan.borrower for loan in m.loans) and m.loans == []
+
+
+def test_spice_landscape_loans_move_sugar_only():  # p.55 sugar-only fertility; Review Focus 5
+    m = credit_model(spice=True)
+    old, young = person(m, 3, 3, 50, 100.0), person(m, 3, 4, 20, 20.0)
+    for a in (old, young):
+        a.spice = a.initial_spice = 30.0
+    loan = seek_credit(m, young)[0]
+    assert loan.principal == 40.0 and young.sugar == 60.0 and old.sugar == 60.0
+    assert old.spice == young.spice == 30.0
+
+
+def test_all_rules_society_runs():  # Animation VI-1 rule set; Review Focus 5
+    m = Model(Config(spice=True, trade=True, sex=True, metabolism=(1, 5), spice_metabolism=(1, 5),
+                     vision=(1, 5), endowment=(25, 50), initial_population=200, max_age=(60, 100),
+                     tag_length=11, culture=True, credit=(10, 10.0), disease_list=25,
+                     diseases_per_agent=10, seed=3))
+    for _ in range(40):
+        m.step()
+        assert all(m.agent_at(a.x, a.y) is a for a in m.agents)
+        assert all(loan.lender.alive and loan.borrower.alive for loan in m.loans)

@@ -62,7 +62,7 @@ class Config:
     foresight: tuple[int, int] | None = None  # phi range (p.129); None = myopic
     cultural_preferences: bool = False  # eq. 5 (p.124); needs tags
     trade: bool = False  # rule T (p.105); needs spice
-    credit: tuple[int, float] | None = None  # (duration d, rate r percent) of L_dr (p.132); sugar only
+    credit: tuple[int, float] | None = None  # (duration d, rate r percent) of L_dr (p.132); sugar loans
     pollution_stop: int | None = None  # pollution generation off from this t (p.128)
 
     # Chapter V. New draws are gated by disease_list > 0 and come after earlier draws.
@@ -132,8 +132,6 @@ class Config:
             raise ValueError("combat is defined for sugar only (p.83); not with spice")
         if self.credit is not None:
             d, r = self.credit
-            if self.spice:
-                raise ValueError("credit is implemented for the one-commodity landscape (p.133)")
             if not self.sex:
                 raise ValueError("credit L_dr lends for childbearing; it needs sex=True")
             if self.combat_alpha is not None:

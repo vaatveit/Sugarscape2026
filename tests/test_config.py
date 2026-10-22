@@ -74,7 +74,7 @@ def test_chapter3_invalid_values_rejected(bad):
 
 @pytest.mark.parametrize("bad", [
     {"trade": True}, {"foresight": (0, 10)}, {"cultural_preferences": True, "spice": True},
-    {"spice": True, "tag_length": 11, "combat_alpha": 2.0}, {"spice": True, "credit": (10, 10.0), "sex": True},
+    {"spice": True, "tag_length": 11, "combat_alpha": 2.0},
     {"credit": (10, 10.0)}, {"sex": True, "credit": (0, 10.0)}, {"sex": True, "credit": (10, -1.0)},
     {"spice": True, "spice_metabolism": (5, 1)}, {"spice": True, "foresight": (10, 0)},
     {"pollution": (1.0, 1.0), "pollution_start": 100, "pollution_stop": 100},
@@ -97,3 +97,7 @@ def test_credit_with_combat_rejected():  # combat doesn't record income, so nobo
 def test_chapter5_invalid_values_rejected(bad):  # Review Focus 1
     with pytest.raises(ValueError):
         Config(**bad)
+
+
+def test_credit_allowed_on_the_spice_landscape():  # Animation VI-1
+    assert Config(spice=True, sex=True, credit=(10, 10.0)).credit == (10, 10.0)

@@ -1,4 +1,9 @@
-"""Agent credit rule L_dr (pp.131-133, App. B p.184-185; Intro p.12). Sugar only (p.133 fn 55)."""
+"""Agent credit rule L_dr (pp.131-133, App. B p.184-185; Intro p.12).
+
+Loans are in sugar on either landscape. Fertility tests sugar only (p.55), so on the
+sugar-and-spice landscape (Animation VI-1) nobody ever falls short of spice to have a child,
+and a separate spice loan book (Kehoe) would stay empty.
+"""
 
 from collections.abc import Collection
 from dataclasses import dataclass
