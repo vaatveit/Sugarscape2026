@@ -6,7 +6,7 @@ make a target pass (design anti-goal).
 
 import math
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import numpy as np
 
@@ -452,4 +452,15 @@ TARGETS += [
     Target("VI-9", "like-sized cliques", None, 0, 0.5, window_mean("group_size_cv", 200, 500), "p.174", proxy=True),
     Target("VI-9", "size bounded by the most nearsighted", None, 0.9, 1.0,
            window_mean("within_vision_bound", 100, 500), "p.175", proxy=True),
+]
+
+
+# --- Calibrated reproduction variant -------------------------------------------------------
+# The same targets, run on each fitted setting (experiments.registry.CALIBRATED). III-1's steady
+# population is the one quantity each setting was fitted to; every other row is out of sample.
+_CAL_NAMES = ("thr", "share")
+_CAL_FIGURES = ("III-1", "III-3", "III-4", "III-5", "VI-2", "VI-3")
+TARGETS += [
+    replace(t, experiment=f"CAL-{name}/{t.experiment}", baseline=f"CAL-{name}/{t.baseline}" if t.baseline else None)
+    for name in _CAL_NAMES for t in list(TARGETS) if t.experiment in _CAL_FIGURES
 ]

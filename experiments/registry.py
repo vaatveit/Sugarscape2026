@@ -1,7 +1,7 @@
 """The experiment registry: each entry pairs a book label with its rules and parameters."""
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from sugarscape.config import Config
 from sugarscape.variants.ringworld import RingConfig
@@ -361,3 +361,18 @@ register(Experiment(
 register(Experiment(
     id="VI-9", title="Ring World: a megagroup of 40 disaggregates (Animation VI-9, p.174)",
     rules="Ring World", config=RingConfig(placement="block"), steps=500, seeds=10))
+
+
+# --- Calibrated reproduction variant (docs/replication/chapter-3.md) -------------------------
+# The book's sex rule, implemented as written, doesn't reproduce its own population figures (as in
+# Kehoe's thesis; MASON and Ascape depart from the text). Each setting below was fitted to Fig III-1's
+# steady population (500) alone and frozen; it then runs unchanged on the other reproduction figures,
+# to see whether a single fitted quantity carries over. These are departures from p.55, not readings.
+CALIBRATED = {"thr": {"fertility_threshold": 0.83}, "share": {"child_share": 0.4975}}
+VALIDATION = ("III-1", "III-3", "III-4", "III-5", "VI-2", "VI-3")
+for _name, _setting in CALIBRATED.items():
+    for _id in VALIDATION:
+        _book = EXPERIMENTS[_id]
+        register(Experiment(
+            id=f"CAL-{_name}/{_id}", title=f"{_book.title} [calibrated {_setting}]", rules=_book.rules,
+            config=replace(_book.config, **_setting), steps=_book.steps, seeds=_book.seeds))
