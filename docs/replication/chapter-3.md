@@ -99,6 +99,46 @@ Chapter II regression run on the same branch: 19 pass / 12 near / 0 fail, every 
 
 **Why it hurts:** with spread ages nearly every founder dies of old age within about 85 periods, and the book's society replaces them, climbing to 570 by t=85 (≈6.5 births per period). Ours manages ≈2.5 per period (diagnostic run with the 0.83 threshold, 2 seeds). The first-period baby boom (≈60 births) leaves ≈120 parents at half their endowment, so until t≈50 fertile-age agents average 51–54 sugar against a requirement near 62. And with ≈0.85 neighbors per agent, only 0–4 qualifying agents have a qualifying partner next to them at any moment. The founders' ages are now right; the birth rate is the open problem.
 
+## Birth-rate decomposition (2026-10-22)
+
+Diagnostic probes of III-1 under the current defaults (spread founder ages, book rule S); nothing here changes the model. 5 seeds for the counts, 3 for the counterfactuals.
+
+**Where mating turns fail** (per period):
+
+| Window | N | Births | Fertile-age agents | Share passing the wealth test | Fertile turns with a fertile partner adjacent | Mean wait while fertile |
+|---|---|---|---|---|---|---|
+| t=0–20 | 391 | 2.9 | 197 | 32% | 5% | 11 periods |
+| t=20–85 | 231 | 1.6 | 99 | 42% | 4% | 13 |
+| t=500–1000 | 359 | 4.6 | 169 | 43% | 6% | 8 |
+
+- **Space never binds:** no mating attempt with a fertile partner ever failed for want of an empty site.
+- **The first period matches the book:** 191 founders are fertile at t=0 and 14 children are born. Animation III-1's first frame (417 agents, about 12 more in the 0–9 bin than spread ages predict) implies about 12–17 births in the book's first period, so the starting contact rate agrees.
+- **The fertile pool then collapses through wealth, not mating:** 191 → 90 → 77 → 55 by t=5, with only about 25 births. Every agent starts life exactly at its threshold, so one period of negative net income makes it sterile. Founders' net income at t=5–30 by metabolism: m=1 +1.45, m=2 +0.45, m=3 −0.57, m=4 −1.54 per period.
+
+**Counterfactuals** (diagnostic only; "global" lets a fertile agent meet up to 4 random fertile partners anywhere, so contact is free):
+
+| Contact | Threshold | t=20 / 85 / 240 (book 470 / 570 / 415) | Mean t=300–1000 (book ≈500) | Births per period t=20–85 |
+|---|---|---|---|---|
+| von Neumann (book) | 1.0 | 364 / 129 / 368 | 352 | 1.5 |
+| radius 2 | 1.0 | 379 / 174 / 419 | 417 | 2.2 |
+| global | 1.0 | 413 / 258 / 454 | 509 | 3.2 |
+| von Neumann | 0.83 | 398 / 208 / 467 | 481 | 2.5 |
+| global | 0.83 | 460 / 353 / 706 | 668 | 4.5 |
+
+**Sugar budget** (per period, 3 seeds):
+
+| Window | N | Harvest | Metabolism | Gifts to children | Lost at death | Mean metabolism |
+|---|---|---|---|---|---|---|
+| t=0–20 | 394 | 953 | 980 | 222 | 328 | 2.5 |
+| t=20–85 | 233 | 665 | 481 | 114 | 342 | 2.0 |
+| t=300–1000 | 352 | 875 | 352 | 346 | 519 | 1.0 |
+
+**Findings:**
+- **The steady level is limited by contact and wealth together.** Free contact alone raises it to the book's ≈500, and a 0.83 threshold alone gives 481. Either lever suffices, so the steady level alone can't say which detail the original differs in.
+- **The early boom is limited by wealth alone, and no tested lever reproduces it.** The book needs about 555 births by t=85 (≈6.5 per period) to replace the dying founders and reach 570. With free contact the book's rule manages 3.2 per period; adding the 0.83 threshold still gives only 4.5, and 353 agents at t=85.
+- **Why:** the unselected founders (mean metabolism 2.5) burn more than they harvest, so almost no one can re-earn the half-endowment a second birth costs. Births come from each agent's one "free" first event, at the threshold it was born with. Meanwhile ≈29,000 sugar, nearly all of the founders' 30,000 endowment, is lost at old-age deaths by t=85: it dies with post-fertile founders and never funds a birth.
+- **So the book's early curve needs much cheaper births relative to early incomes,** or much higher early incomes, than rule S as read allows. The map's regrowth ceiling (2,069 sites at one unit each per period) is above what our agents harvest (953), so higher incomes aren't ruled out; but they would have to come from the same movement rule that matches Chapter II's carrying capacities. This points at the cost or threshold of reproduction, not at contact, placement, or timing, which were probed earlier. It remains unresolved.
+
 ## Calibrated reproduction variant (2026-10-22)
 
 **Why.** The sex rule as the book states it doesn't reproduce the book's own population figures, and other replications confirm this is the published rule, not our code:
