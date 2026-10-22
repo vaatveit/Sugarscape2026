@@ -25,6 +25,8 @@ class Agent:
     children: list["Agent"] = field(default_factory=list)
     tags: list[int] | None = None  # cultural tag string (p.72)
     friends: list[tuple["Agent", int]] = field(default_factory=list)  # (friend, Hamming distance at encounter)
+    disp_x: int = 0  # net displacement since birth, unwrapped across the torus edges
+    disp_y: int = 0
 
     @property
     def tribe(self) -> str | None:

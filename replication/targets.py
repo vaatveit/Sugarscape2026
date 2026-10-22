@@ -192,6 +192,40 @@ def both_persist(t: int, min_share: float) -> Statistic:
     return stat
 
 
+def combat_outcome(t0: int, t1: int) -> Statistic:
+    """1.0 if C_inf ended in one of the book's three patterns (p.83): one tribe eradicated; Red and
+    Blue on opposite mountains; or small colonies coexisting, read as both tribes alive with
+    unchanged counts over [t0, t1] (a frozen absorbing state)."""
+
+    def stat(series: Series) -> float:
+        rows = [r for r in series if t0 <= r["t"] <= t1]
+        if not rows or rows[-1]["t"] != t1:
+            return math.nan
+        last = rows[-1]
+        if (last["n_blue"] == 0) != (last["n_red"] == 0):
+            return 1.0
+        if tribal_outcome(t1, "opposite")(series) == 1.0:
+            return 1.0
+        both_alive = last["n_blue"] > 0 and last["n_red"] > 0
+        frozen = all((r["n_blue"], r["n_red"]) == (last["n_blue"], last["n_red"]) for r in rows)
+        return float(both_alive and frozen)
+
+    return stat
+
+
+def first_time_pure(purity: float = 1.0) -> Statistic:
+    """First recorded t at which every non-empty side is culturally pure (p.74: "all agents Blue
+    after some 2700 time periods"); nan if it never happens."""
+
+    def stat(series: Series) -> float:
+        for row in series:
+            if tribal_outcome(int(row["t"]), "pure_sides", purity)([row]) == 1.0:
+                return float(row["t"])
+        return math.nan
+
+    return stat
+
+
 def centroid_shift(metric: str, t0: int, t1: int) -> Statistic:
     """value(t1) - value(t0), e.g. how far a tribe's mean x + y moved."""
     return lambda series: value_at(metric, t1)(series) - value_at(metric, t0)(series)
@@ -257,23 +291,24 @@ TARGETS += [
     Target("III-5", "extinction frequency", None, 0.5, 1.0, extinct_by(1500), "Fig III-5, p.66", proxy=True),
     Target("III-7", "Gini with inheritance", 0.743, 0.65, 0.85, window_mean("gini", 900, 1000), "p.67"),
     Target("III-7", "mean vision at t≈900", 4.3, 3.9, 4.7, window_mean("mean_vision", 850, 900), "Fig III-7, p.68"),
-    Target("III-8", "each side culturally pure", None, 0.8, 1.0, tribal_outcome(3000, "pure_sides"), "p.74",
+    Target("III-8", "each side culturally pure", None, 0.8, 1.0, tribal_outcome(6000, "pure_sides"), "p.74",
            proxy=True),
+    Target("III-8", "time until every side is pure", 2700, 1350, 5400, first_time_pure(), "p.74"),
     Target("III-8", "best-friend closeness", 0.91, 0.8, 1.0, window_mean("best_friend_closeness", 2900, 3000),
            "Anim III-8, p.80"),
-    Target("III-9", "one of the three patterns", None, 0.8, 1.0, tribal_outcome(1000, "three_patterns"), "p.83",
+    Target("III-9", "one of the three patterns", None, 0.8, 1.0, combat_outcome(750, 1000), "p.83",
            proxy=True),
     Target("III-11", "both tribes persist", None, 0.8, 1.0, both_persist(1000, 0.2), "Anim III-11, p.86", proxy=True),
-    Target("III-12", "Blue wave advances NE", None, 10, 60, centroid_shift("blue_xy", 0, 50), "Anim III-12, p.88",
+    Target("III-12", "Blue wave advances NE", None, 10, 60, centroid_shift("blue_advance", 0, 50), "Anim III-12, p.88",
            proxy=True),
-    Target("III-12", "Red wave advances SW", None, -60, -10, centroid_shift("red_xy", 0, 50), "Anim III-12, p.88",
+    Target("III-12", "Red wave advances SW", None, -60, -10, centroid_shift("red_advance", 0, 50), "Anim III-12, p.88",
            proxy=True),
-    Target("III-13", "combat suppresses Blue's wave", None, -5, 5, centroid_shift("blue_xy", 0, 50),
+    Target("III-13", "combat suppresses Blue's wave", None, -5, 5, centroid_shift("blue_advance", 0, 50),
            "Anim III-13, p.89", proxy=True),
     Target("III-14", "no runaway hegemony", None, 0.5, 1.0, both_persist(1000, 0.1), "p.90", proxy=True),
-    Target("III-15", "Red and Blue on opposite mountains", 0.45, 0.3, 0.5, tribal_outcome(1000, "opposite"),
+    Target("III-15", "Red and Blue on opposite mountains", 0.45, 0.3, 0.5, tribal_outcome(6000, "opposite"),
            "p.92 fn 32"),
-    Target("III-15", "Red dominates both", 0.25, 0.1, 0.4, tribal_outcome(1000, "red_both"), "p.92 fn 32"),
-    Target("III-15", "Blue dominates both", 0.25, 0.1, 0.4, tribal_outcome(1000, "blue_both"), "p.92 fn 32"),
-    Target("III-15", "extinction (small frequency)", None, 0, 0.15, extinct_by(1000), "p.92 fn 32"),
+    Target("III-15", "Red dominates both", 0.25, 0.1, 0.4, tribal_outcome(6000, "red_both"), "p.92 fn 32"),
+    Target("III-15", "Blue dominates both", 0.25, 0.1, 0.4, tribal_outcome(6000, "blue_both"), "p.92 fn 32"),
+    Target("III-15", "extinction (small frequency)", None, 0, 0.15, extinct_by(6000), "p.92 fn 32"),
 ]

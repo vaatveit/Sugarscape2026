@@ -92,6 +92,9 @@ class Model:
             raise ValueError(f"site ({x}, {y}) is occupied")
         self._grid[agent.x][agent.y] = None
         self._grid[x][y] = agent
+        w, h = self.config.width, self.config.height
+        agent.disp_x += (x - agent.x + w // 2) % w - w // 2  # shortest way round the torus
+        agent.disp_y += (y - agent.y + h // 2) % h - h // 2
         agent.x, agent.y = x, y
 
     def kill(self, agent: Agent) -> None:

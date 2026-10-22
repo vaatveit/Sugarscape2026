@@ -100,6 +100,9 @@ def society_metrics(model) -> dict[str, float]:
         "ne_red": side(red, False),
         "blue_xy": safe_mean(a.x + a.y for a in blue),
         "red_xy": safe_mean(a.x + a.y for a in red),
+        # Mean NE-ward travel since birth (disp_x + disp_y), immune to wrapping across the edges.
+        "blue_advance": safe_mean(a.disp_x + a.disp_y for a in blue),
+        "red_advance": safe_mean(a.disp_x + a.disp_y for a in red),
         "mean_children": safe_mean(len(a.children) for a in agents) if agents else 0.0,
         "best_friend_closeness": safe_mean(best),
         "friend_closeness": safe_mean(mean_close),

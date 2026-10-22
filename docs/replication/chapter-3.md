@@ -1,6 +1,6 @@
 # Replication report
 
-8 pass, 5 near, 10 fail, of 23 targets.
+11 pass, 4 near, 9 fail, of 24 targets.
 
 | Experiment | Target | Source | Book | Band | Observed mean [min–max] | Seeds | Status |
 |---|---|---|---|---|---|---|---|
@@ -16,25 +16,28 @@
 | III-7 | Gini with inheritance | p.67 | 0.743 | 0.65–0.85 | 0.3301 [0.3006–0.3601] | 5/5 | fail |
 | III-7 | mean vision at t≈900 | Fig III-7, p.68 | 4.3 | 3.9–4.7 | 5.292 [5.088–5.398] | 5/5 | fail |
 | III-8 | each side culturally pure (proxy) | p.74 | — | 0.8–1 | 0.4 [0–1] | 5/5 | fail |
+| III-8 | time until every side is pure | p.74 | 2700 | 1350–5400 | — [—–—] | 0/5 | fail |
 | III-8 | best-friend closeness | Anim III-8, p.80 | 0.91 | 0.8–1 | 0.9819 [0.9791–0.9857] | 5/5 | pass |
-| III-9 | one of the three patterns (proxy) | p.83 | — | 0.8–1 | 0.6 [0–1] | 10/10 | fail |
+| III-9 | one of the three patterns (proxy) | p.83 | — | 0.8–1 | 1 [1–1] | 10/10 | pass |
 | III-11 | both tribes persist (proxy) | Anim III-11, p.86 | — | 0.8–1 | 1 [1–1] | 5/5 | pass |
-| III-12 | Blue wave advances NE (proxy) | Anim III-12, p.88 | — | 10–60 | 8.734 [8.457–9.063] | 5/5 | near |
-| III-12 | Red wave advances SW (proxy) | Anim III-12, p.88 | — | -60–-10 | -6.318 [-7.384–-5.578] | 5/5 | near |
-| III-13 | combat suppresses Blue's wave (proxy) | Anim III-13, p.89 | — | -5–5 | 10.61 [9.47–11.95] | 5/5 | fail |
+| III-12 | Blue wave advances NE (proxy) | Anim III-12, p.88 | — | 10–60 | 8.122 [7.918–8.245] | 5/5 | near |
+| III-12 | Red wave advances SW (proxy) | Anim III-12, p.88 | — | -60–-10 | -4.652 [-5.752–-3.575] | 5/5 | near |
+| III-13 | combat suppresses Blue's wave (proxy) | Anim III-13, p.89 | — | -5–5 | 9.62 [9.024–10.73] | 5/5 | near |
 | III-14 | no runaway hegemony (proxy) | p.90 | — | 0.5–1 | 0.5 [0–1] | 10/10 | pass |
-| III-15 | Red and Blue on opposite mountains | p.92 fn 32 | 0.45 | 0.3–0.5 | 0.15 [0–1] | 20/20 | fail |
-| III-15 | Red dominates both | p.92 fn 32 | 0.25 | 0.1–0.4 | 0 [0–0] | 20/20 | near |
-| III-15 | Blue dominates both | p.92 fn 32 | 0.25 | 0.1–0.4 | 0 [0–0] | 20/20 | near |
+| III-15 | Red and Blue on opposite mountains | p.92 fn 32 | 0.45 | 0.3–0.5 | 0.05 [0–1] | 20/20 | fail |
+| III-15 | Red dominates both | p.92 fn 32 | 0.25 | 0.1–0.4 | 0.3 [0–1] | 20/20 | pass |
+| III-15 | Blue dominates both | p.92 fn 32 | 0.25 | 0.1–0.4 | 0.3 [0–1] | 20/20 | pass |
 | III-15 | extinction (small frequency) | p.92 fn 32 | — | 0–0.15 | 0 [0–0] | 20/20 | pass |
 
-Run: `python -m replication.report --chapter III --jobs 8` on 2026-10-21 (branch feat/chapter-3). Seeds as registered (5, 10, or 20).
+Run: `python -m replication.report --chapter III --jobs 8` on 2026-10-21 (branch feat/chapter-3, after the final-review fix pass). Seeds as registered (5, 10, or 20).
+Fast suite 144 passed; `pytest -m slow tests/test_replication_ch3.py`: 11 passed, 13 failed (the near + fail rows).
 Chapter II regression run on the same branch: 19 pass / 12 near / 0 fail, every row identical to docs/replication/chapter-2.md.
 
 ## Choices made from evidence or by necessity
 
 - **Combat blocks** measured from frame 1 of Animations III-9 and III-12: Blue 20×20 at the SW corner, Red 20×20 at the NE corner, ≈270 agents each (III-9/14) and ≈370 each (III-12/13). III-11 uses 200 each ("fix the population at 400", p.86).
 - **Proto-history** starts with 100 agents ("small, low density"); the book gives no number.
+- **Culture runs go to absorption** (III-8, III-15 run to t=6000 and are classified there): the book describes eventual states ("ultimately converge", p.74; fn 22; fn 32's frequencies), the same principle as the t=500 carrying-capacity decision.
 - **Endowments**: 50–100 for the sex runs (p.57), 10–40 where p.65 lowers "the sugar necessary for reproduction"; 25–50 (the Chapter II finding) for the culture and combat runs.
 
 ## What matches
@@ -42,18 +45,19 @@ Chapter II regression run on the same branch: 19 pass / 12 near / 0 fail, every 
 - Evolution under S (Fig III-2): mean vision 5.6 at t≈900 (book 5.3), metabolism falls to 1.0 (book 1.0).
 - Population stability under default S: relative fluctuation 5.5% (book "less than 10 percent").
 - Large-oscillation period: 118 (book ≈125).
-- Best-friend closeness 0.98 (book 0.91), same-tribe war of attrition persists (III-11), combat with assimilation avoids runaway hegemony in half the runs (III-14), no proto-history extinctions.
+- Best-friend closeness 0.98 (book 0.91).
+- Combat (III-9): every run ends in one of the book's three patterns (eradication, or frozen coexistence of small colonies); same-tribe war of attrition persists (III-11); combat with assimilation avoids runaway hegemony in half the runs (III-14).
+- Proto-history (III-15): Red dominates both mountains in 30% of runs and Blue in 30% (book ≈25% each); no extinctions.
 
 ## Open discrepancies (investigated, unresolved)
 
-The failures cluster into three groups that look like shared causes, not ten separate defects.
-
-1. **Population dynamics are too damped and too low.** Steady population ≈369 vs ≈500 (III-1); small-oscillation run nearly dies out (floor 24 vs ≈250) with period ≈720 vs ≈200 (III-3); large-oscillation run swings ≈144 vs ≈1000 around a high mean (III-4); the combined run never goes extinct (III-5). Animation III-2 shows the book's population spilling into a diagonal band across the lowlands; ours stays on the peaks.
-   Investigated: (a) starting ages — random initial ages make it worse; (b) evolution — our vision/metabolism evolve as fast or faster than the book's; (c) the population is birth-limited, not food-limited (immortal metabolism-1 runs hold ≈490 agents); (d) Moore instead of von Neumann mating neighbors — only +6%. Lead: interactions happen less often than in the book (Chapter II's mean neighbors 0.78 vs 0.9), but that gap alone looks too small.
-2. **Inheritance barely raises inequality** (III-7 Gini 0.33 vs 0.743) **or slows selection** (vision 5.29 vs ≈4.3). Deaths are 99% old age, parents leave ≈180 sugar to ≈2 living children; but fertile agents spend any surplus on children, so wealth stays compressed (max ≈850, mean ≈100). Inheritance mostly funds extra births (old-age deaths triple).
-3. **Culture converges too slowly.** III-8: only 2 of 5 runs have both mountains ≥95% one color at t=3000 (book: all Blue by ≈2700 in its run); sides reach 95–98% and then flip back (e.g. NE 0.95 Blue at t=2000, 0.33 at t=3000), so tag positions have not locked. III-15 rarely reaches a pure pattern by t=1000 (opposite mountains 15% vs ≈45%; single-color dominance 0% vs ≈25% each).
-4. **Waves (III-12) are not reproduced** — the same failure as II-6 — **and combat does not suppress movement in III-13** (Blue advances 10.6 vs 8.7 without combat). Since our no-combat waves don't form, the comparison isn't meaningful yet.
-5. **III-9 one-of-three-patterns 60% vs ≥80%**: four runs still have mixed sides at t=1000; the book gives no time for its outcomes.
+1. **Population dynamics are too damped and too low under S.** Steady population ≈369 vs ≈500 (III-1); small-oscillation run nearly dies out (floor 24 vs ≈250; period ≈720 vs ≈200) (III-3); large-oscillation run swings ≈144 vs ≈1000 around a high mean (III-4); the combined run never goes extinct (III-5). Animation III-2 shows the book's population spilling into the lowlands; ours stays on the peaks.
+   **State of the question (final review's flow accounting, III-1 seed 0, t=200–600):** births (4.6–4.7/period) equal old-age deaths, starvation is 0. Agents harvest ≈870 sugar/period and burn ≈350, and **≈520 (60% of all harvest) is destroyed at old-age deaths**. Only 45% of fertile-age agents meet the wealth test (mean wealth 82 vs threshold ≈75). After a birth, regaining half the endowment (≈37.5) takes ≈25 periods. **Births are wealth-cycle-limited, not partner-limited.** Founders start exactly at the threshold, so those with negative net income are sterile for life: lifetime children by metabolism m=1: 168 (98 agents), m=2: 72, m=3: 21, **m=4: 0 (113 agents)**. The book's Fig III-4 boom (400 → ≈1500 by t≈45) would need net income ≳2.5/period per agent, close to the whole map's regrowth, which the rule as written can't supply. So the gap is likely an unstated detail of the original's wealth accounting.
+   Ruled out: random initial ages (worse); Moore mating neighbors (+2–6%); fertility end inclusive (no change); evolution speed (ours is as fast or faster); food supply (Chapter II metabolism-1 capacities match within 2%). Sensitivity: removing the parents' cost fills the lattice (≈2000); a threshold of half the endowment gives ≈950 (III-1). Neither is the book's rule. **III-3 sits on a knife-edge**: small changes (Moore + inclusive end) move its floor from 46 to 179, so its miss carries little diagnostic weight.
+   Next probes: whether the original's founders held sugar above their recorded endowment (Animation III-1's first frame shows a mature age structure), and whether a child's recorded "initial endowment" was one parent's contribution.
+2. **Inheritance barely raises inequality** (III-7 Gini 0.33 vs 0.743) **or slows selection** (vision 5.29 vs ≈4.3). With I, recycled wealth funds births in the wealth-limited regime and the population triples (≈1,370 at t=1000) instead of dynasties keeping wealth. This is the same unknown as item 1.
+3. **Culture never quite absorbs.** III-8 at t=6000: sides sit at 91–98% one color (2 of 5 runs have both sides ≥95%), and no run reaches 100% on every side (book: all agents Blue after ≈2700). A few holdout agents per side never convert. Tag positions drift like a voter model (one NE position went 83% → 95% → 34% zeros between t=1000 and 3000), consistent with the book's process but slower to finish. III-15: mountains usually end the same color (single-color dominance 60%), Red and Blue on opposite mountains only 5% (book ≈45%).
+4. **Waves (III-12) are not reproduced** — the same failure as II-6. Measured as net NE-ward travel (unwrapped across the map's edges), Blue advances ≈8 and Red ≈5 by t=50, with or without combat (III-13: ≈9.6). There is no wave to suppress, so III-13 says nothing yet.
 
 ## Visual comparison
 

@@ -174,7 +174,8 @@ register(Experiment(
 register(Experiment(
     id="III-8", title="Cultural transmission: tribes converge (Animation III-6, Fig III-8, p.74)",
     rules="({G1}, {M, K})", config=Config(tag_length=TAGS, culture=True, endowment=CH2_ENDOWMENT),
-    steps=3000, seeds=5))
+    # Run to absorption: each side "will ultimately converge" (p.74, fn 22); the book's run took ~2700.
+    steps=6000, seeds=5))
 register(Experiment(
     id="III-9", title="Combat, reward = victim's wealth (Animations III-9, III-10, p.83)",
     rules="({G1}, {C_inf})",
@@ -208,4 +209,4 @@ register(Experiment(
     rules="({G1}, {M, S, K})",
     # "A small, low density, primordial soup": 100 agents (our call).
     config=Config(**CH3_SEX, initial_population=100, tag_length=TAGS, culture=True),
-    steps=1000, seeds=20))
+    steps=6000, seeds=20))  # fn 32's frequencies are eventual outcomes: run to absorption

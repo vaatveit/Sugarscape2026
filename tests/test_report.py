@@ -146,3 +146,33 @@ def test_both_persist_and_extinct_by():
 def test_centroid_shift():
     s = [{"t": 0, "blue_xy": 20.0}, {"t": 50, "blue_xy": 35.0}]
     assert centroid_shift("blue_xy", 0, 50)(s) == 15.0
+
+
+from replication.targets import combat_outcome, first_time_pure  # noqa: E402
+
+
+def counts(rows, mixed=False):
+    """Tribe counts per t; segregated (Blue SW, Red NE) unless mixed (half of each on each side)."""
+    if mixed:
+        return [{"t": t, "n_blue": b, "n_red": r, "sw_blue": b / 2, "sw_red": r / 2, "ne_blue": b / 2,
+                 "ne_red": r / 2} for t, (b, r) in rows]
+    return [{"t": t, "n_blue": b, "n_red": r, "sw_blue": b, "sw_red": 0.0, "ne_blue": 0.0, "ne_red": r}
+            for t, (b, r) in rows]
+
+
+def test_combat_outcome_recognises_frozen_coexistence():  # p.83 third pattern
+    frozen = counts([(500, (2.0, 131.0)), (750, (2.0, 131.0)), (1000, (2.0, 131.0))])
+    assert combat_outcome(750, 1000)(counts([(750, (2.0, 131.0)), (1000, (2.0, 131.0))], mixed=True)) == 1.0
+    assert combat_outcome(750, 1000)(frozen) == 1.0
+    churning = counts([(500, (40.0, 90.0)), (750, (30.0, 95.0)), (1000, (25.0, 99.0))], mixed=True)
+    assert combat_outcome(750, 1000)(churning) == 0.0
+    one_left = counts([(750, (5.0, 60.0)), (1000, (0.0, 140.0))])
+    assert combat_outcome(750, 1000)(one_left) == 1.0
+
+
+def test_first_time_pure():
+    def row(t, sb, sr, nb, nr):
+        return {"t": t, "sw_blue": sb, "sw_red": sr, "ne_blue": nb, "ne_red": nr}
+    s = [row(0, 50, 50, 40, 40), row(10, 100, 0, 80, 1), row(20, 100, 0, 0, 81)]
+    assert first_time_pure()(s) == 20.0
+    assert math.isnan(first_time_pure()(s[:2]))

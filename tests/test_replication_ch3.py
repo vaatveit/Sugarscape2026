@@ -15,7 +15,7 @@ def test_chapter3_experiments_registered():
 
 
 def test_every_chapter3_target_has_an_experiment():
-    assert len(CH3) == 23
+    assert len(CH3) == 24  # + III-8 time to purity
     assert all(t.experiment in EXPERIMENTS for t in CH3)
 
 
@@ -39,6 +39,8 @@ def test_chapter3_configs_follow_the_book():
     assert sum(b[5] for b in attrition.initial_blocks) == 400
     assert EXPERIMENTS["III-12"].config.vision == (1, 10) and EXPERIMENTS["III-13"].config.combat_alpha == 2
     assert EXPERIMENTS["III-14"].config.culture and EXPERIMENTS["III-14"].config.combat_alpha == math.inf
+    # Culture outcomes are classified at absorption, not mid-drift (p.74 "ultimately", fn 22).
+    assert EXPERIMENTS["III-8"].steps == 6000 and EXPERIMENTS["III-15"].steps == 6000
     proto = EXPERIMENTS["III-15"].config
     assert (proto.sex, proto.culture, proto.initial_population) == (True, True, 100)
 

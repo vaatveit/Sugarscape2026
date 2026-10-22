@@ -9,6 +9,7 @@ from sugarscape.model import Model
 from sugarscape.stats import society_metrics
 
 KEYS = {"n_blue", "n_red", "blue_fraction", "sw_blue", "sw_red", "ne_blue", "ne_red", "blue_xy", "red_xy",
+        "blue_advance", "red_advance",
         "mean_children", "best_friend_closeness", "friend_closeness"}
 
 
@@ -48,3 +49,14 @@ def test_values_are_plain_floats_and_runner_records_them(tmp_path):
     assert all(type(v) is float for v in society_metrics(m).values())
     row = run_experiment("TEST-tiny", seeds=1, out_dir=tmp_path)[0][0]
     assert "blue_fraction" in row and "population" in row
+
+
+def test_advance_is_toroidal_displacement():  # wrapping step counts as 1, not 49
+    m = Model(Config(initial_population=0, tag_length=1))
+    a = m.new_agent(0, 5, 1, 1, 10.0)
+    a.tags = [0]
+    m.move_agent(a, 49, 5)
+    m.move_agent(a, 49, 6)
+    assert (a.disp_x, a.disp_y) == (-1, 1)
+    out = society_metrics(m)
+    assert out["blue_advance"] == 0.0 and math.isnan(out["red_advance"])
