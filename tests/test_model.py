@@ -94,8 +94,9 @@ def test_chapter3_stream_unchanged_by_chapter4_fields():
     m = Model(EXPERIMENTS["III-1"].config)
     m.run(200)
     o = standard_metrics(m)
-    # Re-pinned 2026-10-22 when founders with finite lives began at spread ages (user decision).
-    assert (o["population"], o["mean_vision"], o["gini"]) == (340.0, 4.511764705882353, 0.17160128197603264)
+    # Re-pinned 2026-10-22 when founders with finite lives began at spread ages, and again when the default
+    # fertility threshold became 0.83 (both user decisions).
+    assert (o["population"], o["mean_vision"], o["gini"]) == (405.0, 5.197530864197531, 0.19502502358033214)
 
 
 def test_chapter4_stream_unchanged_by_chapter5_fields():

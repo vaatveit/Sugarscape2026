@@ -59,10 +59,11 @@ class Config:
     # (tribe "blue"|"red", x0, y0, w, h, n); non-empty replaces placement/initial_population
     initial_blocks: tuple[tuple[str, int, int, int, int, int], ...] = ()
     replacement_same_tribe: bool = False  # R with newcomers of the dead agent's tribe (p.86)
-    # Calibrated reproduction variant (docs/replication/chapter-3.md). The defaults are the book's
-    # rule (p.55); other values are a fitted departure, never a reading of the text.
-    fertility_threshold: float = 1.0  # share of its birth endowment an agent must hold to be fertile
-    child_share: float = 0.5  # share of its initial endowment each parent gives a child
+    # Reproduction (docs/replication/chapter-3.md). p.55's rule is a threshold of 1.0 (the whole birth
+    # endowment). The default 0.83 is a fitted departure (fitted to Fig III-1's steady population alone),
+    # adopted by user decision 2026-10-22; the book's rule runs as the VAR-book experiments.
+    fertility_threshold: float = 0.83  # share of its birth endowment an agent must hold to be fertile
+    child_share: float = 0.5  # share of its initial endowment each parent gives a child (p.55)
 
     # Chapter IV. New draws are gated by these and come after earlier draws.
     spice: bool = False  # second commodity (p.96); spice map = sugar map mirrored east-west

@@ -113,3 +113,8 @@ def test_reproduction_variant_values_rejected(bad):
 def test_unknown_founder_ages_rejected():
     with pytest.raises(ValueError):
         Config(founder_ages="old")
+
+
+def test_fertility_threshold_defaults_to_the_calibrated_value():  # user decision 2026-10-22; p.55's rule is 1.0
+    c = Config()
+    assert (c.fertility_threshold, c.child_share) == (0.83, 0.5)

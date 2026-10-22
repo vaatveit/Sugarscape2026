@@ -363,16 +363,17 @@ register(Experiment(
     rules="Ring World", config=RingConfig(placement="block"), steps=500, seeds=10))
 
 
-# --- Calibrated reproduction variant (docs/replication/chapter-3.md) -------------------------
+# --- Reproduction-rule variants (docs/replication/chapter-3.md) ------------------------------
 # The book's sex rule, implemented as written, doesn't reproduce its own population figures (as in
-# Kehoe's thesis; MASON and Ascape depart from the text). Each setting below was fitted to Fig III-1's
-# steady population (500) alone and frozen; it then runs unchanged on the other reproduction figures,
-# to see whether a single fitted quantity carries over. These are departures from p.55, not readings.
-CALIBRATED = {"thr": {"fertility_threshold": 0.83}, "share": {"child_share": 0.4975}}
+# Kehoe's thesis; MASON and Ascape depart from the text). The default fertility threshold, 0.83 of the
+# birth endowment, was fitted to Fig III-1's steady population (500) alone and adopted by user decision
+# (2026-10-22). These variants run the reproduction figures unchanged otherwise: VAR-book is p.55 as
+# written (threshold 1.0); VAR-share is the other fitted setting, a smaller gift at p.55's threshold.
+VARIANTS = {"book": {"fertility_threshold": 1.0}, "share": {"fertility_threshold": 1.0, "child_share": 0.4975}}
 VALIDATION = ("III-1", "III-3", "III-4", "III-5", "VI-2", "VI-3")
-for _name, _setting in CALIBRATED.items():
+for _name, _setting in VARIANTS.items():
     for _id in VALIDATION:
-        _book = EXPERIMENTS[_id]
+        _default = EXPERIMENTS[_id]
         register(Experiment(
-            id=f"CAL-{_name}/{_id}", title=f"{_book.title} [calibrated {_setting}]", rules=_book.rules,
-            config=replace(_book.config, **_setting), steps=_book.steps, seeds=_book.seeds))
+            id=f"VAR-{_name}/{_id}", title=f"{_default.title} [{_setting}]", rules=_default.rules,
+            config=replace(_default.config, **_setting), steps=_default.steps, seeds=_default.seeds))

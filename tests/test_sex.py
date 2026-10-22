@@ -27,8 +27,8 @@ def test_fertility_window():
     assert not is_fertile(f)  # childbearing ends at fertility_end
 
 
-def test_infertile_cases():
-    m = tiny_model(np.ones((6, 6), dtype=int), sex=True)
+def test_infertile_cases():  # p.55's threshold, the whole birth endowment
+    m = tiny_model(np.ones((6, 6), dtype=int), sex=True, fertility_threshold=1.0)
     f, h = couple(m, sugar=59.0)
     assert mate(m, f) == []  # wealth below initial endowment
     f.sugar = h.sugar = 60.0

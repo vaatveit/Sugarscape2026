@@ -1,33 +1,35 @@
 from dataclasses import replace
 
-from experiments.registry import CALIBRATED, EXPERIMENTS, VALIDATION
+from experiments.registry import EXPERIMENTS, VALIDATION, VARIANTS
 from replication.targets import TARGETS
 
-CAL = [t for t in TARGETS if t.experiment.startswith("CAL-")]
+VAR = [t for t in TARGETS if t.experiment.startswith("VAR-")]
 
 
-def test_each_setting_runs_every_validation_figure_unchanged_otherwise():
-    assert set(CALIBRATED) == {"thr", "share"} and VALIDATION == ("III-1", "III-3", "III-4", "III-5", "VI-2", "VI-3")
-    for name, setting in CALIBRATED.items():
+def test_each_variant_runs_every_validation_figure_unchanged_otherwise():
+    assert set(VARIANTS) == {"book", "share"} and VALIDATION == ("III-1", "III-3", "III-4", "III-5", "VI-2", "VI-3")
+    for name, setting in VARIANTS.items():
         for exp_id in VALIDATION:
-            cal, book = EXPERIMENTS[f"CAL-{name}/{exp_id}"], EXPERIMENTS[exp_id]
-            assert cal.config == replace(book.config, **setting)
-            assert (cal.rules, cal.steps, cal.seeds) == (book.rules, book.steps, book.seeds)
+            var, default = EXPERIMENTS[f"VAR-{name}/{exp_id}"], EXPERIMENTS[exp_id]
+            assert var.config == replace(default.config, **setting)
+            assert (var.rules, var.steps, var.seeds) == (default.rules, default.steps, default.seeds)
 
 
-def test_fitted_values_are_frozen():  # fitted to Fig III-1's steady population only (Chapter III record)
-    assert CALIBRATED == {"thr": {"fertility_threshold": 0.83}, "share": {"child_share": 0.4975}}
+def test_variant_settings_are_frozen():  # VAR-book is p.55 as written; VAR-share as fitted (Chapter III record)
+    assert VARIANTS == {"book": {"fertility_threshold": 1.0},
+                        "share": {"fertility_threshold": 1.0, "child_share": 0.4975}}
+    assert not any(e.startswith("CAL-") for e in EXPERIMENTS)
 
 
 def test_targets_are_mirrored_with_their_baselines():
-    book = [t for t in TARGETS if t.experiment in VALIDATION]
-    assert len(CAL) == 2 * len(book)
-    for t in CAL:
-        assert t.experiment in EXPERIMENTS and (t.baseline is None or t.baseline.startswith("CAL-"))
+    default = [t for t in TARGETS if t.experiment in VALIDATION]
+    assert len(VAR) == 2 * len(default)
+    for t in VAR:
+        assert t.experiment in EXPERIMENTS and (t.baseline is None or t.baseline.startswith("VAR-"))
         assert t.baseline is None or t.baseline.split("/")[0] == t.experiment.split("/")[0]
 
 
-def test_book_experiments_keep_the_book_rule():
+def test_default_experiments_use_the_calibrated_threshold():  # user decision 2026-10-22
     for exp_id in VALIDATION:
         c = EXPERIMENTS[exp_id].config
-        assert (c.fertility_threshold, c.child_share) == (1.0, 0.5)
+        assert (c.fertility_threshold, c.child_share) == (0.83, 0.5)

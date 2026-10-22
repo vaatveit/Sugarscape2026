@@ -7,8 +7,8 @@ from sugarscape.model import Model
 from sugarscape.rules.credit import available_to_lend, seek_credit, settle_loans, shortfall
 
 
-def credit_model(**kw):
-    return tiny_model(np.ones((7, 7), dtype=int), sex=True, credit=(10, 10.0), **kw)
+def credit_model(**kw):  # p.55's threshold (the whole birth endowment) unless a test sets another
+    return tiny_model(np.ones((7, 7), dtype=int), sex=True, credit=(10, 10.0), **{"fertility_threshold": 1.0, **kw})
 
 
 def person(m, x, y, age, sugar, initial=60.0, end=40, income=10.0):

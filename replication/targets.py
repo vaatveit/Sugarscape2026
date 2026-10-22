@@ -455,12 +455,12 @@ TARGETS += [
 ]
 
 
-# --- Calibrated reproduction variant -------------------------------------------------------
-# The same targets, run on each fitted setting (experiments.registry.CALIBRATED). III-1's steady
-# population is the one quantity each setting was fitted to; every other row is out of sample.
-_CAL_NAMES = ("thr", "share")
-_CAL_FIGURES = ("III-1", "III-3", "III-4", "III-5", "VI-2", "VI-3")
+# --- Reproduction-rule variants ------------------------------------------------------------
+# The same targets, run on each variant (experiments.registry.VARIANTS): VAR-book is p.55 as written.
+# III-1's steady population is the quantity the default threshold and VAR-share were fitted to.
+_VAR_NAMES = ("book", "share")
+_VAR_FIGURES = ("III-1", "III-3", "III-4", "III-5", "VI-2", "VI-3")
 TARGETS += [
-    replace(t, experiment=f"CAL-{name}/{t.experiment}", baseline=f"CAL-{name}/{t.baseline}" if t.baseline else None)
-    for name in _CAL_NAMES for t in list(TARGETS) if t.experiment in _CAL_FIGURES
+    replace(t, experiment=f"VAR-{name}/{t.experiment}", baseline=f"VAR-{name}/{t.baseline}" if t.baseline else None)
+    for name in _VAR_NAMES for t in list(TARGETS) if t.experiment in _VAR_FIGURES
 ]
