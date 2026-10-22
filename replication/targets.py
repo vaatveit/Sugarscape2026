@@ -366,3 +366,19 @@ TARGETS += [
            proxy=True),
     Target("IV-A5", "hierarchy levels", 5, 3, 8, window_max("credit_depth", 200, 500), "p.133", proxy=True),
 ]
+
+
+# --- Chapter V -----------------------------------------------------------------------------
+
+TARGETS += [
+    Target("V-1", "society rids itself of disease", 0.0, 0, 0.01, window_mean("fraction_sick", 450, 500),
+           "Anim V-1, p.147"),
+    Target("V-1", "no disease left circulating", 0.0, 0, 0.5, value_at("diseases_circulating", 500), "p.147"),
+    Target("V-2", "endemic infection persists", None, 0.2, 0.8, window_mean("fraction_sick", 300, 500),
+           "Anim V-2, p.150", proxy=True),
+    Target("V-2", "average diseases at start", 3.41, 2.5, 4.5, value_at("mean_diseases", 0), "Anim V-3, p.151"),
+    Target("V-2", "endemic average diseases", 0.86, 0.6, 1.1, window_mean("mean_diseases", 300, 500),
+           "Anim V-3, p.151"),
+    Target("V-2", "spread of diseases per agent", 1.0, 0.8, 1.2, window_mean("sd_diseases", 300, 500),
+           "Anim V-3, p.151"),
+]

@@ -295,3 +295,17 @@ register(Experiment(
 register(Experiment(
     id="IV-A5", title="Credit networks on the sugar-only landscape (Animation IV-5, p.133)",
     rules="({G1}, {M, S, L10,10})", config=Config(**CH3_SEX, credit=(10, 10.0)), steps=500, seeds=5))
+
+
+# --- Chapter V: Disease Processes -----------------------------------------------------------
+
+# p.147: agents and landscape "as in Chapter II" (rule M), immune systems of 50 random bits,
+# diseases of random length 1-10 from a master list.
+register(Experiment(
+    id="V-1", title="Society rids itself of disease: 10 diseases, 4 per agent (Animation V-1, p.147)",
+    rules="({G1}, {M, E})", config=Config(endowment=CH2_ENDOWMENT, disease_list=10, diseases_per_agent=4),
+    steps=500, seeds=10))
+register(Experiment(
+    id="V-2", title="Endemic disease: 25 diseases, 10 per agent (Animations V-2, V-3, pp.147-151)",
+    rules="({G1}, {M, E})", config=Config(endowment=CH2_ENDOWMENT, disease_list=25, diseases_per_agent=10),
+    steps=500, seeds=10))
