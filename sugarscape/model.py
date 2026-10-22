@@ -9,7 +9,7 @@ from sugarscape.agent import Agent
 from sugarscape.config import Config
 from sugarscape.landscape import Landscape
 from sugarscape.maps import load_map
-from sugarscape.rules import combat, culture, movement, sex, trade
+from sugarscape.rules import combat, credit, culture, movement, sex, trade
 from sugarscape.rules.culture import random_tags
 
 VON_NEUMANN = ((1, 0), (-1, 0), (0, 1), (0, -1))
@@ -30,6 +30,7 @@ class Model:
         self.t = 0
         self.dead_this_step: list[Agent] = []
         self.trade_log: list[trade.Exchange] = []  # this period's exchanges (rule T)
+        self.loans: list[credit.Loan] = []  # active loans (rule L)
         self._next_id = 0
         self._place_initial_population()
 
@@ -115,6 +116,8 @@ class Model:
         The positive part of the agent's wealth is split equally among its living children,
         skipping `excluded_heirs` (agents dying in the same batch; Kehoe's reading).
         """
+        if self.loans:
+            credit.on_death(self, agent, excluded_heirs)
         if self.config.inheritance:
             heirs = [c for c in agent.children if c.alive and c not in excluded_heirs]
             for heir in heirs:
@@ -154,6 +157,8 @@ class Model:
                 culture.update_friends(agent, agent.neighbors)
             if cfg.trade:
                 trade.trade_with_neighbors(self, agent)
+            if cfg.credit is not None:
+                credit.seek_credit(self, agent)
 
         # End of period: aging and old-age death, replacement, then the environment.
         for agent in self.agents:
@@ -161,6 +166,8 @@ class Model:
         dying = [a for a in self.agents if a.age >= a.max_age]
         for agent in dying:
             self.die(agent, excluded_heirs=dying)
+        if cfg.credit is not None:
+            credit.settle_loans(self)
         if cfg.replacement:
             for dead in list(self.dead_this_step):
                 self.spawn_random_agent(dead.tribe if cfg.replacement_same_tribe else None)
