@@ -1,5 +1,6 @@
 import math
 
+import numpy as np
 import pytest
 
 from replication.report import evaluate, write_report
@@ -43,6 +44,24 @@ def test_evaluate_statuses():
     assert evaluate(t3, [SERIES]).status == "fail"
 
 
+def const(value):
+    return [{"t": 0, "population": value}]
+
+
+def test_near_margin_capped_at_a_quarter_of_the_bound():
+    def status(low, high, value):
+        return evaluate(Target("X", "pop", None, low, high, value_at("population", 0), "t"), [const(value)]).status
+
+    assert status(0.15, 1.0, 0.05) == "fail"  # half-width margin 0.425 would reach below 0; 25% of 0.15 stops at 0.1125
+    assert status(0.15, 1.0, 0.12) == "near"
+    assert status(-60, -10, -4.65) == "fail"  # beyond the high bound: margin 25% of 10, not half of 50
+    assert status(-60, -10, -8.0) == "near"
+    assert status(0, 0.5, 0.55) == "near"  # 0.5 + min(0.25, 0.125)
+    assert status(0, 0.5, 0.7) == "fail"
+    assert status(0, 0.5, -0.01) == "fail"  # a bound of 0 leaves no margin below it
+    assert status(328.5, 401.5, 299.4) == "near"  # wide relative room: the half-width margin (36.5) still applies
+
+
 def test_evaluate_spread_across_seeds():
     other = [dict(r, population=r["population"] + 10) for r in SERIES]
     r = evaluate(Target("X", "pop", 400, 390, 410, value_at("population", 0), "t"), [SERIES, other])
@@ -84,6 +103,7 @@ from replication.targets import (  # noqa: E402  (Chapter III helpers)
     both_persist,
     centroid_shift,
     dominant_period,
+    peak_spacing,
     extinct_by,
     relative_std,
     tribal_outcome,
@@ -108,6 +128,39 @@ def test_dominant_period_flat_or_extinct_is_nan():  # Review Focus 5
     rising = [{"t": t, "population": float(t)} for t in range(100)]
     assert math.isnan(dominant_period("population", 0, 99)(rising))
     assert math.isnan(dominant_period("population", 0, 99)([]))
+
+
+def knots(points, n):
+    """Piecewise-linear population through (t, value) points."""
+    ts, vs = zip(*points)
+    return [{"t": t, "population": float(v)} for t, v in zip(range(n), np.interp(range(n), ts, vs))]
+
+
+def test_peak_spacing_finds_cycle():
+    assert abs(peak_spacing("population", 0, 1999)(sine(125)) - 125) <= 1
+    assert abs(peak_spacing("population", 0, 1999)(sine(200)) - 200) <= 1
+
+
+def test_peak_spacing_is_the_median_interval():
+    # symmetric peaks (rise and fall 50 periods each), so smoothing doesn't shift them
+    s = knots([(0, 300), (50, 300), (100, 900), (150, 300), (200, 300), (250, 900), (300, 300), (400, 300),
+               (450, 900), (500, 300), (550, 300), (600, 900), (650, 300), (700, 300)], 701)
+    assert peak_spacing("population", 0, 700)(s) == pytest.approx(150, abs=1)  # intervals 150, 200, 150
+
+
+def test_peak_spacing_ignores_a_peak_at_the_window_edge():
+    s = knots([(0, 900), (50, 300), (100, 300), (150, 900), (200, 300), (350, 300), (400, 900), (450, 300),
+               (460, 300)], 461)
+    assert peak_spacing("population", 0, 460)(s) == pytest.approx(250, abs=1)  # counting t=0 would give ≈200
+
+
+def test_peak_spacing_nan_without_oscillation():
+    flat = [{"t": t, "population": 0.0} for t in range(100)]
+    assert math.isnan(peak_spacing("population", 0, 99)(flat))
+    rising = [{"t": t, "population": float(t)} for t in range(100)]
+    assert math.isnan(peak_spacing("population", 0, 99)(rising))
+    assert math.isnan(peak_spacing("population", 0, 99)([]))
+    assert math.isnan(peak_spacing("population", 0, 1999)(sine(125, amp=15.0)))  # swings below 40 are noise
 
 
 def test_window_extremes_and_relative_std():

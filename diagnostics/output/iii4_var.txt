@@ -1,0 +1,25 @@
+book: first peak 1551@75, trough 346@148, late range ~900-1000, period ~134
+== default (spread, 0.83)
+  seed 0: first peak 1428@120 trough 926@184 | range t=1000-1500 95 (mean 1179) period 114.0 | starved share t>=300 0.00 | births/period t>=300: 12.4-19.6
+  seed 1: first peak 1397@127 trough 928@188 | range t=1000-1500 79 (mean 1163) period 120.0 | starved share t>=300 0.00 | births/period t>=300: 12.1-18.7
+  seed 2: first peak 1414@122 trough 893@178 | range t=1000-1500 92 (mean 1164) period 115.0 | starved share t>=300 0.00 | births/period t>=300: 12.2-20.3
+== theta 1.0 (VAR-book)
+  seed 0: first peak 1387@120 trough 810@180 | range t=1000-1500 225 (mean 1125) period 117.0 | starved share t>=300 0.00 | births/period t>=300: 8.9-22.0
+  seed 1: first peak 1302@126 trough 904@183 | range t=1000-1500 123 (mean 1120) period 116.0 | starved share t>=300 0.00 | births/period t>=300: 11.9-18.8
+  seed 2: first peak 1318@121 trough 830@181 | range t=1000-1500 99 (mean 1107) period 119.0 | starved share t>=300 0.00 | births/period t>=300: 9.8-18.6
+== theta 0.5
+  seed 0: first peak 1589@107 trough 1027@172 | range t=1000-1500 322 (mean 1313) period 128.0 | starved share t>=300 0.00 | births/period t>=300: 12.4-21.2
+  seed 1: first peak 1574@114 trough 1104@177 | range t=1000-1500 226 (mean 1304) period 129.0 | starved share t>=300 0.01 | births/period t>=300: 13.8-19.6
+  seed 2: first peak 1582@110 trough 1091@175 | range t=1000-1500 171 (mean 1305) period 128.0 | starved share t>=300 0.00 | births/period t>=300: 13.5-19.6
+== age-0 founders
+  seed 0: first peak 1404@111 trough 928@166 | range t=1000-1500 148 (mean 1177) period 122.0 | starved share t>=300 0.00 | births/period t>=300: 10.8-20.9
+  seed 1: first peak 1353@106 trough 1004@166 | range t=1000-1500 92 (mean 1174) period 123.0 | starved share t>=300 0.00 | births/period t>=300: 12.7-18.4
+  seed 2: first peak 1361@110 trough 997@162 | range t=1000-1500 96 (mean 1172) period 118.0 | starved share t>=300 0.00 | births/period t>=300: 13.4-18.6
+== max age fixed at 80
+  seed 0: first peak 1375@133 trough 916@191 | range t=1000-1500 290 (mean 1164) period 119.0 | starved share t>=300 0.00 | births/period t>=300: 9.2-20.9
+  seed 1: first peak 1438@243 trough 876@422 | range t=1000-1500 444 (mean 1182) period 118.0 | starved share t>=300 0.00 | births/period t>=300: 8.8-23.6
+  seed 2: first peak 1410@130 trough 883@181 | range t=1000-1500 126 (mean 1178) period 120.0 | starved share t>=300 0.00 | births/period t>=300: 10.6-19.7
+== global contact
+  seed 0: first peak 1563@88 trough 857@151 | range t=1000-1500 176 (mean 1214) period 117.0 | starved share t>=300 0.00 | births/period t>=300: 8.0-23.6
+  seed 1: first peak 1546@93 trough 795@151 | range t=1000-1500 233 (mean 1215) period 109.0 | starved share t>=300 0.00 | births/period t>=300: 8.1-26.8
+  seed 2: first peak 1578@87 trough 842@145 | range t=1000-1500 172 (mean 1234) period 114.0 | starved share t>=300 0.00 | births/period t>=300: 11.2-19.7

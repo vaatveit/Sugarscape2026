@@ -1,0 +1,35 @@
+III-1  book: t1~417 t20=470 t85=570 t240=415 t330=545 late=500 relsd<0.10
+   age0    thr=1.0  | t1=400 t20=465 t85=333 t240=386 t330=368 late=369 relsd=0.055
+   uniform thr=1.0  | t1=408 t20=354 t85=152 t240=391 t330=342 late=369 relsd=0.055
+   age0    thr=0.83 | t1=400 t20=504 t85=413 t240=532 t330=502 late=504 relsd=0.074
+   uniform thr=0.83 | t1=418 t20=388 t85=205 t240=479 t330=486 late=474 relsd=0.068
+III-3  book: floor~250 period~200 agents_ever~12500
+   age0    thr=1.0  | floor=24 mean=63 max=111 period=723 (3/5) agents_ever=2593
+   uniform thr=1.0  | floor=0 mean=0 max=0 period=none agents_ever=471
+   age0    thr=0.83 | floor=174 mean=270 max=359 period=315 (5/5) agents_ever=8739
+   uniform thr=0.83 | floor=78 mean=153 max=207 period=248 (5/5) agents_ever=5338
+III-4  book: peak 1554@71, trough 343, range~1000->800, period~125
+   age0    thr=1.0  | peak=1301@112 trough=916 range300+=340 period=120 (5/5)
+   uniform thr=1.0  | peak=1345@123 trough=862 range300+=384 period=119 (5/5)
+   age0    thr=0.83 | peak=1391@106 trough=955 range300+=357 period=119 (5/5)
+   uniform thr=0.83 | peak=1420@118 trough=887 range300+=379 period=121 (5/5)
+III-5  book: extinct after three growth surges (Fig III-5: by t~500)
+   age0    thr=1.0  | extinct=0.00 at=[] max=1343
+   uniform thr=1.0  | extinct=0.00 at=[] max=1264
+   age0    thr=0.83 | extinct=0.00 at=[] max=1398
+   uniform thr=0.83 | extinct=0.00 at=[] max=1313
+VI-2  book: t10=290 t20=130 t40=90 t60=50 t100=15 extinct
+   age0    thr=1.0  | t10=444 t20=283 t40=217 t60=224 t100=173 extinct@200=0.00
+   uniform thr=1.0  | t10=401 t20=217 t40=112 t60=65 t100=25 extinct@200=0.40
+   age0    thr=0.83 | t10=444 t20=288 t40=228 t60=242 t100=218 extinct@200=0.00
+   uniform thr=0.83 | t10=407 t20=221 t40=118 t60=78 t100=39 extinct@200=0.20
+VI-3  book: min~65 peak~1190 floor~700 ceil~1200 period~115
+   age0    thr=1.0  | min40-120=119 peak150-300=420 floor250+=301 ceil250+=721 period=340 (2/5)
+   uniform thr=1.0  | min40-120=17 peak150-300=173 floor250+=86 ceil250+=319 period=235 (1/5)
+   age0    thr=0.83 | min40-120=201 peak150-300=848 floor250+=705 ceil250+=929 period=194 (4/5)
+   uniform thr=0.83 | min40-120=37 peak150-300=343 floor250+=189 ceil250+=566 period=355 (1/5)
+III-1 age histogram ('age0', 1.0) t0: [400, 0, 0, 0, 0, 0, 0, 0, 0, 0] t2500: [45, 52, 50, 54, 54, 52, 38, 17, 7, 4]
+III-1 age histogram ('uniform', 1.0) t0: [51, 52, 56, 53, 50, 49, 46, 26, 12, 5] t2500: [44, 49, 54, 50, 52, 51, 42, 22, 11, 4]
+III-1 age histogram ('age0', 0.83) t0: [400, 0, 0, 0, 0, 0, 0, 0, 0, 0] t2500: [61, 70, 73, 68, 70, 71, 58, 31, 27, 7]
+III-1 age histogram ('uniform', 0.83) t0: [51, 52, 56, 53, 50, 49, 46, 26, 12, 5] t2500: [54, 59, 65, 57, 61, 61, 55, 41, 12, 6]
+book Anim III-1 frames: [63,49,45,64,45,55,49,30,13,4] [66,54,72,71,73,63,60,45,26,5] [56,61,61,66,63,59,59,57,25,9] [52,70,71,63,67,64,65,47,13,6]

@@ -1,6 +1,6 @@
 # Replication report
 
-11 pass, 4 near, 10 fail, of 25 targets.
+11 pass, 2 near, 12 fail, of 25 targets.
 
 | Experiment | Target | Source | Book | Band | Observed mean [min–max] | Seeds | Status |
 |---|---|---|---|---|---|---|---|
@@ -8,10 +8,10 @@
 | III-1 | small fluctuations | p.57 | 0.1 | 0–0.1 | 0.065 [0.05515–0.07192] | 5/5 | pass |
 | III-1 | mean vision at t≈900 | Fig III-2, p.63 | 5.3 | 4.8–5.8 | 5.636 [5.526–5.774] | 5/5 | pass |
 | III-1 | mean metabolism, t=300–900 | Fig III-2, p.63 | 1 | 0.9–1.15 | 1.001 [1–1.004] | 5/5 | pass |
-| III-3 | oscillation period | p.64 | 200 | 150–250 | 438 [210–699] | 3/5 | fail |
+| III-3 | oscillation period | p.64 | 200 | 150–250 | 411.5 [181–617] | 3/5 | fail |
 | III-3 | population floor | p.64 | 250 | 200–350 | 32.8 [0–85] | 5/5 | fail |
 | III-3 | agents that ever lived | p.64 fn 10 | 1.25e+04 | 1e+04–1.5e+04 | 3690 [518–6347] | 5/5 | fail |
-| III-4 | oscillation period | p.65 | 125 | 100–150 | 116.2 [112–121] | 5/5 | pass |
+| III-4 | oscillation period | p.65 | 125 | 100–150 | 131.7 [117.5–160.5] | 5/5 | pass |
 | III-4 | oscillation range | Fig III-4, p.65 | 1000 | 600–1400 | 106.2 [82–121] | 5/5 | fail |
 | III-5 | extinction frequency (proxy) | Fig III-5, p.66 | — | 0.5–1 | 0 [0–0] | 10/10 | fail |
 | III-7 | Gini with inheritance | p.67 | 0.743 | 0.65–0.85 | 0.31 [0.2969–0.3345] | 5/5 | fail |
@@ -22,8 +22,8 @@
 | III-9 | one of the three patterns (proxy) | p.83 | — | 0.8–1 | 1 [1–1] | 10/10 | pass |
 | III-11 | both tribes persist (proxy) | Anim III-11, p.86 | — | 0.8–1 | 1 [1–1] | 5/5 | pass |
 | III-12 | Blue wave advances NE (proxy) | Anim III-12, p.88 | — | 10–60 | 8.122 [7.918–8.245] | 5/5 | near |
-| III-12 | Red wave advances SW (proxy) | Anim III-12, p.88 | — | -60–-10 | -4.652 [-5.752–-3.575] | 5/5 | near |
-| III-13 | combat suppresses Blue's wave (proxy) | Anim III-13, p.89 | — | -5–5 | 9.62 [9.024–10.73] | 5/5 | near |
+| III-12 | Red wave advances SW (proxy) | Anim III-12, p.88 | — | -60–-10 | -4.652 [-5.752–-3.575] | 5/5 | fail |
+| III-13 | combat suppresses Blue's wave (proxy) | Anim III-13, p.89 | — | -5–5 | 9.62 [9.024–10.73] | 5/5 | fail |
 | III-14 | no runaway hegemony (proxy) | p.90 | — | 0.5–1 | 0.5 [0–1] | 10/10 | pass |
 | III-15 | Red and Blue on opposite mountains | p.92 fn 32 | 0.45 | 0.3–0.5 | 0 [0–0] | 20/20 | fail |
 | III-15 | Red dominates both | p.92 fn 32 | 0.25 | 0.1–0.4 | 0.2 [0–1] | 20/20 | pass |
@@ -36,6 +36,7 @@ Re-run 2026-10-22 (branch feat/repro-calibration) after the calibration settings
 Re-run 2026-10-22 (branch feat/founder-ages) after founders with finite lives began at ages U[0, max age) (user decision; see the Chapter III record): the table above. Changed rows are listed under Founder ages.
 Chapter II regression run on the same branch: 19 pass / 12 near / 0 fail, every row identical to docs/replication/chapter-2.md.
 Re-run 2026-10-22 (branch feat/threshold-default) after the default fertility threshold became 0.83 (user decision; see "Default fertility threshold" below): the table above.
+Re-run 2026-10-23 (main) after two reporting decisions (user, 2026-10-23). Near now means within the smaller of half the band's width and a quarter of the nearer bound's magnitude, so III-12's Red wave and III-13 fall from near to fail. The period targets now use `peak_spacing`: the median interval between peaks of a 41-period moving average, counting swings of at least 40 (the method of "III-3's floor and period", below), instead of the first autocorrelation peak. III-3's period is 412 (was 438, still a fail) and III-4's 132 (was 116, still a pass). Every other observed value is identical.
 
 ## Choices made from evidence or by necessity
 
@@ -583,6 +584,107 @@ Diagnostics only; nothing here changes the model. The target: a state, set by cr
 - **The book's falls need a lasting fertility deficit** in the cohort that comes of age during and after a peak. Ours comes of age at 1.15–1.35 times its threshold even when born at the peak (III-4's swings, above).
 - **No reading of p.55–57 or Appendix B tested here creates one.** The early-birth and low-density shortfalls (Figs III-1, III-3, III-4) point the same way: the original's births respond more steeply to density than ours, high when sparse and near zero when crowded.
 - **What produces that remains unknown.** The candidates above, and the earlier ones (contact, placement, timing, cost, threshold, founders, income), are ruled out as single causes.
+
+## The book's single runs as frequencies (2026-10-23)
+
+The book shows one run of each population figure, so a band around that run's value can't separate "our model never
+does this" from "our model does it in some runs". [diagnostics/frequencies.py](../../diagnostics/frequencies.py) counts
+how often a run shows the book's behavior over 30 seeds (the registry's seeds 0–29), under the default threshold and
+p.55's. Founders at spread ages; nothing here changes the model.
+
+| Figure | Book's behavior | Default (θ=0.83) | p.55 (θ=1.0) |
+|---|---|---|---|
+| III-3 | both mountains held through the last 500 periods | 3/30 | 0/30 |
+| III-3 | floor after t=300 in the book's band (≥200) | 0/30 | 0/30 |
+| III-4 | the large cycle (range > 600 over t=1500–2500) | 0/30 | 2/30 |
+| III-5 | extinct by t=1500 | 0/30 | 0/30 |
+| III-5 | a trough below 100 after t=150 (the book's ≈50) | 0/30 | 0/30 |
+| VI-2 | extinct by t=200 | 1/30 | **15/30** |
+| VI-2 | crash at t=20 within the band (≤156) | 0/30 | 0/30 |
+| VI-3 | survives to t=1000 | 23/30 | 12/30 |
+| VI-3 | floor and ceiling after t=250 in the book's bands (≥560, ≥960) | 4/30 | 0/30 |
+
+- **VI-2's extinction is a coin flip under the book's rule** (15 of 30 seeds; the registered 10 seeds give 1 under
+  the default). The fitted threshold, not the rule, is what keeps our non-trading society alive. Its crash is still
+  slower than the book's in every seed.
+- **III-4's large cycle does occur under p.55's rule**, in 2 of 30 ordinary runs, which supports the bistability
+  found above: the book's run may be one draw from a basin our runs reach rarely.
+- **The book's VI-3 waves appear in 4 of 30 default runs,** never under p.55's rule.
+- **III-5's extinction and deep troughs never occur** in 60 runs, and III-3's floor is never in the book's band. These
+  are the results least likely to be one unlucky draw of our model.
+
+## Candidate departures from rule S (2026-10-23)
+
+The README's untested candidates, run as labelled departures by [diagnostics/candidates.py](../../diagnostics/candidates.py)
+and scored with the replication targets of every population figure. Each uses p.55's test (θ=1.0) and spread founder
+ages; 5 seeds each, the cached columns cut to the same 5. Nothing here changes the model.
+
+- **C1, mate search within vision:** partners are agents in sight along the four lattice directions (rule M's lookout),
+  not only the four neighbors. The child still goes next to a parent.
+- **C2, gift from current wealth:** each parent gives half its current sugar (Kehoe's prose reading), and the child's
+  threshold is a fresh draw from the founders' range, so children born poor come of age below threshold.
+- **C3, Ascape's package:** each parent gives at most 5 sugar, and the child's threshold is a fresh draw.
+
+| Target | Book | p.55 (`VAR-book`) | Default (θ=0.83) | C1 | C2 | C3 | C1+C2 | C1+C3 |
+|---|---|---|---|---|---|---|---|---|
+| III-1 steady population | 500 | 360 near | 478 pass | **420 pass** | 375 near | 220 fail | 445 pass | 314 near |
+| III-1 small fluctuations | ≤0.10 | 0.059 | 0.065 | 0.087 | 0.059 | 0.21 fail | 0.061 | 0.18 fail |
+| III-3 floor | 250 | 18 | 33 | **163 near** | 0 | 0 | 136 | 8 |
+| III-3 agents that ever lived | 12,500 | 1,610 | 3,690 | **8,400 near** | 479 | 490 | 8,110 near | 1,380 |
+| III-3 period | 200 | 495 (2/5) | 412 (3/5) | 554 | — | — | 352 | 597 (1/5) |
+| III-4 period | 125 | 136 pass | 132 pass | 115 pass | 172 near | 124 pass | 130 pass | 112 pass |
+| III-4 range | 1,000 | 120 | 106 | 321 | 149 | **969 pass** | 216 | **615 pass** |
+| III-5 extinct by t=1500 | yes | 0/5 | 0/5 | 0/5 | 0/5 | **1/5** | 0/5 | 0/5 |
+| VI-2 crash at t≈20 | 130 | 209 | 209 | 216 | 213 | 209 | 214 | 221 |
+| VI-2 extinct by t=200 | yes | 2/5 | 1/5 | 0/5 | **4/5 pass** | **4/5 pass** | 2/5 | 0/5 |
+| VI-3 minimum | 65 | 27 | 36 | **64 pass** | 12 | 10 | **74 pass** | 109 |
+| VI-3 first peak | 1,190 | 272 | 308 | 639 | 19 | 5 | 516 | 529 |
+| VI-3 floor / ceiling after t=250 | 700 / 1,200 | 153 / 358 | 204 / 534 | **453 / 860 near** | 14 / 202 | 0 / 0 | 370 / 743 | 426 / 557 |
+| VI-3 period | 115 | 322 (2/5) | 241 (2/5) | 274 | — | — | 246 (3/5) | 171 (4/5) |
+
+Unmarked cells fail. All variants keep III-1's evolution rows (vision, metabolism) in band.
+
+**Findings:**
+- **C1 is the only candidate that improves the population figures broadly without a fitted value.** Wider contact lifts
+  the low-density births behind III-1's level, III-3's lost mountain (floor 163, agents ever lived 8,400) and VI-3's
+  recovery (minimum 64, floor and ceiling near). It leaves III-4's swings small and III-5 and VI-2 alive: it is a
+  remedy for the early, low-density shortfall, not for the missing post-peak block.
+- **C3 (cheap children) is the only candidate that gives III-4 the book's swings** (range 969 at period 124) and the
+  only one where III-5 dies out (1 of 5). It also kills VI-2 like the book (4 of 5). But it sinks III-1 to 220 with large
+  fluctuations and empties III-3 and VI-3. MASON's flat fertility threshold of 25 does the same for III-4 (below).
+- **C2 kills too much:** VI-2 dies like the book, but III-3 and VI-3 die too.
+- **The two effects combine only partly.** C1+C3 keeps III-4's swings (615) and lifts III-1 to 314, but VI-3 and III-3
+  stay far off. No variant reproduces the book's crash speed in VI-2 (≈130 at t=20, ≈210 in all of ours), which happens
+  before anyone can reproduce.
+- **Reading:** the book's figures look like a model whose births are cheap *and* easy to arrange: easy when sparse (C1)
+  and cheap enough to boom and bust (C3). No single reading of the text gives both, and the fitted threshold (0.83) is
+  a weaker stand-in for C1's effect on the level.
+
+## MASON's own runs (2026-10-23)
+
+MASON's Sugarscape (Bigbee, Cioffi-Revilla and Luke 2007) built from its project archive and run headless on its own
+configs for Figs III-1, III-3, III-4 and III-5, 10 seeds each
+([diagnostics/mason/](../../diagnostics/mason/README.md); scored by
+[mason_compare.py](../../diagnostics/mason_compare.py)). Its child placement ignores occupancy, and its III-4/III-5 configs
+read p.65 as a flat fertility threshold (25 and 10 sugar) with endowments of 50–100.
+
+| Target | Book | MASON | Ours, p.55 (`VAR-book`) | Ours, default |
+|---|---|---|---|---|
+| III-1 steady population | ≈500 | 348 near | 360 near | 478 pass |
+| III-1 fluctuations / vision / metabolism | ≤0.10 / 5.3 / 1.0 | 0.063 / 5.47 / 1.00, pass | 0.059 / 5.68 / 1.00, pass | 0.065 / 5.64 / 1.00, pass |
+| III-1 at t=20 / t=85 | 470 / 570 | 472 / 362 | 356 / 136 | 398 / 208 |
+| III-3 floor | ≈250 | 32 (5 of 10 extinct) | 18 | 33 |
+| III-3 period | ≈200 | 752 (6/10) | 495 (2/5) | 412 (3/5) |
+| III-4 range / period | ≈1,000 / ≈125 | **657 pass** / 239 | 120 / 136 pass | 106 / 132 pass |
+| III-5 extinct by t=1500 | yes | 0 of 10 | 0 of 10 | 0 of 10 |
+
+- **MASON's model doesn't reproduce the book's population figures either,** quantitatively scored on its own configs. Its
+  III-1 crashes after the founding boom and settles at 348, against our 360 under the same written rule. Two
+  independent implementations of the text land in the same place.
+- **Its large III-4 swings come from its cheaper reading of p.65,** at about twice the book's period. With C3 above, this
+  is the second sign that the book's III-4 needs reproduction cheaper than the endowment rule.
+- **MASON's printed vision and metabolism are wrong:** children are counted but never added to the set the statistics
+  average over. Our driver records on-grid values instead.
 
 ## Visual comparison
 

@@ -1,0 +1,46 @@
+III-1  book: t20=470 t85=570 t240=415 t330=545 late=500
+   age0   book   gift   | t20=464 t85=324 t240=372 t330=369 late=361
+   spread book   gift   | t20=354 t85=149 t240=394 t330=323 late=364
+   age0   book   redraw | t20=459 t85=310 t240=394 t330=335 late=359
+   age0   ascape redraw | t20=574 t85=398 t240=0 t330=0 late=0
+   spread ascape redraw | t20=407 t85=139 t240=226 t330=186 late=210
+   spread book   redraw | t20=347 t85=126 t240=312 t330=344 late=365
+III-3  book: floor~250 period~200
+   age0   book   gift   | floor300+=30 mean=54 period=482
+C:\Users\genev\AppData\Local\Temp\claude\C--Projects-Sugarscape2026\ad7579ba-f159-4c84-a331-113d06e80e4a\scratchpad\scripts\probe_repro.py:111: RuntimeWarning: Mean of empty slice
+  return f"floor300+={a[:, 300:].min(1).mean():.0f} mean={a[:, 300:].mean():.0f} period={np.nanmean([period(p, 300, 1000) for p in ps]):.0f}"
+   spread book   gift   | floor300+=0 mean=0 period=nan
+   age0   book   redraw | floor300+=0 mean=9 period=nan
+   age0   ascape redraw | floor300+=0 mean=0 period=nan
+   spread ascape redraw | floor300+=0 mean=0 period=nan
+   spread book   redraw | floor300+=0 mean=0 period=nan
+III-4  book: peak=1554@71 trough=343 range~1000 period~125
+   age0   book   gift   | peak=1282@115 trough=925 range300+=281 period=122
+   spread book   gift   | peak=1343@123 trough=837 range300+=415 period=120
+   age0   book   redraw | peak=1209@109 trough=850 range300+=340 period=120
+   age0   ascape redraw | peak=1196@83 trough=503 range300+=806 period=126
+   spread ascape redraw | peak=1212@104 trough=551 range300+=741 period=121
+   spread book   redraw | peak=1270@127 trough=770 range300+=443 period=118
+III-5  book: extinct
+   age0   book   gift   | extinct@1000=0.00 t200=910
+   spread book   gift   | extinct@1000=0.00 t200=813
+   age0   book   redraw | extinct@1000=0.00 t200=840
+   age0   ascape redraw | extinct@1000=0.00 t200=1068
+   spread ascape redraw | extinct@1000=0.00 t200=595
+   spread book   redraw | extinct@1000=0.00 t200=847
+VI-2  book: t10=290 t20=130 t40=90 t60=50 t100=15 extinct
+   age0   book   gift   | t10=445 t20=289 t40=220 t60=227 t100=185 extinct@200=0.00
+   spread book   gift   | t10=403 t20=224 t40=115 t60=64 t100=23 extinct@200=0.33
+   age0   book   redraw | t10=445 t20=285 t40=218 t60=227 t100=165 extinct@200=0.00
+   age0   ascape redraw | t10=445 t20=321 t40=282 t60=298 t100=248 extinct@200=0.00
+   spread ascape redraw | t10=412 t20=231 t40=118 t60=72 t100=34 extinct@200=0.33
+   spread book   redraw | t10=405 t20=223 t40=107 t60=62 t100=32 extinct@200=0.33
+VI-3  book: min~65 peak~1190 floor~700 ceil~1200 period~115
+   age0   book   gift   | min40-120=121 peak150-300=379 floor250+=267 ceil250+=705 period=477
+   spread book   gift   | min40-120=25 peak150-300=288 floor250+=143 ceil250+=532 period=235
+   age0   book   redraw | min40-120=152 peak150-300=487 floor250+=378 ceil250+=709 period=478
+   age0   ascape redraw | min40-120=125 peak150-300=249 floor250+=198 ceil250+=360 period=252
+C:\Users\genev\AppData\Local\Temp\claude\C--Projects-Sugarscape2026\ad7579ba-f159-4c84-a331-113d06e80e4a\scratchpad\scripts\probe_repro.py:122: RuntimeWarning: Mean of empty slice
+  f" period={np.nanmean([period(p, 200, 1000) for p in ps]):.0f}")
+   spread ascape redraw | min40-120=11 peak150-300=3 floor250+=0 ceil250+=0 period=nan
+   spread book   redraw | min40-120=17 peak150-300=85 floor250+=33 ceil250+=248 period=nan

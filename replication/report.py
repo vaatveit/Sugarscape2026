@@ -41,7 +41,9 @@ def _per_seed(target: Target, runs: list[Series], baseline_runs: list[Series] | 
 
 
 def evaluate(target: Target, runs: list[Series], baseline_runs: list[Series] | None = None) -> Result:
-    """pass: mean within [low, high]; near: within the band widened by half its width each side.
+    """pass: mean within [low, high]; near: within the band widened on each side by half its width or by a
+    quarter of that bound's magnitude, whichever is smaller (so a wide band that starts near zero doesn't make
+    any small value near; decision 2026-10-23).
 
     Seeds whose statistic is nan (e.g. extinct at the sampled time) cannot pass: any nan seed caps
     the status at "near", and fewer than half valid seeds is a "fail".
@@ -54,9 +56,10 @@ def evaluate(target: Target, runs: list[Series], baseline_runs: list[Series] | N
         return Result(target, *stats, "fail", n_valid, n_runs)
     mean = float(np.mean(values))
     half = (target.high - target.low) / 2
+    below, above = min(half, abs(target.low) / 4), min(half, abs(target.high) / 4)
     if target.low <= mean <= target.high:
         status = "pass"
-    elif target.low - half <= mean <= target.high + half:
+    elif target.low - below <= mean <= target.high + above:
         status = "near"
     else:
         status = "fail"

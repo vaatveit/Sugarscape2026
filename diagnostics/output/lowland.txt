@@ -1,0 +1,8 @@
+III-1 default : extinct 0/5 | mean t=300-1500 480 | min t>=300 401 | range t=1000-1500 103 | first peak 510@285 | troughs min/median -/-
+III-1 no-cap1 : extinct 0/5 | mean t=300-1500 485 | min t>=300 414 | range t=1000-1500 122 | first peak 526@243 | troughs min/median -/-
+III-3 default : extinct 2/5 | mean t=300-1500 160 | min t>=300 55 | range t=1000-1500 99 | first peak 413@2 | troughs min/median -/-
+III-3 no-cap1 : extinct 1/5 | mean t=300-1500 236 | min t>=300 172 | range t=1000-1500 82 | first peak 412@2 | troughs min/median -/-
+III-4 default : extinct 0/5 | mean t=300-1500 1173 | min t>=300 1032 | range t=1000-1500 86 | first peak 1406@124 | troughs min/median 894/945
+III-4 no-cap1 : extinct 0/5 | mean t=300-1500 1167 | min t>=300 985 | range t=1000-1500 146 | first peak 1407@124 | troughs min/median 864/920
+III-5 default : extinct 0/10 | mean t=300-1500 1019 | min t>=300 681 | range t=1000-1500 534 | first peak 1258@191 | troughs min/median 222/767
+III-5 no-cap1 : extinct 0/10 | mean t=300-1500 1037 | min t>=300 762 | range t=1000-1500 363 | first peak 1253@187 | troughs min/median 384/796

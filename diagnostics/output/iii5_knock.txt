@@ -1,0 +1,22 @@
+  seed 0: rebound peak 1418@+73, first trough 598@+146 | later troughs [732, 737, 661, 760, 818] | alive, min after +300 653
+  seed 1: rebound peak 1358@+101, first trough 681@+169 | later troughs [810, 859] | alive, min after +300 803
+  seed 2: rebound peak 1380@+80, first trough 652@+146 | later troughs [706, 801, 832, 882] | alive, min after +300 798
+  seed 3: rebound peak 1417@+88, first trough 568@+159 | later troughs [448, 504, 449, 523] | alive, min after +300 442
+  seed 4: rebound peak 1399@+82, first trough 501@+158 | later troughs [485, 489, 489, 505, 500] | alive, min after +300 481
+  seed 5: rebound peak 1351@+79, first trough 660@+149 | later troughs [735, 807, 869] | alive, min after +300 801
+  seed 6: rebound peak 1398@+94, first trough 567@+164 | later troughs [613, 594, 657, 587, 601] | alive, min after +300 581
+  seed 7: rebound peak 1360@+78, first trough 587@+153 | later troughs [500, 480, 529, 589] | alive, min after +300 475
+  seed 8: rebound peak 1321@+86, first trough 688@+160 | later troughs [824, 869] | alive, min after +300 857
+  seed 9: rebound peak 1453@+107, first trough 369@+193 | later troughs [244, 304, 332] | alive, min after +300 239
+III-5 cull to 400: 0/10 extinct within 900 periods
+  seed 0: rebound peak 1566@+57, first trough 500@+256 | later troughs [466, 628, 627, 579, 579] | alive, min after +300 503
+  seed 1: rebound peak 1496@+75, first trough 698@+135 | later troughs [709, 807, 810, 843, 891] | alive, min after +300 792
+  seed 2: rebound peak 1565@+88, first trough 564@+148 | later troughs [683, 740, 720, 684, 746] | alive, min after +300 673
+  seed 3: rebound peak 1594@+80, first trough 675@+266 | later troughs [686, 790, 768, 790, 769] | alive, min after +300 754
+  seed 4: rebound peak 1640@+84, first trough 601@+151 | later troughs [628, 693, 655, 655, 587] | alive, min after +300 561
+  seed 5: rebound peak 1540@+72, first trough 503@+138 | later troughs [520, 580, 574, 648, 747] | alive, min after +300 556
+  seed 6: rebound peak 1508@+60, first trough 505@+136 | later troughs [460, 460, 431, 501, 500] | alive, min after +300 426
+  seed 7: rebound peak 1659@+90, first trough 566@+265 | later troughs [581, 557, 635, 658, 540] | alive, min after +300 532
+  seed 8: rebound peak 1651@+93, first trough 666@+278 | later troughs [678, 695, 759, 674, 774] | alive, min after +300 665
+  seed 9: rebound peak 1577@+75, first trough 697@+257 | later troughs [704, 555, 570, 616, 657] | alive, min after +300 541
+III-5 cull to 400 global contact: 0/10 extinct within 900 periods

@@ -1,6 +1,6 @@
 # Replication report
 
-19 pass, 12 near, 0 fail, of 31 targets.
+37 pass, 9 near, 3 fail, of 49 targets.
 
 | Experiment | Target | Source | Book | Band | Observed mean [min–max] | Seeds | Status |
 |---|---|---|---|---|---|---|---|
@@ -11,10 +11,10 @@
 | II-4 | mean neighbors | Anim II-5, p.41 | 0.9 | 0.75–1.05 | 0.7967 [0.7577–0.8436] | 10/10 | pass |
 | II-4-gini | initial Gini | Anim II-4, p.38 | 0.23 | 0.2–0.26 | 0.2297 [0.2175–0.2462] | 10/10 | pass |
 | II-4-gini | long-run Gini | Anim II-4, p.37 | 0.503 | 0.45–0.56 | 0.4772 [0.4685–0.4822] | 10/10 | pass |
-| II-6 | wave reaches NE peak (proxy) | Anim II-6, p.43 | — | 0.15–1 | 0.04887 [0.03349–0.0625] | 5/5 | near |
-| II-6-measured | wave reaches NE peak (proxy) | Anim II-6, p.43 | — | 0.15–1 | 0.01339 [0.006667–0.02649] | 5/5 | near |
+| II-6 | wave reaches NE peak (proxy) | Anim II-6, p.43 | — | 0.15–1 | 0.04887 [0.03349–0.0625] | 5/5 | fail |
+| II-6-measured | wave reaches NE peak (proxy) | Anim II-6, p.43 | — | 0.15–1 | 0.01339 [0.006667–0.02649] | 5/5 | fail |
 | II-7 | high-vision agents migrate (proxy) | Anim II-7, p.45 | — | 0.3–1 | 0.5175 [0.4888–0.5488] | 5/5 | pass |
-| II-7 | low-vision agents hibernate (proxy) | Anim II-7, p.45 | — | -0.15–0.15 | 0.2223 [0.1721–0.2644] | 5/5 | near |
+| II-7 | low-vision agents hibernate (proxy) | Anim II-7, p.45 | — | -0.15–0.15 | 0.2223 [0.1721–0.2644] | 5/5 | fail |
 | II-8 | peaks abandoned under pollution (proxy) | Anim II-8, p.48 | — | 0–0.6 | 0.5322 [0.4992–0.5597] | 5/5 | pass |
 | II-8 | lower carrying capacity when polluted (proxy) | p.50 | — | 0–0.9 | 0.8388 [0.8221–0.861] | 5/5 | pass |
 | II-5/m1/v1 | carrying capacity | Fig II-5, p.31 | 450 | 405–495 | 432.9 [423–441] | 10/10 | pass |
@@ -35,11 +35,30 @@
 | II-5/m3/v6.5 | carrying capacity | Fig II-5, p.31 | 287 | 258.3–315.7 | 249.2 [238.5–263] | 10/10 | near |
 | II-5/m3/v8 | carrying capacity | Fig II-5, p.31 | 280 | 252–308 | 252.3 [242–262.3] | 10/10 | pass |
 | II-5/m3/v10.5 | carrying capacity | Fig II-5, p.31 | 287 | 258.3–315.7 | 253.6 [247.7–260.4] | 10/10 | near |
+| II-5/m1/v1 | carrying capacity at t≈50 | Fig II-5, p.31 | 450 | 405–495 | 434.9 [425.2–443] | 10/10 | pass |
+| II-5/m1/v2 | carrying capacity at t≈50 | Fig II-5, p.31 | 465 | 418.5–511.5 | 453.9 [445.2–460.6] | 10/10 | pass |
+| II-5/m1/v3 | carrying capacity at t≈50 | Fig II-5, p.31 | 475 | 427.5–522.5 | 467 [458.2–473.6] | 10/10 | pass |
+| II-5/m1/v5.5 | carrying capacity at t≈50 | Fig II-5, p.31 | 490 | 441–539 | 483 [476.6–489.4] | 10/10 | pass |
+| II-5/m1/v10.5 | carrying capacity at t≈50 | Fig II-5, p.31 | 495 | 445.5–544.5 | 492.1 [486.6–497.3] | 10/10 | pass |
+| II-5/m2/v1 | carrying capacity at t≈50 | Fig II-5, p.31 | 330 | 297–363 | 341.4 [324.9–353.3] | 10/10 | pass |
+| II-5/m2/v2 | carrying capacity at t≈50 | Fig II-5, p.31 | 365 | 328.5–401.5 | 368.3 [362.4–374.4] | 10/10 | pass |
+| II-5/m2/v3 | carrying capacity at t≈50 | Fig II-5, p.31 | 375 | 337.5–412.5 | 388.4 [381.9–394.2] | 10/10 | pass |
+| II-5/m2/v5.5 | carrying capacity at t≈50 | Fig II-5, p.31 | 390 | 351–429 | 398.2 [387.6–405.9] | 10/10 | pass |
+| II-5/m2/v10.5 | carrying capacity at t≈50 | Fig II-5, p.31 | 400 | 360–440 | 395.1 [380.9–405.8] | 10/10 | pass |
+| II-5/m3/v1 | carrying capacity at t≈50 | Fig II-5, p.31 | 225 | 202.5–247.5 | 218.7 [204.9–232.9] | 10/10 | pass |
+| II-5/m3/v2 | carrying capacity at t≈50 | Fig II-5, p.31 | 228 | 205.2–250.8 | 236.7 [222.2–252.3] | 10/10 | pass |
+| II-5/m3/v3 | carrying capacity at t≈50 | Fig II-5, p.31 | 255 | 229.5–280.5 | 248.6 [233.2–269.4] | 10/10 | pass |
+| II-5/m3/v4.5 | carrying capacity at t≈50 | Fig II-5, p.31 | 260 | 234–286 | 262.5 [245.9–277.9] | 10/10 | pass |
+| II-5/m3/v5.5 | carrying capacity at t≈50 | Fig II-5, p.31 | 260 | 234–286 | 267.3 [253.8–284.6] | 10/10 | pass |
+| II-5/m3/v6.5 | carrying capacity at t≈50 | Fig II-5, p.31 | 287 | 258.3–315.7 | 271.2 [257.7–287.7] | 10/10 | pass |
+| II-5/m3/v8 | carrying capacity at t≈50 | Fig II-5, p.31 | 280 | 252–308 | 274.9 [261.1–290.7] | 10/10 | pass |
+| II-5/m3/v10.5 | carrying capacity at t≈50 | Fig II-5, p.31 | 287 | 258.3–315.7 | 280.6 [264.4–297.2] | 10/10 | pass |
 
 Run: `python -m replication.report --chapter II --rerun --jobs 8` on 2026-10-21 (branch feat/foundation-ch2, after the final-review fix pass).
 Re-run 2026-10-22 (branch feat/founder-ages) after founders with finite lives began at ages U[0, max age) (user decision; see the Chapter III record): only II-4-gini has finite lives; its long-run Gini moved from 0.478 to 0.477 (still a pass). Every other row is identical.
 Re-run 2026-10-22 (branch feat/threshold-default) after the default fertility threshold became 0.83 (user decision; see the Chapter III record): every row identical (no Chapter II run uses rule S).
 Seeds per experiment as registered (5 or 10). Fast suite 83 passed; `pytest -m slow`: 19 passed, 12 failed (the 12 "near" rows).
+Re-run 2026-10-23 (main) after two reporting decisions (user, 2026-10-23). Near now means within the smaller of half the band's width and a quarter of the nearer bound's magnitude, so II-6, II-6-measured and II-7 fall from near to fail. Each Fig II-5 point is also read at t≈50 (`carrying capacity at t≈50`, mean over t=45–60), and all 18 pass. Every observed value is identical to the previous table.
 
 ## Evidence-based parameter choices
 

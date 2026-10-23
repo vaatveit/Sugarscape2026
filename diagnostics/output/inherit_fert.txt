@@ -1,0 +1,8 @@
+III-1 default : extinct 0/5 | mean t=300-1500 480 | min t>=300 401 | range t=1000-1500 103 | troughs min/median -/- | women's fertility end late 45.1 sd 3.1
+III-1 inherit : extinct 0/5 | mean t=300-1500 583 | min t>=300 459 | range t=1000-1500 145 | troughs min/median -/- | women's fertility end late 48.8 sd 1.4
+III-3 default : extinct 2/5 | mean t=300-1500 160 | min t>=300 55 | range t=1000-1500 99 | troughs min/median -/- | women's fertility end late 34.9 sd 3.2
+III-3 inherit : extinct 1/5 | mean t=300-1500 222 | min t>=300 162 | range t=1000-1500 75 | troughs min/median -/- | women's fertility end late 39.6 sd 0.3
+III-4 default : extinct 0/5 | mean t=300-1500 1173 | min t>=300 1032 | range t=1000-1500 86 | troughs min/median 894/945 | women's fertility end late 45.0 sd 3.2
+III-4 inherit : extinct 0/5 | mean t=300-1500 1198 | min t>=300 1044 | range t=1000-1500 98 | troughs min/median 936/964 | women's fertility end late 49.3 sd 1.2
+III-5 default : extinct 0/10 | mean t=300-1500 1019 | min t>=300 681 | range t=1000-1500 534 | troughs min/median 222/767 | women's fertility end late 34.9 sd 3.2
+III-5 inherit : extinct 0/10 | mean t=300-1500 1093 | min t>=300 858 | range t=1000-1500 304 | troughs min/median 729/839 | women's fertility end late 39.4 sd 0.5

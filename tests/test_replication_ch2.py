@@ -16,7 +16,7 @@ def test_chapter2_experiments_registered():
 
 
 def test_every_chapter2_target_has_an_experiment():
-    assert len(CH2) == 12 + 18 + 1  # plan's 12, one per Fig II-5 point, and II-6-measured's wave
+    assert len(CH2) == 12 + 18 + 18 + 1  # plan's 12, each Fig II-5 point at t=500 and at t≈50, II-6-measured's wave
     assert all(t.experiment in EXPERIMENTS for t in CH2)
 
 

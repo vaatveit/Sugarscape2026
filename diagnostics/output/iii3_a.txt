@@ -1,0 +1,28 @@
+== III-3 founders=uniform theta=0.83
+  seed 0: min<300 82@142 late mean 161 floor 85 period 210.0 vis 5.00 met 1.00 | 400 99 121 185 137 178 136 146 162 90 198 143 179 157 166 168 180 168 167 182 159 172 166 170 163
+  seed 1: min<300 0@231 late mean 0 floor 0 period nan vis 4.00 met 2.00 | 400 50 3 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+  seed 2: min<300 97@121 late mean 146 floor 56 period 699.0 vis 6.00 met 1.00 | 400 101 132 241 315 303 247 103 88 109 122 182 167 155 90 65 118 187 112 137 191 126 132 160 183
+  seed 3: min<300 0@199 late mean 0 floor 0 period nan vis 4.00 met 2.00 | 400 73 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+  seed 4: min<300 21@292 late mean 172 floor 23 period 405.0 vis 6.00 met 1.00 | 400 83 80 24 57 147 191 182 152 189 164 136 147 207 164 173 159 188 185 190 168 170 181 161 164
+  women (born-after-founders lives, t>=500): 6428, mean kids 2.01, 0/1/2/3/4+ 0.03 0.06 0.79 0.13 0.00, fertile-age yrs 21.3, net income 1.57
+== III-3 founders=uniform theta=1.0
+  seed 0: min<300 0@206 late mean 0 floor 0 period nan vis 6.00 met 1.00 | 400 43 2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+  seed 1: min<300 0@147 late mean 0 floor 0 period nan vis 4.00 met 1.00 | 400 19 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+  seed 2: min<300 24@220 late mean 92 floor 44 period 638.0 vis 6.00 met 1.00 | 400 52 27 47 88 110 113 136 107 95 64 60 77 97 110 66 56 104 122 140 134 84 56 66 64
+  seed 3: min<300 0@196 late mean 0 floor 0 period nan vis 6.00 met 1.00 | 400 48 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+  seed 4: min<300 39@143 late mean 109 floor 48 period 349.0 vis 6.00 met 1.00 | 400 55 64 80 54 68 91 53 78 125 158 123 94 147 108 86 147 136 90 88 101 142 135 99 91
+  women (born-after-founders lives, t>=500): 2438, mean kids 2.02, 0/1/2/3/4+ 0.04 0.13 0.60 0.23 0.00, fertile-age yrs 21.5, net income 2.02
+== III-3 founders=zero theta=0.83
+  seed 0: min<300 157@224 late mean 280 floor 183 period 271.0 vis 4.72 met 1.00 | 400 237 164 199 283 320 210 210 312 279 305 332 285 342 263 342 262 265 270 266 327 218 365 281 206
+  seed 1: min<300 125@162 late mean 164 floor 89 period 218.0 vis 6.00 met 1.00 | 400 204 150 185 163 146 199 145 134 180 161 177 147 177 158 188 176 174 158 164 130 162 161 131 121
+  seed 2: min<300 75@170 late mean 298 floor 154 period 630.0 vis 5.46 met 1.00 | 400 234 88 154 233 219 212 228 336 332 263 341 236 313 298 292 349 288 328 307 352 285 229 357 279
+  seed 3: min<300 134@159 late mean 293 floor 205 period 250.0 vis 5.47 met 1.00 | 400 253 171 230 235 379 267 264 217 279 265 339 302 286 261 325 333 290 258 343 342 242 374 259 283
+  seed 4: min<300 214@136 late mean 324 floor 241 period 207.0 vis 5.47 met 1.00 | 400 273 273 360 312 288 327 359 271 303 313 349 321 353 308 287 317 338 329 342 327 315 319 327 340
+  women (born-after-founders lives, t>=500): 16647, mean kids 2.00, 0/1/2/3/4+ 0.04 0.08 0.72 0.16 0.00, fertile-age yrs 21.4, net income 1.63
+== III-3 founders=zero theta=1.0
+  seed 0: min<300 43@270 late mean 103 floor 40 period 711.0 vis 6.00 met 1.00 | 400 163 54 48 86 87 105 73 91 132 107 65 44 88 76 98 98 98 135 97 124 129 113 127 154
+  seed 1: min<300 45@280 late mean 63 floor 22 period 428.0 vis 6.00 met 1.00 | 400 135 54 50 57 65 63 80 86 68 51 62 80 77 56 49 70 62 24 52 54 70 73 48 66
+  seed 2: min<300 0@196 late mean 0 floor 0 period nan vis 5.00 met 1.00 | 400 122 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+  seed 3: min<300 40@196 late mean 111 floor 59 period 1029.0 vis 6.00 met 1.00 | 400 166 42 61 95 124 124 125 135 135 77 64 101 92 91 120 139 137 137 136 110 88 120 81 84
+  seed 4: min<300 20@204 late mean 0 floor 0 period nan vis 6.00 met 1.00 | 400 157 23 49 113 129 52 48 41 65 79 49 87 119 54 11 2 0 0 0 0 0 0 0 0
+  women (born-after-founders lives, t>=500): 4105, mean kids 2.00, 0/1/2/3/4+ 0.05 0.11 0.64 0.20 0.00, fertile-age yrs 21.4, net income 2.08

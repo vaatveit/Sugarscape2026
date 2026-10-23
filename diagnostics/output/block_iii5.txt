@@ -1,0 +1,7 @@
+III-5 default     : extinct 0/10 (at t=[]) | troughs after t=150: min 222 median 767 | late range (alive) 534 | metabolism t=0/200/500 2.52/1.00/1.00 | birth-turns with 2+ births 0.018
+III-5 once        : extinct 0/10 (at t=[]) | troughs after t=150: min 375 median 732 | late range (alive) 584 | metabolism t=0/200/500 2.52/1.00/1.00 | birth-turns with 2+ births 0.054
+III-5 m12         : extinct 0/10 (at t=[]) | troughs after t=150: min 512 median 757 | late range (alive) 588 | metabolism t=0/200/500 1.51/1.00/1.00 | birth-turns with 2+ births 0.018
+III-5 theta1      : extinct 0/10 (at t=[]) | troughs after t=150: min 414 median 723 | late range (alive) 504 | metabolism t=0/200/500 2.52/1.01/1.00 | birth-turns with 2+ births 0.013
+III-5 once+theta1 : extinct 0/10 (at t=[]) | troughs after t=150: min 467 median 722 | late range (alive) 394 | metabolism t=0/200/500 2.52/1.00/1.00 | birth-turns with 2+ births 0.058
+III-5 m12+theta1  : extinct 0/10 (at t=[]) | troughs after t=150: min 273 median 717 | late range (alive) 716 | metabolism t=0/200/500 1.51/1.00/1.00 | birth-turns with 2+ births 0.014
+III-5 once+m12    : extinct 0/10 (at t=[]) | troughs after t=150: min 304 median 777 | late range (alive) 758 | metabolism t=0/200/500 1.51/1.00/1.00 | birth-turns with 2+ births 0.054

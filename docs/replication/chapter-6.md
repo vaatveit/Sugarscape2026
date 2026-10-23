@@ -1,6 +1,6 @@
 # Replication report
 
-17 pass, 5 near, 16 fail, of 38 targets.
+17 pass, 4 near, 17 fail, of 38 targets.
 
 | Experiment | Target | Source | Book | Band | Observed mean [min–max] | Seeds | Status |
 |---|---|---|---|---|---|---|---|
@@ -14,7 +14,7 @@
 | VI-1 | price dispersion | Anim VI-1 fr. 12 | 0.35 | 0.28–0.42 | 0.3338 [0.2767–0.3768] | 5/5 | pass |
 | VI-1 | trades per period | Anim VI-1 fr. 13 | 125 | 100–150 | 14.86 [8.775–19.92] | 5/5 | fail |
 | VI-1 | active loans | Anim VI-1 fr. 15-16 | 215 | 108–322 | 0.2476 [0–1.238] | 5/5 | fail |
-| VI-1 | agents both lending and borrowing | Anim VI-1 fr. 15-16 | 37 | 18–56 | 0 [0–0] | 5/5 | near |
+| VI-1 | agents both lending and borrowing | Anim VI-1 fr. 15-16 | 37 | 18–56 | 0 [0–0] | 5/5 | fail |
 | VI-1 | infected fraction dips | Anim VI-1 fr. 17 | 0.6 | 0.5–0.7 | 0 [0–0] | 5/5 | fail |
 | VI-1 | infected fraction recovers | Anim VI-1 fr. 17 | 0.85 | 0.75–0.95 | 0 [0–0] | 4/5 | fail |
 | VI-1 | average diseases | Anim VI-1 fr. 18 | 2.26 | 1.81–2.71 | 0 [0–0] | 4/5 | fail |
@@ -26,7 +26,7 @@
 | VI-3 | first peak | Anim VI-3, p.161 | 1190 | 952–1428 | 307.6 [3–978] | 5/5 | fail |
 | VI-3 | oscillation floor | p.159 | 700 | 560–840 | 203.6 [0–746] | 5/5 | fail |
 | VI-3 | oscillation ceiling | Anim VI-3, p.161 | 1200 | 960–1440 | 533.8 [0–980] | 5/5 | fail |
-| VI-3 | oscillation period | p.159 | 115 | 92–138 | 210.5 [162–259] | 2/5 | fail |
+| VI-3 | oscillation period | p.159 | 115 | 92–138 | 241 [217–265] | 2/5 | fail |
 | VI-4 | equilibrium: nobody moves | p.166 | 0 | 0–0 | 0 [0–0] | 10/10 | pass |
 | VI-4 | more segregated than the start (proxy) | Anim VI-4, p.166 | — | 1.05–2 | 1.249 [1.213–1.291] | 10/10 | pass |
 | VI-5 | never settles (proxy) | p.166 | — | 1–2000 | 3.333 [3.02–3.574] | 10/10 | pass |
@@ -51,6 +51,7 @@ Re-run 2026-10-22 (branch feat/threshold-default) after the default fertility th
 - `--chapter V --rerun` and an IV-A5 re-run: every row is identical to their records.
 - All 72 Chapter II–V results stay current, because their settings didn't change.
 - The four stream pins (II, III, IV, V) pass.
+Re-run 2026-10-23 (main) after two reporting decisions (user, 2026-10-23). Near now means within the smaller of half the band's width and a quarter of the nearer bound's magnitude, so VI-1's "agents both lending and borrowing" falls from near to fail. VI-3's period now uses `peak_spacing` (Chapter III record): 241, was 210.5, still a fail. Every other observed value is identical to the previous table.
 
 ## Choices
 

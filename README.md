@@ -1,16 +1,18 @@
 # Reproducing *Growing Artificial Societies*: a retrospective
 
 This is a review of our attempt to rebuild Epstein and Axtell's Sugarscape (1996) from the book and
-reproduce its results. The work ran from 2026-10-21 to 2026-10-22. The detailed evidence is in the
+reproduce its results. The work ran from 2026-10-21 to 2026-10-22, with a follow-up on 2026-10-23 that
+carried out this review's recommendations ([below](#follow-up-2026-10-23)). The detailed evidence is in the
 chapter records ([II](docs/replication/chapter-2.md), [III](docs/replication/chapter-3.md), [IV](docs/replication/chapter-4.md), [V](docs/replication/chapter-5.md),
-[VI](docs/replication/chapter-6.md)), our reading of the book is in [book-notes.md](docs/book-notes.md), and the
-design is in [the spec](docs/superpowers/specs/2026-10-21-sugarscape-design.md). Every number below is
-taken from those records as of commit `7556424`.
+[VI](docs/replication/chapter-6.md)), our reading of the book is in [book-notes.md](docs/book-notes.md), the
+design is in [the spec](docs/superpowers/specs/2026-10-21-sugarscape-design.md), and the probe scripts are in
+[diagnostics/](diagnostics/README.md). Every number below is taken from those records as of the follow-up.
 
 ## The short version
 
-- **Every rule in the book is implemented**, with 96 registered experiments and 141 measured
-  targets. Across the targets, **68 pass, 30 are near and 43 fail**.
+- **Every rule in the book is implemented**, with 96 registered experiments and 169 measured
+  targets. Across the targets, **95 pass, 22 are near and 52 fail**. (Before the follow-up added 28
+  early carrying-capacity rows and tightened "near", 141 targets scored 68 / 30 / 43.)
 - **Results driven by movement, the landscape, markets and local imitation reproduce well.** These
   include carrying capacity and selection on the plain sugarscape, wealth inequality, price
   formation and market thickness, credit networks, combat patterns, Schelling segregation, and Ring
@@ -22,7 +24,8 @@ taken from those records as of commit `7556424`.
   departure, a fertility test at 0.83 of the birth endowment, fixes the level but not the
   dynamics.
 - **Four other families fail**:
-  - long-run carrying capacity (Figs II-5, IV-6), which matches at t≈50 but not at t=500;
+  - long-run carrying capacity (Figs II-5, IV-6), which matches at t≈50 (27 of 28 points pass) but
+    not at t=500;
   - migration waves (II-6, III-12);
   - endemic disease (V-2, VI-1);
   - full cultural absorption (III-8).
@@ -34,27 +37,32 @@ taken from those records as of commit `7556424`.
 - **Some of the book's results look fragile or internally inconsistent.** The strongest case: the
   book shows two runs of Fig III-1's rules that disagree, one booming to ≈570 and the other
   crashing to ≤172. And no implementation we know of gets the book's population figures from the
-  published rule S alone: Kehoe's collapses, while MASON and Ascape match only by departing from
-  the text (see [below](#book-results-that-may-not-be-robust-or-correct)).
+  published rule S. Kehoe's collapses. MASON's own code, run on its own configs, misses III-1, III-3
+  and III-5 as ours does. Ascape departs from the text (see
+  [below](#book-results-that-may-not-be-robust-or-correct)).
 
 ## Scoreboard
 
 | Chapter | Targets | Pass | Near | Fail | Strongest results | Weakest results |
 |---|---|---|---|---|---|---|
-| II Life and death | 31 | 19 | 12 | 0 | carrying capacity (II-4), Gini, selection, neighbors, metabolism-1 curve, seasons, pollution | Fig II-5 metabolism 2–3 at t=500, waves (II-6) |
-| III Sex, culture, conflict | 25 | 11 | 4 | 10 | III-1 level (with the 0.83 departure), evolution, combat, friendship, proto-history dominance | III-3 to III-5 dynamics, inheritance (III-7), cultural absorption (III-8), waves |
-| IV Trade | 41 | 19 | 8 | 14 | price formation, market thickness, lifespan effect, high-vision Gini, credit | carrying capacity with and without trade (IV-6), trade volume, reproduction runs IV-17/IV-18 |
-| V Disease | 6 | 2 | 1 | 3 | V-1 clears | V-2's endemic level |
-| VI Conclusions | 38 | 17 | 5 | 16 | Schelling, Ring World, VI-1 prices | VI-1's society, disease and credit; VI-2 extinction; VI-3 waves |
-| **Total** | **141** | **68** | **30** | **43** | | |
+| II Life and death | 49 | 37 | 9 | 3 | carrying capacity (II-4), Gini, selection, neighbors, Fig II-5 at t≈50 (18 of 18), seasons, pollution | Fig II-5 metabolism 2–3 at t=500, waves (II-6), hibernation (II-7) |
+| III Sex, culture, conflict | 25 | 11 | 2 | 12 | III-1 level (with the 0.83 departure), evolution, III-4's period, combat, friendship, proto-history dominance | III-3 to III-5 dynamics, inheritance (III-7), cultural absorption (III-8), waves |
+| IV Trade | 51 | 28 | 7 | 16 | price formation, market thickness, lifespan effect, high-vision Gini, credit, Fig IV-6 at t≈50 (9 of 10) | Fig IV-6 at t=500, trade volume, reproduction runs IV-17/IV-18 |
+| V Disease | 6 | 2 | 0 | 4 | V-1 clears | V-2's endemic level |
+| VI Conclusions | 38 | 17 | 4 | 17 | Schelling, Ring World, VI-1 prices | VI-1's society, disease and credit; VI-2 extinction; VI-3 waves |
+| **Total** | **169** | **95** | **22** | **52** | | |
 
 **How to read the score.**
 - **Bands are ours, not the book's.** The book reports single runs, usually as pictures, so each
   band is a tolerance we set before running. We never widened a band to make a target pass.
-- **"Near" is generous for wide bands.** Near means the mean lies within the band widened by half
-  its width on each side. For a proxy band that starts at or near zero, almost any value is near.
-  So several near rows are plain failures: II-6's waves (×2), III-12 and III-13, V-2's sick share,
-  IV-15's trade volume.
+- **"Near" was generous for wide bands until 2026-10-23.** It meant within the band widened by half
+  its width on each side, so for a band starting near zero almost any value was near. The margin on
+  each side is now the smaller of half the width and a quarter of that bound's magnitude. Nine rows
+  that were plain failures now say so: II-6's waves (×2), II-7, III-12, III-13, IV-15 (×2), V-2's
+  sick share and VI-1's lenders-and-borrowers.
+- **Carrying capacity is scored twice.** Each Fig II-5 and IV-6 point is read at t=500 (the
+  asymptote, the user's 2026-10-21 decision) and at t≈50 (where the book's sweeps match ours), and
+  both count.
 - **Some passes depend on a departure from the book.** III-1's level, IV-14 and III-15's rare
   extinctions pass only because the default fertility threshold is the fitted 0.83, not p.55's 1.0. Under the book's rule (the
   `VAR-book` experiments) III-1 settles at 360, a near.
@@ -81,12 +89,13 @@ test-first, then an experiment per figure or animation, then a multi-seed replic
 then a whole-branch review and a fix pass, then the chapter record.
 
 **Tests.**
-- 282 fast tests cover two things:
+- 287 fast tests cover three things:
   - rules checked against the book's worked examples: Appendix C's welfare example, Table V-1's
     immune response, Fig IV-2's trade, the growback, seasonal and diffusion formulas;
   - invariants: one agent per site, no negative sugar, trade conserves goods and raises both
-    welfares, loans balance, births minus deaths match the population.
-- 141 slow tests, one per target.
+    welfares, loans balance, births minus deaths match the population;
+  - the replication statistics and status rule themselves.
+- 169 slow tests, one per target.
 
 **Determinism.**
 - One seeded generator drives each run.
@@ -110,6 +119,9 @@ then a whole-branch review and a fix pass, then the chapter record.
 | 2026-10-21 | Fertility tests sugar only (p.55), not sugar and spice | Requiring both had wiped out 4 of 5 seeds in IV-14, IV-17 and IV-18 |
 | 2026-10-22 | Founders with finite lives start at ages U[0, max age) | Matches Animation III-1's first histogram, VI-2's early births and Ascape's code. It also lowered III-1's early curve and killed IV-14, IV-17 and IV-18 |
 | 2026-10-22 | Default fertility threshold 0.83 of the birth endowment, fitted to III-1's level alone; the book's 1.0 runs as `VAR-book` | III-1 and IV-14 pass. III-15's extinctions fall to the book's rare level. The dynamics rows don't change |
+| 2026-10-23 | "Near" capped at a quarter of the nearer bound | Nine near rows become fails; no status improves |
+| 2026-10-23 | Carrying capacity also read at t≈50, counted in the totals | 27 of the 28 new rows pass; the t=500 rows are unchanged |
+| 2026-10-23 | Run MASON's own Sugarscape | Built from its project archive; see [Follow-up](#follow-up-2026-10-23) |
 
 ## What reproduced
 
@@ -119,7 +131,8 @@ then a whole-branch review and a fix pass, then the chapter record.
   late against 0.503.
 - **Selection:** metabolism falls to 1.85 (book 1.8).
 - **Neighbors:** 0.80 per agent (book 0.9).
-- **Fig II-5's metabolism-1 curve:** all five points within 4%.
+- **Fig II-5's metabolism-1 curve:** all five points within 4%. Read at t≈50, all 18 points of the
+  sweep pass.
 - **Seasonal migration (II-7):** high-vision agents migrate, and low-vision agents hibernate.
 - **Pollution (II-8):** agents abandon the polluted peaks and return after diffusion.
 - **Initial endowment:** the book never states it for these runs. Only 25–50 reproduces Fig II-4's
@@ -129,7 +142,7 @@ then a whole-branch review and a fix pass, then the chapter record.
 - **Evolution under S:** mean vision 5.6 at t≈900 (book 5.3), and metabolism falls to 1.0 (book
   1.0).
 - **III-1:** fluctuations of 6.5% (book under 10%). The level is 478 with the 0.83 threshold.
-- **III-4:** its damped cycle has the book's period, 116 against ≈125.
+- **III-4:** its damped cycle has the book's period, 132 against ≈125 (peak spacing).
 - **Combat (III-9, III-11, III-14):** every run ends in one of the book's three patterns.
   Same-tribe war persists, and assimilation prevents hegemony in about half the runs.
 - **Friendship:** best-friend closeness 0.98 (book 0.91).
@@ -143,6 +156,7 @@ then a whole-branch review and a fix pass, then the chapter record.
 - **Lifespan:** dispersion falls with lifespan, 0.45 / 0.30 / 0.22 / 0.11 against the book's
   ≈0.5 / 0.3 / 0.2 / 0.15.
 - **Gini at mean vision 10–14.5:** with and without trade.
+- **Fig IV-6 at t≈50:** 9 of 10 points pass, with trade's lift; the tenth is near (119 against 100).
 - **Trade with reproduction (IV-14):** dispersion 0.39 (book ≈0.37).
 - **Pollution:** a sugar-price spike follows pollution (2.3, book ≈3.5).
 - **Credit networks (IV-A5):** 150 active loans and 29 agents both lending and borrowing (book
@@ -169,7 +183,7 @@ then a whole-branch review and a fix pass, then the chapter record.
 |---|---|---|---|
 | III-1 steady population | ≈500 | 478 (fitted) | 360 |
 | III-1 early boom, t=20 / 85 | 470 / 570 | 398 / 208 | 356 / 136 |
-| III-3 floor / period / agents ever lived | ≈250 / ≈200 / ≈12,500 | 33 / 438 (3 of 5 seeds) / 3,690 | 18 / 493 / 1,613 |
+| III-3 floor / period / agents ever lived | ≈250 / ≈200 / ≈12,500 | 33 / 412 (3 of 5 seeds) / 3,690 | 18 / 495 / 1,613 |
 | III-4 oscillation range | ≈1,000 | 106 | 120 |
 | III-5 extinction | yes, t≈610 | 0 of 10 seeds | 0 of 10 |
 | III-7 Gini with inheritance / vision | 0.743 / 4.3 | 0.31 / 5.19 | 0.35 / 5.13 |
@@ -236,16 +250,18 @@ then a whole-branch review and a fix pass, then the chapter record.
 - ignoring "nearest" in M: 452 in III-1;
 - removing the parents' cost: the lattice fills.
 
-None of them reproduces the boom, the level, the swings and the extinction together.
+None of them reproduces the boom, the level, the swings and the extinction together. The
+follow-up's candidates and frequencies sharpen this ([below](#follow-up-2026-10-23)).
 
 ### 2. Long-run carrying capacity (Figs II-5 and IV-6)
 
 - **Fig II-5:** the metabolism-2 points run 10–20% low at t=500. So do three metabolism-3 points:
-  8 of Chapter II's 12 near rows.
+  8 of Chapter II's 9 near rows.
 - **Fig IV-6:** with and without trade, it runs ≈25% low (9 fails, 1 near). Trade's ≈20–30% lift
   is reproduced.
 - **At t≈45–60 both figures match.** All 18 Fig II-5 points are within ±5%. Of the ten Fig IV-6
-  points, all but one are within ±5%, and that one is +19%.
+  points, all but one are within ±5%, and that one is +19%. Scored as targets since 2026-10-23,
+  27 of the 28 pass.
 - **In the two-commodity model the long-run number is a survival fraction, not a capacity.**
   Survivors at t=500 scale with the starting population (≈0.25–0.32 of it), which the book doesn't
   state for Fig IV-6. This also explains IV-3's low trade volume: 34 trades per period against
@@ -337,11 +353,12 @@ None of them reproduces the boom, the level, the swings and the extinction toget
   runs of a model that, in our hands, is knife-edged (III-3: whether both mountains survive) and
   bistable (III-4). A band around one run's value can't tell "wrong model" from "different
   realization".
-- **Some statistics weren't reliable:**
+- **Some statistics weren't reliable** (all three fixed on 2026-10-23):
   - **Period:** the first autocorrelation peak gives 201–1,701 on irregular series. Peak spacing
-    from smoothed turning points was more informative.
-  - **Status rule:** near means little for wide proxy bands.
-  - **Measurement time:** we never settled when "carrying capacity" was read.
+    from smoothed turning points was more informative, and the targets now use it.
+  - **Status rule:** near meant little for wide proxy bands; its margin is now capped.
+  - **Measurement time:** we never settled when "carrying capacity" was read; both readings are
+    now scored.
 - **Faithful changes that hurt the overall fit.** Spread founder ages are better supported by the
   book's frames. Yet they lowered III-1's early curve, extinguished IV-14, IV-17 and IV-18, and
   undid the calibrated threshold's out-of-sample gains, which had been measured with age-0
@@ -350,9 +367,10 @@ None of them reproduces the boom, the level, the swings and the extinction toget
 - **Searching for a single cause.** Over a day of probes ruled out more than twenty single causes
   of the population gap. Each was cheap, but the yield fell steadily, and an interaction between
   readings can't be found this way.
-- **Diagnostics that live outside the repository.** The probe scripts behind the diagnostic tables
-  sit in a session scratchpad, not in git. The tables are recorded, but most can't be regenerated
-  from the repo.
+- **Diagnostics that lived outside the repository.** The probe scripts behind the diagnostic tables
+  sat in a session scratchpad, not in git. Fixed on 2026-10-23: they are in
+  [diagnostics/](diagnostics/README.md), pinned to the defaults they were written under, and spot
+  checks in every epoch reproduce their saved outputs exactly.
 - **Proxies for qualitative claims.** Some proxies are sharp (Ring World's groups), but others are
   weak or permissive (the nearsighted bound, II-7's hibernation band). Each one is our own
   construct.
@@ -363,14 +381,12 @@ These are grouped by how far they move from the book. None has been adopted, exc
 
 ### A. Measurement, no model change
 
-1. **Read carrying capacity at t≈50 as well as t=500.** This would turn 8 of Chapter II's near rows
-   and most of Fig IV-6's fails into passes. The evidence that the book read its sweeps early is
-   strong (18 of 18 Fig II-5 points within ±5%). It is a user decision to revisit, not a fix.
+1. **Read carrying capacity at t≈50 as well as t=500.** Done on 2026-10-23 (user decision): 27 of
+   the 28 early rows pass, while the t=500 rows keep their statuses.
 2. **State Fig IV-6 relative to the starting population**, since the long-run number scales with
-   it.
-3. **Report the book's single runs as frequencies.** For example: the share of seeds that keep both
-   mountains (III-3), lock into the large cycle (III-4) or die out (III-5). This separates "never
-   happens" from "happens in some runs".
+   it. Not done.
+3. **Report the book's single runs as frequencies.** Done on 2026-10-23 over 30 seeds; see
+   [Follow-up](#follow-up-2026-10-23).
 
 ### B. Departures already shown to help (each at a cost)
 
@@ -382,20 +398,29 @@ These are grouped by how far they move from the book. None has been adopted, exc
 | Ignoring "nearest" in M | III-1 452; spacing 0.97 (book 0.9) | Contradicts p.25; Fig II-5 +12–14% at t≈50 |
 | Lifelong disease sets | V-2 endemic (2.05 per agent) | V-1 becomes chronic; V-2's population crashes to 13 |
 
-### C. Untested candidates, most promising first
+### C. Candidates, most promising first
+
+C1–C3 were tested on 2026-10-23 with p.55's threshold, on every population figure
+([Chapter III record](docs/replication/chapter-3.md#candidate-departures-from-rule-s-2026-10-23)). Items 4–7 are
+still untested.
 
 1. **Mate search within vision**, between radius 2 (tested: 417) and global contact (tested: 509).
    It targets the low-density Allee effect directly. That effect sits behind III-3's lost
    mountains, the low first band of III-4's response curve, and the slow founding boom.
-2. **A gift that depends on wealth, with a threshold that doesn't.** For example, parents give half
-   their *current* sugar (Kehoe's prose reading), while the child's threshold is drawn from the
-   founders' range. Children born in poor, crowded times would then come of age below threshold.
-   That gives exactly the lasting post-peak deficit III-5 needs. We redrew thresholds only with
-   fixed gifts, and never tied the gift to current wealth. p.55 states the gift plainly, so this is
-   a departure.
+   *Result:* the broadest improvement of any candidate, with no fitted value: III-1 420 (pass),
+   III-3's floor 163 (near; 33 today), VI-3's minimum 64 (pass), VI-3's floor and ceiling near. It
+   leaves III-4's swings small and III-5 and VI-2 alive.
+2. **A gift that depends on wealth, with a threshold that doesn't.** Parents give half their
+   *current* sugar (Kehoe's prose reading), and the child's threshold is drawn from the founders'
+   range, so children born in poor, crowded times come of age below threshold. p.55 states the
+   gift plainly, so this is a departure. *Result:* VI-2 dies out like the book (4 of 5), but III-3
+   and VI-3 die too, and III-5 survives.
 3. **Ascape's departures as one package:** random founder ages, children costing at most 5 sugar,
-   and fresh thresholds. We probed each alone, never together. Ascape was built at Brookings, where
-   the book's authors worked, so its choices are weak evidence of what the original code did.
+   and fresh thresholds. Ascape was built at Brookings, where the book's authors worked, so its
+   choices are weak evidence of what the original code did. *Result:* the only candidate that gives
+   III-4 the book's swings (range 969, period 124) and the only one in which III-5 dies out (1 of 5),
+   but III-1 falls to 220 and III-3 and VI-3 die out. With C1 added, III-4 keeps its swings (615)
+   and III-1 recovers to 314.
 4. **Rule-by-rule sweeps** (all agents move, then all mate), as Kehoe orders them. The text implies
    per-agent turns, and we tested only mating before metabolism. This is worth one diagnostic run.
 5. **For waves:** growback before the agents move instead of after; the map's corridor capacities
@@ -407,11 +432,13 @@ These are grouped by how far they move from the book. None has been adopted, exc
 
 ### D. Outside evidence
 
-- **Run the Ascape and MASON Sugarscapes** on our map and compare III-1 and III-4 curves directly.
-  MASON reports general matches for III-1, III-3 and III-5, but only with child placement that
-  ignores occupancy. We don't have the original code (about 20,000 lines, Macintosh, Appendix A).
+- **Run the Ascape and MASON Sugarscapes** and compare III-1 and III-4 curves directly. MASON was
+  run on 2026-10-23 ([diagnostics/mason/](diagnostics/mason/README.md)); Ascape was not. We don't
+  have the original code (about 20,000 lines, Macintosh, Appendix A).
 - **Ask the authors.** Kehoe reached the same impasse and concluded the rule must be clarified by
-  the original developers.
+  the original developers. A draft is in
+  [questions-for-authors.md](docs/replication/questions-for-authors.md), for the project owner to
+  send.
 
 ## Book results that may not be robust or correct
 
@@ -421,11 +448,12 @@ These are the claims our evidence casts doubt on, with how strong that evidence 
 |---|---|---|
 | Fig III-1's early boom to ≈570 | The book's other run of the same rules (Animations III-2/III-3, the source of Fig III-2) crashes to ≤172 agents on the peaks. The boom is one realization, not a property of the rules | Strong (internal) |
 | Fig III-1's level of ≈500 | That same animation run settles at ≈670–1,020 | Strong (internal) |
-| The population figures follow from rule S as published | No implementation we know of gets them from the text alone. Ours and Kehoe's (collapse before t=2,500) don't. MASON matches only with child placement that ignores occupancy. Ascape departs from the text on cost, ages and thresholds. The figures probably depend on unstated details of the original code | Strong that the text is incomplete |
+| The population figures follow from rule S as published | No implementation we know of gets them from the text. Ours and Kehoe's (collapse before t=2,500) don't. MASON's own code on its own configs, scored with our targets, settles III-1 at 348, loses III-3 and never extinguishes III-5. Ascape departs from the text on cost, ages and thresholds. The figures probably depend on unstated details of the original code | Strong that the text is incomplete |
 | One founder setup underlies the figures | Animation III-1's ages and VI-2's first-period births need spread ages. Fig III-3's opening (rise to ≈450, crash to ≈250) fits age-0 founders | Medium |
-| Fig III-4's large cycle is the typical outcome | In our model the cycle is one of two stable states, reached only after a fast, compact boom (0 of 20 ordinary runs). Whether the original lands there reliably is unknown; the book shows one run | Medium (depends on our model) |
+| Fig III-4's large cycle is the typical outcome | In our model the cycle is one of two stable states, reached only after a fast, compact boom: 2 of 30 ordinary runs under p.55's rule, 0 of 30 under the default. Whether the original lands there reliably is unknown; the book shows one run. Cheaper reproduction (Ascape's, or MASON's flat threshold) makes the swings routine | Medium (depends on our model) |
+| VI-2's society dies out | Under p.55's rule ours dies out in 15 of 30 seeds: a coin flip, not a property of the rules | Medium (depends on our model) |
 | Fig III-3's floor of ≈250 | It needs both mountains to survive the founding crash, a knife-edge in our runs | Medium (depends on our model) |
-| Fig III-5's extinction at t≈610 | It needs births near zero for ≈40 periods after each peak. It may well be one realization, and its frequency is unstated | Weak to medium |
+| Fig III-5's extinction at t≈610 | It needs births near zero for ≈40 periods after each peak. Its frequency is unstated. But it is not a rare draw of our model: it never happens in 60 of our runs, nor in 10 of MASON's | Weak |
 | Fig II-5 values are asymptotic "carrying capacities" | Our populations match all 18 points at t≈45–60 and fall 10–20% below at t=500 on the metabolism-2 and -3 curves | Medium: either the book read early, or our long-run decline is wrong |
 | Fig IV-6's carrying capacities | In the two-commodity model the long-run population scales with the unstated starting population | Strong in our model |
 | Animation V-3's first-frame statistics | A spread of 0.62 at a mean of 3.41 is impossible for 10-disease draws, which give 1.2–1.5 | Strong (arithmetic) |
@@ -435,17 +463,52 @@ These are the claims our evidence casts doubt on, with how strong that evidence 
 | VI-4 and VI-5 are "comparable" | The book's own pictures of the two differ | Weak |
 | III-7's Gini of 0.743, fn 32's frequencies | Single figures or rough shares, with no count of runs | Weak |
 
-## Recommended next steps
+## Follow-up (2026-10-23)
 
-1. **Check the diagnostic probe scripts into the repository** (for example under `diagnostics/`),
-   so every table in the records can be regenerated.
-2. **Fix the statistics:** a near rule that doesn't reward wide proxy bands; peak spacing from
-   turning points in place of autocorrelation for periods.
-3. **Report carrying capacity at both t≈50 and t=500**, if the user reopens that decision.
-4. **Turn single-run claims into frequencies over 20 or more seeds** (III-3, III-4, III-5, VI-2).
-5. **Test candidates C1–C3 first**, together and as labelled departures. They aim at the one
-   mechanism behind most remaining failures: births that respond steeply to density.
-6. **Get outside evidence:** run Ascape or MASON on our map, or ask the authors.
+The six steps this review recommended, and what each found:
+
+1. **Diagnostics checked in.** 71 probe scripts are in [diagnostics/](diagnostics/README.md), each
+   pinned to the defaults it was written under and indexed with its commit and saved output. Spot
+   checks in all three defaults epochs reproduce their saved outputs exactly.
+2. **Statistics fixed.**
+   - **Near:** the margin is now the smaller of half the band and a quarter of the bound, which
+     turns nine near rows into fails and improves none.
+   - **Period:** targets use the median peak spacing of a 41-period moving average, in place of the
+     first autocorrelation peak. III-4 132 (pass), III-3 412, VI-3 241.
+3. **Carrying capacity at t≈50 counted** (user decision): 27 of 28 rows pass.
+   - **Re-runs:** Chapters IV–VI and the VAR runs, whose saved results here predated the 0.83
+     default, were re-run. Every chapter's observed values match its record, apart from the three
+     periods.
+4. **Single runs as frequencies** over 30 seeds
+   ([Chapter III record](docs/replication/chapter-3.md#the-books-single-runs-as-frequencies-2026-10-23)):
+   - **VI-2 under p.55's rule:** dies out in 15 of 30 runs.
+   - **III-4 under p.55's rule:** locks into the large cycle in 2 of 30.
+   - **VI-3 under the default:** reaches the book's waves in 4 of 30.
+   - **Never:** III-5 dies out, or III-3's floor reaches the book's band.
+5. **Candidates C1–C3 tested** (above, section C):
+   - **Within-vision mating (C1)** is the best single remedy for the low-density shortfall.
+   - **Cheap children (C3)** produce III-4's swings and III-5's only extinction.
+   - **None** reproduces every figure, and combining them works only partly.
+   - **Reading:** the book's figures behave as if births were both easy to arrange when sparse and
+     cheap enough to boom and bust.
+6. **Outside evidence.**
+   - **MASON:** built and run headless from its project archive
+     ([diagnostics/mason/](diagnostics/mason/README.md)). Its own model misses the book's III-1 (348),
+     III-3 and III-5 as ours does. Its large III-4 swings come from a flat fertility threshold of
+     25, at about twice the book's period.
+   - **MASON's own statistics are unreliable:** children are counted but left out of its averages.
+   - **Questions for the authors:** drafted in
+     [questions-for-authors.md](docs/replication/questions-for-authors.md) for the project owner to
+     send.
+
+**Next steps now:**
+1. Send the authors' questions; their answers on the fertility test, founders and contact would
+   settle more than further probes.
+2. Run Ascape's Sugarscape, the one implementation built where the original was.
+3. Try C1 with cheaper children at a lower fitted threshold. Do it only as a labelled variant, with
+   a fitting protocol like the 0.83 threshold's: one target, frozen, then validated.
+4. Test the remaining candidates (C4–C7): rule-by-rule sweeps, the wave details, disease transmission,
+   and two-good credit income.
 
 ## Where things are
 
@@ -457,6 +520,8 @@ These are the claims our evidence casts doubt on, with how strong that evidence 
 | Chapter records (results, choices, diagnostics) | [chapter-2.md](docs/replication/chapter-2.md), [chapter-3.md](docs/replication/chapter-3.md), [chapter-4.md](docs/replication/chapter-4.md), [chapter-5.md](docs/replication/chapter-5.md), [chapter-6.md](docs/replication/chapter-6.md) |
 | Rules | `sugarscape/rules/`; Schelling and Ring World in `sugarscape/variants/` |
 | Experiments and targets | `experiments/registry.py`, `replication/targets.py` |
+| Probe scripts behind the records; MASON harness | [diagnostics/](diagnostics/README.md), [diagnostics/mason/](diagnostics/mason/README.md) |
+| Questions for the authors (draft) | [docs/replication/questions-for-authors.md](docs/replication/questions-for-authors.md) |
 
 ```bash
 python -m pytest -q

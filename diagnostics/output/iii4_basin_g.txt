@@ -1,0 +1,6 @@
+cull to 400: 4/10 locked into the large cycle; first trough after the rebound 726 (locked 693)
+   seed 0: last 600 periods peaks 1591 troughs 659 peak spacing 131 | max age 88 vision 5.99 endowment 21.3
+   seed 4: last 600 periods peaks 1616 troughs 756 peak spacing 129 | max age 94 vision 5.77 endowment 18.3
+   seed 5: last 600 periods peaks 1540 troughs 752 peak spacing 118 | max age 80 vision 6.00 endowment 21.9
+   seed 9: last 600 periods peaks 1625 troughs 681 peak spacing 122 | max age 81 vision 5.87 endowment 20.9
+   not locked: max age 77 vision 5.93 endowment 20.8

@@ -1,12 +1,12 @@
 # Replication report
 
-2 pass, 1 near, 3 fail, of 6 targets.
+2 pass, 0 near, 4 fail, of 6 targets.
 
 | Experiment | Target | Source | Book | Band | Observed mean [min–max] | Seeds | Status |
 |---|---|---|---|---|---|---|---|
 | V-1 | society rids itself of disease | Anim V-1, p.147 | 0 | 0–0.01 | 0.005618 [0–0.02127] | 10/10 | pass |
 | V-1 | no disease left circulating | p.147 | 0 | 0–0.5 | 1 [0–4] | 10/10 | fail |
-| V-2 | endemic infection persists (proxy) | Anim V-2, p.150 | — | 0.2–0.8 | 0.009562 [0–0.01791] | 10/10 | near |
+| V-2 | endemic infection persists (proxy) | Anim V-2, p.150 | — | 0.2–0.8 | 0.009562 [0–0.01791] | 10/10 | fail |
 | V-2 | average diseases at start | Anim V-3, p.151 | 3.41 | 2.5–4.5 | 4.378 [3.518–5.728] | 10/10 | pass |
 | V-2 | endemic average diseases | Anim V-3, p.151 | 0.86 | 0.6–1.1 | 0.01753 [0–0.03117] | 10/10 | fail |
 | V-2 | spread of diseases per agent | Anim V-3, p.151 | 1 | 0.8–1.2 | 0.1695 [0–0.238] | 10/10 | fail |
@@ -14,6 +14,7 @@
 Run: `python -m replication.report --chapter V --jobs 8` on 2026-10-21 (branch feat/chapter-5). 10 seeds each, 500 periods.
 Fast suite 229 passed. Re-run after the final-review fix (E order: transmission, then immune response). Chapter II, III and IV regression runs on this branch: every row identical to their records.
 Re-run 2026-10-22 (branch feat/threshold-default) after the default fertility threshold became 0.83 (user decision; see the Chapter III record): every row identical (no Chapter V run uses rule S).
+Re-run 2026-10-23 (main) after two reporting decisions (user, 2026-10-23). Near now means within the smaller of half the band's width and a quarter of the nearer bound's magnitude, so V-2's endemic-infection proxy falls from near to fail, which removes the artifact noted below. Every observed value is identical to the previous table.
 
 ## Choices
 
@@ -30,7 +31,7 @@ Re-run 2026-10-22 (branch feat/threshold-default) after the default fertility th
 
 ## Open discrepancy: V-2's endemic disease is not reproduced
 
-With 25 diseases and 10 per agent the book reports a sustained endemic level: about 0.86 active diseases per agent, spread ≈1.0, and many agents sick in Animation V-2. Ours dies out like V-1. The average falls from 5.7 to 0.5 within 5 periods and to about 0.02 by t=500; the sick share is about 1%. **The report's "near" for the sick-share row is an artifact:** its generic near zone reaches below 0, and a 1% sick share is plainly a fail. In substance V-2 fails all three endemic rows. Each disease is typically only 2–3 bits from its nearest window in a 50-bit immune string, so it is learned within a few periods, faster than it can spread.
+With 25 diseases and 10 per agent the book reports a sustained endemic level: about 0.86 active diseases per agent, spread ≈1.0, and many agents sick in Animation V-2. Ours dies out like V-1. The average falls from 5.7 to 0.5 within 5 periods and to about 0.02 by t=500; the sick share is about 1%. **The report's "near" for the sick-share row is an artifact:** its generic near zone reaches below 0, and a 1% sick share is plainly a fail. (The tighter near rule of 2026-10-23 now reports it as a fail.) In substance V-2 fails all three endemic rows. Each disease is typically only 2–3 bits from its nearest window in a 50-bit immune string, so it is learned within a few periods, faster than it can spread.
 
 Readings tested (3 seeds, 300 periods; book: V-1 clears, V-2 ≈0.86 per agent):
 

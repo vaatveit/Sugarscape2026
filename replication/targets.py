@@ -106,7 +106,8 @@ def relative_std(metric: str, t0: int, t1: int) -> Statistic:
 
 def dominant_period(metric: str, t0: int, t1: int) -> Statistic:
     """Lag of the first positive autocorrelation peak after the autocorrelation first turns
-    negative; nan for flat, monotone, or too-short series (no oscillation)."""
+    negative; nan for flat, monotone, or too-short series (no oscillation). Superseded by
+    peak_spacing for the period targets (2026-10-23)."""
 
     def stat(series: Series) -> float:
         x = np.asarray(_window(series, metric, t0, t1), dtype=float)
@@ -125,6 +126,38 @@ def dominant_period(metric: str, t0: int, t1: int) -> Statistic:
             if ac[j] > 0 and ac[j] >= ac[j - 1] and ac[j] >= ac[j + 1]:
                 return float(j)
         return math.nan
+
+    return stat
+
+
+def peak_spacing(metric: str, t0: int, t1: int, smooth: int = 41, swing: float = 40) -> Statistic:
+    """Median interval between successive peaks of the series smoothed by a `smooth`-period moving average.
+
+    A zigzag filter finds the peaks: a peak counts once the smoothed series falls `swing` below it, and a
+    trough once it rises `swing` above it, so smaller wiggles are noise. The first swing only sets the
+    direction, so a window that opens on a peak doesn't count it. nan with fewer than two peaks.
+    Replaces dominant_period for the period targets: on irregular series the first autocorrelation peak
+    jumps between harmonics (201-1,701 on III-3, Chapter III record).
+    """
+
+    def stat(series: Series) -> float:
+        x = np.asarray(_window(series, metric, t0, t1), dtype=float)
+        if len(x) < smooth:
+            return math.nan
+        y = np.convolve(x, np.ones(smooth) / smooth, "valid")
+        peaks, direction, hi, lo = [], 0, 0, 0
+        for i, v in enumerate(y):
+            if v > y[hi]:
+                hi = i
+            if v < y[lo]:
+                lo = i
+            if direction >= 0 and v <= y[hi] - swing:  # a fall: the high was a peak (unless still undecided)
+                if direction > 0:
+                    peaks.append(hi)
+                direction, lo = -1, i
+            elif direction <= 0 and v >= y[lo] + swing:  # a rise: start looking for the next peak
+                direction, hi = 1, i
+        return float(np.median(np.diff(peaks))) if len(peaks) >= 2 else math.nan
 
     return stat
 
@@ -277,6 +310,14 @@ TARGETS += [
     for m, points in FIG_II_5_BOOK.items()
     for v, cc in points.items()
 ]
+# The same points read early (t=45-60), where our populations match the book's: the sweep may have been read near
+# t≈50 rather than at the asymptote (Chapter II record). Counted beside the t=500 rows (decision 2026-10-23).
+TARGETS += [
+    Target(f"II-5/m{m}/v{v}", "carrying capacity at t≈50", cc, 0.9 * cc, 1.1 * cc,
+           window_mean("population", 45, 60), "Fig II-5, p.31")
+    for m, points in FIG_II_5_BOOK.items()
+    for v, cc in points.items()
+]
 
 
 # --- Chapter III ---------------------------------------------------------------------------
@@ -287,10 +328,10 @@ TARGETS += [
     Target("III-1", "mean vision at t≈900", 5.3, 4.8, 5.8, window_mean("mean_vision", 850, 900), "Fig III-2, p.63"),
     Target("III-1", "mean metabolism, t=300–900", 1.0, 0.9, 1.15, window_mean("mean_metabolism", 300, 900),
            "Fig III-2, p.63"),
-    Target("III-3", "oscillation period", 200, 150, 250, dominant_period("population", 300, 2500), "p.64"),
+    Target("III-3", "oscillation period", 200, 150, 250, peak_spacing("population", 300, 2500), "p.64"),
     Target("III-3", "population floor", 250, 200, 350, window_min("population", 300, 2500), "p.64"),
     Target("III-3", "agents that ever lived", 12500, 10000, 15000, value_at("agents_ever", 2500), "p.64 fn 10"),
-    Target("III-4", "oscillation period", 125, 100, 150, dominant_period("population", 300, 2500), "p.65"),
+    Target("III-4", "oscillation period", 125, 100, 150, peak_spacing("population", 300, 2500), "p.65"),
     Target("III-4", "oscillation range", 1000, 600, 1400, window_range("population", 1500, 2500), "Fig III-4, p.65"),
     Target("III-5", "extinction frequency", None, 0.5, 1.0, extinct_by(1500), "Fig III-5, p.66", proxy=True),
     Target("III-7", "Gini with inheritance", 0.743, 0.65, 0.85, window_mean("gini", 900, 1000), "p.67"),
@@ -329,6 +370,11 @@ FIG_IV_6 = {"trade": {1: 100, 2: 128, 3: 158, 6: 173, 10: 185}, "notrade": {1: 8
 TARGETS += [
     Target(f"IV-6/{kind}/v{v}", "carrying capacity", cc, 0.9 * cc, 1.1 * cc,
            window_mean("population", 450, 500), "Fig IV-6, p.112")
+    for kind, points in FIG_IV_6.items() for v, cc in points.items()
+]
+TARGETS += [  # read early, as for Fig II-5 above (decision 2026-10-23)
+    Target(f"IV-6/{kind}/v{v}", "carrying capacity at t≈50", cc, 0.9 * cc, 1.1 * cc,
+           window_mean("population", 45, 60), "Fig IV-6, p.112")
     for kind, points in FIG_IV_6.items() for v, cc in points.items()
 ]
 TARGETS += [
@@ -423,7 +469,7 @@ TARGETS += [
     Target("VI-3", "first peak", 1190, 952, 1428, window_max("population", 150, 300), "Anim VI-3, p.161"),
     Target("VI-3", "oscillation floor", 700, 560, 840, window_min("population", 250, 1000), "p.159"),
     Target("VI-3", "oscillation ceiling", 1200, 960, 1440, window_max("population", 250, 1000), "Anim VI-3, p.161"),
-    Target("VI-3", "oscillation period", 115, 92, 138, dominant_period("population", 200, 1000), "p.159"),
+    Target("VI-3", "oscillation period", 115, 92, 138, peak_spacing("population", 200, 1000), "p.159"),
 ]
 TARGETS += [
     Target("VI-4", "equilibrium: nobody moves", 0.0, 0, 0, window_mean("moved", 400, 500), "p.166"),

@@ -1,0 +1,26 @@
+III-1  book: t20=470 t85=570 t240=415 t330=545 late=500
+   base  | t20=464 t85=324 t240=372 t330=369 late=361
+   O     | t20=468 t85=331 t240=403 t330=355 late=366
+   V     | t20=467 t85=333 t240=390 t330=352 late=350
+   OV    | t20=472 t85=343 t240=421 t330=360 late=368
+III-3  book: floor~250 period~200 agents_ever~12500 (fn 10)
+   base  | floor300+=21 mean=55 max300+=84 period=570 agents_ever=2346
+   O     | floor300+=0 mean=51 max300+=118 period=1364 agents_ever=2329
+   V     | floor300+=0 mean=4 max300+=36 period=nan agents_ever=762
+   OV    | floor300+=0 mean=7 max300+=42 period=nan agents_ever=835
+III-4  book: amplitude >1000 falling to ~800, period ~125 (p.65); Fig: peak 1554@71 trough 343
+   base  | peak=1282@115 trough=925 range300+=281 period=122
+   O     | peak=1292@109 trough=948 range300+=290 period=121
+   V     | peak=1482@114 trough=1058 range300+=158 period=129
+   OV    | peak=1531@119 trough=1097 range300+=183 period=132
+   T     | peak=1374@150 trough=982 range300+=345 period=163
+   OT    | peak=1425@150 trough=984 range300+=403 period=166
+   OVT   | peak=1767@150 trough=1630 range300+=175 period=108
+III-5  book: extinct after three growth surges (p.65)
+   base  | extinct@1000=0.00 t200=910 max=1265
+   O     | extinct@1000=0.00 t200=985 max=1298
+   V     | extinct@1000=0.00 t200=922 max=1253
+   OV    | extinct@1000=0.00 t200=985 max=1354
+   T     | extinct@1000=0.00 t200=1367 max=1520
+   OT    | extinct@1000=0.00 t200=1384 max=1548
+   OVT   | extinct@1000=0.00 t200=1788 max=1829

@@ -17,7 +17,7 @@ def test_chapter4_experiments_registered():
 
 
 def test_every_chapter4_target_has_an_experiment():
-    assert len(CH4) == 41
+    assert len(CH4) == 41 + 10  # plus each Fig IV-6 point read at t≈50
     assert all(t.experiment in EXPERIMENTS for t in CH4)
 
 

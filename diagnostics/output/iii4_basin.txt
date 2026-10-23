@@ -1,0 +1,8 @@
+cull to 300: 0/10 locked into the large cycle; first trough after the rebound 749 (locked nan)
+   not locked: max age 78 vision 5.90 endowment 22.4
+cull to 400: 0/10 locked into the large cycle; first trough after the rebound 766 (locked nan)
+   not locked: max age 77 vision 5.92 endowment 22.4
+cull to 600: 0/10 locked into the large cycle; first trough after the rebound 847 (locked nan)
+   not locked: max age 77 vision 5.85 endowment 22.4
+cull to 800: 0/10 locked into the large cycle; first trough after the rebound 993 (locked nan)
+   not locked: max age 79 vision 5.90 endowment 22.4

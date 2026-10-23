@@ -1,6 +1,6 @@
 # Replication report
 
-19 pass, 8 near, 14 fail, of 41 targets.
+28 pass, 7 near, 16 fail, of 51 targets.
 
 | Experiment | Target | Source | Book | Band | Observed mean [min–max] | Seeds | Status |
 |---|---|---|---|---|---|---|---|
@@ -17,6 +17,16 @@
 | IV-6/notrade/v3 | carrying capacity | Fig IV-6, p.112 | 120 | 108–132 | 95.09 [75–111] | 10/10 | fail |
 | IV-6/notrade/v6 | carrying capacity | Fig IV-6, p.112 | 157 | 141.3–172.7 | 119.5 [106.3–139] | 10/10 | fail |
 | IV-6/notrade/v10 | carrying capacity | Fig IV-6, p.112 | 177 | 159.3–194.7 | 127.1 [113.7–146.3] | 10/10 | fail |
+| IV-6/trade/v1 | carrying capacity at t≈50 | Fig IV-6, p.112 | 100 | 90–110 | 118.7 [100.5–127.9] | 10/10 | near |
+| IV-6/trade/v2 | carrying capacity at t≈50 | Fig IV-6, p.112 | 128 | 115.2–140.8 | 136.7 [120.2–175.2] | 10/10 | pass |
+| IV-6/trade/v3 | carrying capacity at t≈50 | Fig IV-6, p.112 | 158 | 142.2–173.8 | 161.2 [136.5–192.7] | 10/10 | pass |
+| IV-6/trade/v6 | carrying capacity at t≈50 | Fig IV-6, p.112 | 173 | 155.7–190.3 | 174.5 [158.1–198.9] | 10/10 | pass |
+| IV-6/trade/v10 | carrying capacity at t≈50 | Fig IV-6, p.112 | 185 | 166.5–203.5 | 180 [166.2–204.8] | 10/10 | pass |
+| IV-6/notrade/v1 | carrying capacity at t≈50 | Fig IV-6, p.112 | 82 | 73.8–90.2 | 81.74 [71.25–90.19] | 10/10 | pass |
+| IV-6/notrade/v2 | carrying capacity at t≈50 | Fig IV-6, p.112 | 90 | 81–99 | 97.64 [82.12–116.3] | 10/10 | pass |
+| IV-6/notrade/v3 | carrying capacity at t≈50 | Fig IV-6, p.112 | 120 | 108–132 | 122.9 [102.6–144.4] | 10/10 | pass |
+| IV-6/notrade/v6 | carrying capacity at t≈50 | Fig IV-6, p.112 | 157 | 141.3–172.7 | 152.8 [136.1–177.2] | 10/10 | pass |
+| IV-6/notrade/v10 | carrying capacity at t≈50 | Fig IV-6, p.112 | 177 | 159.3–194.7 | 164 [142.1–193.8] | 10/10 | pass |
 | IV-7 | mean price, vision 1 (ln p) | p.117 | 0 | -0.15–0.15 | -0.03075 [-0.2105–0.0844] | 5/5 | pass |
 | IV-7 | dispersion stays high | Fig IV-8, p.118 | 0.3 | 0.2–0.45 | 0.1553 [0.1133–0.1733] | 5/5 | near |
 | IV-9 | dispersion with vision 1-15 | Fig IV-9, p.119 | 0.03 | 0–0.08 | 0.01402 [0.009624–0.01882] | 5/5 | pass |
@@ -35,8 +45,8 @@
 | IV-13/notrade/v10 | Gini without trade | Fig IV-13, p.123 | 0.33 | 0.28–0.38 | 0.3261 [0.3191–0.3362] | 10/10 | pass |
 | IV-13/notrade/v14.5 | Gini without trade | Fig IV-13, p.123 | 0.31 | 0.26–0.36 | 0.3335 [0.3218–0.3436] | 10/10 | pass |
 | IV-14 | dispersion with S | Fig IV-14, p.124 | 0.37 | 0.28–0.48 | 0.3905 [0.314–0.5082] | 5/5 | pass |
-| IV-15 | dispersion, cultural preferences | Fig IV-16, p.126 | 0.45 | 0.3–0.6 | 0.1832 [0.1432–0.2285] | 5/5 | near |
-| IV-15 | trades per period | p.125 | 1000 | 500–1500 | 266.8 [145.2–354.7] | 5/5 | near |
+| IV-15 | dispersion, cultural preferences | Fig IV-16, p.126 | 0.45 | 0.3–0.6 | 0.1832 [0.1432–0.2285] | 5/5 | fail |
+| IV-15 | trades per period | p.125 | 1000 | 500–1500 | 266.8 [145.2–354.7] | 5/5 | fail |
 | IV-17 | dispersion with S and K | Fig IV-17, p.127 | 0.45 | 0.35–0.55 | 0.3324 [0.3324–0.3324] | 1/5 | fail |
 | IV-A3 | price before pollution (ln p) | Anim IV-3, p.128 | 0 | -0.2–0.2 | 0.02095 [-0.06898–0.1112] | 10/10 | pass |
 | IV-A3 | sugar price spike (proxy) | Anim IV-3 | 3.5 | 2–6 | 2.332 [1.782–2.887] | 10/10 | pass |
@@ -51,6 +61,7 @@ Fast suite 201 passed. IV-14, IV-17 and IV-18 were re-run after the fertility de
 Re-run 2026-10-22 (branch feat/founder-ages) after founders with finite lives began at ages U[0, max age) (user decision; see the Chapter III record): the table above. Changed rows are listed under Founder ages.
 Chapter II and III regression runs on this branch: every row identical to docs/replication/chapter-2.md and chapter-3.md.
 Re-run 2026-10-22 (branch feat/threshold-default) after the default fertility threshold became 0.83 (user decision; see the Chapter III record): the table above. Changed rows are listed under Default fertility threshold.
+Re-run 2026-10-23 (main) after two reporting decisions (user, 2026-10-23). Near now means within the smaller of half the band's width and a quarter of the nearer bound's magnitude, so IV-15's dispersion and trade volume fall from near to fail. Each Fig IV-6 point is also read at t≈50 (`carrying capacity at t≈50`, mean over t=45–60): 9 pass and 1 is near (with trade at mean vision 1: 119 against 100). The runs were redone because this checkout's saved results predated the 0.83 default; every observed value is identical to the previous table.
 
 ## Choices made from evidence or by necessity
 

@@ -1,0 +1,50 @@
+== III-3 founders=uniform theta=0.83
+  seed 0: one mountain   first mountain emptied t=341 crash 82@142 floor 85 period 210.0 level 161 | smaller mountain t=0..275: [91, 144, 102, 71, 44, 31, 23, 20, 17, 11, 7, 1]
+  seed 1: extinct        first mountain emptied t=169 crash 0@231 floor 0 period nan level 0 | smaller mountain t=0..275: [105, 131, 82, 42, 22, 9, 5, 0, 0, 0, 0, 0]
+  seed 2: one mountain   first mountain emptied t=685 crash 97@121 floor 56 period 699.0 level 146 | smaller mountain t=0..275: [95, 140, 106, 74, 48, 44, 47, 49, 53, 55, 58, 84]
+  seed 3: extinct        first mountain emptied t=186 crash 0@199 floor 0 period nan level 0 | smaller mountain t=0..275: [96, 124, 92, 73, 30, 16, 9, 4, 0, 0, 0, 0]
+  seed 4: one mountain   first mountain emptied t=200 crash 21@292 floor 23 period 405.0 level 172 | smaller mountain t=0..275: [99, 126, 83, 45, 18, 12, 8, 5, 0, 0, 0, 0]
+  seed 5: one mountain   first mountain emptied t=226 crash 99@138 floor 87 period 219.0 level 146 | smaller mountain t=0..275: [90, 132, 94, 52, 34, 24, 19, 12, 6, 1, 0, 0]
+  seed 6: one mountain   first mountain emptied t=215 crash 50@162 floor 81 period 201.0 level 164 | smaller mountain t=0..275: [91, 137, 101, 65, 31, 16, 9, 3, 1, 0, 0, 0]
+  seed 7: one mountain   first mountain emptied t=1097 crash 89@117 floor 99 period 396.0 level 163 | smaller mountain t=0..275: [96, 121, 90, 56, 33, 24, 17, 16, 17, 19, 28, 32]
+  seed 8: one mountain   first mountain emptied t=229 crash 50@220 floor 76 period 326.0 level 137 | smaller mountain t=0..275: [92, 130, 88, 59, 44, 34, 23, 13, 6, 2, 0, 0]
+  seed 9: extinct        first mountain emptied t=161 crash 0@199 floor 0 period nan level 0 | smaller mountain t=0..275: [86, 117, 69, 34, 14, 3, 1, 0, 0, 0, 0, 0]
+  one: 7 runs, level 156, floor 72, period 351 (7/7)
+== III-3 founders=zero theta=0.83
+  seed 0: both mountains first mountain emptied t=None crash 157@224 floor 183 period 271.0 level 280 | smaller mountain t=0..275: [91, 190, 195, 168, 114, 84, 83, 82, 73, 76, 79, 87]
+  seed 1: one mountain   first mountain emptied t=264 crash 125@162 floor 89 period 218.0 level 164 | smaller mountain t=0..275: [105, 191, 199, 152, 70, 36, 22, 13, 8, 4, 1, 1]
+  seed 2: both mountains first mountain emptied t=None crash 75@170 floor 154 period 630.0 level 298 | smaller mountain t=0..275: [95, 193, 201, 165, 93, 55, 39, 30, 42, 48, 51, 52]
+  seed 3: both mountains first mountain emptied t=None crash 134@159 floor 205 period 250.0 level 293 | smaller mountain t=0..275: [96, 194, 214, 178, 107, 67, 47, 49, 64, 68, 64, 56]
+  seed 4: both mountains first mountain emptied t=None crash 214@136 floor 241 period 207.0 level 324 | smaller mountain t=0..275: [99, 202, 220, 184, 128, 103, 104, 114, 124, 138, 151, 163]
+  seed 5: both mountains first mountain emptied t=None crash 95@247 floor 169 period 1701.0 level 271 | smaller mountain t=0..275: [90, 199, 218, 185, 103, 54, 39, 28, 24, 19, 18, 20]
+  seed 6: both mountains first mountain emptied t=None crash 81@166 floor 125 period 245.0 level 324 | smaller mountain t=0..275: [91, 192, 194, 167, 87, 52, 41, 36, 44, 53, 54, 58]
+  seed 7: both mountains first mountain emptied t=None crash 153@155 floor 166 period 620.0 level 281 | smaller mountain t=0..275: [96, 187, 207, 168, 93, 70, 52, 45, 42, 47, 57, 66]
+  seed 8: both mountains first mountain emptied t=None crash 109@142 floor 221 period 213.0 level 313 | smaller mountain t=0..275: [92, 186, 205, 173, 91, 62, 50, 55, 61, 57, 64, 65]
+  seed 9: both mountains first mountain emptied t=None crash 138@148 floor 203 period 435.0 level 316 | smaller mountain t=0..275: [86, 193, 202, 165, 100, 62, 55, 55, 70, 69, 68, 56]
+  both: 9 runs, level 300, floor 185, period 508 (9/9)
+  one: 1 runs, level 164, floor 89, period 218 (1/1)
+== III-3 founders=uniform theta=1.0
+  seed 0: extinct        first mountain emptied t=205 crash 0@206 floor 0 period nan level 0 | smaller mountain t=0..275: [91, 131, 88, 43, 17, 11, 4, 4, 1, 0, 0, 0]
+  seed 1: extinct        first mountain emptied t=146 crash 0@147 floor 0 period nan level 0 | smaller mountain t=0..275: [105, 119, 72, 33, 9, 2, 0, 0, 0, 0, 0, 0]
+  seed 2: one mountain   first mountain emptied t=228 crash 24@220 floor 44 period 638.0 level 92 | smaller mountain t=0..275: [95, 132, 88, 48, 22, 19, 17, 11, 6, 1, 0, 0]
+  seed 3: extinct        first mountain emptied t=174 crash 0@196 floor 0 period nan level 0 | smaller mountain t=0..275: [96, 111, 74, 43, 24, 11, 4, 0, 0, 0, 0, 0]
+  seed 4: one mountain   first mountain emptied t=155 crash 39@143 floor 48 period 349.0 level 109 | smaller mountain t=0..275: [99, 111, 75, 37, 13, 5, 1, 0, 0, 0, 0, 0]
+  seed 5: extinct        first mountain emptied t=184 crash 0@216 floor 0 period nan level 0 | smaller mountain t=0..275: [90, 120, 82, 41, 22, 13, 8, 1, 0, 0, 0, 0]
+  seed 6: extinct        first mountain emptied t=143 crash 0@150 floor 0 period nan level 0 | smaller mountain t=0..275: [91, 126, 83, 39, 12, 3, 0, 0, 0, 0, 0, 0]
+  seed 7: extinct        first mountain emptied t=144 crash 0@244 floor 0 period nan level 0 | smaller mountain t=0..275: [96, 110, 75, 28, 7, 2, 0, 0, 0, 0, 0, 0]
+  seed 8: extinct        first mountain emptied t=142 crash 0@188 floor 0 period nan level 0 | smaller mountain t=0..275: [92, 118, 76, 31, 10, 2, 0, 0, 0, 0, 0, 0]
+  seed 9: extinct        first mountain emptied t=132 crash 0@254 floor 0 period nan level 0 | smaller mountain t=0..275: [86, 105, 63, 30, 7, 1, 0, 0, 0, 0, 0, 0]
+  one: 2 runs, level 100, floor 46, period 494 (2/2)
+== III-3 founders=zero theta=1.0
+  seed 0: one mountain   first mountain emptied t=220 crash 43@270 floor 40 period 711.0 level 103 | smaller mountain t=0..275: [91, 171, 185, 152, 72, 29, 11, 7, 3, 0, 0, 0]
+  seed 1: one mountain   first mountain emptied t=278 crash 45@280 floor 22 period 428.0 level 63 | smaller mountain t=0..275: [105, 172, 185, 130, 55, 41, 28, 21, 17, 11, 5, 2]
+  seed 2: extinct        first mountain emptied t=173 crash 0@196 floor 0 period nan level 0 | smaller mountain t=0..275: [95, 187, 192, 149, 51, 18, 8, 0, 0, 0, 0, 0]
+  seed 3: one mountain   first mountain emptied t=181 crash 40@196 floor 59 period 1029.0 level 111 | smaller mountain t=0..275: [96, 171, 197, 145, 70, 25, 8, 1, 0, 0, 0, 0]
+  seed 4: extinct        first mountain emptied t=198 crash 20@204 floor 0 period nan level 34 | smaller mountain t=0..275: [99, 180, 200, 148, 67, 39, 18, 8, 0, 0, 0, 0]
+  seed 5: one mountain   first mountain emptied t=297 crash 48@229 floor 32 period 458.0 level 74 | smaller mountain t=0..275: [90, 179, 189, 153, 74, 33, 23, 18, 15, 10, 4, 1]
+  seed 6: extinct        first mountain emptied t=195 crash 27@279 floor 0 period nan level 0 | smaller mountain t=0..275: [91, 179, 178, 131, 49, 13, 3, 1, 0, 0, 0, 0]
+  seed 7: both mountains first mountain emptied t=None crash 69@174 floor 127 period 1193.0 level 214 | smaller mountain t=0..275: [96, 170, 190, 147, 69, 49, 37, 30, 44, 52, 61, 62]
+  seed 8: extinct        first mountain emptied t=252 crash 42@255 floor 0 period nan level 49 | smaller mountain t=0..275: [92, 182, 195, 161, 78, 38, 19, 12, 6, 3, 2, 0]
+  seed 9: extinct        first mountain emptied t=357 crash 57@164 floor 0 period nan level 24 | smaller mountain t=0..275: [86, 178, 179, 151, 74, 45, 29, 27, 26, 26, 20, 15]
+  both: 1 runs, level 214, floor 127, period 1193 (1/1)
+  one: 4 runs, level 88, floor 38, period 656 (4/4)

@@ -1,0 +1,24 @@
+III-5, no births above 1000:
+  seed 0: peaks [994] troughs [] alive, range t=1000-1500 23
+  seed 1: peaks [996] troughs [] alive, range t=1000-1500 23
+  seed 2: peaks [] troughs [] alive, range t=1000-1500 23
+  seed 3: peaks [993] troughs [] alive, range t=1000-1500 21
+  seed 4: peaks [997, 998] troughs [] alive, range t=1000-1500 28
+  seed 5: peaks [993] troughs [] alive, range t=1000-1500 26
+  seed 6: peaks [] troughs [] alive, range t=1000-1500 21
+  seed 7: peaks [] troughs [] alive, range t=1000-1500 23
+  seed 8: peaks [995, 989] troughs [] alive, range t=1000-1500 23
+  seed 9: peaks [] troughs [] alive, range t=1000-1500 20
+  0/10 extinct
+III-5, no births above 1200:
+  seed 0: peaks [1197] troughs [] alive, range t=1000-1500 219
+  seed 1: peaks [] troughs [] alive, range t=1000-1500 144
+  seed 2: peaks [] troughs [] alive, range t=1000-1500 122
+  seed 3: peaks [] troughs [] alive, range t=1000-1500 331
+  seed 4: peaks [1195] troughs [] alive, range t=1000-1500 320
+  seed 5: peaks [] troughs [] alive, range t=1000-1500 152
+  seed 6: peaks [] troughs [] alive, range t=1000-1500 270
+  seed 7: peaks [1197] troughs [] alive, range t=1000-1500 346
+  seed 8: peaks [] troughs [] alive, range t=1000-1500 294
+  seed 9: peaks [1196, 1193] troughs [718] alive, range t=1000-1500 489
+  0/10 extinct
