@@ -2,9 +2,9 @@
 
 This is a review of our attempt to rebuild Epstein and Axtell's Sugarscape (1996) from the book and
 reproduce its results. The work ran from 2026-10-21 to 2026-10-22. The detailed evidence is in the
-chapter records ([II](chapter-2.md), [III](chapter-3.md), [IV](chapter-4.md), [V](chapter-5.md),
-[VI](chapter-6.md)), our reading of the book is in [book-notes.md](../book-notes.md), and the
-design is in [the spec](../superpowers/specs/2026-10-21-sugarscape-design.md). Every number below is
+chapter records ([II](docs/replication/chapter-2.md), [III](docs/replication/chapter-3.md), [IV](docs/replication/chapter-4.md), [V](docs/replication/chapter-5.md),
+[VI](docs/replication/chapter-6.md)), our reading of the book is in [book-notes.md](docs/book-notes.md), and the
+design is in [the spec](docs/superpowers/specs/2026-10-21-sugarscape-design.md). Every number below is
 taken from those records as of commit `7556424`.
 
 ## The short version
@@ -178,7 +178,7 @@ then a whole-branch review and a fix pass, then the chapter record.
 | VI-2 crash at t≈20 / extinction | ≈130 / yes | 213 / 1 of 10 seeds | — |
 | VI-3 minimum / first peak / waves | ≈65 / ≈1,190 / 700–1,200 | 36 / 308 / 204–534 | 272 first peak |
 
-**What we established, in the order we found it** (details in the [Chapter III record](chapter-3.md)):
+**What we established, in the order we found it** (details in the [Chapter III record](docs/replication/chapter-3.md)):
 
 1. **Births limit the population; food doesn't.** In III-1 nobody starves after t≈300. About 60% of
    all harvest is destroyed when agents die of old age. Only 43% of fertile-age agents pass the
@@ -451,10 +451,10 @@ These are the claims our evidence casts doubt on, with how strong that evidence 
 
 | What | Where |
 |---|---|
-| Book reading, by rule and page | [docs/book-notes.md](../book-notes.md) |
-| Design and anti-goals | [docs/superpowers/specs/2026-10-21-sugarscape-design.md](../superpowers/specs/2026-10-21-sugarscape-design.md) |
-| Chapter plans | [docs/superpowers/plans/](../superpowers/plans/) |
-| Chapter records (results, choices, diagnostics) | [chapter-2.md](chapter-2.md), [chapter-3.md](chapter-3.md), [chapter-4.md](chapter-4.md), [chapter-5.md](chapter-5.md), [chapter-6.md](chapter-6.md) |
+| Book reading, by rule and page | [docs/book-notes.md](docs/book-notes.md) |
+| Design and anti-goals | [docs/superpowers/specs/2026-10-21-sugarscape-design.md](docs/superpowers/specs/2026-10-21-sugarscape-design.md) |
+| Chapter plans | [docs/superpowers/plans/](docs/superpowers/plans/) |
+| Chapter records (results, choices, diagnostics) | [chapter-2.md](docs/replication/chapter-2.md), [chapter-3.md](docs/replication/chapter-3.md), [chapter-4.md](docs/replication/chapter-4.md), [chapter-5.md](docs/replication/chapter-5.md), [chapter-6.md](docs/replication/chapter-6.md) |
 | Rules | `sugarscape/rules/`; Schelling and Ring World in `sugarscape/variants/` |
 | Experiments and targets | `experiments/registry.py`, `replication/targets.py` |
 
