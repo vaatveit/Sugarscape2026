@@ -142,6 +142,27 @@ changes the model.
 - **C4, rule-by-rule sweeps:** VI-2 dies out in 2 of 5 runs (1 of 5 under the default), but VI-3 does worse: minimum 18,
   first peak 89, floor 45 and ceiling 438 after t=250 (default 36, 308, 204, 534). Not measured further.
 
+## VAR-c1c3fit on VI-1 (2026-10-23)
+
+The registered variant's settings applied to VI-1 by [score_variant.py](../../diagnostics/score_variant.py) (5 seeds;
+[output](../../diagnostics/output/score_variant_vi1.txt)). VI-1 is not one of the variant's registered figures.
+
+| Target | Book | Default | VAR-c1c3fit settings |
+|---|---|---|---|
+| Population at t≈50 | 155 | 41 fail | 73 fail |
+| Gini of total wealth | 0.246 | 0.303 near | 0.359 fail |
+| Average neighbors | 0.7 | 0.36 fail | 0.44 near |
+| Average fertility | 1.3 | 0.36 fail | **1.09 pass** |
+| Best-friend / friend closeness | 0.86 / 0.79 | 0.744 near / 0.637 near | **0.784 pass** / 0.655 near |
+| Mean price / price dispersion | 0 / 0.35 | pass / pass | pass / pass |
+| Trades per period | 125 | 15 fail | 31 fail |
+| Active loans / agents both lending and borrowing | 215 / 37 | 0.25 / 0 fail | 41 / 6.5 fail |
+| Disease rows (four) | — | fail | fail |
+
+Easier contact and cheap children nearly double the society, bring family size into band and lift credit from almost
+none to 41 loans. But the society is still half the book's, so trade, credit and the friend networks stay short, and
+wealth is more unequal. The disease still clears (Chapter V record).
+
 ## Visual comparison
 
 - **VI-1:** sick agents vanish within a few periods, while the book's board stays mostly red. The society shrinks onto the two mountains (seed 0: 200 → 96 at t=50 → 51 at t=120 → 102 at t=500).

@@ -1,0 +1,7 @@
+Fig II-5 carrying capacity, 3 seeds: mean population t=45-60 / t=450-500
+| Setting | m1/v3 (book 475) | m2/v3 (book 375) | m3/v3 (book 255) |
+|---|---|---|---|
+| G1 (book) | 468 / 467 | 391 / 307 | 257 / 236 |
+| growback 0.75 | 468 / 467 | 353 / 313 | 248 / 202 |
+| growback 0.5 | 468 / 467 | 322 / 292 | 215 / 182 |
+| lowland | 402 / 398 | 362 / 283 | 237 / 219 |

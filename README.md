@@ -1,10 +1,10 @@
 # Reproducing *Growing Artificial Societies*: a retrospective
 
 This is a review of our attempt to rebuild Epstein and Axtell's Sugarscape (1996) from the book and
-reproduce its results. The work ran from 2026-10-21 to 2026-10-22, with a follow-up on 2026-10-23 that
-carried out this review's recommendations ([below](#follow-up-2026-10-23)) and a second follow-up the same day
-that took the next steps ([below](#second-follow-up-2026-10-23)), and a third that followed those
-([below](#third-follow-up-2026-10-23)). The detailed evidence is in the
+reproduce its results. The work ran from 2026-10-21 to 2026-10-22, with four follow-ups on 2026-10-23.
+The [first](#follow-up-2026-10-23) carried out this review's recommendations, and each later one
+([second](#second-follow-up-2026-10-23), [third](#third-follow-up-2026-10-23),
+[fourth](#fourth-follow-up-2026-10-23)) took the next steps the one before left. The detailed evidence is in the
 chapter records ([II](docs/replication/chapter-2.md), [III](docs/replication/chapter-3.md), [IV](docs/replication/chapter-4.md), [V](docs/replication/chapter-5.md),
 [VI](docs/replication/chapter-6.md)), our reading of the book is in [book-notes.md](docs/book-notes.md), the
 design is in [the spec](docs/superpowers/specs/2026-10-21-sugarscape-design.md), and the probe scripts are in
@@ -599,13 +599,39 @@ and look for what drives the book's societies to near-extinction.
    - **Reading:** the book's peaks must outgrow their food while the peak cohorts can't breed, and
      ours never outgrow it.
 
-**Next steps now:**
-1. Find what would let a peak outgrow its food after selection has set metabolism to 1. Candidates
-   are a slower growback or a smaller productive area than the map gives. Both depart from the
-   text (G1, Fig II-1), and each would have to keep Chapter II's carrying capacities, which match
-   today.
-2. Score `VAR-c1c3fit` on Chapter VI's other society runs (VI-1), where easier contact may help the
-   sparse society.
+It left two next steps: find what would let a peak outgrow its food, and score `VAR-c1c3fit` on VI-1.
+
+## Fourth follow-up (2026-10-23)
+
+1. **Can a peak outgrow its food?** Four departures, each on top of `VAR-c1c3fit` and fitted to
+   III-1's level ([Chapter III record](docs/replication/chapter-3.md#can-a-peak-outgrow-its-food-2026-10-23)):
+   - **Zeroing the capacity-1 sites, or making agents leave their own site:** they move the fitted
+     threshold by less than 0.01, so the level is limited by births, not food. Neither produces
+     extinctions or starving falls.
+   - **Growback of 0.75 per period:** troughs reach 50, but there is still no starvation in the
+     falls and no extinction.
+   - **Growback of 0.5 per period:** the only setting whose falls starve (51 per fall; the book's
+     need 52–91). But its fitted threshold is 0.28, so 84% of even the peak cohort can breed, and
+     the troughs stop near 570.
+   - **Chapter II:** halving growback lowers Fig II-5's m2 and m3 points by 14–16% at t≈50, and
+     zeroing the capacity-1 sites lowers m1 by 15%. Both contradict results that match today.
+   - **Reading:** with the level fitted, starvation and the peak cohort's fertility deficit pull
+     against each other, and the book's falls need both. No mechanism of this kind is left
+     untested.
+2. **`VAR-c1c3fit` on VI-1**
+   ([Chapter VI record](docs/replication/chapter-6.md#var-c1c3fit-on-vi-1-2026-10-23)):
+   - **The society nearly doubles** at t≈50 (73; the default gives 41, the book 155).
+   - **Now pass:** family size (1.09) and best-friend closeness.
+   - **Credit rises** from almost nothing to 41 active loans (book ≈215).
+   - **Still short:** the society is half the book's, so trade and credit stay low. Wealth is more
+     unequal (Gini 0.36), and the disease still clears.
+
+**Next steps now.** The probes within reach are exhausted: every reading of the text, every
+candidate departure and both outside implementations have been tried against the population
+figures. What remains needs new evidence rather than more probes:
+1. Look for the original program (Appendix A: about 20,000 lines for the Macintosh) or the book's
+   companion CD-ROM, in Brookings' or the authors' archives.
+2. Otherwise, treat the replication as complete and tag the current state (for example `v1.1`).
 
 ## Where things are
 

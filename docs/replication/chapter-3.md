@@ -791,6 +791,39 @@ The peak-born cohort is the one born at N ≥ 1,000.
   starvation through a fall twice as long as ours. Our societies select metabolism down to 1 before each peak, so they
   never outgrow the food. What lets the original's peaks overshoot remains unknown.
 
+## Can a peak outgrow its food? (2026-10-23)
+
+README next step: find what would let a peak outgrow its food once selection has set metabolism to 1. Each setting
+departs from the text, runs on top of VAR-c1c3fit, and was fitted to III-1's level alone, as above.
+- **Probes:** [probe_falls.py](../../diagnostics/probe_falls.py), 10 seeds on III-5
+  ([output](../../diagnostics/output/probe_falls_food.txt)).
+- **Chapter II check:** [check_capacity.py](../../diagnostics/check_capacity.py), Fig II-5's points at vision 3, 3 seeds
+  ([output](../../diagnostics/output/check_capacity.txt)).
+
+| Setting (fitted θ) | Extinct | Troughs, min / median | Births per period, 60 before the trough | Starvations per fall | Peak cohort qualifying | Fig II-5 at t≈50: m1 / m2 / m3 (book 475 / 375 / 255) |
+|---|---|---|---|---|---|---|
+| VAR-c1c3fit (0.74) | 0/10 | 71 / 366 | 3.9 | 0 | 27% | 468 / 391 / 257 |
+| Capacity-1 sites zeroed (0.74) | 0/10 | 28 / 438 | 4.7 | 0 | 28% | **402** / 362 / 237 |
+| Own site only when nothing else is in sight (0.74) | 0/10 | 268 / 588 | 6.2 | 0 | 29% | — |
+| Growback 0.75 per period (0.64) | 0/10 | 50 / 490 | 5.4 | 0 | 34% | 468 / 353 / 248 |
+| Growback 0.5 per period (0.28) | 0/10 | 444 / 570 | 7.0 | **51** | 84% | 468 / **322** / **215** |
+
+Bold marks a Fig II-5 point more than 10% off the book, or the one setting with starvation in its falls. The peak
+cohort is the one born at N ≥ 1,000, and III-1's level is unchanged by each fit. Fig II-5 wasn't checked for the
+own-site rule, which made the falls shallower.
+
+- **The level is limited by births, not food.** Removing 522 of the 2,069 productive sites, or making agents leave
+  their own site, moves the fitted threshold by less than 0.01.
+- **Only halving growback brings starvation into the falls,** at 51 per fall (the book's inversion needs 52–91). But
+  then the threshold that keeps III-1 at 500 is 0.28: 84% of even the peak cohort qualifies, births run at 7 per period
+  before the trough, and the troughs stop near 570. The fall needs both starvation and a fertility deficit, and once
+  the level is fitted they pull against each other.
+- **Halving growback also breaks Chapter II:** Fig II-5's m2 and m3 points fall 14–16% at t≈50, where they match
+  today. Zeroing the capacity-1 sites drops m1 by 15%.
+- **Reading:** none of these lets a fitted model's peak outgrow its food while its peak cohorts stay infertile, and
+  the one that starves the falls contradicts Fig II-5. What the original does at its peaks remains unknown; no
+  further mechanism of this kind is pending.
+
 ## Ascape's own runs (2026-10-23)
 
 Ascape 5.6.1's Sugarscape sex model (Brookings), run headless from its release jar on Figs III-1, III-3, III-4 and

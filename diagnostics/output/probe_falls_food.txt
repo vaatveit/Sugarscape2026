@@ -1,0 +1,102 @@
+Food-limit settings (probe_falls.py, 2026-10-23). Fits to III-1's steady population (probe_falls.py fit <setting> <grid>):
+
+lowland, III-1 steady population (target 500), 5 seeds
+  theta 1: 309  (seeds: 304, 319, 296, 314, 312)
+  theta 0.9: 362  (seeds: 363, 363, 362, 362, 363)
+  theta 0.8: 425  (seeds: 426, 433, 418, 425, 426)
+  theta 0.7: 576  (seeds: 568, 580, 571, 585, 575)
+  theta 0.6: 757  (seeds: 766, 767, 743, 759, 752)
+  theta 0.5: 834  (seeds: 841, 817, 840, 817, 856)
+lowland, III-1 steady population (target 500), 5 seeds
+  theta 0.73: 515  (seeds: 515, 516, 511, 517, 519)
+  theta 0.74: 493  (seeds: 496, 490, 498, 493, 491)
+  theta 0.75: 482  (seeds: 481, 484, 478, 477, 488)
+
+mustmove, III-1 steady population (target 500), 5 seeds
+  theta 1: 279  (seeds: 310, 322, 215, 232, 317)
+  theta 0.9: 362  (seeds: 364, 365, 361, 358, 360)
+  theta 0.8: 428  (seeds: 430, 430, 424, 428, 428)
+  theta 0.7: 575  (seeds: 582, 572, 575, 569, 579)
+  theta 0.6: 758  (seeds: 760, 764, 741, 760, 765)
+  theta 0.5: 836  (seeds: 827, 858, 845, 823, 825)
+mustmove, III-1 steady population (target 500), 5 seeds
+  theta 0.73: 512  (seeds: 514, 515, 504, 513, 512)
+  theta 0.74: 496  (seeds: 498, 498, 494, 495, 494)
+  theta 0.75: 477  (seeds: 473, 480, 475, 480, 479)
+
+slow0.5, III-1 steady population (target 500), 5 seeds
+  theta 1: 32  (seeds: 8, 75, 76, 0, 0)
+  theta 0.9: 176  (seeds: 178, 180, 177, 179, 165)
+  theta 0.8: 172  (seeds: 221, 0, 215, 214, 209)
+  theta 0.7: 303  (seeds: 302, 300, 303, 307, 304)
+  theta 0.6: 346  (seeds: 344, 362, 344, 342, 339)
+  theta 0.5: 375  (seeds: 362, 374, 372, 402, 366)
+slow0.5, III-1 steady population (target 500), 5 seeds
+  theta 0.4: 434  (seeds: 456, 418, 431, 432, 436)
+  theta 0.3: 457  (seeds: 519, 525, 201, 528, 511)
+  theta 0.2: 619  (seeds: 621, 612, 621, 620, 618)
+  theta 0.1: 794  (seeds: 792, 798, 792, 796, 790)
+slow0.5, III-1 steady population (target 500), 5 seeds
+  theta 0.22: 594  (seeds: 595, 574, 600, 599, 601)
+  theta 0.24: 571  (seeds: 576, 569, 552, 579, 581)
+  theta 0.26: 530  (seeds: 544, 562, 558, 563, 421)
+  theta 0.28: 536  (seeds: 530, 536, 533, 533, 546)
+
+slow0.75, III-1 steady population (target 500), 5 seeds
+  theta 1: 150  (seeds: 138, 214, 122, 68, 209)
+  theta 0.9: 209  (seeds: 247, 244, 241, 129, 183)
+  theta 0.8: 287  (seeds: 285, 283, 293, 287, 289)
+  theta 0.7: 379  (seeds: 382, 378, 384, 380, 369)
+  theta 0.6: 536  (seeds: 544, 526, 537, 542, 534)
+  theta 0.5: 595  (seeds: 600, 597, 604, 593, 579)
+slow0.75, III-1 steady population (target 500), 5 seeds
+  theta 0.61: 530  (seeds: 525, 533, 537, 529, 527)
+  theta 0.62: 523  (seeds: 518, 525, 521, 527, 526)
+  theta 0.63: 508  (seeds: 504, 511, 509, 509, 508)
+  theta 0.64: 496  (seeds: 499, 494, 500, 498, 488)
+  theta 0.65: 480  (seeds: 479, 481, 480, 480, 480)
+
+Frozen: lowland 0.74 (493), mustmove 0.74 (496), slow0.75 0.64 (496), slow0.5 0.28 (536; the fit is noisy and not monotone, and 0.28 is nearest to 500).
+
+III-5 falls (probe_falls.py <setting> <theta> 10 ...):
+
+III-5, setting lowland (theta 0.74), 10 seeds
+extinct by t=1500: 0/10; lowest population after t=150, per seed: [28, 65, 104, 189, 211, 235, 293, 299, 308, 319]
+starvations in all 10 runs: 3366
+falls: 116; peak median 1404; trough min / median 28 / 438; births per period in the 60 before the trough, median 4.7 (range 0.3-10.2; book ≲1); starvations per fall median 0; fall length median 63; mean metabolism at the peak median 1.00
+coming of age, by population at birth: cohort size, median sugar / requirement, share qualifying
+  born at N 0-400: 15043, 1.42, 0.80
+  born at N 400-700: 53644, 1.19, 0.65
+  born at N 700-1000: 54019, 0.95, 0.46
+  born at N 1000-: 74834, 0.73, 0.28
+
+III-5, setting mustmove (theta 0.74), 10 seeds
+extinct by t=1500: 0/10; lowest population after t=150, per seed: [268, 364, 381, 407, 419, 419, 459, 481, 648, 659]
+starvations in all 10 runs: 3194
+falls: 111; peak median 1532; trough min / median 268 / 588; births per period in the 60 before the trough, median 6.2 (range 2.9-9.5; book ≲1); starvations per fall median 0; fall length median 63; mean metabolism at the peak median 1.00
+coming of age, by population at birth: cohort size, median sugar / requirement, share qualifying
+  born at N 0-400: 1399, 1.40, 0.78
+  born at N 400-700: 43726, 1.21, 0.68
+  born at N 700-1000: 63229, 1.00, 0.50
+  born at N 1000-: 105768, 0.73, 0.29
+
+III-5, setting slow0.5 (theta 0.28), 10 seeds
+extinct by t=1500: 0/10; lowest population after t=150, per seed: [422, 456, 475, 516, 529, 539, 546, 549, 563, 587]
+starvations in all 10 runs: 21542
+falls: 71; peak median 961; trough min / median 444 / 570; births per period in the 60 before the trough, median 7.0 (range 4.7-9.1; book ≲1); starvations per fall median 51; fall length median 66; mean metabolism at the peak median 1.00
+coming of age, by population at birth: cohort size, median sugar / requirement, share qualifying
+  born at N 0-400: 1371, 2.52, 0.90
+  born at N 400-700: 54927, 1.92, 0.99
+  born at N 700-1000: 104825, 1.62, 0.95
+  born at N 1000-: 3486, 1.44, 0.84
+
+III-5, setting slow0.75 (theta 0.64), 10 seeds
+extinct by t=1500: 0/10; lowest population after t=150, per seed: [50, 68, 191, 224, 280, 396, 436, 445, 447, 528]
+starvations in all 10 runs: 3199
+falls: 110; peak median 1232; trough min / median 50 / 490; births per period in the 60 before the trough, median 5.4 (range 0.3-9.3; book ≲1); starvations per fall median 0; fall length median 63; mean metabolism at the peak median 1.00
+coming of age, by population at birth: cohort size, median sugar / requirement, share qualifying
+  born at N 0-400: 11178, 1.49, 0.86
+  born at N 400-700: 54142, 1.21, 0.67
+  born at N 700-1000: 54922, 0.93, 0.44
+  born at N 1000-: 52904, 0.80, 0.34
+
