@@ -466,7 +466,49 @@ Diagnostics of III-4 (endowments 10–40) under the defaults; nothing here chang
 **Reading:**
 - The book's swings are an old-age echo that needs births to stay low for a whole fall, ≈70 periods, after the population has started thinning: a memory of about a quarter-cycle.
 - Our rules give births no such memory. Children born at the peak still come of age fertile, and on our map net income stays positive up to N≈1,700. The cycle damps within three swings.
-- What carries the memory in the original is unknown. It would have to make births depend on conditions about 30 periods earlier, which none of the readings tested here does.
+- What carries the memory in the original is unknown. It would have to make births depend on conditions about 30 periods earlier, which none of the readings tested here does. (Answered in the next section: our rules carry the same memory; the difference lies in reaching the cycle.)
+
+## Where III-4's birth memory comes from (2026-10-22)
+
+Diagnostics only; nothing here changes the model. The question: what makes the book's births depend on the cycle's phase rather than on current density?
+
+**The memory is the delay to fertility, and ours has it too.**
+- Fit births as a function of the population τ periods earlier. The book's implied births (t=300–2,400) fit best at τ=20–25 (R² 0.93, against 0.15 at τ=0). Ours over the damped cycles (t=100–400) fit best at τ=15–20 (R² 0.82).
+- That lag is the delay from birth to first fertility (12–15 years) plus the time to earn the threshold.
+
+**Our response curve is the book's.** Run III-4 to t=600, cull the settled, evolved society at random to 400, and measure births during the rebound (5 seeds):
+
+| Population 20 periods earlier | 300–500 | 500–700 | 700–900 | 900–1,100 | 1,100–1,300 | 1,300–1,500 | 1,500–1,700 |
+|---|---|---|---|---|---|---|---|
+| Book's implied births per period | 32.2 | 32.2 | 27.0 | 18.8 | 12.7 | 7.5 | 6.6 |
+| Ours, von Neumann contact | 23.4 | 30.3 | 25.4 | 17.4 | 12.3 | 7.4 | 6.4 |
+| Ours, global contact | 33.1 | 33.7 | 27.9 | 20.2 | 14.8 | 9.2 | 5.9 |
+
+- **The rebound reproduces the book's first cycle:** a peak of 1,485–1,517 at +72–77 (book ≈1,550 at t≈75), then a trough of 680–780 (book ≈380).
+- **Only the lowest bin falls short** under the book's contact rule (23 against 32). That is the low-density partner shortage behind III-3's lost mountains (III-3's floor and period, above).
+
+**Our rules hold the book's cycle, but rarely reach it.** Runs "lock in" when they keep a range above 600 in the last 300 of 1,500 periods after the cull:
+
+| Start | Locked into the large cycle | Otherwise |
+|---|---|---|
+| Ordinary III-4 runs (20 seeds, 2,500 periods) | 0 of 20 | range ≈65–160 after t≈1,000 |
+| Culled to 300 / 400 / 600 / 800, von Neumann contact | 1 of 45 (range rising 635 → 982) | first trough 749–993, then decay |
+| Culled to 400, global contact | 4 of 10 | decay to ≈100–150 |
+| Ordinary start, global contact (3 seeds, 1,500 periods) | 0 of 3 | range 172–233 |
+
+- **A locked cycle has the book's shape.** With global contact: peaks 1,540–1,625, troughs 659–756, peak spacing 118–131. The book's late cycle: peaks 1,540–1,560, troughs 530–590, period 124–143. The locked runs carry longer maximum ages (80–94, against 77 in the runs that settled).
+- **The model is bistable:** a quiet equilibrium near 1,170 and a large cycle, with the founding boom deciding which one a run lands on.
+
+**Why our founding boom misses the cycle.**
+- **The book's boom is fast and compact.** Its population climbs from the start (≈415 → ≈1,550 by t≈75, ≈20 births per period on average).
+- **Ours is slow and smeared.** Its unselected founders (mean metabolism 2.5, endowments 10–40) first lose ≈100 agents to starvation. Births run 5.9, 7.9, 14.2, 22.2 per period in successive 20-period windows, so the peak comes late (≈1,410 at t≈120).
+- **A smeared boom gives a smeared death echo.** The first trough is only ≈915, and the cycle decays.
+- **An evolved society culled to 400 booms like the book's founders** (peak at +75). Even so, it locks in only when low-density births are book-like (global contact).
+
+**Reading:**
+- **Nothing is missing from rule S.** The book's birth memory is the ordinary delay to fertility, which our rules contain, and the response to density matches the book's except at the lowest densities.
+- **Two shortfalls keep our runs off the book's cycle:** births at low density about a quarter short (von Neumann contact), which makes the cycle hard to reach and hold; and a founding boom too slow to start it.
+- **Both are the early, low-density birth problem** already recorded for Fig III-1's boom and III-3's founding crash.
 
 ## Visual comparison
 
