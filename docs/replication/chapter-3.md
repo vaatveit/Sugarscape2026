@@ -510,6 +510,47 @@ Diagnostics only; nothing here changes the model. The question: what makes the b
 - **Two shortfalls keep our runs off the book's cycle:** births at low density about a quarter short (von Neumann contact), which makes the cycle hard to reach and hold; and a founding boom too slow to start it.
 - **Both are the early, low-density birth problem** already recorded for Fig III-1's boom and III-3's founding crash.
 
+## III-5's extinction (2026-10-22)
+
+Diagnostics of III-5 (endowments 10–40, fertility ending 10 years earlier) under the defaults; nothing here changes the model. 10 seeds unless stated.
+
+**The book's run** (Fig III-5, digitized; 4.6 periods and 5.3 agents per pixel):
+- **Surges:** ≈405 at t=0, then peaks of ≈1,280 at t≈65, ≈1,440 at t≈298 and ≈1,375 at t≈508.
+- **Troughs:** broad and nearly empty, ≈47 at t≈186 and ≈57 at t≈400, each lasting some 40–60 periods.
+- **Extinction:** at t≈610. In our previous notes this was ≈550.
+- **Extinction follows from troughs that deep.** At ≈50 agents our own rules can't restart a mountain: below 30–40 agents births fall short of deaths (III-3's floor and period, above).
+
+**Ours never gets near that.** Peaks are 1,180–1,470 and troughs 220–970, and no run dies out in 1,500 periods. The one growing cycle (seed 9) deepens its troughs 850 → 596 → 426 → 222 by t≈1,100.
+
+**What the book's troughs require.**
+- **A trough of ≈50 caps the births of the 60 periods before it at about 50**, ≤1 per period, unless children starve. Children that young can't die of old age, so this needs no lifespan assumption.
+- **Inverting the curve** with old-age deaths only gives 1.5–2.1 births per period through each fall (t≈70–190 and 297–409), with at least 52–91 starvations per fall.
+- **Women's shorter windows make this possible.** With fertility ending at 30–40, a boom's women age out within ≈40 periods of the peak. If births are blocked for those 40 periods, almost no one is left to breed when the population thins.
+- **The same block is consistent with III-4.** There women stay fertile 10 years longer, births resume during the fall (≈6–8 per period), and the troughs stop near 380.
+
+**Ours keeps breeding through the falls** (per fall, t up to 1,500):
+
+| | First half of a fall | Second half |
+|---|---|---|
+| Births per period | 3–13 (most runs 8–11) | 2–18 |
+| Fertile-age women | 86–182 | — |
+| … holding their threshold | 29–52% | — |
+| … net income per year | +0.19 to +0.37 | — |
+| Births in the 60 periods before the trough | — | 133–1,003 (book ≲50) |
+
+- **Fit by the population 20 periods earlier**, the book's III-5 births fall to 3.9 and 1.5 per period in the 1,100–1,300 and 1,300–1,500 bins. Ours stay at 7–9.
+
+**What doesn't produce it:**
+- **A compact boom.** Cull the settled society (t=600) to 400. It rebounds to 1,320–1,660 by +57–107, but the first troughs are 369–698 and none of 10 runs dies out. Global contact gives the same: troughs 503–698, 0 of 10 extinct. Unlike III-4, reaching a big swing isn't enough.
+- **A brake on current density.** Block every birth while the population exceeds 1,000 or 1,200: it clamps there (late range 20–490), and none dies out.
+- **So any brake that reads only current density can't make the troughs**, including lack of room for the baby (13–14 blocked pairs per period at III-4's peaks). The block has to outlast the crowding.
+
+**Reading:**
+- **The book's extinction needs births shut off for decades after each peak.** Wealth is the natural carrier: agents leaving the peak far below their threshold, needing more than ≈40 periods to re-earn it.
+- **Our agents leave the peak with income in hand.** At the book's peak densities our net income stays positive (break-even near N≈1,700; III-4's swings, above), so a third to a half of fertile-age women keep qualifying.
+- **One reading fits the first fall but is unproven.** The book's first boom (≈405 → 1,280 by t≈65) happens before selection, while founders' metabolisms are still high, and unselected agents run a deficit at high density (III-1: −0.44 per period at N=500). Our boom comes after selection (metabolism 1.0 by t≈100–120, peak at t≈140), so it never drains wealth.
+- **Later falls are unexplained.** They would need slower selection or a lower break-even in the original than ours. What blocks the original's births at peak density remains open.
+
 ## Visual comparison
 
 - **III-1** (colored by vision): high-vision agents take over, as in Animation III-2; but the population stays on the peaks instead of filling a diagonal band.

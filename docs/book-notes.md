@@ -211,6 +211,8 @@ Baseline (Fig III-1, constant population) uses rule S with default parameters (s
   starvations per crash: the swings are a demographic echo, not starvation crashes.
 - **Fig III-5, extinction:** both changes combined → three growth surges
   (peaks ~1250, ~1450, ~1400) then extinction around t≈550.
+  Digitized (2026-10-22): ≈405 at t=0; peaks ≈1280 at t≈65, ≈1440 at t≈298, ≈1375 at t≈508;
+  troughs ≈47 at t≈186 and ≈57 at t≈400 (broad, 40–60 periods); extinct at t≈610.
 - Fig III-6 summarizes: axes infertility age (vertical) × endowment (horizontal).
 
 ### Inheritance rule I (p. 67)
