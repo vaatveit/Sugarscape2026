@@ -30,7 +30,7 @@ from experiments.run import load_results, results_current, sugarscape_metrics
 from replication.report import evaluate
 from replication.targets import TARGETS
 from sugarscape.model import Model
-from sugarscape.rules import sex
+from sugarscape.rules import movement, sex
 from sugarscape.rules.culture import cross_tags
 
 FIGURES = ("III-1", "III-3", "III-4", "III-5", "VI-2", "VI-3")
@@ -45,6 +45,31 @@ VARIANTS = {  # contact, gift, child's threshold, fertility threshold
     "C1+C3fit": ("vision", "ascape", "redraw", FITTED),
 }
 CACHE = ROOT / "results" / "diagnostics-candidates"
+
+
+def ascape_move(model, agent):
+    """Ascape's rule M (SugarAgent.movement): the site with the most sugar in sight along the lattice, occupied sites
+    included and ties broken at random, with no preference for the nearest; if that site is occupied, stay put. Then
+    harvest as rule M does. A diagnostic of crowding (README next step 3), not a candidate reading of p.25."""
+    ls, rng = model.landscape, model.rng
+    sites = [(agent.x, agent.y)]
+    for dx, dy in sex.VON_NEUMANN:
+        for dist in range(1, agent.vision + 1):
+            sites.append(ls.wrap(agent.x + dx * dist, agent.y + dy * dist))
+    sugar = [ls.sugar[x, y] for x, y in sites]
+    best = [site for site, v in zip(sites, sugar) if v == max(sugar)]
+    x, y = best[int(rng.integers(len(best)))]
+    if model.agent_at(x, y) is None:
+        model.move_agent(agent, x, y)
+    agent.moved = (agent.x, agent.y) != sites[0]
+    x, y = agent.x, agent.y
+    harvest = ls.sugar[x, y]
+    agent.sugar += harvest
+    ls.sugar[x, y] = 0.0
+    agent.last_income = float(harvest)
+    if model.config.spice:
+        agent.spice += ls.spice[x, y]
+        ls.spice[x, y] = 0.0
 
 
 def in_sight(model, agent):
@@ -87,7 +112,8 @@ def make_mate(contact, gift, threshold):
             g = gifts(parents, "sugar", "initial_sugar")
             for p, amount in zip(parents, g):
                 p.sugar -= amount
-            child = model.new_agent(x, y, vision, metabolism, sum(g), max_age)
+            kept = g[1:] if gift == "lost" else g  # Ascape's code sets the child's stock twice: the first gift is lost
+            child = model.new_agent(x, y, vision, metabolism, sum(kept), max_age)
             if threshold == "redraw":
                 child.initial_sugar = float(rng.integers(cfg.endowment[0], cfg.endowment[1], endpoint=True))
             model._assign_sex(child, "F" if rng.integers(2) == 0 else "M")
@@ -97,7 +123,7 @@ def make_mate(contact, gift, threshold):
                 s = gifts(parents, "spice", "initial_spice")
                 for p, amount in zip(parents, s):
                     p.spice -= amount
-                child.spice = child.initial_spice = sum(s)
+                child.spice = child.initial_spice = sum(s[1:] if gift == "lost" else s)
                 if threshold == "redraw":
                     lo, hi = cfg.spice_endowment or cfg.endowment
                     child.initial_spice = float(rng.integers(lo, hi, endpoint=True))

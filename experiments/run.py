@@ -9,7 +9,7 @@ import csv
 import math
 import warnings
 from concurrent.futures import ProcessPoolExecutor
-from dataclasses import replace
+from dataclasses import fields, replace
 from pathlib import Path
 
 import numpy as np
@@ -48,7 +48,10 @@ def fingerprint(exp_id: str) -> str:
     Covers settings, not code: after a model change, re-run with --rerun.
     """
     exp = EXPERIMENTS[exp_id]
-    return f"{exp.rules}\nsteps={exp.steps}\n{exp.config!r}\n"
+    # Config fields left out of repr (rule S's labelled departures) count only when they leave their defaults.
+    hidden = "".join(f"{f.name}={getattr(exp.config, f.name)!r}\n" for f in fields(exp.config)
+                     if not f.repr and getattr(exp.config, f.name) != f.default)
+    return f"{exp.rules}\nsteps={exp.steps}\n{exp.config!r}\n{hidden}"
 
 
 def results_current(exp_id: str, out_dir: Path = Path("results")) -> bool:

@@ -1,0 +1,12 @@
+30 seeds per cell; share of runs showing the book's behavior
+| Figure | Book's behavior | c1c3fit |
+|---|---|---|
+| III-3 | both mountains | 9/30 |
+| III-3 | floor in band (>=200) | 1/30 |
+| III-4 | large cycle (range > 600) | 18/30 |
+| III-5 | extinct by 1500 | 2/30 |
+| III-5 | trough < 100 after t=150 | 9/30 |
+| VI-2 | extinct by 200 | 0/30 |
+| VI-2 | crash at t=20 <= 156 | 0/30 |
+| VI-3 | survives | 30/30 |
+| VI-3 | waves in band (floor >=560, ceiling >=960) | 1/30 |

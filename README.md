@@ -3,7 +3,8 @@
 This is a review of our attempt to rebuild Epstein and Axtell's Sugarscape (1996) from the book and
 reproduce its results. The work ran from 2026-10-21 to 2026-10-22, with a follow-up on 2026-10-23 that
 carried out this review's recommendations ([below](#follow-up-2026-10-23)) and a second follow-up the same day
-that took the next steps ([below](#second-follow-up-2026-10-23)). The detailed evidence is in the
+that took the next steps ([below](#second-follow-up-2026-10-23)), and a third that followed those
+([below](#third-follow-up-2026-10-23)). The detailed evidence is in the
 chapter records ([II](docs/replication/chapter-2.md), [III](docs/replication/chapter-3.md), [IV](docs/replication/chapter-4.md), [V](docs/replication/chapter-5.md),
 [VI](docs/replication/chapter-6.md)), our reading of the book is in [book-notes.md](docs/book-notes.md), the
 design is in [the spec](docs/superpowers/specs/2026-10-21-sugarscape-design.md), and the probe scripts are in
@@ -124,6 +125,7 @@ then a whole-branch review and a fix pass, then the chapter record.
 | 2026-10-23 | "Near" capped at a quarter of the nearer bound | Nine near rows become fails; no status improves |
 | 2026-10-23 | Carrying capacity also read at t≈50, counted in the totals | 27 of the 28 new rows pass; the t=500 rows are unchanged |
 | 2026-10-23 | Run MASON's own Sugarscape | Built from its project archive; see [Follow-up](#follow-up-2026-10-23) |
+| 2026-10-23 | Register C1+C3fit as the labelled variant `VAR-c1c3fit` | Rule S gains three options, off by default (`mate_contact`, `child_gift`, `child_threshold`); the report scores the variant on every population target. Defaults and totals unchanged |
 
 ## What reproduced
 
@@ -426,6 +428,7 @@ C4–C7 change little.
    and III-1 recovers to 314. *Fitted* (θ=0.74, fitted to III-1's level alone): III-4's range 866
    and VI-3's floor 731 pass, and five more rows come near, but nothing dies out
    ([Chapter III record](docs/replication/chapter-3.md#c1-with-cheap-children-at-a-fitted-threshold-2026-10-23)).
+   Registered as `VAR-c1c3fit` (user decision, 2026-10-23).
 4. **Rule-by-rule sweeps** (all agents move, then all mate), as Kehoe orders them. The text implies
    per-agent turns. *Result:* III-4's range rises from 106 to 282, while VI-3 gets worse (first
    peak 89) and nothing else moves, the waves included.
@@ -466,7 +469,7 @@ These are the claims our evidence casts doubt on, with how strong that evidence 
 | Fig III-4's large cycle is the typical outcome | In our model the cycle is one of two stable states, reached only after a fast, compact boom: 2 of 30 ordinary runs under p.55's rule, 0 of 30 under the default. Whether the original lands there reliably is unknown; the book shows one run. Cheaper reproduction makes the swings routine: Ascape's code cycles at the book's period in 10 of 10 runs (range 444–807), and MASON's flat threshold at twice the period | Medium (depends on the reproduction rule) |
 | VI-2's society dies out | Under p.55's rule ours dies out in 15 of 30 seeds: a coin flip, not a property of the rules | Medium (depends on our model) |
 | Fig III-3's floor of ≈250 | It needs both mountains to survive the founding crash, a knife-edge in our runs | Medium (depends on our model) |
-| Fig III-5's extinction at t≈610 | It needs births near zero for ≈40 periods after each peak. Its frequency is unstated. But it is not a rare draw of our model: it never happens in 60 of our runs, nor in 10 of MASON's | Weak |
+| Fig III-5's extinction at t≈610 | It needs births near zero for ≈40 periods after each peak. Its frequency is unstated. It never happens in 60 runs under the default or p.55's rule, nor in 10 of MASON's. Under `VAR-c1c3fit` it happens in 2 of 30 | Weak |
 | Fig II-5 values are asymptotic "carrying capacities" | Our populations match all 18 points at t≈45–60 and fall 10–20% below at t=500 on the metabolism-2 and -3 curves | Medium: either the book read early, or our long-run decline is wrong |
 | Fig IV-6's carrying capacities | In the two-commodity model the long-run population scales with the unstated starting population | Strong in our model |
 | Animation V-3's first-frame statistics | A spread of 0.62 at a mean of 3.41 is impossible for 10-disease draws, which give 1.2–1.5 | Strong (arithmetic) |
@@ -566,14 +569,43 @@ fitted threshold, and test candidates C4–C7.
 
 No default changed and no target moved, so the scoreboard stands.
 
+It left three next steps: register C1+C3fit as a labelled variant, count its extinctions over 30 seeds,
+and look for what drives the book's societies to near-extinction.
+
+## Third follow-up (2026-10-23)
+
+1. **`VAR-c1c3fit` registered** (user decision). Rule S gained three options, off by default:
+   partners in sight, a gift of at most 5, and a redrawn threshold. The report scores the variant on
+   every population target. It reproduces the diagnostic's runs exactly. Defaults, the saved runs'
+   fingerprints and the totals are unchanged.
+2. **Its extinctions as frequencies** over 30 seeds
+   ([Chapter III record](docs/replication/chapter-3.md#var-c1c3fits-single-runs-as-frequencies-2026-10-23)):
+   - **III-5:** dies out in 2 of 30 (the first extinctions of any setting), with a trough below 100
+     in 9.
+   - **III-4:** holds the large cycle in 18 of 30.
+   - **III-3:** keeps both mountains in 9 of 30.
+   - **VI-2:** never dies out (0 of 30). The variant's easier births work against it.
+3. **What stops the near-extinctions**
+   ([Chapter III record](docs/replication/chapter-3.md#what-keeps-the-variants-societies-alive-after-a-peak-2026-10-23)):
+   - **Peak cohorts are short:** they come of age at 0.72 of their requirement, and only 27% qualify.
+     This is the deficit the default lacked.
+   - **Falls are short and never starve.** They last ≈65 periods with ≈4 births per period before
+     the trough, where the book's last ≈110 with ≲1 birth per period and 52–91 starvations.
+   - **Why no one starves:** metabolism is 1.00 at every peak, so each site's regrowth feeds its
+     holder.
+   - **Three mechanisms, each fitted to III-1, don't change this:** Ascape's lost gift (deeper
+     deficit, still no extinction), Ascape's movement (higher troughs), and children with a fresh
+     metabolism (steady starvation, no cycle).
+   - **Reading:** the book's peaks must outgrow their food while the peak cohorts can't breed, and
+     ours never outgrow it.
+
 **Next steps now:**
-1. Decide whether to register C1+C3fit (or C1 alone) as a labelled `VAR-` variant, so the report
-   scores it on every target alongside `VAR-book`. This is a registry change, so it is the project
-   owner's decision.
-2. Measure C1+C3fit's extinctions as frequencies over 30 seeds (III-3, III-5, VI-2), to tell
-   "never" from "rarer than five seeds show".
-3. Look for what drives the book's societies to near-extinction after a peak. It is the one piece
-   that no reading, candidate or outside implementation has produced.
+1. Find what would let a peak outgrow its food after selection has set metabolism to 1. Candidates
+   are a slower growback or a smaller productive area than the map gives. Both depart from the
+   text (G1, Fig II-1), and each would have to keep Chapter II's carrying capacities, which match
+   today.
+2. Score `VAR-c1c3fit` on Chapter VI's other society runs (VI-1), where easier contact may help the
+   sparse society.
 
 ## Where things are
 

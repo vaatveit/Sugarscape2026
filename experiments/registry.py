@@ -369,7 +369,11 @@ register(Experiment(
 # birth endowment, was fitted to Fig III-1's steady population (500) alone and adopted by user decision
 # (2026-10-22). These variants run the reproduction figures unchanged otherwise: VAR-book is p.55 as
 # written (threshold 1.0); VAR-share is the other fitted setting, a smaller gift at p.55's threshold.
-VARIANTS = {"book": {"fertility_threshold": 1.0}, "share": {"fertility_threshold": 1.0, "child_share": 0.4975}}
+# VAR-c1c3fit (2026-10-23, user decision to register it) departs from p.55-56 on contact, gift and threshold
+# (README candidates C1+C3), with the threshold fitted to Fig III-1's steady population alone (0.74).
+VARIANTS = {"book": {"fertility_threshold": 1.0}, "share": {"fertility_threshold": 1.0, "child_share": 0.4975},
+            "c1c3fit": {"fertility_threshold": 0.74, "mate_contact": "vision", "child_gift": "capped",
+                        "child_threshold": "redraw"}}
 VALIDATION = ("III-1", "III-3", "III-4", "III-5", "VI-2", "VI-3")
 for _name, _setting in VARIANTS.items():
     for _id in VALIDATION:

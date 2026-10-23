@@ -118,3 +118,14 @@ def test_unknown_founder_ages_rejected():
 def test_fertility_threshold_defaults_to_the_calibrated_value():  # user decision 2026-10-22; p.55's rule is 1.0
     c = Config()
     assert (c.fertility_threshold, c.child_share) == (0.83, 0.5)
+
+
+@pytest.mark.parametrize("bad", [{"mate_contact": "global"}, {"child_gift": "half"}, {"child_threshold": "zero"}])
+def test_unknown_rule_s_options_rejected(bad):
+    with pytest.raises(ValueError):
+        Config(sex=True, **bad)
+
+
+def test_rule_s_options_default_to_the_book():  # p.55-56; the C1/C3 options are labelled departures
+    c = Config()
+    assert (c.mate_contact, c.child_gift, c.child_threshold) == ("neighbors", "endowment", "endowment")

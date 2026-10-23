@@ -1,13 +1,14 @@
 from dataclasses import replace
 
 from experiments.registry import EXPERIMENTS, VALIDATION, VARIANTS
+from experiments.run import fingerprint
 from replication.targets import TARGETS
 
 VAR = [t for t in TARGETS if t.experiment.startswith("VAR-")]
 
 
 def test_each_variant_runs_every_validation_figure_unchanged_otherwise():
-    assert set(VARIANTS) == {"book", "share"} and VALIDATION == ("III-1", "III-3", "III-4", "III-5", "VI-2", "VI-3")
+    assert set(VARIANTS) == {"book", "share", "c1c3fit"} and VALIDATION == ("III-1", "III-3", "III-4", "III-5", "VI-2", "VI-3")
     for name, setting in VARIANTS.items():
         for exp_id in VALIDATION:
             var, default = EXPERIMENTS[f"VAR-{name}/{exp_id}"], EXPERIMENTS[exp_id]
@@ -15,15 +16,17 @@ def test_each_variant_runs_every_validation_figure_unchanged_otherwise():
             assert (var.rules, var.steps, var.seeds) == (default.rules, default.steps, default.seeds)
 
 
-def test_variant_settings_are_frozen():  # VAR-book is p.55 as written; VAR-share as fitted (Chapter III record)
+def test_variant_settings_are_frozen():  # VAR-book is p.55 as written; VAR-share, VAR-c1c3fit as fitted (Chapter III record)
     assert VARIANTS == {"book": {"fertility_threshold": 1.0},
-                        "share": {"fertility_threshold": 1.0, "child_share": 0.4975}}
+                        "share": {"fertility_threshold": 1.0, "child_share": 0.4975},
+                        "c1c3fit": {"fertility_threshold": 0.74, "mate_contact": "vision", "child_gift": "capped",
+                                    "child_threshold": "redraw"}}
     assert not any(e.startswith("CAL-") for e in EXPERIMENTS)
 
 
 def test_targets_are_mirrored_with_their_baselines():
     default = [t for t in TARGETS if t.experiment in VALIDATION]
-    assert len(VAR) == 2 * len(default)
+    assert len(VAR) == len(VARIANTS) * len(default)
     for t in VAR:
         assert t.experiment in EXPERIMENTS and (t.baseline is None or t.baseline.startswith("VAR-"))
         assert t.baseline is None or t.baseline.split("/")[0] == t.experiment.split("/")[0]
@@ -33,3 +36,8 @@ def test_default_experiments_use_the_calibrated_threshold():  # user decision 20
     for exp_id in VALIDATION:
         c = EXPERIMENTS[exp_id].config
         assert (c.fertility_threshold, c.child_share) == (0.83, 0.5)
+
+
+def test_fingerprints_name_rule_s_options_only_when_they_depart_from_the_book():  # saved runs stay current
+    assert "mate_contact" not in fingerprint("III-1") and "mate_contact" not in fingerprint("VAR-book/III-1")
+    assert "mate_contact='vision'" in fingerprint("VAR-c1c3fit/III-1")

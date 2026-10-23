@@ -104,3 +104,37 @@ def test_child_share_variant():  # calibrated variant: each parent gives a quart
     f, h = couple(m)
     kid = mate(m, f)[0]
     assert kid.sugar == kid.initial_sugar == 30.0 and f.sugar == h.sugar == 45.0
+
+
+def test_mates_within_vision_variant():  # C1 (README candidates): partners in sight, not only the four neighbors
+    for contact, born in (("neighbors", 0), ("vision", 1)):
+        m = tiny_model(np.ones((8, 8), dtype=int), sex=True, mate_contact=contact)
+        f, h = couple(m)
+        m.move_agent(h, 2, 4)  # two sites along a lattice line
+        f.vision = 2
+        assert len(mate(m, f)) == born
+    m = tiny_model(np.ones((8, 8), dtype=int), sex=True, mate_contact="vision")
+    f, h = couple(m)
+    m.move_agent(h, 3, 3)  # diagonal: out of sight
+    f.vision = 2
+    assert mate(m, f) == []
+
+
+def test_capped_gift_variant():  # C3 (Ascape): each parent gives at most 5 of its current sugar
+    m = tiny_model(np.ones((6, 6), dtype=int), sex=True, child_gift="capped")
+    f, h = couple(m)
+    kid = mate(m, f)[0]
+    assert kid.sugar == kid.initial_sugar == 10.0 and f.sugar == h.sugar == 55.0
+    m = tiny_model(np.ones((6, 6), dtype=int), sex=True, child_gift="capped")
+    f, h = couple(m, sugar=4.0)
+    f.initial_sugar = h.initial_sugar = 3.0
+    kid = mate(m, f)[0]
+    assert kid.sugar == 8.0 and f.sugar == h.sugar == 0.0
+
+
+def test_redrawn_threshold_variant():  # C3 (Ascape): the child's threshold is a fresh draw from the founders' range
+    m = tiny_model(np.ones((6, 6), dtype=int), sex=True, child_gift="capped", child_threshold="redraw",
+                   endowment=(50, 100))
+    f, h = couple(m)
+    kid = mate(m, f)[0]
+    assert kid.sugar == 10.0 and 50 <= kid.initial_sugar <= 100 and kid.initial_sugar == int(kid.initial_sugar)

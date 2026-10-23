@@ -728,6 +728,69 @@ Unmarked cells fail.
   more, or rarer luck than five seeds show. It remains a labelled departure from p.55 and p.56: nothing here changes
   the default.
 
+**Registered (user decision, 2026-10-23)** as `VAR-c1c3fit/<id>` on the six validation figures, scored with the same
+targets (`python -m replication.report --chapter VAR`). Rule S gained three options, off by default:
+- `mate_contact="vision"`: partners in sight along the lattice;
+- `child_gift="capped"`: each parent gives min(5, its sugar), and likewise spice;
+- `child_threshold="redraw"`: the child's threshold is drawn from the founders' range.
+
+They stay out of `Config`'s repr, so the saved runs' fingerprints are unchanged. The registered rule follows the
+diagnostic's draw order, and its runs reproduce the table above exactly on the shared seeds. With the registry's 10
+seeds for III-5 and VI-2, neither dies out in any run, and VI-2's crash at t≈20 is 241.
+
+## VAR-c1c3fit's single runs as frequencies (2026-10-23)
+
+The book's behaviors counted over 30 seeds, as in "The book's single runs as frequencies" above
+([frequencies.py](../../diagnostics/frequencies.py) `30 8 c1c3fit`,
+[output](../../diagnostics/output/frequencies_c1c3fit.txt)).
+
+| Figure | Book's behavior | Default (θ=0.83) | p.55 (θ=1.0) | VAR-c1c3fit |
+|---|---|---|---|---|
+| III-3 | both mountains held through the last 500 periods | 3/30 | 0/30 | **9/30** |
+| III-3 | floor after t=300 in the book's band (≥200) | 0/30 | 0/30 | 1/30 |
+| III-4 | the large cycle (range > 600 over t=1500–2500) | 0/30 | 2/30 | **18/30** |
+| III-5 | extinct by t=1500 | 0/30 | 0/30 | **2/30** |
+| III-5 | a trough below 100 after t=150 (the book's ≈50) | 0/30 | 0/30 | **9/30** |
+| VI-2 | extinct by t=200 | 1/30 | 15/30 | 0/30 |
+| VI-2 | crash at t=20 within the band (≤156) | 0/30 | 0/30 | 0/30 |
+| VI-3 | survives to t=1000 | 23/30 | 12/30 | 30/30 |
+| VI-3 | floor and ceiling after t=250 in the book's bands (≥560, ≥960) | 4/30 | 0/30 | 1/30 |
+
+- **III-5's extinction is rare under the variant, not impossible:** 2 of 30 runs die out, the first of any setting,
+  and 9 of 30 reach a trough below 100. The registry's 10 seeds happen to hold none.
+- **III-4's cycle becomes the usual outcome** (18 of 30), and III-3 keeps both mountains three times as often.
+- **VI-2 never dies out:** the variant's easier births work against the book's VI-2, as C1 did alone.
+- **VI-3 never dies, but rarely reaches the book's waves:** its mean floor passes (731), but the ceiling of 960 is
+  reached once.
+
+## What keeps the variant's societies alive after a peak (2026-10-23)
+
+README next step 3, probed on III-5 by [probe_falls.py](../../diagnostics/probe_falls.py), 10 seeds per setting
+([output](../../diagnostics/output/probe_falls.txt)). A fall runs from a peak to the next trough of the 41-period
+moving average (swings of 200 or more). The book's falls (above: "III-5's extinction") last ≈100–120 periods and end
+near 50. That needs ≲1 birth per period over the 60 periods before the trough, and 52–91 starvations per fall.
+
+| Setting (each fitted to III-1's level) | Extinct | Troughs, min / median | Births per period, 60 before the trough | Starvations per fall | Fall length | Peak-born cohort: sugar / requirement at coming of age, share qualifying |
+|---|---|---|---|---|---|---|
+| VAR-c1c3fit (θ=0.74) | 0/10 | 71 / 366 | 3.9 | 0 | 66 | 0.72, 27% |
+| + Ascape's lost gift (θ=0.67) | 0/10 | 36 / 426 | 4.6 | 0 | 64 | 0.56, 14% |
+| + Ascape's movement (θ=0.81) | 0/10 | 274 / 668 | 7.3 | 0 | 62 | 0.74, 29% |
+| + fresh metabolism for children (θ=0.74, not fitted) | 0/10 | lowest 300 | no falls | 7,400 per run | — | — |
+
+The peak-born cohort is the one born at N ≥ 1,000.
+- **The variant has the cohort deficit the default lacked.** Agents born at the peak come of age at 0.72 of their
+  requirement, and only 27% qualify (under the default: 1.15–1.35 times it). Ascape's lost gift deepens it to 0.56
+  and 14%.
+- **But the falls are too short and lack starvation.** The peak cohort dies of old age within ≈65 periods, while
+  cohorts born at lower densities keep breeding at ≈4 births per period. No agent starves in any fall. Mean metabolism
+  at every peak is 1.00, so one unit of regrowth per site feeds everyone who holds a site.
+- **Starvation alone doesn't make falls.** Children with a fresh metabolism (no selection) starve steadily, ≈7,400
+  per run. But the society settles at 300–700 with no boom and bust at all.
+- **Ascape's movement makes it worse:** occupied sites compete and blocked agents stay put, which lifts the troughs.
+- **Reading:** the book's falls need both a deficit in the peak cohorts *and* a peak that outgrows its food, with
+  starvation through a fall twice as long as ours. Our societies select metabolism down to 1 before each peak, so they
+  never outgrow the food. What lets the original's peaks overshoot remains unknown.
+
 ## Ascape's own runs (2026-10-23)
 
 Ascape 5.6.1's Sugarscape sex model (Brookings), run headless from its release jar on Figs III-1, III-3, III-4 and

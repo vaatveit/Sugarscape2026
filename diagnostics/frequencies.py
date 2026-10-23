@@ -1,6 +1,6 @@
 """The book's single-run population figures as frequencies: over many seeds, how often does a run show the book's
-behavior? Under the default threshold (0.83) and p.55's (1.0), founders at spread ages. Seeds are the registry's
-(base + k), so the first 5-10 are the registered runs.
+behavior? Under the default threshold (0.83) and p.55's (1.0), and optionally the VAR-c1c3fit variant (2026-10-23),
+founders at spread ages. Seeds are the registry's (base + k), so the first 5-10 are the registered runs.
 
   III-3  keeps both mountains (each quadrant occupied through the last 500 periods); floor t>=300 in the book's band
   III-4  holds the large cycle (range > 600 over t=1500-2500)
@@ -8,7 +8,7 @@ behavior? Under the default threshold (0.83) and p.55's (1.0), founders at sprea
   VI-2   dies out by t=200; crash at t=20 within the band's top (≤156)
   VI-3   survives to t=1000; floor and ceiling after t=250 in the book's bands (≥560, ≥960)
 
-Usage: frequencies.py [seeds] [jobs]
+Usage: frequencies.py [seeds] [jobs] [setting,...]    settings: default book c1c3fit (default: default,book)
 """
 from _pin import pin
 pin("C")  # defaults this diagnostic was written under; see _pin.py
@@ -19,17 +19,17 @@ from dataclasses import replace
 
 import numpy as np
 
-from experiments.registry import EXPERIMENTS
+from experiments.registry import EXPERIMENTS, VARIANTS
 from sugarscape.model import Model
 
 STEPS = {"III-3": 2500, "III-4": 2500, "III-5": 1500, "VI-2": 200, "VI-3": 1000}
-THETAS = {"default 0.83": 0.83, "book 1.0": 1.0}
+SETTINGS = {"default": {"fertility_threshold": 0.83}, "book": {"fertility_threshold": 1.0}, "c1c3fit": VARIANTS["c1c3fit"]}
 
 
 def run(args):
-    exp_id, theta, k = args
+    exp_id, setting, k = args
     base = EXPERIMENTS[exp_id].config
-    m = Model(replace(base, fertility_threshold=theta, seed=base.seed + k))
+    m = Model(replace(base, **SETTINGS[setting], seed=base.seed + k))
     pop, both = [], True
     for t in range(STEPS[exp_id]):
         agents = m.agents
@@ -42,7 +42,7 @@ def run(args):
             break
         m.step()
     pop += [0] * (STEPS[exp_id] - len(pop))
-    return exp_id, theta, k, np.array(pop), both
+    return exp_id, setting, k, np.array(pop), both
 
 
 def outcomes(exp_id, p, both):
@@ -60,17 +60,17 @@ def outcomes(exp_id, p, both):
 if __name__ == "__main__":
     seeds = int(sys.argv[1]) if len(sys.argv) > 1 else 30
     jobs = int(sys.argv[2]) if len(sys.argv) > 2 else 8
-    cases = [(e, th, k) for e in STEPS for th in THETAS.values() for k in range(seeds)]
+    names = sys.argv[3].split(",") if len(sys.argv) > 3 else ["default", "book"]
+    cases = [(e, s, k) for e in STEPS for s in names for k in range(seeds)]
     with ProcessPoolExecutor(jobs) as pool:
         res = list(pool.map(run, cases))
     print(f"{seeds} seeds per cell; share of runs showing the book's behavior")
-    print("| Figure | Book's behavior | " + " | ".join(THETAS) + " |")
-    print("|---|---|" + "---|" * len(THETAS))
+    print("| Figure | Book's behavior | " + " | ".join(names) + " |")
+    print("|---|---|" + "---|" * len(names))
     for e in STEPS:
-        names = outcomes(e, np.ones(STEPS[e]), True).keys()
-        for name in names:
+        for outcome in outcomes(e, np.ones(STEPS[e]), True):
             cells = []
-            for th in THETAS.values():
-                hits = [outcomes(e, p, b)[name] for ee, t, k, p, b in res if ee == e and t == th]
+            for name in names:
+                hits = [outcomes(e, p, b)[outcome] for ee, s, k, p, b in res if ee == e and s == name]
                 cells.append(f"{sum(hits)}/{len(hits)}")
-            print(f"| {e} | {name} | " + " | ".join(cells) + " |")
+            print(f"| {e} | {outcome} | " + " | ".join(cells) + " |")

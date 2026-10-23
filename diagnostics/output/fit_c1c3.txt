@@ -20,3 +20,33 @@ C1+C3, III-1 steady population (target 500, band 400-600), 5 seeds
 
 
 Frozen: 0.74 (495, nearest the target of 500).
+
+Lost gift (Ascape's exact children), fitted 2026-10-23:
+C1+C3 (gift lost), III-1 steady population (target 500, band 400-600), 5 seeds
+  theta 1: 240  (seeds: 182, 271, 185, 284, 277)
+  theta 0.9: 324  (seeds: 331, 320, 320, 325, 324)
+  theta 0.8: 378  (seeds: 376, 373, 383, 377, 381)
+  theta 0.7: 452  (seeds: 456, 446, 454, 450, 450)
+  theta 0.6: 659  (seeds: 662, 667, 655, 666, 643)
+  theta 0.5: 781  (seeds: 776, 773, 789, 785, 785)
+C1+C3 (gift lost), III-1 steady population (target 500, band 400-600), 5 seeds
+  theta 0.65: 527  (seeds: 538, 523, 527, 523, 525)
+  theta 0.66: 508  (seeds: 504, 510, 510, 510, 507)
+  theta 0.67: 495  (seeds: 498, 497, 497, 490, 495)
+  theta 0.68: 477  (seeds: 474, 477, 476, 483, 475)
+  theta 0.69: 463  (seeds: 466, 463, 461, 463, 464)
+Frozen: 0.67 (495).
+
+Ascape's movement, fitted 2026-10-23:
+C1+C3 (move ascape), III-1 steady population (target 500, band 400-600), 5 seeds
+  theta 1: 351  (seeds: 346, 349, 356, 351, 352)
+  theta 0.9: 412  (seeds: 412, 412, 413, 414, 408)
+  theta 0.8: 509  (seeds: 505, 506, 509, 513, 509)
+  theta 0.7: 635  (seeds: 635, 636, 637, 635, 632)
+  theta 0.6: 761  (seeds: 762, 760, 760, 761, 763)
+  theta 0.5: 870  (seeds: 870, 867, 872, 872, 871)
+C1+C3 (move ascape), III-1 steady population (target 500, band 400-600), 5 seeds
+  theta 0.8: 509  (seeds: 505, 506, 509, 513, 509)
+  theta 0.81: 493  (seeds: 494, 494, 494, 494, 489)
+  theta 0.82: 484  (seeds: 485, 486, 484, 483, 482)
+Frozen: 0.81 (493).

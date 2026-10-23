@@ -4,12 +4,15 @@ Book page references are to Epstein & Axtell (1996). Fields marked "our call" fi
 gaps the book leaves open; see docs/book-notes.md.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 PLACEMENTS = ("random", "block")
 WINTER_MODES = ("fractional", "pulse")
 TRIBES = ("blue", "red")
 FOUNDER_AGES = ("uniform", "zero")
+MATE_CONTACTS = ("neighbors", "vision")
+CHILD_GIFTS = ("endowment", "capped")
+CHILD_THRESHOLDS = ("endowment", "redraw")
 
 
 @dataclass(frozen=True)
@@ -64,6 +67,11 @@ class Config:
     # adopted by user decision 2026-10-22; the book's rule runs as the VAR-book experiments.
     fertility_threshold: float = 0.83  # share of its birth endowment an agent must hold to be fertile
     child_share: float = 0.5  # share of its initial endowment each parent gives a child (p.55)
+    # Labelled departures from rule S (README candidates C1 and C3; VAR-c1c3fit), off by default. Left out of
+    # repr so saved results' fingerprints are unchanged; experiments.run.fingerprint adds them when set.
+    mate_contact: str = field(default="neighbors", repr=False)  # "vision": partners in sight along the lattice
+    child_gift: str = field(default="endowment", repr=False)  # "capped": each parent gives min(5, its sugar)
+    child_threshold: str = field(default="endowment", repr=False)  # "redraw": from the founders' range
 
     # Chapter IV. New draws are gated by these and come after earlier draws.
     spice: bool = False  # second commodity (p.96); spice map = sugar map mirrored east-west
@@ -98,6 +106,10 @@ class Config:
             )
         if self.replacement and self.max_age is None:
             raise ValueError("replacement R[a,b] needs a max_age range [a, b]")
+        for name, allowed in (("mate_contact", MATE_CONTACTS), ("child_gift", CHILD_GIFTS),
+                              ("child_threshold", CHILD_THRESHOLDS)):
+            if getattr(self, name) not in allowed:
+                raise ValueError(f"{name} must be one of {allowed}, not {getattr(self, name)!r}")
         if self.founder_ages not in FOUNDER_AGES:
             raise ValueError(f"founder_ages must be one of {FOUNDER_AGES}, not {self.founder_ages!r}")
         if self.placement not in PLACEMENTS:

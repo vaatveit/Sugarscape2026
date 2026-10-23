@@ -3,6 +3,7 @@
 from sugarscape.rules.culture import cross_tags
 
 VON_NEUMANN = ((1, 0), (-1, 0), (0, 1), (0, -1))
+GIFT_CAP = 5.0  # Ascape's most a parent gives a child (child_gift="capped")
 
 
 def is_fertile(agent, threshold: float = 1.0) -> bool:
@@ -25,6 +26,18 @@ def _empty_sites(model, agent) -> list[tuple[int, int]]:
     return [s for s in sites if model.agent_at(*s) is None]
 
 
+def in_sight(model, agent) -> list:
+    """Agents within the agent's vision along the four lattice directions (rule M's lookout), nearest first:
+    the partners of mate_contact="vision" (README candidate C1)."""
+    found = []
+    for k in range(1, agent.vision + 1):
+        for dx, dy in VON_NEUMANN:
+            other = model.agent_at(agent.x + dx * k, agent.y + dy * k)
+            if other is not None:
+                found.append(other)
+    return found
+
+
 def mate(model, agent) -> list:
     """Rule S: for each neighbor, in random order: if of the opposite sex, both fertile, and an
     empty site exists next to either parent, a child is born there (p.56).
@@ -33,11 +46,17 @@ def mate(model, agent) -> list:
     and maximum age each from a random parent (Table III-1) and crossed tags (p.78); its sex is a
     coin flip and its childbearing ages are drawn for its sex (our call). Placement among the empty
     sites is uniformly random (our call).
+
+    Labelled departures (Config, off by default): mate_contact="vision" takes partners in sight, not only
+    neighbors; child_gift="capped" has each parent give min(5, its current sugar and spice); child_threshold=
+    "redraw" gives the child a fertility threshold drawn from the founders' endowment range.
     """
     rng = model.rng
-    threshold, share = model.config.fertility_threshold, model.config.child_share
+    cfg = model.config
+    threshold, share = cfg.fertility_threshold, cfg.child_share
+    capped, redraw = cfg.child_gift == "capped", cfg.child_threshold == "redraw"
     children = []
-    neighbors = model.neighbors_of(agent)
+    neighbors = in_sight(model, agent) if cfg.mate_contact == "vision" else model.neighbors_of(agent)
     for i in rng.permutation(len(neighbors)):
         other = neighbors[int(i)]
         if other.sex is None or other.sex == agent.sex or not (is_fertile(agent, threshold) and is_fertile(other, threshold)):
@@ -50,20 +69,37 @@ def mate(model, agent) -> list:
         vision = parents[int(rng.integers(2))].vision
         metabolism = parents[int(rng.integers(2))].metabolism
         max_age = parents[int(rng.integers(2))].max_age
-        endowment = agent.initial_sugar * share + other.initial_sugar * share
-        agent.sugar -= agent.initial_sugar * share
-        other.sugar -= other.initial_sugar * share
+        if capped:
+            gifts = [min(GIFT_CAP, max(p.sugar, 0.0)) for p in parents]
+            agent.sugar -= gifts[0]
+            other.sugar -= gifts[1]
+            endowment = sum(gifts)
+        else:
+            endowment = agent.initial_sugar * share + other.initial_sugar * share
+            agent.sugar -= agent.initial_sugar * share
+            other.sugar -= other.initial_sugar * share
         child = model.new_agent(x, y, vision, metabolism, endowment, max_age)
+        if redraw:
+            child.initial_sugar = float(rng.integers(cfg.endowment[0], cfg.endowment[1], endpoint=True))
         model._assign_sex(child, "F" if rng.integers(2) == 0 else "M")
         if agent.tags is not None and other.tags is not None:
             child.tags = cross_tags(rng, agent.tags, other.tags)
-        if model.config.spice:  # Chapter IV: draws come last so earlier streams are unchanged
-            agent.spice -= agent.initial_spice * share
-            other.spice -= other.initial_spice * share
-            child.spice = child.initial_spice = agent.initial_spice * share + other.initial_spice * share
+        if cfg.spice:  # Chapter IV: draws come last so earlier streams are unchanged
+            if capped:
+                spice_gifts = [min(GIFT_CAP, max(p.spice, 0.0)) for p in parents]
+                agent.spice -= spice_gifts[0]
+                other.spice -= spice_gifts[1]
+                child.spice = child.initial_spice = sum(spice_gifts)
+            else:
+                agent.spice -= agent.initial_spice * share
+                other.spice -= other.initial_spice * share
+                child.spice = child.initial_spice = agent.initial_spice * share + other.initial_spice * share
+            if redraw:
+                lo, hi = cfg.spice_endowment or cfg.endowment
+                child.initial_spice = float(rng.integers(lo, hi, endpoint=True))
             child.spice_metabolism = parents[int(rng.integers(2))].spice_metabolism
             child.foresight = parents[int(rng.integers(2))].foresight
-        if model.config.disease_list:  # Chapter V: untrained genotypes are crossed (p.146)
+        if cfg.disease_list:  # Chapter V: untrained genotypes are crossed (p.146)
             child.immune_genotype = cross_tags(rng, agent.immune_genotype, other.immune_genotype)
             child.immune = list(child.immune_genotype)
             child.disease_fee = model.config.disease_fee

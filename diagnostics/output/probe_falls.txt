@@ -1,0 +1,36 @@
+III-5, setting c1c3fit, 10 seeds
+extinct by t=1500: 0/10; lowest population after t=150, per seed: [71, 95, 119, 129, 180, 182, 187, 188, 196, 274]
+starvations in all 10 runs: 3158
+falls: 110; peak median 1423; trough min / median 71 / 366; births per period in the 60 before the trough, median 3.9 (range 0.8-8.6; book ≲1); starvations per fall median 0; fall length median 66; mean metabolism at the peak median 1.00
+coming of age, by population at birth: cohort size, median sugar / requirement, share qualifying
+  born at N 0-400: 19315, 1.40, 0.78
+  born at N 400-700: 55100, 1.18, 0.64
+  born at N 700-1000: 45360, 0.94, 0.45
+  born at N 1000-: 69503, 0.72, 0.27
+
+III-5, setting lost (theta 0.67), 10 seeds
+extinct by t=1500: 0/10; lowest population after t=150, per seed: [36, 135, 167, 202, 223, 236, 296, 356, 369, 385]
+starvations in all 10 runs: 3207
+falls: 111; peak median 1288; trough min / median 36 / 426; births per period in the 60 before the trough, median 4.6 (range 0.4-7.9; book ≲1); starvations per fall median 0; fall length median 64; mean metabolism at the peak median 1.00
+coming of age, by population at birth: cohort size, median sugar / requirement, share qualifying
+  born at N 0-400: 12653, 1.27, 0.70
+  born at N 400-700: 60853, 1.05, 0.54
+  born at N 700-1000: 48349, 0.78, 0.32
+  born at N 1000-: 56242, 0.56, 0.14
+
+III-5, setting move (theta 0.81), 10 seeds
+extinct by t=1500: 0/10; lowest population after t=150, per seed: [274, 329, 368, 388, 501, 579, 620, 626, 708, 758]
+starvations in all 10 runs: 2839
+falls: 111; peak median 1447; trough min / median 274 / 668; births per period in the 60 before the trough, median 7.3 (range 2.5-11.1; book ≲1); starvations per fall median 0; fall length median 62; mean metabolism at the peak median 1.00
+coming of age, by population at birth: cohort size, median sugar / requirement, share qualifying
+  born at N 0-400: 2206, 1.28, 0.72
+  born at N 400-700: 32676, 1.14, 0.61
+  born at N 700-1000: 71235, 0.94, 0.45
+  born at N 1000-: 103290, 0.74, 0.29
+
+III-5, setting fresh (theta 0.74), 10 seeds
+extinct by t=1500: 0/10; lowest population after t=150, per seed: [300, 303, 309, 310, 322, 326, 331, 339, 344, 373]
+starvations in all 10 runs: 74137
+coming of age, by population at birth: cohort size, median sugar / requirement, share qualifying
+  born at N 0-400: 27775, 0.90, 0.44
+  born at N 400-700: 68732, 0.88, 0.43

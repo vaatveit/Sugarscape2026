@@ -150,6 +150,9 @@ Twin-peaked sugarscape, G1, movement M throughout.
   endowed with at birth**. (Chapter IV credit lets agents borrow for this.)
   **Our default departs from this (user decision, 2026-10-22):** 0.83 of the birth endowment, fitted to
   Fig III-1's steady population; p.55's rule runs as the VAR-book experiments.
+  **A labelled variant departs further (registered 2026-10-23, user decision):** VAR-c1c3fit takes partners in sight,
+  not only neighbors, has each parent give at most 5 sugar, and draws the child's threshold from the founders' range,
+  at a threshold of 0.74 (Chapter III record).
 
 ### Sex rule S (p. 56)
 - Select a neighboring agent at random;
