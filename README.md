@@ -2,7 +2,8 @@
 
 This is a review of our attempt to rebuild Epstein and Axtell's Sugarscape (1996) from the book and
 reproduce its results. The work ran from 2026-10-21 to 2026-10-22, with a follow-up on 2026-10-23 that
-carried out this review's recommendations ([below](#follow-up-2026-10-23)). The detailed evidence is in the
+carried out this review's recommendations ([below](#follow-up-2026-10-23)) and a second follow-up the same day
+that took the next steps ([below](#second-follow-up-2026-10-23)). The detailed evidence is in the
 chapter records ([II](docs/replication/chapter-2.md), [III](docs/replication/chapter-3.md), [IV](docs/replication/chapter-4.md), [V](docs/replication/chapter-5.md),
 [VI](docs/replication/chapter-6.md)), our reading of the book is in [book-notes.md](docs/book-notes.md), the
 design is in [the spec](docs/superpowers/specs/2026-10-21-sugarscape-design.md), and the probe scripts are in
@@ -38,7 +39,8 @@ design is in [the spec](docs/superpowers/specs/2026-10-21-sugarscape-design.md),
   book shows two runs of Fig III-1's rules that disagree, one booming to ≈570 and the other
   crashing to ≤172. And no implementation we know of gets the book's population figures from the
   published rule S. Kehoe's collapses. MASON's own code, run on its own configs, misses III-1, III-3
-  and III-5 as ours does. Ascape departs from the text (see
+  and III-5 as ours does. Ascape's code, which departs from the text, reproduces Fig III-4's cycle
+  but misses the other three by more than we do (see
   [below](#book-results-that-may-not-be-robust-or-correct)).
 
 ## Scoreboard
@@ -400,9 +402,10 @@ These are grouped by how far they move from the book. None has been adopted, exc
 
 ### C. Candidates, most promising first
 
-C1–C3 were tested on 2026-10-23 with p.55's threshold, on every population figure
-([Chapter III record](docs/replication/chapter-3.md#candidate-departures-from-rule-s-2026-10-23)). Items 4–7 are
-still untested.
+All seven were tested on 2026-10-23: C1–C3 with p.55's threshold on every population figure
+([Chapter III record](docs/replication/chapter-3.md#candidate-departures-from-rule-s-2026-10-23)), C4–C7 under the
+defaults on the figures each bears on ([candidates2.py](diagnostics/candidates2.py)). C1 and C3 help most;
+C4–C7 change little.
 
 1. **Mate search within vision**, between radius 2 (tested: 417) and global contact (tested: 509).
    It targets the low-density Allee effect directly. That effect sits behind III-3's lost
@@ -420,25 +423,35 @@ still untested.
    choices are weak evidence of what the original code did. *Result:* the only candidate that gives
    III-4 the book's swings (range 969, period 124) and the only one in which III-5 dies out (1 of 5),
    but III-1 falls to 220 and III-3 and VI-3 die out. With C1 added, III-4 keeps its swings (615)
-   and III-1 recovers to 314.
+   and III-1 recovers to 314. *Fitted* (θ=0.74, fitted to III-1's level alone): III-4's range 866
+   and VI-3's floor 731 pass, and five more rows come near, but nothing dies out
+   ([Chapter III record](docs/replication/chapter-3.md#c1-with-cheap-children-at-a-fitted-threshold-2026-10-23)).
 4. **Rule-by-rule sweeps** (all agents move, then all mate), as Kehoe orders them. The text implies
-   per-agent turns, and we tested only mating before metabolism. This is worth one diagnostic run.
+   per-agent turns. *Result:* III-4's range rises from 106 to 282, while VI-3 gets worse (first
+   peak 89) and nothing else moves, the waves included.
 5. **For waves:** growback before the agents move instead of after; the map's corridor capacities
-   checked against Fig II-1 cell by cell; integer sugar on regrown sites.
+   checked against Fig II-1 cell by cell; integer sugar on regrown sites. *Result:* none is a cause.
+   - Growback first is the same model relabelled: II-6's series are identical.
+   - The map reads as Fig II-1 at 86% of sites exactly and at 99.4% within one level (94% exactly
+     on the saddle between the mountains).
+   - Regrown sugar is already integer under G1.
 6. **For disease:** passing every active disease to each neighbor instead of one at random. This
    departs from p.145, but spread is the measured bottleneck: each infection reaches ≈0.17 others,
-   and endemic disease needs above 1.
-7. **For VI-1's credit:** count sugar and spice income in the creditworthiness test.
+   and endemic disease needs above 1. *Result:* V-2's endemic level rises only from 0.02 to 0.05
+   diseases per agent (book 0.86). There are too few contacts for more diseases per contact to
+   matter.
+7. **For VI-1's credit:** count sugar and spice income in the creditworthiness test. *Result:* about
+   1 active loan instead of 0.25 (book ≈215). The society is too sparse for credit either way.
 
 ### D. Outside evidence
 
-- **Run the Ascape and MASON Sugarscapes** and compare III-1 and III-4 curves directly. MASON was
-  run on 2026-10-23 ([diagnostics/mason/](diagnostics/mason/README.md)); Ascape was not. We don't
-  have the original code (about 20,000 lines, Macintosh, Appendix A).
+- **Run the Ascape and MASON Sugarscapes** and compare III-1 and III-4 curves directly. Both were
+  run on 2026-10-23 ([diagnostics/mason/](diagnostics/mason/README.md),
+  [diagnostics/ascape/](diagnostics/ascape/README.md)). We don't have the original code (about
+  20,000 lines, Macintosh, Appendix A).
 - **Ask the authors.** Kehoe reached the same impasse and concluded the rule must be clarified by
-  the original developers. A draft is in
-  [questions-for-authors.md](docs/replication/questions-for-authors.md), for the project owner to
-  send.
+  the original developers. We could not reach them; the questions are in
+  [Questions for the authors](#questions-for-the-authors).
 
 ## Book results that may not be robust or correct
 
@@ -448,9 +461,9 @@ These are the claims our evidence casts doubt on, with how strong that evidence 
 |---|---|---|
 | Fig III-1's early boom to ≈570 | The book's other run of the same rules (Animations III-2/III-3, the source of Fig III-2) crashes to ≤172 agents on the peaks. The boom is one realization, not a property of the rules | Strong (internal) |
 | Fig III-1's level of ≈500 | That same animation run settles at ≈670–1,020 | Strong (internal) |
-| The population figures follow from rule S as published | No implementation we know of gets them from the text. Ours and Kehoe's (collapse before t=2,500) don't. MASON's own code on its own configs, scored with our targets, settles III-1 at 348, loses III-3 and never extinguishes III-5. Ascape departs from the text on cost, ages and thresholds. The figures probably depend on unstated details of the original code | Strong that the text is incomplete |
+| The population figures follow from rule S as published | No implementation we know of gets them from the text. Ours and Kehoe's (collapse before t=2,500) don't. MASON's own code on its own configs, scored with our targets, settles III-1 at 348, loses III-3 and never extinguishes III-5. Ascape departs from the text on cost, ages and thresholds; with the book's parameters, even on the book's map, it settles III-1 near 230, loses III-3 in every run and never extinguishes III-5. The figures probably depend on unstated details of the original code | Strong that the text is incomplete |
 | One founder setup underlies the figures | Animation III-1's ages and VI-2's first-period births need spread ages. Fig III-3's opening (rise to ≈450, crash to ≈250) fits age-0 founders | Medium |
-| Fig III-4's large cycle is the typical outcome | In our model the cycle is one of two stable states, reached only after a fast, compact boom: 2 of 30 ordinary runs under p.55's rule, 0 of 30 under the default. Whether the original lands there reliably is unknown; the book shows one run. Cheaper reproduction (Ascape's, or MASON's flat threshold) makes the swings routine | Medium (depends on our model) |
+| Fig III-4's large cycle is the typical outcome | In our model the cycle is one of two stable states, reached only after a fast, compact boom: 2 of 30 ordinary runs under p.55's rule, 0 of 30 under the default. Whether the original lands there reliably is unknown; the book shows one run. Cheaper reproduction makes the swings routine: Ascape's code cycles at the book's period in 10 of 10 runs (range 444–807), and MASON's flat threshold at twice the period | Medium (depends on the reproduction rule) |
 | VI-2's society dies out | Under p.55's rule ours dies out in 15 of 30 seeds: a coin flip, not a property of the rules | Medium (depends on our model) |
 | Fig III-3's floor of ≈250 | It needs both mountains to survive the founding crash, a knife-edge in our runs | Medium (depends on our model) |
 | Fig III-5's extinction at t≈610 | It needs births near zero for ≈40 periods after each peak. Its frequency is unstated. But it is not a rare draw of our model: it never happens in 60 of our runs, nor in 10 of MASON's | Weak |
@@ -462,6 +475,28 @@ These are the claims our evidence casts doubt on, with how strong that evidence 
 | III-8's "all Blue after ≈2,700" | One typical run of a voter-like process, whose absorption times are widely spread | Weak to medium |
 | VI-4 and VI-5 are "comparable" | The book's own pictures of the two differ | Weak |
 | III-7's Gini of 0.743, fn 32's frequencies | Single figures or rough shares, with no count of runs | Weak |
+
+## Questions for the authors
+
+These are the details of the original code that the text leaves open and that would settle more than further
+probes. We could not reach the authors, so they stand as the project's open questions. Each names the result it
+bears on and the page whose wording leaves it open; the evidence is in the sections above and the chapter records.
+
+1. **The fertility wealth test (p.55).** Did an agent need current sugar at least equal to its own birth endowment,
+   or something else (a fixed amount, a fraction of the endowment, sugar plus spice)?
+2. **The child's endowment and threshold (p.55).** Was the child's endowment half of each parent's *initial*
+   endowment, and was that endowment also the child's own fertility threshold?
+3. **Partner contact (p.56).** Did agents mate only with their four lattice neighbors after moving, and was the
+   child placed on an empty site next to a parent?
+4. **Founders' ages (Figs III-1 to III-5, VI-2).** Did the first generation start at age 0 or at random ages?
+   Animation III-1's first histogram and VI-2's first-period births suggest random ages; Fig III-3's opening
+   suggests age 0.
+5. **Fig III-1 and Animations III-2/III-3.** Were these the same parameters? The animation run falls to about 170
+   agents and later exceeds 1,000; Fig III-1 rises to about 570 and settles near 500.
+6. **Fig II-5 and Fig IV-6.** At what time were the carrying capacities read? Ours match the figures at t≈50 but
+   fall 10–25% below them by t=500 for metabolisms 2–3. And how many agents started the Fig IV-6 sweep?
+7. **Animations V-2 and V-3.** What disease and immune-string lengths did the endemic run use, and is V-3's
+   "average diseases per agent" the count of active (unmatched) diseases?
 
 ## Follow-up (2026-10-23)
 
@@ -497,18 +532,48 @@ The six steps this review recommended, and what each found:
      III-3 and III-5 as ours does. Its large III-4 swings come from a flat fertility threshold of
      25, at about twice the book's period.
    - **MASON's own statistics are unreliable:** children are counted but left out of its averages.
-   - **Questions for the authors:** drafted in
-     [questions-for-authors.md](docs/replication/questions-for-authors.md) for the project owner to
-     send.
+   - **Questions for the authors:** drafted; see
+     [Questions for the authors](#questions-for-the-authors). The authors could not be reached.
+
+It left four next steps: send the authors' questions, run Ascape, try C1 with cheaper children at a
+fitted threshold, and test candidates C4–C7.
+
+## Second follow-up (2026-10-23)
+
+1. **Questions for the authors.** The authors could not be reached, so the questions now have their
+   own section ([above](#questions-for-the-authors)) as the project's open questions.
+2. **Ascape run** headless from its 5.6.1 release jar
+   ([diagnostics/ascape/](diagnostics/ascape/README.md)), with the book's parameters on its own
+   landscape and on the book's map:
+   - **III-4:** every run cycles at the book's period (124–128) with ranges of 444–807, the only
+     implementation with both.
+   - **III-1, III-3, III-5:** missed by more than ours. III-1 settles at 230–270, III-3 dies out in
+     every run, and III-5 never does.
+   - **Its code departs from the text:** children cost at most 5 sugar, with a bug that keeps only
+     the second parent's gift; thresholds are fresh draws; there is no preference for the nearest
+     site.
+3. **C1 with cheap children at a fitted threshold** (C1+C3fit; θ=0.74, fitted to III-1's level alone,
+   frozen, then validated). It has the best out-of-sample record of any setting:
+   - **Pass:** III-4's range (866) and period (107), VI-3's floor (731).
+   - **Near:** III-3's period (144) and agent count (9,060), VI-3's first peak (879) and ceiling (904).
+   - **Missing:** every extinction and near-extinction (III-3's floor, III-5, VI-2, VI-3's minimum).
+     The society booms and busts like the book's but never comes close to dying.
+4. **Candidates C4–C7** (section C): none is a remedy.
+   - **Ruled out for the waves:** the order of growback (a relabelling), the map (it matches Fig II-1
+     to within one level at 99.4% of sites) and rule-by-rule sweeps.
+   - **Disease and credit:** more diseases per contact and two-good credit income barely move V-2
+     and VI-1, whose societies are too sparse.
+
+No default changed and no target moved, so the scoreboard stands.
 
 **Next steps now:**
-1. Send the authors' questions; their answers on the fertility test, founders and contact would
-   settle more than further probes.
-2. Run Ascape's Sugarscape, the one implementation built where the original was.
-3. Try C1 with cheaper children at a lower fitted threshold. Do it only as a labelled variant, with
-   a fitting protocol like the 0.83 threshold's: one target, frozen, then validated.
-4. Test the remaining candidates (C4–C7): rule-by-rule sweeps, the wave details, disease transmission,
-   and two-good credit income.
+1. Decide whether to register C1+C3fit (or C1 alone) as a labelled `VAR-` variant, so the report
+   scores it on every target alongside `VAR-book`. This is a registry change, so it is the project
+   owner's decision.
+2. Measure C1+C3fit's extinctions as frequencies over 30 seeds (III-3, III-5, VI-2), to tell
+   "never" from "rarer than five seeds show".
+3. Look for what drives the book's societies to near-extinction after a peak. It is the one piece
+   that no reading, candidate or outside implementation has produced.
 
 ## Where things are
 
@@ -520,8 +585,7 @@ The six steps this review recommended, and what each found:
 | Chapter records (results, choices, diagnostics) | [chapter-2.md](docs/replication/chapter-2.md), [chapter-3.md](docs/replication/chapter-3.md), [chapter-4.md](docs/replication/chapter-4.md), [chapter-5.md](docs/replication/chapter-5.md), [chapter-6.md](docs/replication/chapter-6.md) |
 | Rules | `sugarscape/rules/`; Schelling and Ring World in `sugarscape/variants/` |
 | Experiments and targets | `experiments/registry.py`, `replication/targets.py` |
-| Probe scripts behind the records; MASON harness | [diagnostics/](diagnostics/README.md), [diagnostics/mason/](diagnostics/mason/README.md) |
-| Questions for the authors (draft) | [docs/replication/questions-for-authors.md](docs/replication/questions-for-authors.md) |
+| Probe scripts behind the records; MASON and Ascape harnesses | [diagnostics/](diagnostics/README.md), [diagnostics/mason/](diagnostics/mason/README.md), [diagnostics/ascape/](diagnostics/ascape/README.md) |
 
 ```bash
 python -m pytest -q

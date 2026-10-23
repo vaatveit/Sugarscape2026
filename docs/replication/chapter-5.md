@@ -51,6 +51,23 @@ The final review measured and ruled out more (V-2, 3 seeds, 300 periods):
 - **Lifelong disease sets:** contracted diseases stay with the agent and only unmatched ones cost and spread (the reading behind p.150's "sum of lengths" remark). This sustains V-2 (2.05) but makes V-1 chronic (0.88, 62% sick) and crashes V-2's population to 13.
 - **A book-side oddity:** Animation V-3's first frame reports a spread of 0.62 at mean 3.41. No 10-disease draw gives that (expected 1.2–1.5; ours 1.3), so that frame's statistic may not be "active diseases per agent".
 
+## Candidate C6: every disease to each neighbor (2026-10-23)
+
+README candidate C6, run by [candidates2.py](../../diagnostics/candidates2.py) (5 seeds). A sick agent passes every
+active disease to each neighbor, not one chosen at random. This departs from p.145, but spread was the measured
+bottleneck.
+
+| Target | Book | Default | C6 |
+|---|---|---|---|
+| V-1 society rids itself of disease | 0 | 0.006 pass | 0.009 pass |
+| V-2 endemic infection persists (sick share, t=300–500) | 0.2–0.8 | 0.011 fail | 0.027 fail |
+| V-2 endemic average diseases | 0.86 | 0.020 fail | 0.048 fail |
+| V-2 spread of diseases per agent | 1.0 | 0.19 fail | 0.30 fail |
+
+V-1 still clears, but V-2 barely moves. Passing more diseases per contact can't make up for too few contacts: each
+agent has 0.6–0.8 neighbors on average, and a disease is learned within about two periods. This fits the earlier
+finding that even about three contacts per agent keep each infection's spread below 1.
+
 ## Visual comparison
 
 - **V-1 / V-2:** at t=0 nearly every agent is red (sick). Infection lines are short local links. By t=10 most agents are blue (well), and the colonies on the two peaks end healthy, as in Animation V-1. V-2 ends the same way, unlike Animation V-2's persistent sick agents.

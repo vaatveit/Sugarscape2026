@@ -1,0 +1,22 @@
+Coarse grid:
+C1+C3, III-1 steady population (target 500, band 400-600), 5 seeds
+  theta 1: 314  (seeds: 315, 321, 303, 316, 316)
+  theta 0.9: 361  (seeds: 362, 362, 360, 362, 358)
+  theta 0.8: 425  (seeds: 424, 425, 427, 423, 426)
+  theta 0.7: 582  (seeds: 582, 573, 589, 582, 586)
+  theta 0.6: 757  (seeds: 744, 752, 763, 762, 762)
+  theta 0.5: 822  (seeds: 858, 818, 816, 795, 821)
+
+real	5m13.753s
+
+Refined grid:
+C1+C3, III-1 steady population (target 500, band 400-600), 5 seeds
+  theta 0.73: 510  (seeds: 514, 514, 504, 504, 515)
+  theta 0.74: 495  (seeds: 500, 499, 494, 494, 487)
+  theta 0.75: 481  (seeds: 482, 482, 485, 478, 479)
+  theta 0.76: 467  (seeds: 464, 469, 466, 469, 468)
+  theta 0.77: 454  (seeds: 457, 447, 459, 457, 452)
+  theta 0.78: 439  (seeds: 438, 436, 440, 442, 437)
+
+
+Frozen: 0.74 (495, nearest the target of 500).

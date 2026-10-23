@@ -129,6 +129,19 @@ The fertility threshold is now 0.83 of the birth endowment (Chapter III record).
 - **VI-2:** the crash is unchanged (213 at t≈20); 1 of 10 seeds goes extinct (was 2).
 - **VI-3** still dies out in 2 of 5 seeds; the survivors climb higher (floor 204, ceiling 534, was 153 and 358; book ≈700 and ≈1200), and the period shortens to 211 (was 259; book ≈115).
 
+## Candidates C4, C6 and C7 (2026-10-23)
+
+README candidates run by [candidates2.py](../../diagnostics/candidates2.py) under the defaults (5 seeds). Nothing here
+changes the model.
+
+- **C7, two-good income in the credit test** (harvest less metabolism of sugar *and* spice). VI-1 averages 1.0 active
+  loans at t=100–120 (0.25 under the default; book ≈215), and 0.06 agents both lend and borrow (book ≈37). Every other
+  VI-1 row is unchanged. The creditworthiness reading was the second cause of item 4; the sparse society is the first,
+  and C7 can't fix it.
+- **C6, every disease to each neighbor:** VI-1's disease still clears (Chapter V record).
+- **C4, rule-by-rule sweeps:** VI-2 dies out in 2 of 5 runs (1 of 5 under the default), but VI-3 does worse: minimum 18,
+  first peak 89, floor 45 and ceiling 438 after t=250 (default 36, 308, 204, 534). Not measured further.
+
 ## Visual comparison
 
 - **VI-1:** sick agents vanish within a few periods, while the book's board stays mostly red. The society shrinks onto the two mountains (seed 0: 200 → 96 at t=50 → 51 at t=120 → 102 at t=500).

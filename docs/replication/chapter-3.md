@@ -686,6 +686,94 @@ read p.65 as a flat fertility threshold (25 and 10 sugar) with endowments of 50�
 - **MASON's printed vision and metabolism are wrong:** children are counted but never added to the set the statistics
   average over. Our driver records on-grid values instead.
 
+## C1 with cheap children at a fitted threshold (2026-10-23)
+
+C1 (mates within vision) and C3 (each parent gives at most 5 sugar; the child's threshold is a fresh draw) together,
+with the fertility threshold lowered and fitted under the protocol of the 0.83 default.
+- **Fitting:** to one number only, III-1's steady population (500; its target's statistic, the mean over t=500–2500), 5
+  seeds ([fit_c1c3.py](../../diagnostics/fit_c1c3.py)). The grid: θ=1.0 314, 0.9 361, 0.8 425, 0.78 439, 0.76 467, 0.75 481,
+  **0.74 495**, 0.73 510, 0.7 582, 0.6 757, 0.5 822.
+- **Freezing:** θ=0.74 was frozen in `candidates.FITTED` before any other run.
+- **Validation:** on every other population row, as variant C1+C3fit of
+  [candidates.py](../../diagnostics/candidates.py), 5 seeds
+  ([output](../../diagnostics/output/candidates_fit.txt)).
+
+| Target | Book | p.55 (`VAR-book`) | Default (θ=0.83) | C1 | C1+C3 | **C1+C3fit (θ=0.74)** |
+|---|---|---|---|---|---|---|
+| III-1 steady population (fitted) | 500 | 360 near | 478 pass | 420 pass | 314 near | 495 pass |
+| III-1 small fluctuations | ≤0.10 | 0.059 pass | 0.065 pass | 0.087 pass | 0.18 fail | 0.062 pass |
+| III-1 mean vision / metabolism | 5.3 / 1.0 | pass / pass | pass / pass | pass / pass | pass / pass | 5.94 near / pass |
+| III-3 period | 200 | 495 (2/5) | 412 (3/5) | 554 | 597 (1/5) | **144 near** |
+| III-3 floor | 250 | 18 | 33 | 163 near | 8 | 95 fail |
+| III-3 agents that ever lived | 12,500 | 1,610 | 3,690 | 8,400 near | 1,380 | **9,060 near** |
+| III-4 period / range | 125 / 1,000 | 136 pass / 120 | 132 pass / 106 | 115 pass / 321 | 112 pass / 615 pass | **107 pass / 866 pass** |
+| III-5 extinct by t=1500 | yes | 0/5 | 0/5 | 0/5 | 0/5 | 0/5 |
+| VI-2 crash at t≈20 / extinct by t=200 | 130 / yes | 209 / 2 of 5 | 209 / 1 of 5 | 216 / 0 | 221 / 0 | 228 / 0 |
+| VI-3 minimum | 65 | 27 | 36 | 64 pass | 109 | 198 fail |
+| VI-3 first peak | 1,190 | 272 | 308 | 639 | 529 | **879 near** |
+| VI-3 floor / ceiling after t=250 | 700 / 1,200 | 153 / 358 | 204 / 534 | 453 / 860 near | 426 near / 557 | **731 pass / 904 near** |
+| VI-3 period | 115 | 322 (2/5) | 241 (2/5) | 274 | 171 (4/5) | 172 |
+
+Unmarked cells fail.
+
+**Findings:**
+- **The best out-of-sample record of any setting so far.** Fitted only to III-1's level, it also gives:
+  - III-4's swings at the book's period (range 866);
+  - VI-3's floor (731) with its first peak and ceiling near;
+  - III-3's period (144) and agents ever lived (9,060) near.
+- **What it still misses is the dying:** III-3's floor (95), III-5's extinction, VI-2's extinction (none of 5, where
+  the default loses 1) and VI-3's near-extinction (its minimum of 198 is far above the book's 65). The society booms and
+  busts like the book's, but never comes close to dying.
+- **Reading:** easy contact plus cheap children reproduce the book's oscillations; the book's extinctions need something
+  more, or rarer luck than five seeds show. It remains a labelled departure from p.55 and p.56: nothing here changes
+  the default.
+
+## Ascape's own runs (2026-10-23)
+
+Ascape 5.6.1's Sugarscape sex model (Brookings), run headless from its release jar on Figs III-1, III-3, III-4 and
+III-5, 10 seeds each ([diagnostics/ascape/](../../diagnostics/ascape/README.md); scored by
+[ascape_compare.py](../../diagnostics/ascape_compare.py)). Our driver runs Ascape's rules and agent code unchanged and
+sets only the stated endowments and fertility ages, on Ascape's generated landscape (300 founders) and on the book's
+map (400). Read from its source, Ascape departs from the text in these ways:
+- **Children:** each parent gives at most 5 sugar, but a bug keeps only the second gift.
+- **Fertility threshold:** each child's is a fresh draw from the founders' range.
+- **Founders** start at random ages.
+- **Movement** takes the most sugar in sight with no preference for the nearest site.
+
+| Target | Book | Ascape, own landscape | Ascape, book map | Ours, p.55 (`VAR-book`) | Ours, default |
+|---|---|---|---|---|---|
+| III-1 steady population | ≈500 | 268 fail | 227 fail | 360 near | 478 pass |
+| III-1 fluctuations | ≤0.10 | 0.13 fail | 0.15 fail (1 of 10 extinct) | 0.059 pass | 0.065 pass |
+| III-3 floor | ≈250 | 0 (10 of 10 extinct) | 0 (10 of 10 extinct) | 18 | 33 |
+| III-4 period | ≈125 | **126 pass** | **127 pass** | 136 pass | 132 pass |
+| III-4 range | ≈1,000 | 556 near | **672 pass** | 120 | 106 |
+| III-5 extinct by t=1500 | yes | 0 of 10 | 0 of 10 | 0 of 10 | 0 of 10 |
+
+- **Ascape reproduces Fig III-4's cycle in every seed:** period 124–128, range 444–807. It is the only implementation
+  with both the book's period and most of its swing. MASON's swings come at twice the period, and ours have the period
+  without the swings.
+- **It misses III-1, III-3 and III-5 further than we do.** III-1 crashes after the founding generation (164 at t=85)
+  and settles at 230–270. III-3 dies out in every run. III-5 swings by about 1,050 but never dies out.
+- **The landscape and the founder count barely matter;** the rule code makes the difference. This confirms C3's
+  reading: cheap children make III-4's cycle, and nothing tested here makes every figure.
+
+## Rule-by-rule sweeps (C4, 2026-10-23)
+
+README candidate C4 (every agent moves and eats, then every agent runs its other rules), run by
+[candidates2.py](../../diagnostics/candidates2.py) under the defaults, 5 seeds.
+
+| Target | Book | Default | C4 |
+|---|---|---|---|
+| III-1 steady population | 500 | 478 pass | 435 pass |
+| III-3 floor / agents ever lived | 250 / 12,500 | 33 / 3,690 | 33 / 3,160 |
+| III-4 period / range | 125 / 1,000 | 132 / 106 | 144 / 282 |
+| III-5 extinct by t=1500 | yes | 0 of 5 | 0 of 5 |
+| III-12 Blue / Red advance | 10–60 / −60 to −10 | 8.1 / −4.7 | 7.8 / −4.2 |
+| III-13 Blue's advance under combat | −5 to 5 | 9.6 | 9.4 |
+
+Sweeps widen III-4's swings somewhat and leave everything else where it was. VI-3 does worse under them (Chapter VI
+record).
+
 ## Visual comparison
 
 - **III-1** (colored by vision): high-vision agents take over, as in Animation III-2; but the population stays on the peaks instead of filling a diagonal band.

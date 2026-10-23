@@ -1,0 +1,20 @@
+| Target | Book | VAR-book | default | C1 | C3 | C1+C3 | C1+C3fit |
+|---|---|---|---|---|---|---|---|
+| III-1 steady population | 500 | 360 near | 478 pass | 420 pass | 220 fail | 314 near | 495 pass |
+| III-1 small fluctuations | 0.1 | 0.059 pass | 0.065 pass | 0.0867 pass | 0.207 fail | 0.18 fail | 0.0619 pass |
+| III-1 mean vision at t≈900 | 5.3 | 5.68 pass | 5.64 pass | 5.62 pass | 5.91 near | 5.79 pass | 5.94 near |
+| III-1 mean metabolism, t=300–900 | 1 | 1 pass | 1 pass | 1 pass | 1 pass | 1 pass | 1 pass |
+| III-3 oscillation period | 200 | 495 fail (2/5) | 412 fail (3/5) | 554 fail | — | 597 fail (1/5) | 144 near |
+| III-3 population floor | 250 | 18.4 fail | 32.8 fail | 163 near | 0 fail | 8.4 fail | 94.6 fail |
+| III-3 agents that ever lived | 12500 | 1.61e+03 fail | 3.69e+03 fail | 8.4e+03 near | 490 fail | 1.38e+03 fail | 9.06e+03 near |
+| III-4 oscillation period | 125 | 136 pass | 132 pass | 115 pass | 124 pass | 112 pass | 107 pass |
+| III-4 oscillation range | 1000 | 120 fail | 106 fail | 321 fail | 969 pass | 615 pass | 866 pass |
+| III-5 extinction frequency | — | 0 fail | 0 fail | 0 fail | 0.2 fail | 0 fail | 0 fail |
+| VI-2 crash by t≈20 | 130 | 209 fail | 209 fail | 216 fail | 209 fail | 221 fail | 228 fail |
+| VI-2 extinction frequency | — | 0.4 near | 0.2 fail | 0 fail | 0.8 pass | 0 fail | 0 fail |
+| VI-3 early decline as without trade | 1 | 1.15 pass | 1.11 pass | 1.13 pass | 1.17 pass | 1.15 pass | 1.07 pass |
+| VI-3 near-extinction minimum | 65 | 26.6 fail | 36.4 fail | 64.4 pass | 10.4 fail | 109 fail | 198 fail |
+| VI-3 first peak | 1190 | 272 fail | 308 fail | 639 fail | 4.8 fail | 529 fail | 879 near |
+| VI-3 oscillation floor | 700 | 153 fail | 204 fail | 453 near | 0 fail | 426 near | 731 pass |
+| VI-3 oscillation ceiling | 1200 | 358 fail | 534 fail | 860 near | 0 fail | 557 fail | 904 near |
+| VI-3 oscillation period | 115 | 322 fail (2/5) | 241 fail (2/5) | 274 fail | — | 171 fail (4/5) | 172 fail |

@@ -50,8 +50,12 @@ numbers can differ from the records'.
 | Script | Purpose |
 |---|---|
 | [frequencies.py](frequencies.py) | The book's single-run population figures as frequencies over 30 seeds (III-3, III-4, III-5, VI-2, VI-3) |
-| [candidates.py](candidates.py) | The README's candidate departures C1–C3 from rule S, scored with the replication targets |
+| [candidates.py](candidates.py) | The README's candidate departures C1–C3 from rule S, and C1+C3 at the fitted threshold (C1+C3fit), scored with the replication targets. Output: [candidates_fit.txt](output/candidates_fit.txt) |
+| [fit_c1c3.py](fit_c1c3.py) | Fits C1+C3's fertility threshold to III-1's steady population alone (frozen at 0.74). Output: [fit_c1c3.txt](output/fit_c1c3.txt) |
+| [candidates2.py](candidates2.py) | Candidates C4–C7: rule-by-rule sweeps, growback first, every disease to each neighbor, two-good credit income. Output: [candidates2.txt](output/candidates2.txt) |
+| [check_map.py](check_map.py) | The capacity map against Fig II-1, site by site, from a page render at scale 8. Output: [check_map.txt](output/check_map.txt) |
 | [mason_compare.py](mason_compare.py) | MASON's own Sugarscape on our Chapter III targets; build and run it with [mason/](mason/README.md) |
+| [ascape_compare.py](ascape_compare.py) | Ascape's Sugarscape sex model on our Chapter III targets, on its landscape and the book's map; build and run it with [ascape/](ascape/README.md). Output: [ascape_compare.txt](output/ascape_compare.txt) |
 
 ## Index
 

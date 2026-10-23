@@ -1,0 +1,74 @@
+C5 (growback first) on II-6 seed 0: agents' series identical over 301 periods (population, ne_fraction, mean_sugar, gini, moved, mean_neighbors)
+
+C4
+
+| Target | Book | Default | C4 |
+|---|---|---|---|
+| II-6 wave reaches NE peak | — | 0.0489 fail | 0.0499 fail |
+| III-1 steady population | 500 | 478 pass | 435 pass |
+| III-1 small fluctuations | 0.1 | 0.065 pass | 0.0491 pass |
+| III-1 mean vision at t≈900 | 5.3 | 5.64 pass | 5.49 pass |
+| III-1 mean metabolism, t=300–900 | 1 | 1 pass | 1 pass |
+| III-3 oscillation period | 200 | 412 fail (3/5) | 487 fail (3/5) |
+| III-3 population floor | 250 | 32.8 fail | 33 fail |
+| III-3 agents that ever lived | 12500 | 3.69e+03 fail | 3.16e+03 fail |
+| III-4 oscillation period | 125 | 132 pass | 144 pass |
+| III-4 oscillation range | 1000 | 106 fail | 282 fail |
+| III-5 extinction frequency | — | 0 fail | 0 fail |
+| III-12 Blue wave advances NE | — | 8.12 near | 7.83 near |
+| III-12 Red wave advances SW | — | -4.65 fail | -4.23 fail |
+| III-13 combat suppresses Blue's wave | — | 9.62 fail | 9.42 fail |
+| VI-2 crash by t≈20 | 130 | 209 fail | 211 fail |
+| VI-2 extinction frequency | — | 0.2 fail | 0.4 near |
+| VI-3 early decline as without trade | 1 | 1.11 pass | 1.13 pass |
+| VI-3 near-extinction minimum | 65 | 36.4 fail | 18 fail |
+| VI-3 first peak | 1190 | 308 fail | 89 fail |
+| VI-3 oscillation floor | 700 | 204 fail | 45.4 fail |
+| VI-3 oscillation ceiling | 1200 | 534 fail | 438 fail |
+| VI-3 oscillation period | 115 | 241 fail (2/5) | — |
+
+C6
+
+| Target | Book | Default | C6 |
+|---|---|---|---|
+| V-1 society rids itself of disease | 0 | 0.006 pass | 0.00882 pass |
+| V-1 no disease left circulating | 0 | 0.8 fail | 1.2 fail |
+| V-2 endemic infection persists | — | 0.0106 fail | 0.0265 fail |
+| V-2 average diseases at start | 3.41 | 4.68 near | 4.68 near |
+| V-2 endemic average diseases | 0.86 | 0.0196 fail | 0.0481 fail |
+| V-2 spread of diseases per agent | 1 | 0.19 fail | 0.295 fail |
+| VI-1 population at t≈50 | 155 | 40.8 fail | 39.5 fail |
+| VI-1 Gini of total wealth | 0.246 | 0.303 near | 0.312 near |
+| VI-1 average neighbors | 0.7 | 0.358 fail | 0.353 fail |
+| VI-1 average fertility | 1.3 | 0.361 fail | 0.323 fail |
+| VI-1 best-friend closeness | 0.86 | 0.744 near | 0.74 near |
+| VI-1 friend closeness | 0.79 | 0.637 near | 0.638 near |
+| VI-1 mean price (ln p) | 0 | -0.0213 pass | -0.032 pass |
+| VI-1 price dispersion | 0.35 | 0.334 pass | 0.328 pass |
+| VI-1 trades per period | 125 | 14.9 fail | 13.9 fail |
+| VI-1 active loans | 215 | 0.248 fail | 0.114 fail |
+| VI-1 agents both lending and borrowing | 37 | 0 fail | 0 fail |
+| VI-1 infected fraction dips | 0.6 | 0 fail | 0.00667 fail |
+| VI-1 infected fraction recovers | 0.85 | 0 fail (4/5) | 0 fail (4/5) |
+| VI-1 average diseases | 2.26 | 0 fail (4/5) | 0 fail (3/5) |
+| VI-1 spread of diseases per agent | 1.47 | 0 fail (4/5) | 0 fail (3/5) |
+
+C7
+
+| Target | Book | Default | C7 |
+|---|---|---|---|
+| VI-1 population at t≈50 | 155 | 40.8 fail | 39.7 fail |
+| VI-1 Gini of total wealth | 0.246 | 0.303 near | 0.305 near |
+| VI-1 average neighbors | 0.7 | 0.358 fail | 0.361 fail |
+| VI-1 average fertility | 1.3 | 0.361 fail | 0.416 fail |
+| VI-1 best-friend closeness | 0.86 | 0.744 near | 0.735 near |
+| VI-1 friend closeness | 0.79 | 0.637 near | 0.625 near |
+| VI-1 mean price (ln p) | 0 | -0.0213 pass | 0.0289 pass |
+| VI-1 price dispersion | 0.35 | 0.334 pass | 0.334 pass |
+| VI-1 trades per period | 125 | 14.9 fail | 13.3 fail |
+| VI-1 active loans | 215 | 0.248 fail | 1.04 fail |
+| VI-1 agents both lending and borrowing | 37 | 0 fail | 0.0571 fail |
+| VI-1 infected fraction dips | 0.6 | 0 fail | 0 fail |
+| VI-1 infected fraction recovers | 0.85 | 0 fail (4/5) | 0 fail (4/5) |
+| VI-1 average diseases | 2.26 | 0 fail (4/5) | 0 fail (4/5) |
+| VI-1 spread of diseases per agent | 1.47 | 0 fail (4/5) | 0 fail (4/5) |

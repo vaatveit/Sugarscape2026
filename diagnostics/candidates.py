@@ -6,12 +6,14 @@ population figure (III-1, III-3, III-4, III-5, VI-2, VI-3). Diagnostic only: not
   C2  each parent gives half its current sugar (Kehoe's prose reading), and the child's fertility threshold is a
       fresh draw from the founders' endowment range, so children born poor come of age below threshold
   C3  Ascape's package: each parent gives at most 5 sugar, and the child's threshold is a fresh draw
+  C1+C3fit  C1+C3 at a lowered fertility threshold, fitted by fit_c1c3.py to III-1's steady population alone and
+      frozen before these runs (the protocol of the 0.83 default)
 
-Every variant uses p.55's fertility test (threshold 1.0) and founders at spread ages; spice gifts follow the sugar
-rule. Seeds are the registry's, capped at SEEDS. Compared with the saved runs of VAR-book (p.55 as written) and the
+Every other variant uses p.55's fertility test (threshold 1.0). All use founders at spread ages; spice gifts follow
+the sugar rule. Seeds are the registry's, capped at SEEDS. Compared with the saved runs of VAR-book (p.55 as written) and the
 default (threshold 0.83); columns without current saved runs show "not run" (run `python -m replication.report`).
 
-Usage: candidates.py [variant,...] [jobs]    variants: C1 C2 C3 C1+C2 C1+C3 (default: all)
+Usage: candidates.py [variant,...] [jobs]    variants: C1 C2 C3 C1+C2 C1+C3 C1+C3fit (default: all)
 """
 from _pin import pin
 pin("C")  # defaults this diagnostic was written under; see _pin.py
@@ -33,12 +35,14 @@ from sugarscape.rules.culture import cross_tags
 
 FIGURES = ("III-1", "III-3", "III-4", "III-5", "VI-2", "VI-3")
 SEEDS = 5
-VARIANTS = {  # contact, gift, child's threshold
-    "C1": ("vision", "book", "endowment"),
-    "C2": ("neighbors", "current", "redraw"),
-    "C3": ("neighbors", "ascape", "redraw"),
-    "C1+C2": ("vision", "current", "redraw"),
-    "C1+C3": ("vision", "ascape", "redraw"),
+FITTED = 0.74  # C1+C3fit's threshold, frozen 2026-10-23 from fit_c1c3.py's grid (III-1: 495 at 0.74, 510 at 0.73)
+VARIANTS = {  # contact, gift, child's threshold, fertility threshold
+    "C1": ("vision", "book", "endowment", 1.0),
+    "C2": ("neighbors", "current", "redraw", 1.0),
+    "C3": ("neighbors", "ascape", "redraw", 1.0),
+    "C1+C2": ("vision", "current", "redraw", 1.0),
+    "C1+C3": ("vision", "ascape", "redraw", 1.0),
+    "C1+C3fit": ("vision", "ascape", "redraw", FITTED),
 }
 CACHE = ROOT / "results" / "diagnostics-candidates"
 
@@ -109,9 +113,10 @@ def make_mate(contact, gift, threshold):
 
 def run(args):
     variant, exp_id, k = args
-    sex.mate = make_mate(*VARIANTS[variant])  # worker processes are reused: set it every time
+    contact, gift, threshold, theta = VARIANTS[variant]
+    sex.mate = make_mate(contact, gift, threshold)  # worker processes are reused: set it every time
     exp = EXPERIMENTS[exp_id]
-    model = Model(replace(exp.config, fertility_threshold=1.0, seed=exp.config.seed + k))
+    model = Model(replace(exp.config, fertility_threshold=theta, seed=exp.config.seed + k))
     series = []
     model.run(exp.steps, observer=lambda m: series.append({"t": m.t, **sugarscape_metrics(m)}))
     return variant, exp_id, k, series

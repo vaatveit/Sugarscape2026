@@ -84,9 +84,33 @@ Re-run 2026-10-23 (main) after two reporting decisions (user, 2026-10-23). Near 
    Also tested and rejected: metabolism fixed at the mean, and a 0..2m spread.
 2. **II-6 diagonal waves are not reproduced** by either variant (NE share at t=200: 0.049 for the text's 400 agents, 0.013 for the measured 284; band 0.15–1.0). The 400-agent block drains its interior and sends a few agents NE, but no coherent bands.
    Ruled out: the block layout, the endowment, and "agents must move" (which also breaks II-1's static end state).
-   Reviewer's mechanism note: behind the frontier, regrown capacity-2 sites tie with fresh sites ahead, and the random direction order sends front agents backward as often as forward. Remaining suspects: the corridor capacities of the map, and the order of rules within a period.
+   Reviewer's mechanism note: behind the frontier, regrown capacity-2 sites tie with fresh sites ahead, and the random direction order sends front agents backward as often as forward. Remaining suspects: the corridor capacities of the map, and the order of rules within a period. Both were ruled out on 2026-10-23 (below).
 3. **II-4 mean vision at t=500 is 3.79 (seeds 3.70–3.97) against the book's single-run 4.1.** Trajectory 3.50 → 3.69 (t=50) → 3.79; metabolism selection matches (1.85 vs 1.8). No modelling defect found.
 4. **II-7 hibernation proxy 0.22 against the ≤0.15 band.** Low-vision agents (vision ≤ 2) swing with the seasons more than the band allows (0.18 under pulse winter, 0.22 under fractional). Migration by high-vision agents passes. The band is our own proxy; not widened.
+
+## The waves' remaining suspects (2026-10-23)
+
+README candidates C4 and C5, checked by [candidates2.py](../../diagnostics/candidates2.py) and
+[check_map.py](../../diagnostics/check_map.py). Nothing here changes the model.
+
+- **Growback before the agents move (C5) is the same model.** Growback at the end of period t is growback at the start of
+  t+1, and the first period starts full. On II-6's first seed the agents' series (population, NE share, mean sugar, Gini,
+  movers, neighbors) are identical over all 301 periods.
+- **The map is Fig II-1's.** The figure survives in the scan as a blurred halftone, one glyph per site. With the grid
+  registered to the map (correlation 0.94 between site darkness and capacity):
+  - 2,143 of 2,500 sites read as their map level, 342 one level off, 15 two levels off, none more.
+  - Off terrace edges, 89% read exactly; the misses are mostly faint level-1 glyphs read as empty, or the reverse.
+  - On the saddle between the mountains (rows and columns 15–34), 94% read exactly; the mean level is 2.38 on the map
+    and 2.41 in the figure.
+  - A registration one row lower fits almost as well (0.935; 82% exact, 7 sites two off). That only rolls the map by a
+    row on the torus.
+- **Integer sugar is already the case** under G1: capacities are integers and sites regrow by 1. II-7's integer
+  ("pulse") winter is item 4 above.
+- **Rule-by-rule sweeps (C4)** (every agent moves, then every agent runs its other rules): II-6's NE share at t=200 is
+  0.050, against 0.049 under per-agent turns (5 seeds).
+
+So neither the map nor the order of rules explains the missing waves. The tie between regrown sites behind the front and
+fresh sites ahead (the reviewer's note) remains the best account.
 
 ## Visual comparison with the book's animations
 
