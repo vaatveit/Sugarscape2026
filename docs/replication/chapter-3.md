@@ -408,6 +408,66 @@ Diagnostics of III-3 (fertility ends 10 years earlier) under the defaults (θ=0.
 - **Period:** it misses mainly because a one-mountain society barely oscillates. A two-mountain society already cycles near the book's period, though with half the swing.
 - Nothing here points to a cause separate from the early birth rate and the long-run level.
 
+## III-4's swings (2026-10-22)
+
+Diagnostics of III-4 (endowments 10–40) under the defaults; nothing here changes the model. 5 seeds for counts, 3 for variants.
+
+**The book's run** (Fig III-4, digitized from the page image at ≈5 periods per pixel):
+- **First cycle:** ≈415 at t=0, a peak of ≈1,550 at t≈75, a trough of ≈380 at t≈145.
+- **Later cycles:** peaks stay at ≈1,540–1,560 throughout. Troughs rise 380, 410, 435, 470, 500, 520, 570 … ≈590 by t≈1,450.
+- **Period:** 143 at first, shortening to 124 (mean ≈130). Rises and falls each take ≈65–70 periods.
+
+**Ours:**
+- The population dips to ≈310 at t≈25 as high-metabolism founders starve, then booms to ≈1,410 at t≈120.
+- It falls only to ≈915, and by t≈400 it holds at ≈1,170 with swings of ≈±50.
+- Mean metabolism is 1.00 from t≈120, and nobody starves after t≈100: every death is from old age.
+
+**The book's swings need no starvation.** Inverting the book's curve, assuming every death is from old age:
+- Maximum ages are uniform on 60–100, and the 415 founders start at spread ages.
+- Births are the population's change plus old-age deaths. Any shortfall below zero must be starvation, which gives a lower bound.
+
+| Book phase | Implied births per period | Old-age deaths per period | Minimum starvation |
+|---|---|---|---|
+| Falls (t=75–148, 217–285, 354–421) | 6.3–8.1 | 21–25 | 4–73 per fall |
+| Rises (t=148–217, 285–354) | 23.5–25.3 | 6.6–8.8 | 0 |
+| t=1,000–2,500 (average) | 17.8 | 17.9 | ≈0 |
+
+- **The method checks out on our own run:** it finds 2 starvations over t=1,000–1,500, against a direct count of 0.
+- **The book's cycle is a demographic echo.** Each boom's births die of old age about one lifetime later, during the next fall, and each fall's few births leave the following rise with few deaths. Over the run that implies ≈45,000 agents ever lived (ours ≈38,000).
+- **Births must depend on the cycle's phase, not on current density.** At the same population of ≈1,000 the book has ≈24 births per period on the way up and ≈7 on the way down. Per agent that is ≈0.024 against ≈0.007 (×3.6). Ours swings 0.016 against 0.010 (×1.7) in the first cycle and then damps.
+
+**Ours has no memory to sustain the echo:**
+- **Every cohort comes of age fertile.** Of agents born at any phase after t≈20, 97–100% reach fertile age holding their threshold (85–87% for those born at t=0–20), at 1.15–2.0 times it. Childhood net income never turns negative: +0.18 per year for those born at the peak, +0.5–1.0 for those born in troughs. The same holds at threshold 1.0.
+- **Crowding can't drain wealth on our map, even at the book's peak.** Net income per agent for evolved agents (metabolism 1, immortal) is +0.64 at N=1,000, +0.40 at 1,200, +0.21 at 1,400, +0.08 at 1,600, −0.03 at 1,800 and −0.08 at 2,000. It reaches zero near N≈1,700, and at most 8% of agents lose sugar in a period.
+- **So our births respond to current density alone.** They fall at the peak (wealth after a birth, partners, space) and recover as soon as the population thins. That damps the cycle.
+
+**What limits births at our peak** (per period, t≈100–140):
+- 268–295 wealth-fertile agents take a mating turn, with ≈3.3 of 4 neighbor sites occupied.
+- 8–10% of those turns find a fertile partner adjacent, giving 10–16 births.
+- Another 13–14 pairs fail because neither parent has an empty site next to it.
+
+**Variants** (diagnostic only; book: peak ≈1,550 at t≈75, trough ≈380, late range ≈900–1,000):
+
+| Variant | First peak | Next trough | Range t=1,000–1,500 | Births per period after t=300 |
+|---|---|---|---|---|
+| Default (spread founders, θ=0.83) | 1,397–1,428 at t≈120 | 893–928 | 79–95 | 12–20 |
+| θ=1.0 (`VAR-book`) | 1,302–1,387 | 810–904 | 99–225 | 9–22 |
+| θ=0.5 | 1,574–1,589 at t≈110 | 1,027–1,104 | 171–322 | 12–21 |
+| Age-0 founders | 1,353–1,404 | 928–1,004 | 92–148 | 11–21 |
+| Every maximum age 80 | 1,375–1,438 | 876–916 | 126–444 | 9–24 |
+| Global contact (up to 4 random fertile partners) | 1,546–1,578 at t≈90 | 795–857 | 172–233 | 8–27 |
+| Child at the nearest empty site when none is adjacent | 1,388–1,441 | 849–952 | 106–206 | 10–22 |
+| … with θ=1.0 / with global contact | 1,317–1,561 | 713–915 | 99–248 | 4–31 |
+
+- **No variant sustains the swings.** The late ranges stay at 79–444 against ≈900–1,000, and every next trough stays at 713–1,104 against ≈380.
+- **The first peak can be reached.** Global contact matches its height and nearly its timing (≈1,560 at t≈90). θ=0.5 matches its height. The early boom is the same early-birth problem as Figs III-1 and III-3.
+- **Freeing space doesn't help:** with blocked pairs unblocked, the wealth test brakes births at the peak instead.
+
+**Reading:**
+- The book's swings are an old-age echo that needs births to stay low for a whole fall, ≈70 periods, after the population has started thinning: a memory of about a quarter-cycle.
+- Our rules give births no such memory. Children born at the peak still come of age fertile, and on our map net income stays positive up to N≈1,700. The cycle damps within three swings.
+- What carries the memory in the original is unknown. It would have to make births depend on conditions about 30 periods earlier, which none of the readings tested here does.
+
 ## Visual comparison
 
 - **III-1** (colored by vision): high-vision agents take over, as in Animation III-2; but the population stays on the peaks instead of filling a diagonal band.

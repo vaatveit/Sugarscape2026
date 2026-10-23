@@ -205,6 +205,10 @@ Baseline (Fig III-1, constant population) uses rule S with default parameters (s
   (MASON reads this as a flat fertility threshold, 25 for III-4 and 10 for III-5, with
   endowments kept at 50–100; probed 2026-10-22 as a 10–40 threshold, not adopted.)
   Amplitude starts >1000 (≈350 to ≈1600), diminishing to ~800; period ≈125 years.
+  Digitized (2026-10-22): ≈415 at t=0; peaks ≈1540–1560 at t≈73, 216, 352, 489, 622, 754, 884,
+  1010, 1139, 1264, 1389, 1513 (period 143 shortening to 124); troughs 379, 409, 435, 469, 498, 520,
+  572, 532, 537, 581, 589 (rising). Inverting the curve with old-age deaths only needs at most ≈70
+  starvations per crash: the swings are a demographic echo, not starvation crashes.
 - **Fig III-5, extinction:** both changes combined → three growth surges
   (peaks ~1250, ~1450, ~1400) then extinction around t≈550.
 - Fig III-6 summarizes: axes infertility age (vertical) × endowment (horizontal).
