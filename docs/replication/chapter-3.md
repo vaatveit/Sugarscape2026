@@ -549,7 +549,40 @@ Diagnostics of III-5 (endowments 10–40, fertility ending 10 years earlier) und
 - **The book's extinction needs births shut off for decades after each peak.** Wealth is the natural carrier: agents leaving the peak far below their threshold, needing more than ≈40 periods to re-earn it.
 - **Our agents leave the peak with income in hand.** At the book's peak densities our net income stays positive (break-even near N≈1,700; III-4's swings, above), so a third to a half of fertile-age women keep qualifying.
 - **One reading fits the first fall but is unproven.** The book's first boom (≈405 → 1,280 by t≈65) happens before selection, while founders' metabolisms are still high, and unselected agents run a deficit at high density (III-1: −0.44 per period at N=500). Our boom comes after selection (metabolism 1.0 by t≈100–120, peak at t≈140), so it never drains wealth.
-- **Later falls are unexplained.** They would need slower selection or a lower break-even in the original than ours. What blocks the original's births at peak density remains open.
+- **Later falls are unexplained.** They would need slower selection or a lower break-even in the original than ours. What blocks the original's births at peak density remains open (see the next section).
+
+## What might stop births at peak density (2026-10-22)
+
+Diagnostics only; nothing here changes the model. The target: a state, set by crowding, that keeps births near zero for ≈40 periods after a peak, long enough for a boom's women to age out of fertility (III-5's extinction, above). Each candidate ran on III-5 (10 seeds, 1,500 periods), some also on III-1, III-3 and III-4 (5 seeds). The book's III-5 dies out by t≈610, with troughs of ≈50.
+
+**What the text leaves open.**
+- **p.56** has "each fertile agent" execute S, whose loop tests only the neighbor ("If the neighbor is fertile …; Repeat for all neighbors"). Read literally, an agent's own fertility is tested once per turn.
+- **Appendix B** states the step as "both agents are fertile", our reading. The parenthetical on p.56 ("agents, if fertile, rarely possess enough wealth to have multiple children in a single period") also suggests wealth is re-checked.
+- **p.56** lists the child's "genetic makeup (metabolism, vision, maximum age, and so forth)". Our children draw fresh fertility ages, which is our call.
+
+**Candidates** (III-5; default: 0 of 10 extinct, troughs 222 minimum, 767 median):
+
+| Candidate | Extinct | Troughs (min / median) | Notes |
+|---|---|---|---|
+| Own fertility tested once per turn (literal p.56) | 0/10 | 375 / 732 | Birth turns with 2+ births rise from 1.8% to 5.4% |
+| Founders' metabolism 1–2 (variation into the cycles) | 0/10 | 512 / 757 | Metabolism-2 agents are still gone by t=200 |
+| Threshold 1.0 (p.55) | 0/10 | 414 / 723 | |
+| Once per turn + threshold 1.0 | 0/10 | 467 / 722 | |
+| Metabolism 1–2 + threshold 1.0 | 0/10 | 273 / 717 | |
+| Once per turn + metabolism 1–2 | 0/10 | 304 / 777 | |
+| Fertility ages inherited (onset from a random parent, end from the same-sex parent) | 0/10 | 729 / 839 | Women's fertility end drifts to 39.4 ± 0.5; III-1 rises to 583, swings shrink |
+| Every capacity-1 site set to 0 (map ceiling lowered) | 0/10 | 384 / 796 | III-1 485, III-4 mean 1,167 (default 1,173) |
+
+**Findings:**
+- **None of these stops births at the peak.** Every run survives, and the troughs stay 4–17 times the book's ≈50.
+- **Our peaks aren't food-limited.** Removing 522 of the 2,069 productive sites leaves the III-4 and III-1 levels within 1%. Agents on capacity-1 sites just break even. The population is regulated by births on the richer sites, so a lower food ceiling doesn't drain wealth.
+- **Inherited fertility ages push the other way.** Selection lengthens fertile windows, raising levels and damping swings.
+- **A brake on current density can't work either**: no births above a cap, or lack of room for the baby (III-5's extinction, above). The block must persist after crowding ends.
+
+**Where this leaves it:**
+- **The book's falls need a lasting fertility deficit** in the cohort that comes of age during and after a peak. Ours comes of age at 1.15–1.35 times its threshold even when born at the peak (III-4's swings, above).
+- **No reading of p.55–57 or Appendix B tested here creates one.** The early-birth and low-density shortfalls (Figs III-1, III-3, III-4) point the same way: the original's births respond more steeply to density than ours, high when sparse and near zero when crowded.
+- **What produces that remains unknown.** The candidates above, and the earlier ones (contact, placement, timing, cost, threshold, founders, income), are ruled out as single causes.
 
 ## Visual comparison
 
