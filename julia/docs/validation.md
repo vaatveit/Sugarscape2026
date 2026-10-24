@@ -101,3 +101,25 @@ Three groups were followed up because they pointed one way or looked qualitative
 
 **Untimed:** every Python result is still from 2026-10-23, before the runner recorded timing, so the speed tables
 are Julia only until the user's timed re-run lands.
+
+## xl: profile (2026-10-24)
+
+One seed each, single process, 10 periods after the first, on the shared machine (`Profile`, flat by count):
+
+| Experiment | Agents | Step ms/period | Metrics ms | Where the time goes |
+|---|---|---|---|---|
+| II-4 | 40,000 → 38,957 | 56 | 6 | `move!`: the lattice scan out to vision (10–60) and `site_score` |
+| IV-A3 | 20,000 → 18,606 | 134 | 2 | `move!` → welfare: two `^` per scanned site, about 80% |
+| VI-1 | 19,910 → 14,400 | 169 | 6 | welfare as IV-A3 (about 85%); `mate!`'s scan of partners in sight |
+
+What changed for speed, none of it changing a result:
+- `SiteWelfare` computes the agent's part of `welfare_score` (preference fraction, exponents, holdings phi periods
+  ahead) once per move instead of at every site, and scores a site with no sugar and no spice from a cached value.
+  A test checks it against `welfare_score` bit for bit at every site of 400 random states. Gain about 3–6%, because
+  at xl nearly every scanned site holds some regrown resource.
+- Not done: replacing the two `^` per site with `exp(e1 log w1 + e2 log w2)`, or skipping sites dominated in both
+  goods. Both would change scores in the last bit (or rest on `^` being monotone), so ties could break differently
+  from Python. The welfare evaluation is the rule's own cost, and Python pays it too.
+
+The hot paths stay type-stable (`test_hot_paths.jl`: `@inferred` on `step!`, `move!`, `collect_metrics`; diffusion
+and growback allocate nothing).
