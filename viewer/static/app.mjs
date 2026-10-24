@@ -1,6 +1,6 @@
 // The viewer page: fetches periods from the local server and draws them. Every color, size and legend entry
 // comes from encoding.mjs; this file defines no encoding of its own.
-import { COLOR_MODES, SIZE_MODES, cellColor, legendCells, wealth } from "./encoding.mjs";
+import { COLOR_MODES, OUTLINE, OUTLINE_WIDTH, SIZE_MODES, cellColor, legendCells, wealth } from "./encoding.mjs";
 
 const PREFETCH = 4; // periods requested ahead of the next one while playing (at most 5 in flight)
 const CACHE_LIMIT = 300;
@@ -17,6 +17,7 @@ const els = {
 const state = {
   info: null, // the run's /api/run response
   runId: 0, // bumped per run, so late responses from an old run are dropped
+  startSeq: 0, // bumped per Start press, so only the latest press sets up the page
   frame: null, // decoded frame on the board
   target: 0, // the period the user last asked to see
   latest: 0,
@@ -25,6 +26,7 @@ const state = {
   cache: new Map(), // t -> decoded frame
   inflight: new Map(), // t -> promise
   playing: false,
+  playGen: 0, // bumped on every play/pause, so only the newest playback loop may draw
   hoverCell: null,
 };
 
@@ -58,7 +60,7 @@ function fetchFrame(t) {
   if (state.cache.has(t)) return Promise.resolve(state.cache.get(t));
   if (state.inflight.has(t)) return state.inflight.get(t);
   const runId = state.runId;
-  const request = api(`/api/frame?t=${t}`).then((json) => {
+  const request = api(`/api/frame?run=${state.info.run}&t=${t}`).then((json) => {
     if (runId !== state.runId) throw new Error("stale run");
     const frame = decode(json);
     state.cache.set(t, frame);
@@ -82,7 +84,7 @@ function setLatest(latest) {
 function refreshPopulations() {
   if (state.popRequest || state.populations.length > state.latest) return;
   const runId = state.runId;
-  state.popRequest = api(`/api/population?from=${state.populations.length}`).then((json) => {
+  state.popRequest = api(`/api/population?run=${state.info.run}&from=${state.populations.length}`).then((json) => {
     if (runId !== state.runId) return;
     if (json.from === state.populations.length) state.populations.push(...json.counts);
     drawChart();
@@ -122,12 +124,16 @@ function setFrame(frame) {
 
 function setPlaying(on) {
   state.playing = on && Boolean(state.info);
+  state.playGen += 1;
   els.play.textContent = state.playing ? "Pause" : "Play";
-  if (state.playing) playLoop(state.runId);
+  if (state.playing) playLoop(state.playGen);
 }
 
-async function playLoop(runId) {
-  while (state.playing && runId === state.runId) {
+// One loop per Play press. A loop still awaiting a frame or its timer when the user pauses and plays again
+// finds a newer generation and ends, so two loops never advance the board at once.
+async function playLoop(gen) {
+  const current = () => gen === state.playGen;
+  while (current()) {
     const started = performance.now();
     const next = (state.frame?.t ?? 0) + 1;
     for (let k = 1; k <= PREFETCH; k++) fetchFrame(next + k).catch(() => {});
@@ -135,11 +141,12 @@ async function playLoop(runId) {
     try {
       frame = await fetchFrame(next);
     } catch (err) {
+      if (!current()) return;
       if (err.message !== "stale run") showError(err);
       setPlaying(false);
       return;
     }
-    if (!state.playing || runId !== state.runId) return;
+    if (!current()) return;
     state.target = frame.t;
     setFrame(frame);
     const speed = els.speed.value;
@@ -183,11 +190,14 @@ function drawBoard() {
   }
   const color = COLOR_MODES[els.colorBy.value];
   const size = SIZE_MODES[els.sizeBy.value];
+  g.strokeStyle = OUTLINE;
+  g.lineWidth = Math.max(1, OUTLINE_WIDTH * cell);
   for (const agent of frame.agents) {
     g.fillStyle = color.color(agent);
     g.beginPath();
     g.arc((agent.x + 0.5) * cell, (H - 1 - agent.y + 0.5) * cell, size.radius(agent) * cell, 0, 2 * Math.PI);
     g.fill();
+    g.stroke();
   }
   if (state.hoverCell) {
     const [x, y] = state.hoverCell;
@@ -303,7 +313,8 @@ function agentList(title, entries) {
     const li = document.createElement("li");
     li.innerHTML = `<svg width="${CELL}" height="${CELL}" aria-hidden="true">
       <rect x="0.5" y="0.5" width="${CELL - 1}" height="${CELL - 1}" fill="none" stroke="currentColor" stroke-opacity="0.25"/>
-      <circle cx="${CELL / 2}" cy="${CELL / 2}" r="${e.radius * CELL}" fill="${e.color}"/></svg>`;
+      <circle cx="${CELL / 2}" cy="${CELL / 2}" r="${e.radius * CELL}" fill="${e.color}"
+        stroke="${OUTLINE}" stroke-width="${Math.max(1, OUTLINE_WIDTH * CELL)}"/></svg>`;
     li.append(e.label);
     list.append(li);
   }
@@ -372,7 +383,9 @@ async function startRun(experiment, seed) {
   setPlaying(false);
   showError(null);
   try {
+    const seq = ++state.startSeq;
     const info = await api("/api/run", { experiment, seed });
+    if (seq !== state.startSeq) return; // a later Start press owns the page
     state.runId += 1;
     Object.assign(state, {
       info, frame: null, target: 0, latest: 0, populations: [], popRequest: null, hoverCell: null,

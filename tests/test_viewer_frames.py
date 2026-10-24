@@ -9,7 +9,7 @@ from experiments.registry import EXPERIMENTS
 from sugarscape.config import Config
 from sugarscape.model import Model
 from viewer.frames import capture
-from viewer.run import LEAD, Run, catalog
+from viewer.run import LEAD, Run, RunBroken, catalog
 
 
 def reference(exp_id, k, t):
@@ -37,6 +37,11 @@ def test_frame_matches_an_independent_model(exp_id, t):
     assert a["age"] == [g.age for g in m.agents]
 
 
+def test_each_run_has_its_own_id():
+    a, b = Run("II-4", 0), Run("II-4", 0)
+    assert a.id != b.id and a.info()["run"] == a.id and a.frame(0).to_json()["t"] == 0
+
+
 def test_seed_index_offsets_the_registered_seed():
     assert Run("II-4", 3).seed == EXPERIMENTS["II-4"].config.seed + 3
 
@@ -55,6 +60,24 @@ def test_requests_beyond_the_lead_are_refused():
     with pytest.raises(ValueError):
         run.frame(-1)
     assert run.latest == 0
+
+
+def test_a_model_error_stops_the_run_where_it_broke():
+    # A step that raises may leave the model half-updated, so nothing past it is computed again (final review #3).
+    run = Run("II-4", 0)
+    run.frame(3)
+    real = run.model.step
+
+    def broken():
+        raise RuntimeError("boom")
+
+    run.model.step = broken
+    with pytest.raises(RuntimeError, match="boom"):
+        run.frame(4)
+    run.model.step = real
+    with pytest.raises(RunBroken, match="boom"):
+        run.frame(4)
+    assert run.latest == 3 and run.frame(3).t == 3 and run.frame(0).t == 0
 
 
 def test_populations_are_the_frames_agent_counts():

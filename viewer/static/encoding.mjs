@@ -15,6 +15,10 @@ export const BAND_COLORS = ["#fde0c5", "#f9a66c", "#e8603c", "#b22b28", "#5c0f1e
 export const BAND_RADII = [0.2, 0.28, 0.36, 0.44, 0.52]; // fraction of a cell
 export const TRIBE_COLORS = { red: "#d62728", blue: "#1f5fbf" }; // as the book colors the tribes
 export const NEUTRAL = "#333333";
+// Thin dark ring around every agent dot, so the palest band stays visible on pale cells (contrast >= 3 on every
+// cell color, tested). It marks presence only; color and size carry the attribute.
+export const OUTLINE = "#1d1d1f";
+export const OUTLINE_WIDTH = 0.06; // fraction of a cell, at least one device pixel
 const UNIFORM_RADIUS = 0.4;
 
 // Cell color for sugar level s and spice level p, each scaled by its run's highest capacity (0 max: no term).

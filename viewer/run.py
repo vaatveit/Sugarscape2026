@@ -1,6 +1,7 @@
 """One run of a registered experiment, stepped on demand and recorded period by period."""
 
 import threading
+import uuid
 from dataclasses import replace
 
 from experiments.registry import EXPERIMENTS
@@ -13,6 +14,10 @@ LEAD = 50  # furthest a request may reach past the latest computed period
 
 class OutOfRange(ValueError):
     """A period the run can't serve yet; kept apart from any ValueError the model itself raises."""
+
+
+class RunBroken(RuntimeError):
+    """The model raised during a step. It may be half-updated, so the run computes nothing further."""
 
 
 def catalog() -> list[dict]:
@@ -31,11 +36,13 @@ class Run:
             raise ValueError(f"no grid experiment {exp_id!r}")
         if isinstance(seed_index, bool) or not isinstance(seed_index, int) or seed_index < 0:
             raise ValueError(f"seed must be an integer >= 0, not {seed_index!r}")
+        self.id = uuid.uuid4().hex  # requests name it, so a replaced run's page can't be fed another run's frames
         self.experiment, self.seed_index = exp, seed_index
         self.seed = exp.config.seed + seed_index
         self.model = Model(replace(exp.config, seed=self.seed))
         self._frames: list[Frame] = [capture(self.model)]
         self._lock = threading.Lock()
+        self.error: Exception | None = None  # set when a step raised; periods before it still serve
 
     @property
     def latest(self) -> int:
@@ -46,8 +53,14 @@ class Run:
         with self._lock:
             if t < 0 or t > self.latest + LEAD:
                 raise OutOfRange(f"t={t} is outside 0..{self.latest + LEAD}")
+            if t > self.latest and self.error is not None:
+                raise RunBroken(f"the run stopped at t={self.latest + 1}: {self.error}") from self.error
             while self.latest < t:
-                self.model.step()
+                try:
+                    self.model.step()
+                except Exception as e:
+                    self.error = e
+                    raise
                 self._frames.append(capture(self.model))
             return self._frames[t]
 
@@ -58,6 +71,7 @@ class Run:
     def info(self) -> dict:
         exp, cfg, land = self.experiment, self.model.config, self.model.landscape
         return {
+            "run": self.id,
             "experiment": exp.id,
             "title": exp.title,
             "rules": exp.rules,

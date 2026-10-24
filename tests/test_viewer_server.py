@@ -43,6 +43,13 @@ def call(base, path, body=None, raw=None):
     return status, headers, json.loads(text) if headers.get("Content-Type", "").startswith("application/json") else text
 
 
+def start(base, experiment, seed):
+    """POST a run; returns its info, whose "run" id later requests must name."""
+    status, _, info = call(base, "/api/run", {"experiment": experiment, "seed": seed})
+    assert status == 200, info
+    return info
+
+
 def test_connections_are_kept_alive(live):
     # A new connection costs ~300 ms on Windows when "localhost" tries ::1 first; reusing one avoids that.
     _, base = live
@@ -68,31 +75,44 @@ def test_experiments_endpoint_is_the_catalog(live):
 
 def test_run_then_frames_match_the_run(live):
     _, base = live
-    status, _, info = call(base, "/api/run", {"experiment": "VI-1", "seed": 2})
-    assert status == 200 and info["seed"] == EXPERIMENTS["VI-1"].config.seed + 2 and info["tribes"] is True
-    assert info == Run("VI-1", 2).info()
-    status, _, frame = call(base, "/api/frame?t=5")
+    info = start(base, "VI-1", 2)
+    assert info["seed"] == EXPERIMENTS["VI-1"].config.seed + 2 and info["tribes"] is True
+    assert {k: v for k, v in info.items() if k != "run"} == {k: v for k, v in Run("VI-1", 2).info().items() if k != "run"}
+    status, _, frame = call(base, f"/api/frame?run={info['run']}&t=5")
     assert status == 200 and frame["t"] == 5 and frame["latest"] == 5
-    assert {k: v for k, v in frame.items() if k != "latest"} == Run("VI-1", 2).frame(5).to_json()
+    assert frame["run"] == info["run"]
+    assert {k: v for k, v in frame.items() if k not in ("latest", "run")} == Run("VI-1", 2).frame(5).to_json()
 
 
 def test_population_counts_the_agents_drawn(live):
     _, base = live
-    call(base, "/api/run", {"experiment": "VI-1", "seed": 0})
-    call(base, "/api/frame?t=12")
-    status, _, pop = call(base, "/api/population?from=0")
+    rid = start(base, "VI-1", 0)["run"]
+    call(base, f"/api/frame?run={rid}&t=12")
+    status, _, pop = call(base, f"/api/population?run={rid}&from=0")
     assert status == 200 and pop["latest"] == 12 and pop["from"] == 0 and len(pop["counts"]) == 13
     for t in range(13):
-        assert pop["counts"][t] == len(call(base, f"/api/frame?t={t}")[2]["agents"]["id"])
-    assert call(base, "/api/population?from=10")[2]["counts"] == pop["counts"][10:]
+        assert pop["counts"][t] == len(call(base, f"/api/frame?run={rid}&t={t}")[2]["agents"]["id"])
+    assert call(base, f"/api/population?run={rid}&from=10")[2]["counts"] == pop["counts"][10:]
 
 
 def test_new_run_replaces_the_old(live):
     _, base = live
-    call(base, "/api/run", {"experiment": "II-4", "seed": 0})
-    call(base, "/api/frame?t=10")
-    call(base, "/api/run", {"experiment": "II-4", "seed": 0})
-    assert call(base, "/api/frame?t=0")[2]["latest"] == 0
+    old = start(base, "II-4", 0)["run"]
+    call(base, f"/api/frame?run={old}&t=10")
+    new = start(base, "II-4", 0)["run"]
+    assert new != old and call(base, f"/api/frame?run={new}&t=0")[2]["latest"] == 0
+
+
+def test_requests_for_a_replaced_run_are_409(live):
+    # A second tab starting its own run must not feed the first tab another run's frames (final review #1).
+    _, base = live
+    a = start(base, "VI-1", 0)["run"]
+    b = start(base, "II-4", 0)["run"]
+    for path in (f"/api/frame?run={a}&t=3", f"/api/population?run={a}&from=0"):
+        status, _, err = call(base, path)
+        assert status == 409 and "replaced" in err["error"], path
+    status, _, frame = call(base, f"/api/frame?run={b}&t=3")
+    assert status == 200 and frame["spice"] is None and frame["run"] == b
 
 
 def test_bad_requests_are_400(live):
@@ -103,32 +123,36 @@ def test_bad_requests_are_400(live):
         assert status == 400 and "error" in err, body
     status, _, err = call(base, "/api/run", raw=b"not json")
     assert status == 400 and "error" in err
-    call(base, "/api/run", {"experiment": "II-4", "seed": 0})
-    for q in ("t=-1", "t=abc", f"t={LEAD + 1}", ""):
+    rid = start(base, "II-4", 0)["run"]
+    for q in (f"run={rid}&t=-1", f"run={rid}&t=abc", f"run={rid}&t={LEAD + 1}", f"run={rid}", "t=0"):
         status, _, err = call(base, f"/api/frame?{q}")
         assert status == 400 and "error" in err, q
-    for q in ("from=-1", "from=x"):
+    for q in (f"run={rid}&from=-1", f"run={rid}&from=x", "from=0"):
         assert call(base, f"/api/population?{q}")[0] == 400, q
 
 
 def test_frames_before_any_run_are_409():
     with serving() as (_, base):
-        for path in ("/api/frame?t=0", "/api/population?from=0"):
+        for path in ("/api/frame?run=x&t=0", "/api/population?run=x&from=0"):
             status, _, err = call(base, path)
             assert status == 409 and "error" in err
 
 
 def test_model_errors_are_500_and_the_server_survives(live):
     server, base = live
-    call(base, "/api/run", {"experiment": "II-4", "seed": 0})
+    rid = start(base, "II-4", 0)["run"]
 
     def broken():
         raise RuntimeError("boom")
 
-    server.run.model.step = broken
-    status, _, err = call(base, "/api/frame?t=1")
+    real, server.run.model.step = server.run.model.step, broken
+    status, _, err = call(base, f"/api/frame?run={rid}&t=1")
     assert status == 500 and "boom" in err["error"]
     assert call(base, "/api/experiments")[0] == 200
+    server.run.model.step = real
+    status, _, err = call(base, f"/api/frame?run={rid}&t=1")  # the half-stepped model is never stepped again
+    assert status == 500 and "boom" in err["error"]
+    assert call(base, f"/api/frame?run={rid}&t=0")[0] == 200
 
 
 def test_unknown_paths_are_404(live):

@@ -92,17 +92,18 @@ class Handler(BaseHTTPRequestHandler):
         elif url.path == "/api/experiments":
             self._json(HTTPStatus.OK, catalog())
         elif url.path == "/api/frame":
-            run = self._run()
+            run = self._run(query)
             t = _int(query, "t")
             try:
                 frame = run.frame(t)
             except OutOfRange as e:
                 raise ApiError(HTTPStatus.BAD_REQUEST, str(e))
-            self._json(HTTPStatus.OK, {**frame.to_json(), "latest": run.latest})
+            self._json(HTTPStatus.OK, {**frame.to_json(), "run": run.id, "latest": run.latest})
         elif url.path == "/api/population":
-            run = self._run()
+            run = self._run(query)
             start = _int(query, "from")
-            self._json(HTTPStatus.OK, {"latest": run.latest, "from": start, "counts": run.populations(start)})
+            self._json(HTTPStatus.OK, {"run": run.id, "latest": run.latest, "from": start,
+                                       "counts": run.populations(start)})
         else:
             raise ApiError(HTTPStatus.NOT_FOUND, "not found")
 
@@ -121,10 +122,16 @@ class Handler(BaseHTTPRequestHandler):
         self.server.run = run
         self._json(HTTPStatus.OK, run.info())
 
-    def _run(self) -> Run:
-        if self.server.run is None:
+    def _run(self, query: dict) -> Run:
+        """The current run, which the request must name: another tab may have started a newer one since."""
+        if "run" not in query:
+            raise ApiError(HTTPStatus.BAD_REQUEST, "run (the id from POST /api/run) is required")
+        run = self.server.run
+        if run is None:
             raise ApiError(HTTPStatus.CONFLICT, "no run started")
-        return self.server.run
+        if query["run"][0] != run.id:
+            raise ApiError(HTTPStatus.CONFLICT, "this run was replaced by a newer one (started in another tab?)")
+        return run
 
 
 class ViewerServer(ThreadingHTTPServer):

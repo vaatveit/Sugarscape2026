@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   BANDS, BAND_COLORS, BAND_LABELS, BAND_RADII, COLOR_MODES, NEUTRAL, SIZE_MODES, TRIBE_COLORS,
-  bandOf, cellColor, legendCells, wealth,
+  OUTLINE, bandOf, cellColor, legendCells, wealth,
 } from "../../viewer/static/encoding.mjs";
 
 const LOWER = [0, ...BANDS]; // each band's lower bound
@@ -87,4 +87,22 @@ test("tribe mode only where tribes exist", () => {
   assert.equal(COLOR_MODES.tribe.color({ tribe: "blue" }), TRIBE_COLORS.blue);
   assert.equal(COLOR_MODES.none.color({ tribe: "red", sugar: 400, spice: 0 }), NEUTRAL);
   assert.equal(SIZE_MODES.none.radius({ sugar: 0, spice: 0 }), 0.4);
+});
+
+// WCAG relative luminance and contrast ratio.
+function luminance(rgb) {
+  const lin = rgb.map((c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; });
+  return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2];
+}
+const contrast = (a, b) => { const [x, y] = [luminance(a), luminance(b)].sort((m, n) => n - m); return (x + 0.05) / (y + 0.05); };
+const hexRgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+
+test("every agent's outline stands out from every cell color", () => {
+  // The lightest wealth band is pale on pale cells; the outline keeps every agent visible (final review #8).
+  for (let i = 0; i <= 32; i++) {
+    for (let j = 0; j <= 32; j++) {
+      const c = contrast(hexRgb(OUTLINE), cellColor(i / 8, j / 8, 4, 4));
+      assert.ok(c >= 3, `outline vs cell ${i / 8},${j / 8}: ${c.toFixed(2)}`);
+    }
+  }
 });
