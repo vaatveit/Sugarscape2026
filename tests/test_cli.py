@@ -27,6 +27,11 @@ def test_unknown_option_is_usage_error(exe):
 # --- Task 2: run.cfg, maps, tiling ------------------------------------------------------------
 
 
+def _error(result) -> str:
+    """The error message: stderr's first line (the usage text follows it)."""
+    return result.stderr.splitlines()[0] if result.stderr else ""
+
+
 def _capacity_sum() -> int:
     return sum(int(v) for line in SUGAR_MAP.read_text().splitlines() for v in line.split())
 
@@ -47,7 +52,7 @@ def test_unknown_key_is_rejected(exe, tmp_path):
     cfg.write_text(cfg.read_text() + "colour = red\n")
     result = run_exe(exe, "--config", cfg, "--print-config")
     assert result.returncode == 2
-    assert "colour" in result.stderr
+    assert "colour" in _error(result)
 
 
 def test_unsupported_feature_key_is_rejected(exe, tmp_path):
@@ -55,19 +60,19 @@ def test_unsupported_feature_key_is_rejected(exe, tmp_path):
     cfg.write_text(cfg.read_text() + "sex = true\n")
     result = run_exe(exe, "--config", cfg, "--print-config")
     assert result.returncode == 2
-    assert "sex" in result.stderr
+    assert "sex" in _error(result)
 
 
 def test_vision_too_large_is_rejected(exe, tmp_path):
     result = run_exe(exe, "--config", write_cfg(tmp_path, vision="1,25"), "--print-config")
     assert result.returncode == 2
-    assert "vision" in result.stderr
+    assert "vision" in _error(result)
 
 
 def test_replacement_needs_max_age(exe, tmp_path):
     result = run_exe(exe, "--config", write_cfg(tmp_path, replacement="true"), "--print-config")
     assert result.returncode == 2
-    assert "max_age" in result.stderr
+    assert "max_age" in _error(result)
 
 
 def test_bad_map_is_rejected(exe, tmp_path):
@@ -81,7 +86,7 @@ def test_bad_map_is_rejected(exe, tmp_path):
         map_path = write_map(tmp_path / name, rows)
         result = run_exe(exe, "--config", write_cfg(tmp_path, map=str(map_path)), "--print-config")
         assert result.returncode == 2, name
-        assert name in result.stderr, name
+        assert name in _error(result), name
 
 
 def test_tile_scales_world(exe, tmp_path):
@@ -106,4 +111,4 @@ def test_world_at_max_cells_is_accepted(exe, tmp_path):
 def test_world_over_max_cells_is_rejected(exe, tmp_path):
     result = run_exe(exe, "--config", write_cfg(tmp_path), "--tile", "51", "--print-config")
     assert result.returncode == 2
-    assert "SUGARSCAPE_MAX_CELLS" in result.stderr
+    assert "SUGARSCAPE_MAX_CELLS" in _error(result)

@@ -34,6 +34,10 @@ SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin/${CMAKE_BUILD
 # Manually list all of the files which require building or influence re-building (i.e. headers).
 SET(ALL_SRC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cu
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/config.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/config.cu
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/landscape_io.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/landscape_io.cu
 )
 
 # Add the executable and set required flags for the target
