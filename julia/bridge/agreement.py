@@ -190,3 +190,18 @@ def flag(checks: list[Check], q: float = Q) -> None:
     for c in checks:
         if c.kind == "constant-differs":
             c.flagged = True
+
+
+def seed_level_p(py: list[float], jl: list[float]) -> float:
+    """Two-sided p for one per-seed statistic, Julia against Python: Fisher's exact test when every value is an
+    outcome (0 or 1), Welch's t-test otherwise; NaN seeds are dropped. NaN when untestable."""
+    py = [v for v in py if not math.isnan(v)]
+    jl = [v for v in jl if not math.isnan(v)]
+    if len(py) < 2 or len(jl) < 2:
+        return math.nan
+    if set(py + jl) <= {0.0, 1.0}:
+        a, c = int(sum(jl)), int(sum(py))
+        return fisher_exact(a, len(jl) - a, c, len(py) - c)
+    if _var(py) == 0 and _var(jl) == 0:
+        return math.nan
+    return welch(jl, py)[2]

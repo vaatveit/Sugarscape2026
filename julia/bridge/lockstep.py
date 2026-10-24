@@ -1,9 +1,10 @@
 """Lockstep fixtures: Python runs with every random choice recorded, for Julia to replay exactly.
 
 Usage (from julia/): python -m bridge.lockstep
-For rule sets whose only random choices in a period are the agents' order and each agent's direction order (rules
-M and C, growback, seasons, pollution, diffusion; no replacement, sex, culture, trade, credit or disease), Julia fed
-the same choices must reach the same state, period by period. Each case's start state, choices and trajectory go to
+For rule sets whose only random choices are permutations (the agents' order, each agent's direction order, and the
+order an agent trades with its neighbours: rules M, C and T, growback, seasons, pollution, diffusion; no
+replacement, sex, culture, credit or disease), Julia fed the same choices, in the same sequence, must reach the same
+state, period by period. Each case's start state, choices and trajectory go to
 julia/test/fixtures/lockstep.toml.
 """
 
@@ -18,7 +19,7 @@ from experiments.registry import EXPERIMENTS
 from sugarscape.model import Model
 
 FIXTURES = JULIA_DIR / "test" / "fixtures" / "lockstep.toml"
-DRAWS = {"step": "orders", "candidate_sites": "dirs", "combat_candidates": "dirs"}
+DRAWS = {"step": "order", "candidate_sites": "dirs", "combat_candidates": "dirs", "trade_with_neighbors": "perm"}
 
 
 @dataclass(frozen=True)
@@ -33,28 +34,32 @@ CASES = {
     "II-7": Case("II-7", {"initial_population": 100}, 60),
     "II-8": Case("II-8", {"initial_population": 100, "pollution_start": 5, "diffusion_start": 20}, 40),
     "II-1": Case("II-1", {"initial_population": 100}, 30),
-    "III-9": Case("III-9", {"initial_blocks": (("blue", 0, 0, 20, 20, 60), ("red", 30, 30, 20, 20, 60))}, 80),
+    "III-9": Case("III-9", {"initial_blocks": (("blue", 0, 0, 20, 20, 60), ("red", 30, 30, 20, 20, 60))}, 50),
     "III-13": Case("III-13", {"initial_blocks": (("blue", 0, 0, 20, 20, 60), ("red", 30, 30, 20, 20, 60))}, 60),
+    "IV-6/notrade/v6": Case("IV-6/notrade/v6", {"initial_population": 80}, 40),
+    "IV-6/trade/v6": Case("IV-6/trade/v6", {"initial_population": 80}, 40),
+    "IV-A3": Case("IV-A3", {"initial_population": 100, "pollution_start": 5, "pollution_stop": 20,
+                            "diffusion_start": 20}, 40),
 }
 
 
 class Recorder:
-    """numpy's Generator, recording each permutation by the rule that drew it."""
+    """numpy's Generator, recording each permutation, in call order, with the rule that drew it."""
 
     def __init__(self, model: Model):
         self.model, self.rng = model, model.rng
-        self.orders: list[list[int]] = []
-        self.dirs: list[list[int]] = []
+        self.events: list[list] = []
 
     def permutation(self, n):
         p = self.rng.permutation(n)
         caller = inspect.stack()[1].function
         if caller not in DRAWS:
             raise ValueError(f"a {caller} draw cannot be replayed in lockstep")
-        if DRAWS[caller] == "orders":
-            self.orders.append([self.model.agents[int(i)].id for i in p])
-        else:
-            self.dirs.append([int(d) + 1 for d in p])  # Julia's 1-based direction indices into VON_NEUMANN
+        kind = DRAWS[caller]
+        if kind == "order":  # the acting order, as agent ids
+            self.events.append([kind, [self.model.agents[int(i)].id for i in p]])
+        else:  # 1-based: indices into VON_NEUMANN, or into the neighbour list (E, W, N, S order)
+            self.events.append([kind, [int(i) + 1 for i in p]])
         return p
 
     def __getattr__(self, name):
@@ -66,6 +71,8 @@ def _agent(a) -> dict:
            "age": a.age}
     if a.tags is not None:
         out["tags"] = list(a.tags)
+    if a.spice_metabolism:
+        out.update(spice=float(a.spice), spice_metabolism=a.spice_metabolism, foresight=a.foresight)
     if not math.isinf(a.max_age):
         out["max_age"] = int(a.max_age)
     return out
@@ -82,12 +89,14 @@ def record(case: Case) -> dict:
     for _ in range(case.periods):
         m.step()
         states.append({"population": len(m.agents), "sugar_total": float(m.landscape.sugar.sum()),
-                       "pollution_total": float(m.landscape.pollution.sum())})
+                       "spice_total": float(m.landscape.spice.sum()),
+                       "pollution_total": float(m.landscape.pollution.sum()), "trades": len(m.trade_log)})
     ls = m.landscape
     return {"config": {f.name: getattr(cfg, f.name) for f in fields(cfg) if getattr(cfg, f.name) is not None},
-            "start": start, "orders": rec.orders, "dirs": rec.dirs, "states": states,
+            "start": start, "events": rec.events, "states": states,
             "end": [_agent(a) for a in sorted(m.agents, key=lambda a: a.id)],
-            "end_sugar": ls.sugar.tolist(), "end_pollution": ls.pollution.tolist()}
+            "end_sugar": ls.sugar.tolist(), "end_spice": ls.spice.tolist(), "end_pollution": ls.pollution.tolist(),
+            "trades": len(m.trade_log)}
 
 
 def _config_table(cfg: dict) -> str:
@@ -100,7 +109,7 @@ def fixture_text() -> str:
         r = record(case)
         out += ["[[case]]", f"name = {_string(name)}", f"experiment = {_string(case.experiment)}",
                 f"periods = {case.periods}", f"config = {_config_table(r['config'])}"]
-        out += [f"{k} = {_toml(r[k])}" for k in ("start", "orders", "dirs", "states", "end", "end_sugar",
+        out += [f"{k} = {_toml(r[k])}" for k in ("start", "events", "states", "end", "end_sugar", "end_spice",
                                                   "end_pollution")]
         out.append("")
     return "\n".join(out)

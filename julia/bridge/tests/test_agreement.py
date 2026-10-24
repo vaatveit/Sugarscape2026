@@ -88,3 +88,11 @@ def test_flag_applies_one_correction():
              Check("A", None, None, "extinction", 1e-5, 5, 5, 0, 1, math.nan)]
     flag(tests, 0.01)
     assert [x.flagged for x in tests] == [True, False, True, True]
+
+
+def test_seed_level_p_uses_fisher_for_outcomes_and_welch_otherwise():
+    from bridge.agreement import seed_level_p
+    assert seed_level_p([1.0] * 10, [1.0] * 7 + [0.0] * 3) == pytest.approx(fisher_exact(7, 3, 10, 0))
+    assert seed_level_p([1, 2, 3, 4, 5], [2, 4, 6, 8, 10]) == pytest.approx(welch([2, 4, 6, 8, 10], [1, 2, 3, 4, 5])[2])
+    assert seed_level_p([math.nan, 1.0, 2.0], [1.0, 2.0, 3.0]) == pytest.approx(welch([1.0, 2.0, 3.0], [1.0, 2.0])[2])
+    assert math.isnan(seed_level_p([3.0, 3.0], [3.0, 3.0])) and math.isnan(seed_level_p([1.0], [2.0, 3.0]))

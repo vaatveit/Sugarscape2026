@@ -10,11 +10,11 @@ import statistics
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from bridge.agreement import Q, Check, compare_experiment, flag, windows
+from bridge.agreement import Q, Check, compare_experiment, flag, seed_level_p, windows
 from bridge.paths import PY_RESULTS, REPO_ROOT
 from experiments.registry import EXPERIMENTS
 from experiments.run import _read_csv, fingerprint, load_results, result_dir
-from replication.report import Result, _fmt, evaluate
+from replication.report import Result, _fmt, _per_seed, evaluate
 from replication.targets import TARGETS, Target
 from sugarscape.config import Config
 
@@ -46,6 +46,7 @@ class TargetRow:
     target: Target
     python: Result | None
     julia: Result | None
+    seed_p: float = math.nan  # the per-seed statistic, Julia against Python (agreement.seed_level_p)
 
     @property
     def changed(self) -> bool:
@@ -127,14 +128,18 @@ def _targets(ids: set[str], jl_root: Path, py_root: Path, cache: dict) -> list[T
     for t in TARGETS:
         if t.experiment not in ids:
             continue
-        scored = []
+        scored, per_seed = [], []
         for root in (py_root, jl_root):
             main, base = runs(t.experiment, root), runs(t.baseline, root) if t.baseline else None
             try:
-                scored.append(None if main is None or (t.baseline and base is None) else evaluate(t, main, base))
+                ok = main is not None and not (t.baseline and base is None)
+                scored.append(evaluate(t, main, base) if ok else None)
+                per_seed.append(_per_seed(t, main, base) if ok else None)
             except KeyError:  # a column this result does not record
                 scored.append(None)
-        rows.append(TargetRow(t, *scored))
+                per_seed.append(None)
+        p = math.nan if None in per_seed else seed_level_p(*per_seed)
+        rows.append(TargetRow(t, *scored, p))
     return rows
 
 
@@ -235,15 +240,18 @@ def write_report(report: Report, path: Path) -> None:
         lines += ["", "Status changes:", ""]
         lines += [f"- {t.target.experiment} {t.target.name}: Python {t.python.status} → Julia {t.julia.status} "
                   f"(Python {_fmt(t.python.observed_mean)}, Julia {_fmt(t.julia.observed_mean)}, band "
-                  f"{_fmt(t.target.low)}–{_fmt(t.target.high)})" for t in changes] or ["None."]
-        lines += ["", "| Experiment | Target | Band | Python mean | Python | Julia mean | Julia |",
-                  "|---|---|---|---|---|---|---|"]
+                  f"{_fmt(t.target.low)}–{_fmt(t.target.high)}; seed-level p = {_num(t.seed_p, 2)})"
+                  for t in changes] or ["None."]
+        lines += ["", "Seed-level p tests the target's per-seed values, Julia against Python (Fisher's exact test for "
+                  "outcomes, Welch otherwise), one target at a time and uncorrected.", "",
+                  "| Experiment | Target | Band | Python mean | Python | Julia mean | Julia | Seed-level p |",
+                  "|---|---|---|---|---|---|---|---|"]
         for t in report.targets:
             py = "—" if t.python is None else t.python.status
             jl = "—" if t.julia is None else t.julia.status
             lines.append(f"| {t.target.experiment} | {t.target.name} | {_fmt(t.target.low)}–{_fmt(t.target.high)} | "
                          f"{_fmt(t.python.observed_mean) if t.python else '—'} | {py} | "
-                         f"{_fmt(t.julia.observed_mean) if t.julia else '—'} | {jl} |")
+                         f"{_fmt(t.julia.observed_mean) if t.julia else '—'} | {jl} | {_num(t.seed_p, 2)} |")
         lines.append("")
 
     speedups = [s.speedup for s in report.speed if s.speedup is not None]

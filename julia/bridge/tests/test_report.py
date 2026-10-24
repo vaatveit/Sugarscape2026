@@ -39,7 +39,7 @@ def test_report_flags_a_planted_shift_and_reads_speed(tmp_path):
     path = tmp_path / "REPORT.md"
     write_report(report, path)
     text = path.read_text(encoding="utf-8")
-    assert "population" in text and "50" in text and "does not agree" in text
+    assert "population" in text and "50" in text and "does not agree" in text and "Seed-level p" in text
 
 
 def test_report_names_untimed_and_stale_inputs(tmp_path):
