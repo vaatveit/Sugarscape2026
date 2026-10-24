@@ -95,8 +95,9 @@ With them, report the number of periods and the agent count at the start and at 
 (language and library versions, platform, processor) and whether runs shared the processor.
 
 The Python runner writes these to `timing.csv` (one row per seed) and `machine.txt` in each result folder. The
-first seed's setup includes one-off warm-up in a fresh process: in a regular run of `TEST-tiny`, 0.056 s for
-seed 0 against 0.001 s for seed 1.
+first seed each process runs includes one-off warm-up in its setup: in a regular run of `TEST-tiny`, 0.056 s for
+seed 0 against 0.001 s for seed 1. With `--jobs J`, each of the J worker processes pays it on its first seed (with
+`--jobs 2`, seeds 0 and 1 both took about 0.06 s and the rest about 0.001 s).
 
 *Not defined here:* which metrics must agree between implementations, over how many seeds, and to what tolerance.
 That belongs to the comparison work.
