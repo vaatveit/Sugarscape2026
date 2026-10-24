@@ -50,6 +50,9 @@ class Config:
     pollution_start: int = 0
     diffusion_period: int | None = None  # alpha of D_alpha (p.48)
     diffusion_start: int = 0
+    # Passes of the D rule per diffusion period. xl sets 100, so pollution spreads over the same share of a 10x finer
+    # world (docs/xl.md). Left out of repr, like the rule S options, so no existing fingerprint changes.
+    diffusion_passes: int = field(default=1, repr=False)
 
     # Chapter III. Every new random draw is gated by one of these, so Chapter II runs keep
     # their exact random streams.
@@ -135,6 +138,9 @@ class Config:
             raise ValueError(f"seasons (beta, gamma) must both be >= 1, not {self.seasons}")
         if self.diffusion_period is not None and self.diffusion_period < 1:
             raise ValueError(f"diffusion_period must be None or >= 1, not {self.diffusion_period}")
+        passes = self.diffusion_passes
+        if not isinstance(passes, int) or isinstance(passes, bool) or passes < 1:
+            raise ValueError(f"diffusion_passes must be a whole number >= 1, not {passes!r}")
         if self.pollution is not None and min(self.pollution) < 0:
             raise ValueError(f"pollution coefficients must be >= 0, not {self.pollution}")
         _, _, w, h = self.block
