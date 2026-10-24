@@ -3,7 +3,7 @@
 Date: 2026-10-23. GPU program at this commit, built with FLAME GPU's run-time checks on
 (`FLAMEGPU_SEATBELTS=ON`). Python results from `C:\Projects\Sugarscape2026\results`, all current
 (none stale). Every registered Chapter II experiment was run with its registered seed count: 25
-experiments, 235 runs, all exiting 0. The full table is in `results-gpu/REPORT.md`, written by
+experiments, 225 runs, all exiting 0. The full table is in `results-gpu/REPORT.md`, written by
 `python -m bridge.gpu_report --chapter II`.
 
 ## Scoreboard
