@@ -8,6 +8,7 @@ import { PopulationSeries } from "./series.mjs";
 
 const PREFETCH = 4; // periods requested ahead of the next one while playing (at most 5 in flight)
 const CACHE_LIMIT = 300;
+const DEFAULT_EXPERIMENT = "VI-1"; // selected when the page opens: all rules on
 
 const $ = (id) => document.getElementById(id);
 const els = {
@@ -428,6 +429,7 @@ async function init() {
   try {
     const experiments = await api("/api/experiments");
     els.experiment.replaceChildren(...experiments.map((e) => new Option(`${e.id} — ${e.title}`, e.id)));
+    if (experiments.some((e) => e.id === DEFAULT_EXPERIMENT)) els.experiment.value = DEFAULT_EXPERIMENT;
   } catch (err) {
     showError(err);
   }
