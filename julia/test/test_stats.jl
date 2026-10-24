@@ -4,12 +4,6 @@ using Sugarscape, Test
 isdefined(@__MODULE__, :tiny_model) || include("helpers.jl")
 
 metrics(m) = Dict(zip(METRIC_COLUMNS, collect_metrics(m)))
-bits(v) = foldl((acc, (i, b)) -> acc | (UInt64(b) << (i - 1)), enumerate(v); init=UInt64(0))
-function tag!(a, v)
-    a.tags, a.ntags = bits(v), length(v)
-    return a
-end
-loose(v...) = tag!(Agent(10_000, 0, 0, 1, 1, 10.0), collect(v))  # a free-standing tagged agent
 
 @testset "metric columns" begin
     @test METRIC_COLUMNS == [

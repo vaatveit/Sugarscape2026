@@ -28,6 +28,8 @@ export Model,
 export move_agent!, kill!, die!, deaths_this_step, agents_ever, step!, run!, sample_distinct
 export move!, metabolize!, pollution_active
 export METRIC_COLUMNS, collect_metrics, gini, tribe, closeness
+export random_tags, cross_tags, hamming, culture_transmit!, update_friends!
+export is_fertile, assign_sex!, in_sight, mate!, combat_move!, vulnerable
 
 include("config.jl")
 include("registry.jl")
@@ -37,6 +39,9 @@ include("agent.jl")
 include("landscape.jl")
 include("model.jl")
 include("rules/movement.jl")
+include("rules/culture.jl")
+include("rules/sex.jl")
+include("rules/combat.jl")
 include("stats.jl")
 include("runner.jl")
 

@@ -347,5 +347,30 @@ end
 
 """Chapter III-V draws for a new random agent, each gated by its rules and in Python's order (III, IV, V)."""
 function spawn_chapter_draws!(m::Model, a::Agent, tribe::Symbol)
+    cfg, rng = m.config, m.rng
+    # Chapter III draws come after the Chapter II ones.
+    if cfg.tag_length > 0
+        a.tags, a.ntags = random_tags(rng, cfg.tag_length, tribe), cfg.tag_length
+    end
+    cfg.sex && assign_sex!(m, a, random_sex(rng))
     return a
+end
+
+"""Tribal blocks (Config.initial_blocks): each block's agents at distinct random empty sites inside it."""
+function place_blocks!(m::Model)
+    for (name, x0, y0, w, h, n) in m.config.initial_blocks
+        sites = [
+            (x0 + i, y0 + j) for i in 0:(w - 1) for
+            j in 0:(h - 1) if m.grid[x0 + i + 1, y0 + j + 1] === nothing
+        ]
+        n > length(sites) && throw(
+            ArgumentError(
+                "$n $name agents do not fit in $(length(sites)) empty block sites"
+            ),
+        )
+        for i in sample_distinct(m.rng, length(sites), n)
+            spawn_at!(m, sites[i]...; tribe=Symbol(name))
+        end
+    end
+    return nothing
 end

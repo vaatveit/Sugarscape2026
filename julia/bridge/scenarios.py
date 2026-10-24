@@ -59,6 +59,35 @@ SCENARIOS: dict[str, Scenario] = {
 }
 
 
+def _grid(n: int, sites: dict[tuple[int, int], int] | None = None) -> list[list[int]]:
+    cap = [[0] * n for _ in range(n)]
+    for (x, y), v in (sites or {}).items():
+        cap[x][y] = v
+    return cap
+
+
+# Chapter III. Bystanders have vision 0 and metabolism 0, so they neither move nor change, whatever the order.
+_COMBAT = {"tag_length": 1, "combat_alpha": math.inf, "vision": (1, 4)}
+SCENARIOS.update({
+    "combat_takes_weaker_enemy": Scenario(_COMBAT, _grid(12), [
+        {"x": 1, "y": 1, "vision": 4, "metabolism": 1, "sugar": 20.0, "tags": [0]},
+        {"x": 3, "y": 1, "vision": 0, "metabolism": 0, "sugar": 8.0, "tags": [1]}], 2),
+    "combat_alpha_caps_the_take": Scenario({**_COMBAT, "combat_alpha": 2.0}, _grid(12), [
+        {"x": 1, "y": 1, "vision": 4, "metabolism": 1, "sugar": 20.0, "tags": [0]},
+        {"x": 3, "y": 1, "vision": 0, "metabolism": 0, "sugar": 8.0, "tags": [1]}], 2),
+    # The target (3, 1) is vulnerable (30 > 20 + 8) and so is the agent's own site; (1, 3) is the one safe reward.
+    "combat_retaliation_blocks": Scenario(_COMBAT, _grid(12, {(1, 3): 3}), [
+        {"x": 1, "y": 1, "vision": 4, "metabolism": 1, "sugar": 20.0, "tags": [0]},
+        {"x": 3, "y": 1, "vision": 0, "metabolism": 0, "sugar": 8.0, "tags": [1]},
+        {"x": 5, "y": 1, "vision": 0, "metabolism": 0, "sugar": 30.0, "tags": [1]}], 2),
+    # The parent and one child die of age in the same batch; the other child inherits everything (p.67).
+    "inheritance_to_child": Scenario({"inheritance": True, "max_age": (1, 100), "vision": (1, 1)}, _grid(5), [
+        {"x": 0, "y": 0, "vision": 1, "metabolism": 1, "sugar": 40.0, "max_age": 1, "children": [1, 2]},
+        {"x": 2, "y": 2, "vision": 1, "metabolism": 1, "sugar": 10.0, "max_age": 1},
+        {"x": 4, "y": 4, "vision": 1, "metabolism": 1, "sugar": 10.0}], 1),
+})
+
+
 def build(sc: Scenario, seed: int) -> Model:
     width, height = len(sc.capacity), len(sc.capacity[0])
     cfg = Config(width=width, height=height, initial_population=0, seed=seed, **sc.config)
