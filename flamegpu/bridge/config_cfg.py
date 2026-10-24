@@ -1,6 +1,7 @@
 """A registered Config as a run.cfg for the GPU program (Phase 1: Chapter II rules only)."""
 
 import math
+from dataclasses import MISSING, Field, fields
 
 from bridge.paths import SUGARSCAPE_ROOT
 from sugarscape.config import Config
@@ -15,26 +16,18 @@ class UnsupportedFeature(ValueError):
     """The Config switches on a rule the GPU program does not implement yet."""
 
 
+def _default(f: Field):
+    return f.default_factory() if f.default is MISSING else f.default
+
+
 def unsupported_features(cfg: Config) -> list[str]:
-    """The Chapter III-VI switches this Config turns on, and a non-default map."""
-    switches = {
-        "sex": cfg.sex,
-        "inheritance": cfg.inheritance,
-        "tag_length": cfg.tag_length > 0,
-        "culture": cfg.culture,
-        "combat_alpha": cfg.combat_alpha is not None,
-        "initial_blocks": bool(cfg.initial_blocks),
-        "replacement_same_tribe": cfg.replacement_same_tribe,
-        "spice": cfg.spice,
-        "trade": cfg.trade,
-        "credit": cfg.credit is not None,
-        "cultural_preferences": cfg.cultural_preferences,
-        "foresight": cfg.foresight is not None,
-        "disease_list": cfg.disease_list > 0,
-        "diseases_per_agent": cfg.diseases_per_agent > 0,
-        "sugar_map": cfg.sugar_map != "sugar-map.txt",
-    }
-    return [name for name, on in switches.items() if on]
+    """Every Config field the GPU program does not read (FIELDS, plus the seed) that is not at its default.
+
+    The map is among them, so only the default sugar-map.txt runs. Fields left out of repr count too, and so does
+    any field the Python project adds later: a setting the GPU cannot honour is refused, never dropped.
+    """
+    return [f.name for f in fields(cfg)
+            if f.name not in FIELDS and f.name != "seed" and getattr(cfg, f.name) != _default(f)]
 
 
 def _value(v) -> str:

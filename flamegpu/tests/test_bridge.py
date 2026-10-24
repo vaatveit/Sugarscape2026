@@ -71,3 +71,21 @@ def test_run_tiny_experiment(exe, tmp_path):
     series = load_results("TEST-tiny", tmp_path)
     assert len(series) == 2 and all(len(s) == 6 for s in series)
     assert (tmp_path / "TEST-tiny" / "fingerprint.txt").read_text(encoding="utf-8").startswith("gpu-phase1")
+
+
+def test_any_other_field_off_default_is_refused():
+    from dataclasses import replace
+
+    base = EXPERIMENTS["II-4"].config
+    # Fields the GPU program doesn't read, including ones left out of repr, are refused unless at their default.
+    assert unsupported_features(replace(base, trade_rounding="down")) == ["trade_rounding"]
+    assert unsupported_features(replace(base, mate_contact="neighbors")) == ["mate_contact"]
+    with pytest.raises(UnsupportedFeature, match="fertility_threshold"):
+        config_to_cfg(replace(base, fertility_threshold=0.5), steps=10, seed=0)
+
+
+def test_seed_and_chapter_ii_fields_are_free():
+    from dataclasses import replace
+
+    base = EXPERIMENTS["II-4"].config
+    assert unsupported_features(replace(base, seed=7, width=60, height=60, pollution=(1.0, 2.0))) == []
