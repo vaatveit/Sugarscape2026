@@ -1,0 +1,153 @@
+"""Helpers that drive the GPU program: run.cfg, map and init files, runs, and dumps."""
+
+import csv
+import math
+from dataclasses import dataclass, field
+from pathlib import Path
+
+import numpy as np
+
+from bridge.paths import SUGARSCAPE_ROOT
+from conftest import run_exe
+
+SUGAR_MAP = SUGARSCAPE_ROOT / "sugarscape" / "maps" / "sugar-map.txt"
+
+# II-4's settings (50x50, G1, M) in run.cfg spelling; tests override what they need.
+DEFAULT_CFG = {
+    "width": "50",
+    "height": "50",
+    "map": str(SUGAR_MAP),
+    "initial_population": "400",
+    "placement": "random",
+    "block": "0,0,20,20",
+    "vision": "1,6",
+    "metabolism": "1,4",
+    "endowment": "25,50",
+    "max_age": "",
+    "founder_ages": "uniform",
+    "replacement": "false",
+    "growback_rate": "1",
+    "seasons": "",
+    "winter_growback": "fractional",
+    "pollution": "",
+    "pollution_start": "0",
+    "pollution_stop": "",
+    "diffusion_period": "",
+    "diffusion_start": "0",
+    "steps": "10",
+    "seed": "0",
+}
+
+
+def write_cfg(directory: Path, **overrides: str) -> Path:
+    """Write run.cfg with DEFAULT_CFG plus overrides (an override of None drops the key)."""
+    cfg = {**DEFAULT_CFG, **overrides}
+    path = Path(directory) / "run.cfg"
+    path.write_text("".join(f"{k} = {v}\n" for k, v in cfg.items() if v is not None), encoding="utf-8")
+    return path
+
+
+def write_map(path: Path, rows: list[list[object]]) -> Path:
+    """A map file in load_map's layout: one line per row, the first line northernmost."""
+    Path(path).write_text("".join(" ".join(str(v) for v in row) + "\n" for row in rows), encoding="utf-8")
+    return Path(path)
+
+
+def parse_printed(stdout: str) -> dict[str, str]:
+    """`key = value` lines from --print-config."""
+    out = {}
+    for line in stdout.splitlines():
+        if " = " in line or line.endswith(" ="):
+            key, _, value = line.partition("=")
+            out[key.strip()] = value.strip()
+    return out
+
+
+# --- Running a scenario and reading the dumps (Task 3) -----------------------------------------
+
+AGENT_FIELDS = ("x", "y", "vision", "metabolism", "sugar", "age", "max_age")
+
+
+@dataclass
+class Dump:
+    agents: list[dict] = field(default_factory=list)  # x, y, vision, metabolism, sugar, age, max_age, moved, neighbors
+    landscape: dict = field(default_factory=dict)  # (x, y) -> {capacity, sugar, pollution, occupied}
+    csv: list[dict] | None = None
+    returncode: int = 0
+    stderr: str = ""
+
+
+def capacity_rows(capacity: np.ndarray) -> list[list[int]]:
+    """Map-file rows (first line northernmost) for a capacity array indexed [x, y]."""
+    width, height = capacity.shape
+    return [[int(capacity[x, y]) for x in range(width)] for y in range(height - 1, -1, -1)]
+
+
+def write_init(path: Path, agents: list[dict]) -> Path:
+    with Path(path).open("w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(AGENT_FIELDS)
+        for a in agents:
+            writer.writerow([a["x"], a["y"], a["vision"], a["metabolism"], a["sugar"], a.get("age", 0),
+                             "" if a.get("max_age") is None else a["max_age"]])
+    return Path(path)
+
+
+def _number(text: str):
+    if text == "":
+        return None
+    if text in ("nan", "inf", "-inf"):
+        return float(text)
+    return int(text) if text.lstrip("-").isdigit() else float(text)
+
+
+def read_rows(path: Path) -> list[dict]:
+    with Path(path).open(newline="") as f:
+        return [{k: _number(v) for k, v in row.items()} for row in csv.DictReader(f)]
+
+
+def run_gpu(exe: Path, tmp: Path, cfg: dict | None = None, capacity: np.ndarray | None = None,
+            agents: list[dict] | None = None, steps: int = 1, dump_at: int | None = None,
+            extra_args: tuple = ()) -> Dump:
+    """Run one scenario: cfg overrides DEFAULT_CFG; capacity (indexed [x, y]) replaces the map; agents replace
+    the random initial population. Dumps are taken at `dump_at` (default: after the last step)."""
+    tmp = Path(tmp)
+    cfg = dict(cfg or {})
+    cfg["steps"] = str(steps)
+    if capacity is not None:
+        cfg["map"] = str(write_map(tmp / "map.txt", capacity_rows(capacity)))
+        cfg["width"], cfg["height"] = str(capacity.shape[0]), str(capacity.shape[1])
+    args = ["--config", write_cfg(tmp, **cfg)]
+    if agents is not None:
+        args += ["--init", write_init(tmp / "init.csv", agents)]
+    t = steps if dump_at is None else dump_at
+    args += ["--dump-agents", tmp / "agents.csv", "--dump-landscape", tmp / "landscape.csv", "--dump-at", str(t)]
+    result = run_exe(exe, *args, *extra_args)
+    dump = Dump(returncode=result.returncode, stderr=result.stderr)
+    if result.returncode != 0:
+        return dump
+    dump.agents = read_rows(tmp / "agents.csv")
+    dump.landscape = {(r["x"], r["y"]): r for r in read_rows(tmp / "landscape.csv")}
+    return dump
+
+
+def compare_dumps(gpu: Dump, py: Dump, pollution: bool = False) -> list[str]:
+    """Differences between two dumps of the same scenario; empty when they agree."""
+    problems = []
+    key = lambda a: (a["x"], a["y"], a["vision"], a["metabolism"], a["age"])  # noqa: E731
+    g = {key(a): a for a in gpu.agents}
+    p = {key(a): a for a in py.agents}
+    if set(g) != set(p):
+        problems.append(f"agents differ: gpu-only {sorted(set(g) - set(p))}, python-only {sorted(set(p) - set(g))}")
+    for k in set(g) & set(p):
+        if not math.isclose(g[k]["sugar"], p[k]["sugar"], abs_tol=1e-5):
+            problems.append(f"agent {k}: sugar gpu {g[k]['sugar']} python {p[k]['sugar']}")
+    for site, pc in py.landscape.items():
+        gc = gpu.landscape[site]
+        if not math.isclose(gc["sugar"], pc["sugar"], abs_tol=1e-5):
+            problems.append(f"site {site}: sugar gpu {gc['sugar']} python {pc['sugar']}")
+        if gc["occupied"] != pc["occupied"]:
+            problems.append(f"site {site}: occupied gpu {gc['occupied']} python {pc['occupied']}")
+        if pollution and not math.isclose(gc["pollution"], pc["pollution"], rel_tol=1e-4, abs_tol=1e-5):
+            problems.append(f"site {site}: pollution gpu {gc['pollution']} python {pc['pollution']}")
+    return problems
