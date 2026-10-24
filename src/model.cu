@@ -79,6 +79,7 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
     model.newLayer().addSubModel(movement_sub);
     model.newLayer().addAgentFunction(citizen.newFunction("count_neighbors", count_neighbors));
     model.newLayer().addAgentFunction(metabolize);
+    model.newLayer().addHostFunction(replace_dead);
     model.newLayer().addAgentFunction(cell.newFunction("cell_grow", cell_grow));
     model.newLayer().addAgentFunction(cell.newFunction("cell_commit", cell_commit));
     model.addInitFunction(init_landscape);

@@ -125,6 +125,40 @@ FLAMEGPU_HOST_FUNCTION(begin_period) {
     FLAMEGPU->environment.setProperty<unsigned int>("diffuse_now", diffusing ? 1u : 0u);
 }
 
+// R[a,b] (p.32): each agent that died this period is replaced by a new random agent at a random empty site,
+// as Python's spawn_random_agent; newcomers do not harvest on arrival.
+FLAMEGPU_HOST_FUNCTION(replace_dead) {
+    RunState& s = state();
+    s.births = 0;
+    if (!s.cfg.replacement) return;
+    const unsigned int deaths = FLAMEGPU->environment.getMacroProperty<unsigned int>("deaths");
+    if (deaths == 0) return;
+    auto occupied = FLAMEGPU->environment.getMacroProperty<unsigned int, MAX_CELLS>("occupied");
+    std::vector<uint32_t> empty;
+    for (uint32_t i = 0; i < static_cast<uint32_t>(s.capacity.size()); ++i) {
+        if (static_cast<unsigned int>(occupied[i]) == 0u) empty.push_back(i);
+    }
+    flamegpu::HostAgentAPI citizens = FLAMEGPU->agent("citizen");
+    const RunConfig& cfg = s.cfg;
+    for (unsigned int k = 0; k < deaths; ++k) {
+        if (empty.empty()) throw std::runtime_error("no empty site for a new agent: the lattice is full");
+        const size_t pick = std::uniform_int_distribution<size_t>(0, empty.size() - 1)(s.rng);
+        const uint32_t site = empty[pick];
+        empty[pick] = empty.back();
+        empty.pop_back();
+        occupied[site] = 1u;
+        flamegpu::HostNewAgentAPI a = citizens.newAgent();
+        a.setVariable<int>("x", static_cast<int>(site % cfg.width));
+        a.setVariable<int>("y", static_cast<int>(site / cfg.width));
+        a.setVariable<int>("vision", draw(s.rng, cfg.vision));
+        a.setVariable<int>("metabolism", draw(s.rng, cfg.metabolism));
+        a.setVariable<float>("sugar", static_cast<float>(draw(s.rng, cfg.endowment)));
+        a.setVariable<int>("max_age", draw(s.rng, *cfg.max_age));  // validate(): replacement needs max_age
+        a.setVariable<int>("age", 0);
+    }
+    s.births = deaths;
+}
+
 FLAMEGPU_STEP_FUNCTION(end_period) {
     RunState& s = state();
     const unsigned int t = FLAMEGPU->getStepCounter() + 1;  // the period just completed
@@ -132,6 +166,6 @@ FLAMEGPU_STEP_FUNCTION(end_period) {
     const unsigned int deaths = deaths_prop;
     deaths_prop = 0u;
     write_dumps(FLAMEGPU, t);
-    check_invariants(FLAMEGPU, t, deaths, 0);
+    check_invariants(FLAMEGPU, t, deaths, s.births);
     s.population = FLAMEGPU->agent("citizen").count();
 }

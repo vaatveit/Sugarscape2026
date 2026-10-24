@@ -27,6 +27,7 @@ struct RunState {
     std::mt19937_64 rng;             // host-side draws: placement, replacement
     std::vector<uint32_t> initial_sites;
     unsigned int population = 0;     // citizens at the end of the last completed period
+    unsigned int births = 0;         // replacements created this period
     // Output options.
     std::string dump_agents, dump_landscape;
     std::optional<unsigned int> dump_at;
@@ -46,6 +47,7 @@ void check_invariants(flamegpu::HostAPI* api, unsigned int t, unsigned int death
 
 FLAMEGPU_HOST_FUNCTION_DECL(init_landscape)  // init: capacity, sugar, occupied; t = 0 outputs
 FLAMEGPU_HOST_FUNCTION_DECL(begin_period)    // layer: t, round and the period's rule switches
+FLAMEGPU_HOST_FUNCTION_DECL(replace_dead)    // layer: replacement R
 FLAMEGPU_HOST_FUNCTION_DECL(end_period)      // step: deaths, dumps, checks
 
 #endif  // SRC_HOST_STATE_H_
