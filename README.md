@@ -414,7 +414,7 @@ These are grouped by how far they move from the book. None has been adopted, exc
 2. **State Fig IV-6 relative to the starting population**, since the long-run number scales with
    it. Not done.
 3. **Report the book's single runs as frequencies.** Done on 2026-10-23 over 30 seeds; see
-   [Follow-up](#follow-up-2026-10-23).
+   [Follow-up](#follow-up-2026-10-23), and the [eighth follow-up](#eighth-follow-up-2026-10-23) for the new default.
 
 ### B. Departures already shown to help (each at a cost)
 
@@ -786,8 +786,37 @@ integers). The choice of default is the project owner's.
 
 **Next steps now.**
 1. **Measure frequencies over 30 seeds** under the new default, as for `VAR-c1c3fit`. The book's single runs may sit
-   in their tails.
+   in their tails. Done; see the [eighth follow-up](#eighth-follow-up-2026-10-23).
 2. **The earlier two still stand:** look for the original program, or tag the current state.
+
+## Eighth follow-up (2026-10-23)
+
+**The book's single runs as frequencies under the new default**, over 30 seeds
+([Chapter III record](docs/replication/chapter-3.md#the-new-defaults-single-runs-as-frequencies-2026-10-23)). Integer
+gifts alone are counted too, for comparison. Nothing in the model changed.
+
+| Figure | Book's behavior | θ=0.83 | p.55 | `VAR-c1c3fit` | Integer gifts | **Default** |
+|---|---|---|---|---|---|---|
+| III-3 | both mountains | 3 | 0 | 9 | 2 | **23** |
+| III-3 | floor ≥200 | 0 | 0 | 1 | 0 | **21** |
+| III-4 | large cycle | 0 | 2 | 18 | 13 | **16** |
+| III-5 | extinct | 0 | 0 | 2 | 0 | 0 |
+| III-5 | trough <100 | 0 | 0 | 9 | 2 | 0 |
+| VI-2 | extinct | 1 | 15 | 0 | 15 | 0 |
+| VI-2 | crash ≤156 | 0 | 0 | 0 | 0 | 0 |
+| VI-3 | survives | 23 | 12 | 30 | 18 | **30** |
+| VI-3 | waves in band | 4 | 0 | 1 | 0 | **14** |
+
+1. **III-3, III-4 and VI-3 are now typical runs:** the book's behavior appears in about half to three quarters of
+   the seeds, so those figures are no longer tail draws.
+2. **The gift rules split the work.** Integer gifts carry III-4's cycle; partners in sight carry III-3's two
+   mountains and VI-3's waves.
+3. **The extinctions remain out of reach.** III-5 and VI-2 never die out under the default: partners in sight keep
+   alive the societies the book's runs lose. Integer gifts alone let VI-2 die out in 15 of 30, but III-5 still
+   never does. Only `VAR-c1c3fit`'s cheap children have produced III-5's extinction.
+
+**Next steps now.** Look for the original program, or tag the current state. The one open question in
+rule S is what lets the book's III-5 and VI-2 die out while its III-3 and VI-3 survive.
 
 ## Where things are
 

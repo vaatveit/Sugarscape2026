@@ -1,0 +1,12 @@
+30 seeds per cell; share of runs showing the book's behavior
+| Figure | Book's behavior | intgiftc1 | intgift |
+|---|---|---|---|
+| III-3 | both mountains | 23/30 | 2/30 |
+| III-3 | floor in band (>=200) | 21/30 | 0/30 |
+| III-4 | large cycle (range > 600) | 16/30 | 13/30 |
+| III-5 | extinct by 1500 | 0/30 | 0/30 |
+| III-5 | trough < 100 after t=150 | 0/30 | 2/30 |
+| VI-2 | extinct by 200 | 0/30 | 15/30 |
+| VI-2 | crash at t=20 <= 156 | 0/30 | 0/30 |
+| VI-3 | survives | 30/30 | 18/30 |
+| VI-3 | waves in band (floor >=560, ceiling >=960) | 14/30 | 0/30 |

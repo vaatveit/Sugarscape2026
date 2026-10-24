@@ -49,7 +49,7 @@ numbers can differ from the records'.
 
 | Script | Purpose |
 |---|---|
-| [frequencies.py](frequencies.py) | The book's single-run population figures as frequencies over 30 seeds (III-3, III-4, III-5, VI-2, VI-3); `30 8 c1c3fit` for the registered variant. Output: [frequencies_c1c3fit.txt](output/frequencies_c1c3fit.txt) |
+| [frequencies.py](frequencies.py) | The book's single-run population figures as frequencies over 30 seeds (III-3, III-4, III-5, VI-2, VI-3); `30 8 c1c3fit` for the registered variant, `30 22 intgiftc1,intgift` for the default since 2026-10-23 and integer gifts alone. Output: [frequencies_c1c3fit.txt](output/frequencies_c1c3fit.txt), [frequencies_intgift.txt](output/frequencies_intgift.txt) |
 | [candidates.py](candidates.py) | The README's candidate departures C1–C3 from rule S, and C1+C3 at the fitted threshold (C1+C3fit), scored with the replication targets. Output: [candidates_fit.txt](output/candidates_fit.txt) |
 | [fit_c1c3.py](fit_c1c3.py) | Fits C1+C3's fertility threshold to III-1's steady population alone (frozen at 0.74; registered as VAR-c1c3fit), and the same with Ascape's lost gift (0.67) or movement (0.81). Output: [fit_c1c3.txt](output/fit_c1c3.txt) |
 | [probe_falls.py](probe_falls.py) | Why VAR-c1c3fit's III-5 falls stop short of extinction: births, starvations and coming-of-age wealth through each fall, with Ascape's lost gift, Ascape's movement, fresh metabolism, or the food-limit settings (lowland, must-move, slower growback); `fit` mode fits each to III-1. Outputs: [probe_falls.txt](output/probe_falls.txt), [probe_falls_food.txt](output/probe_falls_food.txt) |

@@ -1,6 +1,7 @@
 """The book's single-run population figures as frequencies: over many seeds, how often does a run show the book's
-behavior? Under the default threshold (0.83) and p.55's (1.0), and optionally the VAR-c1c3fit variant (2026-10-23),
-founders at spread ages. Seeds are the registry's (base + k), so the first 5-10 are the registered runs.
+behavior? Under epoch C's threshold (0.83) and p.55's (1.0), and optionally the VAR-c1c3fit, VAR-intgift and
+VAR-intgiftc1 variants (the last is the default since 2026-10-23), founders at spread ages. Seeds are the registry's
+(base + k), so the first 5-10 are the registered runs.
 
   III-3  keeps both mountains (each quadrant occupied through the last 500 periods); floor t>=300 in the book's band
   III-4  holds the large cycle (range > 600 over t=1500-2500)
@@ -8,7 +9,8 @@ founders at spread ages. Seeds are the registry's (base + k), so the first 5-10 
   VI-2   dies out by t=200; crash at t=20 within the band's top (≤156)
   VI-3   survives to t=1000; floor and ceiling after t=250 in the book's bands (≥560, ≥960)
 
-Usage: frequencies.py [seeds] [jobs] [setting,...]    settings: default book c1c3fit (default: default,book)
+Usage: frequencies.py [seeds] [jobs] [setting,...]    settings: default book c1c3fit intgift intgiftc1
+                                                       (default: default,book)
 """
 from _pin import pin
 pin("C")  # defaults this diagnostic was written under; see _pin.py
@@ -23,7 +25,9 @@ from experiments.registry import EXPERIMENTS, VARIANTS
 from sugarscape.model import Model
 
 STEPS = {"III-3": 2500, "III-4": 2500, "III-5": 1500, "VI-2": 200, "VI-3": 1000}
-SETTINGS = {"default": {"fertility_threshold": 0.83}, "book": {"fertility_threshold": 1.0}, "c1c3fit": VARIANTS["c1c3fit"]}
+# "default" is epoch C's (threshold 0.83, now VAR-fit83); "intgiftc1" is the default since 2026-10-23.
+SETTINGS = {"default": {"fertility_threshold": 0.83}, "book": {"fertility_threshold": 1.0}, "c1c3fit": VARIANTS["c1c3fit"],
+            "intgift": VARIANTS["intgift"], "intgiftc1": VARIANTS["intgiftc1"]}
 
 
 def run(args):

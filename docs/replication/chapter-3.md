@@ -1068,7 +1068,37 @@ and 2,000). Every experiment was re-run. This chapter's table (top) moves from 1
 
 The Chapter III stream pin in `tests/test_model.py` was re-pinned (III-1 at t=200: 492 agents, against 405).
 
-## Visual comparison
+## The new default's single runs as frequencies (2026-10-23)
+
+The book's behaviors counted over 30 seeds under the new default, as in the two frequency sections above
+([frequencies.py](../../diagnostics/frequencies.py) `30 22 intgiftc1,intgift`,
+[output](../../diagnostics/output/frequencies_intgift.txt)). The first three columns are copied from those
+sections. "Integer gifts" is `VAR-intgift` (the four neighbors as partners); the last column is the default.
+
+| Figure | Book's behavior | θ=0.83 (`VAR-fit83`) | p.55 (`VAR-book`) | `VAR-c1c3fit` | Integer gifts | **Default** |
+|---|---|---|---|---|---|---|
+| III-3 | both mountains held through the last 500 periods | 3/30 | 0/30 | 9/30 | 2/30 | **23/30** |
+| III-3 | floor after t=300 in the book's band (≥200) | 0/30 | 0/30 | 1/30 | 0/30 | **21/30** |
+| III-4 | the large cycle (range > 600 over t=1500–2500) | 0/30 | 2/30 | 18/30 | 13/30 | **16/30** |
+| III-5 | extinct by t=1500 | 0/30 | 0/30 | 2/30 | 0/30 | 0/30 |
+| III-5 | a trough below 100 after t=150 (the book's ≈50) | 0/30 | 0/30 | 9/30 | 2/30 | 0/30 |
+| VI-2 | extinct by t=200 | 1/30 | 15/30 | 0/30 | 15/30 | 0/30 |
+| VI-2 | crash at t=20 within the band (≤156) | 0/30 | 0/30 | 0/30 | 0/30 | 0/30 |
+| VI-3 | survives to t=1000 | 23/30 | 12/30 | 30/30 | 18/30 | **30/30** |
+| VI-3 | floor and ceiling after t=250 in the book's bands (≥560, ≥960) | 4/30 | 0/30 | 1/30 | 0/30 | **14/30** |
+
+- **Three of the book's runs are now typical, not tail draws.**
+  - **III-3** keeps both mountains in 23 of 30 runs, with its floor in the band in 21. No earlier setting got
+    the floor more than once.
+  - **III-4** holds the large cycle in 16 of 30 runs.
+  - **VI-3** survives in every run and reaches the book's waves in 14, where 0.83 reached them in 4.
+- **The two gift rules do different work.** Integer gifts alone carry most of III-4's cycle (13 of 30). Partners
+  in sight carry III-3's two mountains and VI-3's waves, which integer gifts alone reach in 2 runs and none.
+- **The book's extinctions are out of reach.** III-5 never dies out and never falls below 100. VI-2 never dies
+  out, where integer gifts alone die out in 15 of 30, as p.55's rule does. VI-2's crash is slower than the book's
+  under every setting. Partners in sight keep alive the societies the book's runs lose, as C1 did in every
+  earlier test. Only `VAR-c1c3fit`'s cheap children have produced III-5's extinction (2 of 30).
+
 
 - **III-1** (colored by vision): high-vision agents take over, as in Animation III-2; but the population stays on the peaks instead of filling a diagonal band.
 - **III-8**: each mountain trends to one color, with reversals (see 3).
