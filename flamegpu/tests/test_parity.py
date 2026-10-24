@@ -30,6 +30,10 @@ CASES = {
     "seasons_pulse": ({"seasons": "4,3", "winter_growback": "pulse"}, _agents(), 7),
     "pollution": ({"pollution": "1.0,1.0", "pollution_start": "1", "pollution_stop": "3"}, _agents(), 5),
     "pollution_diffusion": ({"pollution": "1.0,1.0", "diffusion_period": "2", "diffusion_start": "1"}, _agents(), 6),
+    "diffusion_passes": ({"pollution": "1.0,1.0", "diffusion_period": "2", "diffusion_start": "1",
+                          "diffusion_passes": "3"}, _agents(), 5),  # 6 steps let two agents meet
+    # Extra passes must do nothing when diffusion is off (Review Focus 2).
+    "passes_without_diffusion": ({"pollution": "1.0,1.0", "diffusion_passes": "3"}, _agents(), 5),
 }
 
 

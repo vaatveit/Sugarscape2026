@@ -149,6 +149,10 @@ FLAMEGPU_HOST_FUNCTION(begin_period) {
     FLAMEGPU->environment.setProperty<unsigned int>("round", 1u);
     FLAMEGPU->environment.setProperty<unsigned int>("pollution_active", polluting ? 1u : 0u);
     FLAMEGPU->environment.setProperty<unsigned int>("diffuse_now", diffusing ? 1u : 0u);
+    // The pollution_diffusion sub-model runs the passes after cell_grow's first.
+    FLAMEGPU->environment.setProperty<unsigned int>(
+        "extra_passes", diffusing ? static_cast<unsigned int>(cfg.diffusion_passes - 1) : 0u);
+    FLAMEGPU->environment.setProperty<unsigned int>("diffusion_pass", 0u);
 }
 
 // R[a,b] (p.32): each agent that died this period is replaced by a new random agent at a random empty site,

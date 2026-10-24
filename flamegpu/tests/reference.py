@@ -28,6 +28,7 @@ def config_from_cfg(cfg: dict) -> Config:
     kwargs["pollution"] = tuple(float(v) for v in values["pollution"].split(",")) if values["pollution"] else None
     kwargs["growback_rate"] = math.inf if values["growback_rate"] == "inf" else float(values["growback_rate"])
     kwargs["replacement"] = values["replacement"] == "true"
+    kwargs["diffusion_passes"] = int(values.get("diffusion_passes", "1"))
     for key in ("placement", "founder_ages", "winter_growback"):
         kwargs[key] = values[key]
     return Config(**kwargs)

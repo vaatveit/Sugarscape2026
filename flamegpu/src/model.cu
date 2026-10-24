@@ -41,6 +41,21 @@ void describe_movement(flamegpu::ModelDescription& sub, const RunConfig& cfg) {
     sub.addExitCondition(movement_settled);
 }
 
+// The pollution_diffusion sub-model: D's passes after the first (rules.cuh, diffuse).
+void describe_diffusion(flamegpu::ModelDescription& sub, const RunConfig& cfg) {
+    flamegpu::EnvironmentDescription env = sub.Environment();
+    env.newProperty<unsigned int>("width", cfg.width);
+    env.newProperty<unsigned int>("height", cfg.height);
+    env.newProperty<unsigned int>("extra_passes", 0u);
+    env.newProperty<unsigned int>("diffusion_pass", 0u);
+    env.newMacroProperty<float, MAX_CELLS>("pollution");
+    env.newMacroProperty<float, MAX_CELLS>("pollution_next");
+    flamegpu::AgentDescription cell = sub.newAgent("cell");
+    sub.newLayer().addAgentFunction(cell.newFunction("diffuse", diffuse));
+    sub.newLayer().addAgentFunction(cell.newFunction("diffuse_commit", diffuse_commit));
+    sub.addExitCondition(diffusion_done);
+}
+
 }  // namespace
 
 void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
@@ -52,6 +67,8 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
     env.newProperty<float>("pollution_beta", cfg.pollution ? static_cast<float>(cfg.pollution->second) : 0.0f);
     env.newProperty<unsigned int>("pollution_active", 0u);
     env.newProperty<unsigned int>("diffuse_now", 0u);
+    env.newProperty<unsigned int>("extra_passes", 0u);    // D's passes after the first this period
+    env.newProperty<unsigned int>("diffusion_pass", 0u);  // extra passes done so far this period
     env.newProperty<unsigned int>("t", 0u);
     env.newProperty<unsigned int>("round", 1u);
     env.newProperty<unsigned int>("seasons_beta", cfg.seasons ? static_cast<unsigned int>(cfg.seasons->first) : 0u);
@@ -70,6 +87,13 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
     flamegpu::SubModelDescription movement_sub = model.newSubModel("movement", movement);
     movement_sub.bindAgent("citizen", "citizen", true, true);
     movement_sub.SubEnvironment(true);
+    // FLAME GPU reseeds sub-models in name order (a std::map), so this name sorts after "movement" to leave the
+    // movement sub-model's random stream as it was before diffusion passes existed.
+    flamegpu::ModelDescription diffusion("pollution_diffusion");
+    describe_diffusion(diffusion, cfg);
+    flamegpu::SubModelDescription diffusion_sub = model.newSubModel("pollution_diffusion", diffusion);
+    diffusion_sub.bindAgent("cell", "cell", true, true);
+    diffusion_sub.SubEnvironment(true);
 
     flamegpu::AgentFunctionDescription metabolize = citizen.newFunction("metabolize_and_age", metabolize_and_age);
     metabolize.setAllowAgentDeath(true);
@@ -82,6 +106,7 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
     model.newLayer().addHostFunction(replace_dead);
     model.newLayer().addAgentFunction(cell.newFunction("cell_grow", cell_grow));
     model.newLayer().addAgentFunction(cell.newFunction("cell_commit", cell_commit));
+    model.newLayer().addSubModel(diffusion_sub);
     model.addInitFunction(init_landscape);
     model.addStepFunction(end_period);
 }
