@@ -11,7 +11,9 @@
 #include "flamegpu/flamegpu.h"
 
 #include "config.h"
+#include "host_state.h"
 #include "landscape_io.h"
+#include "model.h"
 
 namespace {
 
@@ -118,5 +120,47 @@ int main(int argc, const char** argv) {
                   << "map_capacity_sum = " << std::accumulate(capacity.begin(), capacity.end(), uint64_t{0}) << "\n";
         return EXIT_SUCCESS;
     }
+    std::vector<InitAgent> init;
+    try {
+        if (!opts.init.empty()) init = load_init_agents(opts.init, cfg.width, cfg.height);
+    } catch (const std::runtime_error& e) {
+        std::fprintf(stderr, "sugarscape_gpu: %s\n", e.what());
+        return 2;
+    }
+
+    RunState& s = state();
+    s.cfg = cfg;
+    s.capacity = std::move(capacity);
+    s.rng.seed(cfg.seed);
+    s.dump_agents = opts.dump_agents;
+    s.dump_landscape = opts.dump_landscape;
+    if (opts.dump_at) s.dump_at = static_cast<unsigned int>(*opts.dump_at);
+    s.check = opts.check;
+
+    try {
+        flamegpu::ModelDescription model("sugarscape");
+        describe_model(model, cfg);
+        flamegpu::CUDASimulation simulation(model);
+        simulation.SimulationConfig().random_seed = cfg.seed;
+        simulation.SimulationConfig().steps = static_cast<unsigned int>(cfg.steps);
+        simulation.SimulationConfig().verbosity = flamegpu::Verbosity::Quiet;
+        simulation.SimulationConfig().telemetry = false;
+        simulation.applyConfig();
+        flamegpu::AgentVector citizens = make_citizens(model, opts.init.empty() ? nullptr : &init);
+        flamegpu::AgentVector cells = make_cells(model);
+        simulation.setPopulationData(citizens);
+        simulation.setPopulationData(cells);
+        simulation.simulate();
+    } catch (const InvariantError& e) {
+        std::fprintf(stderr, "sugarscape_gpu: invariant violated: %s\n", e.what());
+        return 3;
+    } catch (const RoundLimitError& e) {
+        std::fprintf(stderr, "sugarscape_gpu: %s\n", e.what());
+        return 4;
+    } catch (const std::exception& e) {
+        std::fprintf(stderr, "sugarscape_gpu: %s\n", e.what());
+        return 1;
+    }
+    flamegpu::util::cleanup();
     return EXIT_SUCCESS;
 }

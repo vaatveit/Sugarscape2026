@@ -17,7 +17,14 @@ FAST_EXE = PROJECT_ROOT / "build-fast" / "bin" / "Release" / "sugarscape_gpu.exe
 
 BUILD_COMMAND = r"scripts\build.cmd"
 
+# The program needs the CUDA runtime DLLs (nvrtc, cudart); a shell started before CUDA was installed lacks them.
+CUDA_PATH = Path(os.environ.get("CUDA_PATH", r"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.4"))
+
 
 def subprocess_env() -> dict[str, str]:
-    """os.environ with FLAME GPU telemetry off."""
-    return {**os.environ, "FLAMEGPU_SHARE_USAGE_STATISTICS": "OFF"}
+    """os.environ with CUDA's DLL folder on PATH (bin\\x64 in CUDA 13) and FLAME GPU telemetry off."""
+    path = os.environ.get("PATH", "")
+    cuda_bin = str(CUDA_PATH / "bin" / "x64")
+    if cuda_bin.lower() not in path.lower():
+        path = cuda_bin + os.pathsep + path
+    return {**os.environ, "PATH": path, "FLAMEGPU_SHARE_USAGE_STATISTICS": "OFF"}

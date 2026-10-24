@@ -117,6 +117,8 @@ def run_gpu(exe: Path, tmp: Path, cfg: dict | None = None, capacity: np.ndarray 
     if capacity is not None:
         cfg["map"] = str(write_map(tmp / "map.txt", capacity_rows(capacity)))
         cfg["width"], cfg["height"] = str(capacity.shape[0]), str(capacity.shape[1])
+    if agents is not None:
+        cfg.setdefault("initial_population", str(len(agents)))
     args = ["--config", write_cfg(tmp, **cfg)]
     if agents is not None:
         args += ["--init", write_init(tmp / "init.csv", agents)]

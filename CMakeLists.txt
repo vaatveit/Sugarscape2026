@@ -38,6 +38,13 @@ SET(ALL_SRC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/config.cu
     ${CMAKE_CURRENT_SOURCE_DIR}/src/landscape_io.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/landscape_io.cu
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/model.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/model.cu
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/movement.cuh
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/rules.cuh
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/host_state.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/host_state.cu
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/checks.cu
 )
 
 # Add the executable and set required flags for the target
