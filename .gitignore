@@ -1,5 +1,6 @@
 .venv/
 results/
+results-xl/
 __pycache__/
 *.egg-info/
 .superpowers/
