@@ -102,6 +102,7 @@ flamegpu::AgentVector make_cells(flamegpu::ModelDescription& model) {
 void write_metrics(flamegpu::HostAPI* api, unsigned int t) {
     RunState& s = state();
     if (!s.csv || t % s.metrics_every != 0) return;
+    const auto start = std::chrono::steady_clock::now();  // docs/xl.md's metrics: gathering, not writing
     flamegpu::DeviceAgentVector pop = api->agent("citizen").getPopulationData();
     AgentColumns c;
     const unsigned int n = pop.size();
@@ -116,7 +117,9 @@ void write_metrics(flamegpu::HostAPI* api, unsigned int t) {
         c.moved.push_back(a.getVariable<unsigned int>("moved"));
         c.neighbors.push_back(a.getVariable<unsigned int>("neighbors"));
     }
-    s.csv->write(compute_metrics(c, s.cfg, s.capacity, t));
+    const auto row = compute_metrics(c, s.cfg, s.capacity, t);
+    s.metrics_seconds += std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
+    s.csv->write(row);
 }
 
 FLAMEGPU_HOST_FUNCTION(begin_period) {
@@ -154,6 +157,8 @@ FLAMEGPU_HOST_FUNCTION(finish_init) {
     write_dumps(FLAMEGPU, 0);
     check_invariants(FLAMEGPU, 0, 0, 0);
     write_metrics(FLAMEGPU, 0);
+    // The first period starts now: initialisation is setup's and the t = 0 metrics are metrics'.
+    if (s.timing) s.period_start = std::chrono::steady_clock::now();
 }
 
 // R[a,b] (p.32): each agent that died this period is replaced by a new random agent at a random empty site,

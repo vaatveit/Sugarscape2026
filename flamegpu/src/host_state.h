@@ -36,11 +36,12 @@ struct RunState {
     bool check = false;
     std::unique_ptr<CsvWriter> csv;  // --out
     unsigned int metrics_every = 1;
-    // --timing: wall-clock seconds of each period, the GPU synchronised at both ends.
+    // --timing: wall-clock seconds of setup, of each period (the GPU synchronised at both ends), and of the metrics.
     bool timing = false;
     std::chrono::steady_clock::time_point setup_end;  // the t = 0 state reached, before its outputs (finish_init)
     std::chrono::steady_clock::time_point period_start;
     std::vector<double> period_seconds;
+    double metrics_seconds = 0;  // gathering each metrics row, t = 0 included (the CSV write left out)
 };
 
 RunState& state();

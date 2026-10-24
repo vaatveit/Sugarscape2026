@@ -33,6 +33,7 @@ const char* const USAGE =
     "  --timing FILE          timing JSON\n"
     "  --check                check invariants every period (exit 3 on a violation)\n"
     "  --print-config         print the effective configuration and exit\n"
+    "  --version              print the FLAME GPU, CUDA and GPU versions and the build's settings, and exit\n"
     "  --help                 this text\n";
 
 struct UsageError : std::runtime_error {
@@ -47,7 +48,24 @@ struct Options {
     bool check = false;
     bool print_config = false;
     bool help = false;
+    bool version = false;
 };
+
+// The machine and build facts a timing is read against (the bridge's machine.txt), as key = value lines.
+void print_version() {
+    int runtime = 0;
+    cudaRuntimeGetVersion(&runtime);
+    cudaDeviceProp device{};
+    const bool have_device = cudaGetDeviceProperties(&device, 0) == cudaSuccess;
+#if !defined(FLAMEGPU_SEATBELTS) || FLAMEGPU_SEATBELTS  // as FLAME GPU itself tests it
+    const char* seatbelts = "on";
+#else
+    const char* seatbelts = "off";
+#endif
+    std::printf("flamegpu = %s\ncuda_runtime = %d.%d\ngpu = %s\nseatbelts = %s\nmax_cells = %u\n", flamegpu::VERSION_FULL,
+                runtime / 1000, runtime % 1000 / 10, have_device ? device.name : "none", seatbelts,
+                static_cast<unsigned int>(SUGARSCAPE_MAX_CELLS));
+}
 
 int to_int(const std::string& option, const std::string& text) {
     try {
@@ -68,6 +86,7 @@ Options parse_args(int argc, const char** argv) {
             return argv[++i];
         };
         if (arg == "--help") o.help = true;
+        else if (arg == "--version") o.version = true;
         else if (arg == "--check") o.check = true;
         else if (arg == "--print-config") o.print_config = true;
         else if (arg == "--config") o.config = value();
@@ -81,7 +100,7 @@ Options parse_args(int argc, const char** argv) {
         else if (arg == "--tile") o.tile = to_int(arg, value());
         else throw UsageError("unknown option " + arg);
     }
-    if (o.help) return o;
+    if (o.help || o.version) return o;
     if (o.config.empty()) throw UsageError("--config is required");
     if (o.metrics_every < 1) throw UsageError("--metrics-every must be >= 1");
     if ((!o.dump_agents.empty() || !o.dump_landscape.empty()) && !o.dump_at) {
@@ -104,12 +123,19 @@ int main(int argc, const char** argv) {
         std::fputs(USAGE, stdout);
         return EXIT_SUCCESS;
     }
+    if (opts.version) {
+        print_version();
+        return EXIT_SUCCESS;
+    }
     RunConfig cfg;
     std::vector<uint32_t> capacity;
+    // docs/xl.md's setup: from loading the map to the state at t = 0 (finish_init's setup_end).
+    std::chrono::steady_clock::time_point setup_start;
     try {
         cfg = parse_config(opts.config);
         apply_tile(cfg, opts.tile);
         validate(cfg);
+        setup_start = std::chrono::steady_clock::now();
         capacity = tile_map(load_map(cfg.map_path, cfg.base_width(), cfg.base_height()), cfg.base_width(),
                             cfg.base_height(), cfg.tile);
     } catch (const std::runtime_error& e) {  // ConfigError, MapError
@@ -165,18 +191,22 @@ int main(int argc, const char** argv) {
         simulation.simulate();
         const double seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
         if (!opts.timing.empty()) {
-            // Periods timed by begin_period/end_period with the GPU synchronised, leaving out initialisation (every
-            // site's macro values). FLAME GPU's own step timer stops before the kernels finish when seatbelts are off.
+            // Periods timed by begin_period/end_period with the GPU synchronised, leaving out initialisation and the
+            // metrics. FLAME GPU's own step timer stops before the kernels finish when seatbelts are off.
             const std::vector<double>& steps = s.period_seconds;
             double step_total = 0;
             for (const double v : steps) step_total += v;
+            const double setup = std::chrono::duration<double>(s.setup_end - setup_start).count();
             FILE* f = std::fopen(opts.timing.c_str(), "w");
             if (!f) throw std::runtime_error("cannot write " + opts.timing);
+            // The first five keys are bridge.bench's; the rest are docs/xl.md's timing measures.
             std::fprintf(f,
                          "{\"cells\": %lld, \"agents_initial\": %u, \"steps\": %d, \"simulate_seconds\": %.9g, "
-                         "\"step_seconds_mean\": %.9g}\n",
+                         "\"step_seconds_mean\": %.9g, \"setup_s\": %.9g, \"stepping_s\": %.9g, \"metrics_s\": %.9g, "
+                         "\"periods\": %zu, \"agents_start\": %u, \"agents_end\": %u}\n",
                          static_cast<long long>(cfg.cells()), citizens.size(), cfg.steps, seconds,
-                         steps.empty() ? 0.0 : step_total / static_cast<double>(steps.size()));
+                         steps.empty() ? 0.0 : step_total / static_cast<double>(steps.size()), setup, step_total,
+                         s.metrics_seconds, steps.size(), citizens.size(), s.population);
             std::fclose(f);
         }
     } catch (const InvariantError& e) {
