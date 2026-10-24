@@ -113,3 +113,32 @@ end
     move!(m, g)
     @test (g.x, g.y) == (3, 4)
 end
+
+@testset "the per-move scorer equals welfare_score bit for bit" begin
+    using Random: Xoshiro
+    rng = Xoshiro(3)
+    for cultural in (false, true), trial in 1:200
+        cfg = Config(;
+            spice=true,
+            foresight=(0, 10),
+            tag_length=cultural ? 11 : 0,
+            cultural_preferences=cultural,
+            seed=trial,
+        )
+        m = Model(replace_config(cfg; initial_population=5))
+        ls = m.landscape
+        ls.sugar .= rand(rng, 0:4, 50, 50) .* (rand(rng, 50, 50) .< 0.5)
+        ls.spice .= rand(rng, 0:4, 50, 50) .* (rand(rng, 50, 50) .< 0.5)
+        ls.pollution .= rand(rng, 50, 50) .* (rand(rng, 50, 50) .< 0.3)
+        a = m.agents[1]
+        a.sugar, a.spice = 100 * rand(rng) - 10, 100 * rand(rng) - 10
+        a.metabolism, a.spice_metabolism = rand(rng, 0:5), rand(rng, 0:5)
+        a.diseases = rand(rng, Bool) ? [1] : Int[]
+        a.disease_fee = 1.0
+        sw = Sugarscape.SiteWelfare(m, a)
+        @test all(
+            Sugarscape.score(sw, ls, i, j) === welfare_score(m, a, i, j) for
+            i in 1:50, j in 1:50
+        )
+    end
+end

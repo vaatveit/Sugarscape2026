@@ -14,7 +14,8 @@ end
 function next_event(r::ScriptedRNG, kinds)
     r.used[1] += 1
     kind, values = r.events[r.used[1]]
-    kind in kinds || error("draw $(r.used[1]): Python drew $kind here, Julia wants one of $kinds")
+    kind in kinds ||
+        error("draw $(r.used[1]): Python drew $kind here, Julia wants one of $kinds")
     return kind, values
 end
 
@@ -22,7 +23,8 @@ Sugarscape.random_directions(r::ScriptedRNG) = NTuple{4,Int}(next_event(r, ("dir
 
 function Random.shuffle!(r::ScriptedRNG, v::Vector{Agent})
     kind, values = next_event(r, ("order", "perm"))
-    length(values) == length(v) || error("Python permuted $(length(values)) agents here, Julia $(length(v))")
+    length(values) == length(v) ||
+        error("Python permuted $(length(values)) agents here, Julia $(length(v))")
     if kind == "order"
         v .= [r.byid[id] for id in values]
     else  # the neighbours, visited in the order Python's permutation gives
@@ -79,12 +81,17 @@ for case in TOML.parsefile(joinpath(@__DIR__, "fixtures", "lockstep.toml"))["cas
         @test rng.used == [length(case["events"])]  # every recorded choice, no more
         got = sort(m.agents; by=a -> a.id)
         @test [(a.id, a.x, a.y, a.age) for a in got] == [(e["id"], e["x"], e["y"], e["age"]) for e in case["end"]]
-        @test all(near(a.sugar, e["sugar"]) && near(a.spice, get(e, "spice", 0.0)) for (a, e) in zip(got, case["end"]))
+        @test all(
+            near(a.sugar, e["sugar"]) && near(a.spice, get(e, "spice", 0.0)) for
+            (a, e) in zip(got, case["end"])
+        )
         w, h = size(m.landscape.sugar)
         @test all(
             near.(m.landscape.sugar, [case["end_sugar"][x][y] for x in 1:w, y in 1:h])
         )
-        @test all(near.(m.landscape.spice, [case["end_spice"][x][y] for x in 1:w, y in 1:h]))
+        @test all(
+            near.(m.landscape.spice, [case["end_spice"][x][y] for x in 1:w, y in 1:h])
+        )
         @test all(
             near.(
                 m.landscape.pollution, [case["end_pollution"][x][y] for x in 1:w, y in 1:h]

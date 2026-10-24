@@ -44,6 +44,46 @@ function mrs(a::Agent, cultural::Bool=false)
 end
 
 """
+    SiteWelfare(m, a)
+
+`welfare_score` for one agent's move, with the agent's part computed once: the exponents and the holdings as if phi
+periods ahead. `score(sw, ls, i, j)` gives exactly welfare_score's value. A site with no sugar and no spice scores the
+holdings alone (base + 0/devalue == base), cached as `w0`.
+"""
+struct SiteWelfare
+    e1::Float64
+    e2::Float64
+    use1::Bool  # a zero exponent makes that factor 1 (welfare)
+    use2::Bool
+    base1::Float64
+    base2::Float64
+    w0::Float64
+end
+
+function SiteWelfare(m::Model, a::Agent)
+    f = preference_fraction(a, m.config.cultural_preferences)
+    a1, a2 = sugar_burn(a) * f, a.spice_metabolism * (1 - f)
+    mu = a1 + a2
+    phi = a.foresight
+    base1 = max(a.sugar - phi * sugar_burn(a), 0.0)
+    base2 = max(a.spice - phi * a.spice_metabolism, 0.0)
+    e1, e2 = a1 != 0 ? a1 / mu : 0.0, a2 != 0 ? a2 / mu : 0.0
+    w0 = (a1 != 0 ? base1^e1 : 1.0) * (a2 != 0 ? base2^e2 : 1.0)
+    return SiteWelfare(e1, e2, a1 != 0, a2 != 0, base1, base2, w0)
+end
+
+const NO_WELFARE = SiteWelfare(0.0, 0.0, false, false, 0.0, 0.0, 1.0)  # sugar-only moves
+
+@inline function score(sw::SiteWelfare, ls::Landscape, i::Int, j::Int)
+    s, p = @inbounds ls.sugar[i, j], ls.spice[i, j]
+    (s == 0 && p == 0) && return sw.w0
+    devalue = 1.0 + @inbounds ls.pollution[i, j]
+    left = sw.use1 ? (sw.base1 + s / devalue)^sw.e1 : 1.0
+    right = sw.use2 ? (sw.base2 + p / devalue)^sw.e2 : 1.0
+    return left * right
+end
+
+"""
     welfare_score(m, a, i, j)
 
 The two-commodity score of site [i, j]: W(w1 + sugar, w2 + spice) (App. B), evaluated as if phi periods ahead (eq. 6:

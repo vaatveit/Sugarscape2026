@@ -27,14 +27,15 @@ function move!(m::Model, a::Agent)
     spice = m.config.spice
     w, h = ls.width, ls.height
     best_x, best_y, best_d = a.x, a.y, 0
-    best = spice ? welfare_score(m, a, a.x + 1, a.y + 1) : site_score(ls, a.x + 1, a.y + 1)
+    sw = spice ? SiteWelfare(m, a) : NO_WELFARE  # the agent's part of welfare_score, once per move
+    best = spice ? score(sw, ls, a.x + 1, a.y + 1) : site_score(ls, a.x + 1, a.y + 1)
     for d in random_directions(m.rng)
         dx, dy = @inbounds VON_NEUMANN[d]
         for dist in 1:(a.vision)
             x = mod(a.x + dx * dist, w)
             y = mod(a.y + dy * dist, h)
             @inbounds m.grid[x + 1, y + 1] === nothing || continue
-            s = spice ? welfare_score(m, a, x + 1, y + 1) : site_score(ls, x + 1, y + 1)
+            s = spice ? score(sw, ls, x + 1, y + 1) : site_score(ls, x + 1, y + 1)
             if s > best || (s == best && dist < best_d)
                 best, best_x, best_y, best_d = s, x, y, dist
             end
