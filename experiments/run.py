@@ -7,6 +7,9 @@ A prefix such as "II-5" runs every id of the form "II-5/...".
 import argparse
 import csv
 import math
+import platform
+import sys
+import time
 import warnings
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import fields, replace
@@ -23,6 +26,9 @@ from sugarscape.variants.ringworld import RingConfig, RingModel, ring_metrics
 from sugarscape.variants.schelling import SchellingConfig, SchellingModel, schelling_metrics
 
 Series = list[dict[str, float]]
+# Per-seed wall-clock time, in seconds (docs/xl.md, "Timing"): building the model, the model's own steps, and the
+# runner's metrics collection, which the model doesn't do.
+TIMING_COLUMNS = ("seed", "periods", "setup_s", "stepping_s", "metrics_s", "agents_start", "agents_end")
 PLOTTED = ("population", "gini", "mean_vision", "mean_metabolism")
 
 
@@ -63,13 +69,32 @@ def results_current(exp_id: str, out_dir: Path = Path("results")) -> bool:
     return len(list(folder.glob("seed*.csv"))) >= EXPERIMENTS[exp_id].seeds
 
 
-def run_seed(exp_id: str, seed_index: int) -> Series:
+def timed_seed(exp_id: str, seed_index: int) -> tuple[Series, dict]:
+    """Run k of an experiment, as `Model.run` would, timing setup, stepping and metrics separately."""
     exp = EXPERIMENTS[exp_id]
     make_model, metrics, _ = KINDS[type(exp.config)]
+    clock = time.perf_counter
+    start = clock()
     model = make_model(replace(exp.config, seed=exp.config.seed + seed_index))
+    setup = clock() - start
+    agents_start = len(model.agents)
     series: Series = []
-    model.run(exp.steps, observer=lambda m: series.append({"t": m.t, **metrics(m)}))
-    return series
+    stepping = measuring = 0.0
+    for period in range(exp.steps + 1):
+        if period:
+            start = clock()
+            model.step()
+            stepping += clock() - start
+        start = clock()
+        series.append({"t": model.t, **metrics(model)})
+        measuring += clock() - start
+    timing = {"seed": seed_index, "periods": exp.steps, "setup_s": setup, "stepping_s": stepping,
+              "metrics_s": measuring, "agents_start": agents_start, "agents_end": len(model.agents)}
+    return series, timing
+
+
+def run_seed(exp_id: str, seed_index: int) -> Series:
+    return timed_seed(exp_id, seed_index)[0]
 
 
 def run_experiment(
@@ -78,9 +103,10 @@ def run_experiment(
     n = seeds if seeds is not None else EXPERIMENTS[exp_id].seeds
     if jobs > 1:
         with ProcessPoolExecutor(max_workers=jobs) as pool:
-            runs = list(pool.map(run_seed, [exp_id] * n, range(n)))
+            results = list(pool.map(timed_seed, [exp_id] * n, range(n)))
     else:
-        runs = [run_seed(exp_id, k) for k in range(n)]
+        results = [timed_seed(exp_id, k) for k in range(n)]
+    runs = [series for series, _ in results]
     folder = result_dir(exp_id, out_dir)
     folder.mkdir(parents=True, exist_ok=True)
     for old in folder.glob("seed*.csv"):
@@ -88,6 +114,8 @@ def run_experiment(
     for k, series in enumerate(runs):
         _write_csv(folder / f"seed{k}.csv", series)
     (folder / "fingerprint.txt").write_text(fingerprint(exp_id), encoding="utf-8")
+    _write_csv(folder / "timing.csv", [timing for _, timing in results])
+    _write_machine_note(folder / "machine.txt", jobs)
     _plot(exp_id, runs, folder / "summary.png")
     return runs
 
@@ -111,6 +139,15 @@ def _write_csv(path: Path, series: Series) -> None:
         writer.writeheader()
         for row in series:
             writer.writerow({k: repr(v) for k, v in row.items()})
+
+
+def _write_machine_note(path: Path, jobs: int) -> None:
+    """Where and how the timings were taken."""
+    lines = [f"python = {sys.version.split()[0]}", f"numpy = {np.__version__}", f"platform = {platform.platform()}",
+             f"processor = {platform.processor() or 'unknown'}", f"jobs = {jobs}"]
+    if jobs > 1:
+        lines.append(f"note = timings taken with --jobs {jobs} share the processor")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def _parse(text: str) -> float:
