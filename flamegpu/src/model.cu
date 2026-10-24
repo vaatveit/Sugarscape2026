@@ -12,7 +12,6 @@ void landscape_macros(flamegpu::EnvironmentDescription env, bool all) {
     env.newMacroProperty<float, MAX_CELLS>("pollution");
     env.newMacroProperty<uint64_t, MAX_CELLS>("claim");
     if (!all) return;
-    env.newMacroProperty<unsigned int, MAX_CELLS>("capacity");
     env.newMacroProperty<float, MAX_CELLS>("sugar_next");
     env.newMacroProperty<float, MAX_CELLS>("pollution_next");
     env.newMacroProperty<unsigned int>("deaths");
@@ -69,6 +68,7 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
     env.newProperty<unsigned int>("diffuse_now", 0u);
     env.newProperty<unsigned int>("extra_passes", 0u);    // D's passes after the first this period
     env.newProperty<unsigned int>("diffusion_pass", 0u);  // extra passes done so far this period
+    env.newProperty<unsigned int>("initialising", 0u);    // 1 in the first period only: cell_initialise runs
     env.newProperty<unsigned int>("t", 0u);
     env.newProperty<unsigned int>("round", 1u);
     env.newProperty<unsigned int>("seasons_beta", cfg.seasons ? static_cast<unsigned int>(cfg.seasons->first) : 0u);
@@ -81,6 +81,7 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
     citizen.newVariable<float>("sugar");
     for (const char* name : {"moved", "neighbors", "settled", "priority", "target"}) citizen.newVariable<unsigned int>(name);
     flamegpu::AgentDescription cell = model.newAgent("cell");
+    cell.newVariable<unsigned int>("capacity");  // the site's sugar capacity (make_cells)
 
     flamegpu::ModelDescription movement("movement");
     describe_movement(movement, cfg);
@@ -98,15 +99,21 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
     flamegpu::AgentFunctionDescription metabolize = citizen.newFunction("metabolize_and_age", metabolize_and_age);
     metabolize.setAllowAgentDeath(true);
 
+    flamegpu::AgentFunctionDescription occupy = citizen.newFunction("occupy_site", occupy_site);
+
     model.newLayer().addHostFunction(begin_period);
+    flamegpu::LayerDescription initialise = model.newLayer();
+    initialise.addAgentFunction(cell.newFunction("cell_initialise", cell_initialise));
+    initialise.addAgentFunction(occupy);  // the founders' sites
+    model.newLayer().addHostFunction(finish_init);
     model.newLayer().addAgentFunction(citizen.newFunction("start_period", start_period));
     model.newLayer().addSubModel(movement_sub);
     model.newLayer().addAgentFunction(citizen.newFunction("count_neighbors", count_neighbors));
     model.newLayer().addAgentFunction(metabolize);
     model.newLayer().addHostFunction(replace_dead);
+    model.newLayer().addAgentFunction(occupy);  // the newcomers' sites
     model.newLayer().addAgentFunction(cell.newFunction("cell_grow", cell_grow));
     model.newLayer().addAgentFunction(cell.newFunction("cell_commit", cell_commit));
     model.newLayer().addSubModel(diffusion_sub);
-    model.addInitFunction(init_landscape);
     model.addStepFunction(end_period);
 }

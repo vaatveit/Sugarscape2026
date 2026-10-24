@@ -15,6 +15,12 @@ def test_replacement_keeps_population(exe, tmp_path):
     assert len(dump.agents) == 250
 
 
+def test_replacement_keeps_occupancy_consistent(exe, tmp_path):
+    # Newcomers mark their own sites; --check fails if any agent's site is unmarked or two agents share one.
+    dump = run_gpu(exe, tmp_path, II_4_GINI, steps=60, extra_args=("--check",))
+    assert dump.returncode == 0, dump.stderr
+
+
 @pytest.mark.parametrize("seed", range(5))
 @pytest.mark.parametrize("name,cfg", [("II-4", II_4), ("II-8", II_8), ("II-4-gini", II_4_GINI)])
 def test_invariants_hold(exe, tmp_path, name, cfg, seed):
