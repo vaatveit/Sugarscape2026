@@ -1,7 +1,8 @@
 // The viewer page: fetches periods from the local server and draws them. Every color, size and legend entry
 // comes from encoding.mjs; this file defines no encoding of its own.
+import { boardPixels, paintCells } from "./board.mjs";
 import {
-  COLOR_MODES, OUTLINE, OUTLINE_WIDTH, SIZE_MODES, cellColor, formatWealth, legendCells, wealth,
+  COLOR_MODES, OUTLINE, OUTLINE_WIDTH, PALETTES, SIZE_MODES, cellColor, formatWealth, legendCells, wealth,
 } from "./encoding.mjs";
 import { pause } from "./pace.mjs";
 import { PopulationSeries } from "./series.mjs";
@@ -12,8 +13,8 @@ const DEFAULT_EXPERIMENT = "VI-1"; // selected when the page opens: all rules on
 
 const $ = (id) => document.getElementById(id);
 const els = {
-  form: $("start"), experiment: $("experiment"), seed: $("seed"), runInfo: $("run-info"), error: $("error"),
-  board: $("board"), captionT: $("caption-t"), back: $("back"), play: $("play"), forward: $("forward"),
+  form: $("start"), experiment: $("experiment"), seed: $("seed"), xl: $("xl"), runInfo: $("run-info"),
+  error: $("error"), board: $("board"), captionT: $("caption-t"), captionSize: $("caption-size"), back: $("back"), play: $("play"), forward: $("forward"),
   slider: $("slider"), speed: $("speed"), status: $("status"), chart: $("chart"),
   colorBy: $("color-by"), sizeBy: $("size-by"), legendCells: $("legend-cells"), legendAgents: $("legend-agents"),
   hover: $("hover"),
@@ -26,7 +27,7 @@ const state = {
   frame: null, // decoded frame on the board
   target: 0, // the period the user last asked to see
   latest: 0,
-  earliest: 0, // oldest period the server still keeps (it keeps the newest 500)
+  earliest: 0, // oldest period the server still keeps (it keeps the newest info.keep)
   populations: new PopulationSeries(),
   popRequest: null,
   cache: new Map(), // t -> decoded frame
@@ -34,7 +35,12 @@ const state = {
   playing: false,
   playGen: 0, // bumped on every play/pause, so only the newest playback loop may draw
   hoverCell: null,
+  boardPx: null, // xl: the board's size in device pixels, set on the first draw and on resize
+  xlImage: null, // xl: { frame, mode, canvas } painted one pixel per cell, reused while only the hover moves
 };
+
+// The palette the current run is drawn in (encoding.mjs): xl runs have their own.
+const palette = () => (state.info?.xl ? PALETTES.xl : PALETTES.regular);
 
 // --- data ------------------------------------------------------------------------------------
 
@@ -186,6 +192,8 @@ function fitCanvas(canvas, cells) {
 function drawBoard() {
   const { info, frame } = state;
   if (!info || !frame) return;
+  if (info.xl) return drawXlBoard();
+  els.board.style.width = els.board.style.height = ""; // back to the stylesheet's size after an xl run
   const { width: W, height: H } = info;
   const { w } = fitCanvas(els.board, W);
   const cell = w / W;
@@ -193,7 +201,8 @@ function drawBoard() {
   for (let x = 0; x < W; x++) {
     for (let y = 0; y < H; y++) {
       const i = x * H + y;
-      const [r, gr, b] = cellColor(frame.sugar[i], frame.spice ? frame.spice[i] : 0, info.sugar_max, info.spice_max);
+      const [r, gr, b] = cellColor(frame.sugar[i], frame.spice ? frame.spice[i] : 0, info.sugar_max, info.spice_max,
+        palette().weight);
       g.fillStyle = `rgb(${r},${gr},${b})`;
       g.fillRect(x * cell, (H - 1 - y) * cell, cell, cell);
     }
@@ -203,7 +212,7 @@ function drawBoard() {
   g.strokeStyle = OUTLINE;
   g.lineWidth = Math.max(1, OUTLINE_WIDTH * cell);
   for (const agent of frame.agents) {
-    g.fillStyle = color.color(agent);
+    g.fillStyle = color.color(agent, palette());
     g.beginPath();
     g.arc((agent.x + 0.5) * cell, (H - 1 - agent.y + 0.5) * cell, size.radius(agent) * cell, 0, 2 * Math.PI);
     g.fill();
@@ -214,6 +223,40 @@ function drawBoard() {
     g.strokeStyle = "#000";
     g.lineWidth = Math.max(1, cell / 8);
     g.strokeRect(x * cell, (H - 1 - y) * cell, cell, cell);
+  }
+}
+
+// xl: one solid color per cell, every cell k x k device pixels (k whole, at least 1), never smoothed. The board's
+// CSS size is set to exactly its pixels / devicePixelRatio so the browser doesn't resample it either.
+function drawXlBoard() {
+  const { info, frame } = state;
+  const W = info.width, H = info.height;
+  const dpr = window.devicePixelRatio || 1;
+  if (state.boardPx === null) {
+    els.board.style.width = els.board.style.height = ""; // measure the space the stylesheet gives the board
+    state.boardPx = boardPixels(Math.round(els.board.getBoundingClientRect().width * dpr), W);
+  }
+  const n = state.boardPx;
+  if (els.board.width !== n || els.board.height !== n) els.board.width = els.board.height = n;
+  els.board.style.width = els.board.style.height = `${n / dpr}px`;
+  const mode = els.colorBy.value;
+  if (state.xlImage?.frame !== frame || state.xlImage.mode !== mode) {
+    const canvas = state.xlImage?.canvas ?? document.createElement("canvas");
+    canvas.width = W;
+    canvas.height = H;
+    const pixels = paintCells(frame, info, COLOR_MODES[mode], palette());
+    canvas.getContext("2d").putImageData(new ImageData(pixels, W, H), 0, 0);
+    state.xlImage = { frame, mode, canvas };
+  }
+  const g = els.board.getContext("2d");
+  g.imageSmoothingEnabled = false;
+  g.drawImage(state.xlImage.canvas, 0, 0, n, n);
+  if (state.hoverCell) {
+    const [x, y] = state.hoverCell;
+    const k = n / W;
+    g.strokeStyle = "#000";
+    g.lineWidth = 1;
+    g.strokeRect(x * k - 0.5, (H - 1 - y) * k - 0.5, k + 1, k + 1); // just outside the cell, which stays visible
   }
 }
 
@@ -292,7 +335,7 @@ function drawLegend() {
   els.legendCells.replaceChildren();
   els.legendAgents.replaceChildren();
   if (!info) return;
-  const cells = legendCells(info.sugar_max, info.spice_max);
+  const cells = legendCells(info.sugar_max, info.spice_max, palette().weight);
   const table = document.createElement("table");
   table.className = "swatches";
   const caption = table.createCaption();
@@ -312,13 +355,22 @@ function drawLegend() {
   els.legendCells.append(note);
 
   const color = COLOR_MODES[els.colorBy.value];
+  if (info.xl) {
+    els.legendAgents.append(agentList(`Agent color: ${color.label}`, color.legend(palette()), true));
+    const off = document.createElement("p");
+    off.className = "legend-note";
+    off.textContent = "Size: off at xl. Each agent fills its cell, which is about one pixel.";
+    els.legendAgents.append(off);
+    return;
+  }
   const size = SIZE_MODES[els.sizeBy.value];
   els.legendAgents.append(agentList(`Agent color: ${color.label}`, color.legend().map((e) => ({ ...e, radius: 0.4 }))));
   els.legendAgents.append(agentList(`Agent size: ${size.label} (dot within one cell)`,
     size.legend().map((e) => ({ ...e, color: COLOR_MODES.none.color() }))));
 }
 
-function agentList(title, entries) {
+// Legend rows: a dot within a cell, or at xl (`filled`) the whole cell in the agent's color, as the board draws it.
+function agentList(title, entries, filled = false) {
   const wrap = document.createElement("div");
   const h = document.createElement("p");
   h.className = "legend-note";
@@ -328,7 +380,9 @@ function agentList(title, entries) {
   const CELL = 22;
   for (const e of entries) {
     const li = document.createElement("li");
-    li.innerHTML = `<svg width="${CELL}" height="${CELL}" aria-hidden="true">
+    li.innerHTML = filled
+      ? `<svg width="${CELL}" height="${CELL}" aria-hidden="true"><rect width="${CELL}" height="${CELL}" fill="${e.color}"/></svg>`
+      : `<svg width="${CELL}" height="${CELL}" aria-hidden="true">
       <rect x="0.5" y="0.5" width="${CELL - 1}" height="${CELL - 1}" fill="none" stroke="currentColor" stroke-opacity="0.25"/>
       <circle cx="${CELL / 2}" cy="${CELL / 2}" r="${e.radius * CELL}" fill="${e.color}"
         stroke="${OUTLINE}" stroke-width="${Math.max(1, OUTLINE_WIDTH * CELL)}"/></svg>`;
@@ -375,7 +429,7 @@ function updateStatus() {
   const { frame } = state;
   els.status.textContent = frame
     ? `t = ${frame.t} · population ${frame.population} · computed to t = ${state.latest}` +
-      (state.earliest > 0 ? ` · kept from t = ${state.earliest} (the newest 500)` : "")
+      (state.earliest > 0 ? ` · kept from t = ${state.earliest} (the newest ${state.info.keep})` : "")
     : "";
 }
 
@@ -397,24 +451,26 @@ function fillMenus() {
   }
 }
 
-async function startRun(experiment, seed) {
+async function startRun(experiment, seed, xl) {
   setPlaying(false);
   showError(null);
   try {
     const seq = ++state.startSeq;
-    const info = await api("/api/run", { experiment, seed });
+    const info = await api("/api/run", { experiment, seed, xl });
     if (seq !== state.startSeq) return; // a later Start press owns the page
     state.runId += 1;
     Object.assign(state, {
       info, frame: null, target: 0, latest: 0, earliest: 0, populations: new PopulationSeries(),
-      popRequest: null, hoverCell: null,
+      popRequest: null, hoverCell: null, boardPx: null, xlImage: null,
     });
     state.cache.clear();
     state.inflight.clear();
     els.slider.max = "0";
     els.slider.min = "0";
     els.runInfo.textContent = `${info.experiment}: ${info.title} ${info.rules} · seed ${info.seed} ` +
-      `(run index ${info.seed_index}) · registered length ${info.steps} periods`;
+      `(run index ${info.seed_index}) · registered length ${info.steps} periods` + (info.xl ? " · xl 500 × 500" : "");
+    els.captionSize.textContent = `${info.width} × ${info.height}`;
+    els.sizeBy.disabled = info.xl; // every dot would be smaller than a pixel
     fillMenus();
     drawLegend();
     refreshPopulations();
@@ -438,7 +494,7 @@ async function init() {
     event.preventDefault();
     const seed = Number(els.seed.value);
     if (!Number.isInteger(seed) || seed < 0) return showError(new Error("seed must be a whole number ≥ 0"));
-    startRun(els.experiment.value, seed);
+    startRun(els.experiment.value, seed, els.xl.checked);
   });
   els.play.addEventListener("click", () => setPlaying(!state.playing));
   els.back.addEventListener("click", () => { setPlaying(false); goTo(state.target - 1); });
@@ -477,7 +533,7 @@ async function init() {
     if (event.key === "ArrowLeft") { setPlaying(false); goTo(state.target - 1); }
     if (event.key === "ArrowRight") { setPlaying(false); goTo(state.target + 1); }
   });
-  window.addEventListener("resize", () => { drawBoard(); drawChart(); });
+  window.addEventListener("resize", () => { state.boardPx = null; drawBoard(); drawChart(); });
   drawChart();
 }
 
