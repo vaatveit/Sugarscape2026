@@ -6,6 +6,7 @@ of docs/xl.md. The Python model is the specification; see docs/superpowers/specs
 """
 module Sugarscape
 
+using Distributed: WorkerPool, addprocs, pmap, remotecall_eval, rmprocs
 using Random: AbstractRNG, Xoshiro, shuffle!
 using SHA: sha256
 using TOML
@@ -37,5 +38,6 @@ include("landscape.jl")
 include("model.jl")
 include("rules/movement.jl")
 include("stats.jl")
+include("runner.jl")
 
 end
