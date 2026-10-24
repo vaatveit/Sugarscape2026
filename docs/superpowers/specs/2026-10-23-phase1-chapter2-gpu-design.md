@@ -24,7 +24,7 @@ culture, trade, credit, disease, combat), each with its own design.
    - P_αβ pollution formation, with `pollution_start` and `pollution_stop`;
    - D_α pollution diffusion, with `diffusion_start`;
    - initial placement `random` and `block`, and founder ages `uniform` and `zero`.
-2. Every Chapter II experiment in the Python registry (25 experiments, 53 targets) runs on the GPU from
+2. Every Chapter II experiment in the Python registry (25 experiments, 49 targets) runs on the GPU from
    its registered `Config`. The results are written as `seed{k}.csv` files with the same columns and
    meaning as `sugarscape.stats.standard_metrics`.
 3. A Python bridge that runs those experiments and scores them with the Python project's own code
@@ -242,7 +242,7 @@ the copy is made only on those periods.
    agrees with the agents; no negative site sugar; sugar ≤ capacity; agents' sugar > 0 after the
    period; population accounting (start + replacements − deaths = end).
 4. **Determinism:** the same seed gives an identical CSV twice (with seatbelts on).
-5. **Validation:** all 53 Chapter II targets on GPU results with the registered seed counts, reported
+5. **Validation:** all 49 Chapter II targets on GPU results with the registered seed counts, reported
    beside Python's. The aim is no target falling from pass to fail between Python and GPU. Where one
    does, it is investigated and explained in the report before Phase 1 ends. Targets that fail for
    Python already are not expected to pass on the GPU.
