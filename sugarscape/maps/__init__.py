@@ -15,7 +15,11 @@ def load_map(name: str) -> np.ndarray:
 
     The file holds whitespace-separated integers, one line per row, first line northernmost.
     """
-    text = resources.files(__package__).joinpath(name).read_text()
+    return parse_map(resources.files(__package__).joinpath(name).read_text())
+
+
+def parse_map(text: str) -> np.ndarray:
+    """A map file's text as an int array indexed [x, y] (see `load_map`)."""
     rows = [[int(v) for v in line.split()] for line in text.splitlines() if line.strip()]
     grid = np.array(rows, dtype=int)  # grid[row, col], row 0 = north
     return np.flipud(grid).T.copy()  # -> [x, y] with y = 0 the southern row
