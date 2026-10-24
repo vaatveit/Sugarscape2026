@@ -624,7 +624,7 @@ checklist of ambiguities and as a tiebreaker **only where the book is silent**.
 | Child endowment | Each parent gives half of **its own initial endowment** | Prose says half of current sugar; schema uses initialSugar/2 (inconsistent) |
 | Seasonal winter rate | α units per β periods (fractional rate) | `SUGARGROWTH div WINTERRATE` = 1 div 8 = 0, so **no winter growth** |
 | Trade crossing | Do not make a trade that would cross MRSs; trade must raise both welfares | Executes the crossing trade, then stops; no welfare check |
-| Quantities | Real-valued (p units of spice, 1/p sugar) | Natural numbers with integer division |
+| Quantities | Real-valued (p units of spice, 1/p sugar) | Natural numbers with integer division (run as `VAR-inttrade`: prices don't converge as in Fig IV-3; Chapter IV record) |
 | Credit "needed to have children" | Each agent's own birth endowment | Global constant CHILDAMT |
 
 ### Gap-fillers from Kehoe consistent with the book (adoptable)

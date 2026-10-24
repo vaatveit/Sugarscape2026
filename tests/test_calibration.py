@@ -1,10 +1,10 @@
 from dataclasses import replace
 
-from experiments.registry import EXPERIMENTS, VALIDATION, VARIANTS
+from experiments.registry import EXPERIMENTS, TRADE_VALIDATION, TRADE_VARIANTS, VALIDATION, VARIANTS
 from experiments.run import fingerprint
 from replication.targets import TARGETS
 
-VAR = [t for t in TARGETS if t.experiment.startswith("VAR-")]
+VAR = [t for t in TARGETS if t.experiment.split("/")[0][4:] in VARIANTS]  # rule S variants
 
 
 def test_each_variant_runs_every_validation_figure_unchanged_otherwise():
@@ -49,3 +49,25 @@ def test_fingerprints_name_rule_s_options_only_when_they_depart_from_the_default
     assert "mate_contact" not in fingerprint("III-1") and "gift_rounding" not in fingerprint("III-1")
     assert "mate_contact='neighbors'" in fingerprint("VAR-book/III-1")
     assert "gift_rounding='exact'" in fingerprint("VAR-book/III-1") and "gift_rounding" not in fingerprint("VAR-intgift/III-1")
+
+
+TVAR = [t for t in TARGETS if t.experiment.startswith("VAR-inttrade/")]
+
+
+def test_integer_trade_variant_runs_every_trading_experiment_unchanged_otherwise():  # user request 2026-10-23
+    assert TRADE_VARIANTS == {"inttrade": {"trade_rounding": "down"}}
+    trading = {i for i, e in EXPERIMENTS.items() if not i.startswith("VAR-") and getattr(e.config, "trade", False)}
+    assert set(TRADE_VALIDATION) == trading and all(i.startswith(("IV-", "VI-")) for i in trading)
+    for exp_id in TRADE_VALIDATION:
+        var, default = EXPERIMENTS[f"VAR-inttrade/{exp_id}"], EXPERIMENTS[exp_id]
+        assert var.config == replace(default.config, trade_rounding="down")
+        assert (var.rules, var.steps, var.seeds) == (default.rules, default.steps, default.seeds)
+
+
+def test_integer_trade_targets_mirror_the_trading_experiments():
+    default = [t for t in TARGETS if t.experiment in TRADE_VALIDATION]
+    assert len(TVAR) == len(default) and {t.experiment[13:] for t in TVAR} == set(TRADE_VALIDATION)
+    for t in TVAR:  # a baseline that doesn't trade can't be changed by the rounding, so stays the default run
+        assert t.experiment in EXPERIMENTS and (t.baseline is None or t.baseline in EXPERIMENTS)
+        assert t.baseline is None or t.baseline.startswith("VAR-inttrade/") or not EXPERIMENTS[t.baseline].config.trade
+    assert "trade_rounding='down'" in fingerprint("VAR-inttrade/IV-3") and "trade_rounding" not in fingerprint("IV-3")

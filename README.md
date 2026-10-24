@@ -818,6 +818,27 @@ gifts alone are counted too, for comparison. Nothing in the model changed.
 **Next steps now.** Look for the original program, or tag the current state. The one open question in
 rule S is what lets the book's III-5 and VI-2 die out while its III-3 and VI-3 survive.
 
+## Ninth follow-up (2026-10-23)
+
+**Integer trade registered as `VAR-inttrade`** (user request)
+([Chapter IV record](docs/replication/chapter-4.md#integer-trade-var-inttrade-2026-10-23)). If the original stored
+sugar as integers (question 8), rule T's exchanges were whole units too. With `trade_rounding="down"`, each
+exchange rounds p or 1/p down to a whole unit, as Mesa truncates them and Kehoe's specification divides them; the
+price stays p. The variant runs all 23 experiments that trade, with their 53 targets; the default is unchanged.
+
+1. **It scores worse.** Chapter IV's trade targets go from 17 / 6 / 9 to 12 / 11 / 9, and Chapter VI's from 7 / 3 / 11
+   to 5 / 5 / 11. Of 10 status changes, 8 are for the worse.
+2. **Whole units keep prices apart.** For 1 < p < 2 every exchange is one for one, so trades stop before the
+   MRSs meet. IV-3's dispersion at t≈1000 rises from 0.047 to 0.118 (book 0.05), and IV-12's lifespan rows overshoot.
+3. **Trade volume falls by half to three quarters,** away from the book's (IV-3 34 → 12 per period; IV-15 267 → 69).
+4. **What it helps:** the high-dispersion rows (IV-15 0.18 → 0.23, IV-17 0.27 → 0.46 against 0.45), by keeping
+   prices apart rather than by thickening the market.
+5. **Reading:** Fig IV-3's convergence argues that the original traded real amounts. Whatever it did with gifts,
+   rounding doesn't explain the thin markets.
+
+**Next steps now.** The other integer reading still open is winter growback (II-7): Kehoe's `1 div 8 = 0`, no growth
+in winter, is untested (pulse growth is). Beyond that, look for the original program, or tag the current state.
+
 ## Where things are
 
 | What | Where |

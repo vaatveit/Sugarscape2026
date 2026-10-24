@@ -26,8 +26,10 @@ def bargain(model, a, b) -> list[Exchange]:
     the higher MRS buys sugar with spice (p > 1: p spice for 1 sugar; p < 1: 1 spice for 1/p sugar).
     The exchange happens only if both agents' welfare strictly rises and their MRSs don't cross
     (fn 17); otherwise bargaining ends. An MRS of 0, infinity, or undefined means no trade (our call).
+    trade_rounding="down" rounds the amount of p or 1/p down to a whole unit (VAR-inttrade); the price stays p.
     """
     cultural = model.config.cultural_preferences
+    whole = model.config.trade_rounding == "down"
     deals: list[Exchange] = []
     while True:
         ma, mb = mrs(a, cultural), mrs(b, cultural)
@@ -36,6 +38,8 @@ def bargain(model, a, b) -> list[Exchange]:
         hi, lo = (a, b) if ma > mb else (b, a)
         price = math.sqrt(ma * mb)
         sugar, spice = (1.0, price) if price > 1 else ((1.0 / price, 1.0) if price < 1 else (1.0, 1.0))
+        if whole:
+            sugar, spice = float(math.floor(sugar)), float(math.floor(spice))
         old = (hi.sugar, hi.spice, lo.sugar, lo.spice)
         before = (welfare(hi, hi.sugar, hi.spice, cultural), welfare(lo, lo.sugar, lo.spice, cultural))
         hi.sugar, hi.spice = hi.sugar + sugar, hi.spice - spice

@@ -392,3 +392,19 @@ for _name, _setting in VARIANTS.items():
         register(Experiment(
             id=f"VAR-{_name}/{_id}", title=f"{_default.title} [{_setting}]", rules=_default.rules,
             config=replace(_default.config, **_setting), steps=_default.steps, seeds=_default.seeds))
+
+
+# --- Trade-rule variant (README ninth follow-up) ------------------------------------------------
+# VAR-inttrade (2026-10-23, user request) runs rule T with whole units changing hands: 1 sugar for p spice rounded
+# down, or 1/p sugar rounded down for 1 spice, as Mesa's G1MT truncates them (int(p)) and Kehoe's specification
+# divides them; the price stays p (eq. 4). p.105 states real amounts; this is the reading if the original kept stocks
+# as integers. It runs on every experiment that trades (Chapters IV and VI); nothing is fitted.
+TRADE_VARIANTS = {"inttrade": {"trade_rounding": "down"}}
+TRADE_VALIDATION = tuple(i for i, e in EXPERIMENTS.items()
+                         if not i.startswith("VAR-") and isinstance(e.config, Config) and e.config.trade)
+for _name, _setting in TRADE_VARIANTS.items():
+    for _id in TRADE_VALIDATION:
+        _default = EXPERIMENTS[_id]
+        register(Experiment(
+            id=f"VAR-{_name}/{_id}", title=f"{_default.title} [{_setting}]", rules=_default.rules,
+            config=replace(_default.config, **_setting), steps=_default.steps, seeds=_default.seeds))

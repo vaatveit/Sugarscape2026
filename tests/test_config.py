@@ -131,3 +131,9 @@ def test_rule_s_options_default_to_integer_gifts_and_partners_in_sight():  # use
     c = Config()
     assert (c.mate_contact, c.child_gift, c.child_threshold) == ("vision", "endowment", "endowment")
     assert c.gift_rounding == "down"
+
+
+def test_trade_rounding_defaults_to_exact_and_rejects_unknown():  # "down" is VAR-inttrade
+    assert Config().trade_rounding == "exact"
+    with pytest.raises(ValueError):
+        Config(spice=True, trade=True, trade_rounding="up")

@@ -15,7 +15,7 @@ variant names. Call pin() at module level, so worker processes (spawned on Windo
 """
 from dataclasses import fields, replace
 
-from experiments.registry import EXPERIMENTS, VARIANTS
+from experiments.registry import EXPERIMENTS, TRADE_VARIANTS, VARIANTS
 from sugarscape.config import Config
 
 EPOCHS = {
@@ -42,6 +42,6 @@ def pin(epoch: str) -> None:
     Config.__init__ = pinned_init
     for exp_id, exp in EXPERIMENTS.items():
         if isinstance(exp.config, Config):
-            own = VARIANTS[exp_id[4:].split("/")[0]] if exp_id.startswith("VAR-") else {}
+            own = {**VARIANTS, **TRADE_VARIANTS}[exp_id[4:].split("/")[0]] if exp_id.startswith("VAR-") else {}
             pins = {k: v for k, v in values.items() if k not in own}
             EXPERIMENTS[exp_id] = replace(exp, config=replace(exp.config, **pins))

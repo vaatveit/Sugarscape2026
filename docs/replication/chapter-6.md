@@ -180,7 +180,14 @@ chapter's table moves from 17 / 4 / 17 to 21 / 4 / 13:
   fail.
 - **VI-2** still crashes too gently (217 by t≈20 against ≈130) and no longer dies out (0 of 10).
 
-## Visual comparison
+## Integer trade (VAR-inttrade, 2026-10-23)
+
+Rule T with whole units changing hands (Chapter IV record) on VI-1 and VI-3: 7 / 3 / 11 becomes 5 / 5 / 11.
+- **VI-1's Gini** slips to near (0.30 against 0.28, book 0.246).
+- **VI-3's ceiling** slips to near (957, just under the band's 960).
+- **Trades per period halve** in VI-1 (15.6 → 7.6, book ≈125), and its credit rows still fail.
+- **Nothing else changes status.**
+
 
 - **VI-1:** sick agents vanish within a few periods, while the book's board stays mostly red. The society shrinks onto the two mountains (seed 0: 200 → 96 at t=50 → 51 at t=120 → 102 at t=500).
 - **VI-2 / VI-3:** our curves fall more slowly. The no-trade curve flattens near 200 and rises again after t≈100, instead of reaching 0. The trade curve dips to ≈70–100, recovers to a plateau near 650–700 by t≈300–450, and doesn't wave between 700 and 1200.

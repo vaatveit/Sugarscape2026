@@ -1,0 +1,64 @@
+Integer trade (VAR-inttrade) beside the default, every target of an experiment that trades
+
+| Target | Book | Default | VAR-inttrade |
+|---|---|---|---|
+| IV-3 mean price (ln p) | 0 | 0.0056 pass | 0.0224 pass |
+| IV-3 price dispersion at t≈1000 | 0.05 | 0.0468 pass | 0.118 near ▼ |
+| IV-3 trades per period | 150 | 34.1 fail | 12.2 fail |
+| IV-6/trade/v1 carrying capacity | 100 | 78.9 fail | 80.2 near ▲ |
+| IV-6/trade/v2 carrying capacity | 128 | 97 fail | 98.8 fail |
+| IV-6/trade/v3 carrying capacity | 158 | 116 fail | 117 fail |
+| IV-6/trade/v6 carrying capacity | 173 | 133 fail | 133 fail |
+| IV-6/trade/v10 carrying capacity | 185 | 140 fail | 138 fail |
+| IV-6/trade/v1 carrying capacity at t≈50 | 100 | 119 near | 118 near |
+| IV-6/trade/v2 carrying capacity at t≈50 | 128 | 137 pass | 141 pass |
+| IV-6/trade/v3 carrying capacity at t≈50 | 158 | 161 pass | 164 pass |
+| IV-6/trade/v6 carrying capacity at t≈50 | 173 | 175 pass | 178 pass |
+| IV-6/trade/v10 carrying capacity at t≈50 | 185 | 180 pass | 180 pass |
+| IV-7 mean price, vision 1 (ln p) | 0 | -0.0308 pass | -0.0904 pass |
+| IV-7 dispersion stays high | 0.3 | 0.155 near | 0.134 fail ▼ |
+| IV-9 dispersion with vision 1-15 | 0.03 | 0.014 pass | 0.0737 pass |
+| IV-12/a80 dispersion, lifespan 60-100 | 0.5 | 0.454 pass | 0.568 pass |
+| IV-12/a300 dispersion, lifespan 280-320 | 0.3 | 0.298 pass | 0.438 near ▼ |
+| IV-12/a550 dispersion, lifespan 530-570 | 0.2 | 0.218 pass | 0.401 fail ▼ |
+| IV-12/a980 dispersion, lifespan 960-1000 | 0.15 | 0.11 pass | 0.263 near ▼ |
+| IV-13/trade/v1.5 Gini with trade | 0.41 | 0.358 near | 0.351 near |
+| IV-13/trade/v3.5 Gini with trade | 0.42 | 0.362 near | 0.355 near |
+| IV-13/trade/v5.5 Gini with trade | 0.44 | 0.368 near | 0.356 near |
+| IV-13/trade/v10 Gini with trade | 0.37 | 0.369 pass | 0.361 pass |
+| IV-13/trade/v14.5 Gini with trade | 0.38 | 0.37 pass | 0.362 pass |
+| IV-14 dispersion with S | 0.37 | 0.378 pass | 0.48 near (3/5) ▼ |
+| IV-15 dispersion, cultural preferences | 0.45 | 0.183 fail | 0.228 near ▲ |
+| IV-15 trades per period | 1000 | 267 fail | 68.6 fail |
+| IV-17 dispersion with S and K | 0.45 | 0.271 near (3/5) | 0.46 near (3/5) |
+| IV-A3 price before pollution (ln p) | 0 | 0.0209 pass | 0.0381 pass |
+| IV-A3 sugar price spike | 3.5 | 2.33 pass | 4.69 pass |
+| IV-A3 recovery by t≈300 (ln p) | 0 | 0.595 fail | 0.91 fail |
+| VI-1 population at t≈50 | 155 | 39.7 fail | 39.9 fail |
+| VI-1 Gini of total wealth | 0.246 | 0.277 pass | 0.304 near ▼ |
+| VI-1 average neighbors | 0.7 | 0.351 fail | 0.344 fail |
+| VI-1 average fertility | 1.3 | 0.416 fail | 0.396 fail |
+| VI-1 best-friend closeness | 0.86 | 0.75 near | 0.743 near |
+| VI-1 friend closeness | 0.79 | 0.643 near | 0.645 near |
+| VI-1 mean price (ln p) | 0 | -0.0265 pass | -0.0996 pass |
+| VI-1 price dispersion | 0.35 | 0.352 pass | 0.374 pass |
+| VI-1 trades per period | 125 | 15.6 fail | 7.6 fail |
+| VI-1 active loans | 215 | 1.15 fail | 1.92 fail |
+| VI-1 agents both lending and borrowing | 37 | 0.133 fail | 0.324 fail |
+| VI-1 infected fraction dips | 0.6 | 0 fail | 0 fail |
+| VI-1 infected fraction recovers | 0.85 | 0 fail | 0 fail |
+| VI-1 average diseases | 2.26 | 0 fail | 0 fail |
+| VI-1 spread of diseases per agent | 1.47 | 0 fail | 0 fail |
+| VI-3 early decline as without trade | 1 | 1.11 pass | 1.12 pass |
+| VI-3 near-extinction minimum | 65 | 66.2 pass | 61 pass |
+| VI-3 first peak | 1190 | 831 near | 838 near |
+| VI-3 oscillation floor | 700 | 678 pass | 629 pass |
+| VI-3 oscillation ceiling | 1200 | 960 pass | 957 near ▼ |
+| VI-3 oscillation period | 115 | 221 fail (4/5) | 204 fail |
+
+| Chapter | Default pass / near / fail | VAR-inttrade pass / near / fail |
+|---|---|---|
+| IV | 17 / 6 / 9 | 12 / 11 / 9 |
+| VI | 7 / 3 / 11 | 5 / 5 / 11 |
+
+Status changes: 2 better, 8 worse

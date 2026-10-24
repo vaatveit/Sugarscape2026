@@ -144,7 +144,47 @@ chapter's table moves from 28 / 7 / 16 to 28 / 9 / 14:
 - **IV-18** survives in 4 of 5 runs, with mean foresight 5.6 (near; none survived before).
 - **IV-A5's** credit rows still pass (137 active loans, 22 agents both lending and borrowing, 6.6 levels).
 
-## Visual comparison
+## Integer trade (VAR-inttrade, 2026-10-23)
+
+**Question.** Integer gifts suggested the original stored sugar as whole units. If it did, rule T's exchanges were
+whole units too. p.105 states real amounts (p spice for 1 sugar, or 1/p sugar for 1 spice). Mesa's G1MT truncates
+them (`int(price)`), and Kehoe's specification uses integer division.
+
+**What was registered (user request).**
+- **The option:** `trade_rounding="down"` rounds each exchange down to whole units, the amount p or 1/p, at least 1.
+  The price stays p (eq. 4), as Mesa records it. The default is unchanged ("exact").
+- **The experiments:** `VAR-inttrade` runs all 23 experiments that trade (Chapters IV and VI), with their 53
+  targets. VI-3's baseline, VI-2, doesn't trade, so it stays the default run. Nothing is fitted.
+- **The diagnostic:** [score_inttrade.py](../../diagnostics/score_inttrade.py) sets the two side by side
+  ([output](../../diagnostics/output/score_inttrade.txt)).
+
+**Result: worse.** This chapter's 32 trade targets move from 17 / 6 / 9 to 12 / 11 / 9. Two improve and six slip.
+
+| Target | Book | Default | VAR-inttrade |
+|---|---|---|---|
+| IV-3 price dispersion at t≈1000 | 0.05 | 0.047 pass | 0.118 near |
+| IV-3 trades per period | 150 | 34 fail | 12 fail |
+| IV-7 dispersion stays high | 0.3 | 0.155 near | 0.134 fail |
+| IV-12 dispersion, lifespans 280–320 / 530–570 / 960–1000 | 0.3 / 0.2 / 0.15 | 0.30 / 0.22 / 0.11 pass | 0.44 near / 0.40 fail / 0.26 near |
+| IV-14 dispersion with S | 0.37 | 0.38 pass | 0.48 near (3 of 5 survive) |
+| IV-15 dispersion, cultural preferences | 0.45 | 0.18 fail | 0.23 near |
+| IV-15 trades per period | 1000 | 267 fail | 69 fail |
+| IV-17 dispersion with S and K | 0.45 | 0.27 near | 0.46 near |
+| IV-6/trade/v1 carrying capacity | 100 | 79 fail | 80 near |
+
+- **Whole units stop trades before the MRSs meet.** For 1 < p < 2 the exchange is one for one, a rounding error of
+  up to half, so the welfare test or the no-crossing test fails early. Prices stay apart: dispersion rises in
+  every run except IV-7's.
+- **Trade volume falls by half to three quarters,** away from the book's: IV-3 34 → 12 (book ≈150), IV-15 267 → 69
+  (≈1,000).
+- **The rows integer trade helps are the ones where the book's dispersion is high** (IV-15, IV-17). Those rows'
+  shortfall comes from thin markets; integer trade covers it by keeping prices apart, at the cost of IV-3's
+  convergence.
+- **Carrying capacity and the Gini barely move** (IV-6 within 3%, IV-13 within 0.02).
+- **Reading.** Fig IV-3's prices converge to a dispersion of ≈0.05, which whole-unit exchanges can't reach. So
+  Chapter IV's own figure argues that the original traded real amounts, even if it stored gifts as integers. The
+  thin-market shortfall (README "Thin markets and small societies") isn't a rounding effect.
+
 
 - **Trade network (Animation IV-4):** short links between neighbors, densest in the first periods (341 trades at t=1), thinning as MRSs converge. Wrapped edges show as long lines.
 - **Credit network (Animation IV-5):** green lenders, red borrowers, yellow agents doing both, with loan edges inside each colony; as in the book.

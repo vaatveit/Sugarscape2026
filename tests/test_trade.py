@@ -83,3 +83,20 @@ def test_no_trade_log_without_trade():
     m = Model(Config(spice=True, initial_population=50))
     m.step()
     assert m.trade_log == []
+
+
+def test_integer_trade_variant_moves_whole_units_at_price_p():  # VAR-inttrade: Mesa's int(p), Kehoe's div
+    m = market(trade_rounding="down")
+    A = trader(m, 1, 1, 2.0, 40.0)
+    B = trader(m, 1, 2, 40.0, 10.0)
+    d = bargain(m, A, B)[0]
+    assert d.price == pytest.approx(5 ** 0.5) and (d.sugar, d.spice) == (1.0, 2.0)
+
+
+def test_integer_trade_variant_rounds_sugar_below_price_one():  # Fig IV-2 endowments, as above
+    m = market(trade_rounding="down")
+    A = trader(m, 1, 1, 5.0, 8.0)
+    B = trader(m, 1, 2, 15.0, 2.0)
+    deals = bargain(m, A, B)  # 1/p = 2.17, 2.08, then 2.03 would cross the MRSs
+    assert [(d.sugar, d.spice) for d in deals] == [(2.0, 1.0), (2.0, 1.0)]
+    assert (A.sugar, A.spice, B.sugar, B.spice) == (9.0, 6.0, 11.0, 4.0)

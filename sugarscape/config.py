@@ -14,6 +14,7 @@ MATE_CONTACTS = ("neighbors", "vision")
 CHILD_GIFTS = ("endowment", "capped")
 CHILD_THRESHOLDS = ("endowment", "redraw")
 GIFT_ROUNDINGS = ("exact", "down")
+TRADE_ROUNDINGS = ("exact", "down")
 
 
 @dataclass(frozen=True)
@@ -85,6 +86,10 @@ class Config:
     foresight: tuple[int, int] | None = None  # phi range (p.129); None = myopic
     cultural_preferences: bool = False  # eq. 5 (p.124); needs tags
     trade: bool = False  # rule T (p.105); needs spice
+    # "down": whole units change hands, p spice rounded down for 1 sugar or 1/p sugar for 1 spice (Mesa's int(p),
+    # Kehoe's integer division; VAR-inttrade), the reading of p.105 if the original kept stocks as integers. The
+    # price stays p. "exact": real amounts, as p.105 states them. Left out of repr, like the rule S options.
+    trade_rounding: str = field(default="exact", repr=False)
     credit: tuple[int, float] | None = None  # (duration d, rate r percent) of L_dr (p.132); sugar loans
     pollution_stop: int | None = None  # pollution generation off from this t (p.128)
 
@@ -112,7 +117,8 @@ class Config:
         if self.replacement and self.max_age is None:
             raise ValueError("replacement R[a,b] needs a max_age range [a, b]")
         for name, allowed in (("mate_contact", MATE_CONTACTS), ("child_gift", CHILD_GIFTS),
-                              ("child_threshold", CHILD_THRESHOLDS), ("gift_rounding", GIFT_ROUNDINGS)):
+                              ("child_threshold", CHILD_THRESHOLDS), ("gift_rounding", GIFT_ROUNDINGS),
+                              ("trade_rounding", TRADE_ROUNDINGS)):
             if getattr(self, name) not in allowed:
                 raise ValueError(f"{name} must be one of {allowed}, not {getattr(self, name)!r}")
         if self.founder_ages not in FOUNDER_AGES:

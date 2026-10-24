@@ -10,6 +10,8 @@ from dataclasses import dataclass, replace
 
 import numpy as np
 
+from experiments.registry import TRADE_VALIDATION, TRADE_VARIANTS
+
 Series = list[dict[str, float]]
 Statistic = Callable[[Series], float]
 
@@ -509,4 +511,13 @@ _VAR_FIGURES = ("III-1", "III-3", "III-4", "III-5", "VI-2", "VI-3")
 TARGETS += [
     replace(t, experiment=f"VAR-{name}/{t.experiment}", baseline=f"VAR-{name}/{t.baseline}" if t.baseline else None)
     for name in _VAR_NAMES for t in list(TARGETS) if t.experiment in _VAR_FIGURES
+]
+
+# --- Trade-rule variant ---------------------------------------------------------------------
+# The same targets on VAR-inttrade (experiments.registry.TRADE_VARIANTS). A baseline that doesn't trade (VI-3's
+# VI-2) can't be changed by the rounding, so it stays the default run.
+TARGETS += [
+    replace(t, experiment=f"VAR-{name}/{t.experiment}",
+            baseline=f"VAR-{name}/{t.baseline}" if t.baseline in TRADE_VALIDATION else t.baseline)
+    for name in TRADE_VARIANTS for t in list(TARGETS) if t.experiment in TRADE_VALIDATION
 ]
