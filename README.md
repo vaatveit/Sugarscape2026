@@ -43,6 +43,13 @@ design is in [the spec](docs/superpowers/specs/2026-10-21-sugarscape-design.md),
   and III-5 as ours does. Ascape's code, which departs from the text, reproduces Fig III-4's cycle
   but misses the other three by more than we do (see
   [below](#book-results-that-may-not-be-robust-or-correct)).
+- **One outside implementation points to a cause.** Watts' SugarscapeCW reaches Fig III-1's level and
+  most of Fig III-4's swings at p.55's threshold, because it halves endowments in integers. The same
+  truncation in our model, registered as `VAR-intgift`, lifts III-1 to 454 (pass) and III-4's range
+  from 120 to 526, with nothing fitted. If the original kept sugar as integers, this is a reading of
+  p.55, not a departure. Combined with C1 (mate search within vision), it passes 9 of the 18
+  population targets, more than any variant, fitted or not. III-5's extinction is still missing
+  ([fifth](#fifth-follow-up-2026-10-23) and [sixth](#sixth-follow-up-2026-10-23) follow-ups).
 
 ## Scoreboard
 
@@ -126,6 +133,7 @@ then a whole-branch review and a fix pass, then the chapter record.
 | 2026-10-23 | Carrying capacity also read at t≈50, counted in the totals | 27 of the 28 new rows pass; the t=500 rows are unchanged |
 | 2026-10-23 | Run MASON's own Sugarscape | Built from its project archive; see [Follow-up](#follow-up-2026-10-23) |
 | 2026-10-23 | Register C1+C3fit as the labelled variant `VAR-c1c3fit` | Rule S gains three options, off by default (`mate_contact`, `child_gift`, `child_threshold`); the report scores the variant on every population target. Defaults and totals unchanged |
+| 2026-10-23 | Register integer gifts as the labelled variant `VAR-intgift` | Rule S gains a fourth option, off by default (`gift_rounding`); p.55's threshold, nothing fitted. Defaults and totals unchanged; see [sixth follow-up](#sixth-follow-up-2026-10-23) |
 
 ## What reproduced
 
@@ -445,6 +453,12 @@ C4–C7 change little.
    matter.
 7. **For VI-1's credit:** count sugar and spice income in the creditworthiness test. *Result:* about
    1 active loan instead of 0.25 (book ≈215). The society is too sparse for credit either way.
+8. **Integer gifts** (found 2026-10-23 in Watts' SugarscapeCW). Each parent gives int(endowment / 2), so a
+   child's endowment, and with it its fertility requirement, rounds down. If the original kept sugar as
+   integers, this is p.55's rule. *Result*, at p.55's threshold with nothing fitted: III-1 454 (pass), III-4's
+   range 526 (near), and VI-2 dies out in 5 of 10. With C1 it scores best of any variant: 9 of 18 population
+   targets pass, including III-3's floor and VI-3's floor and ceiling. Registered as `VAR-intgift` (user
+   decision, 2026-10-23); see [sixth follow-up](#sixth-follow-up-2026-10-23).
 
 ### D. Outside evidence
 
@@ -452,6 +466,9 @@ C4–C7 change little.
   run on 2026-10-23 ([diagnostics/mason/](diagnostics/mason/README.md),
   [diagnostics/ascape/](diagnostics/ascape/README.md)). We don't have the original code (about
   20,000 lines, Macintosh, Appendix A).
+- **Six more implementations** were examined on 2026-10-23: Think Complexity's, Agents.jl's, Mesa's,
+  SugarscapeCW, nkremerh's and langerv's ([fifth follow-up](#fifth-follow-up-2026-10-23)). SugarscapeCW's integer
+  gifts are the one lead; the others' successes come from departures from the text.
 - **Ask the authors.** Kehoe reached the same impasse and concluded the rule must be clarified by
   the original developers. We could not reach them; the questions are in
   [Questions for the authors](#questions-for-the-authors).
@@ -500,6 +517,9 @@ bears on and the page whose wording leaves it open; the evidence is in the secti
    fall 10–25% below them by t=500 for metabolisms 2–3. And how many agents started the Fig IV-6 sweep?
 7. **Animations V-2 and V-3.** What disease and immune-string lengths did the endemic run use, and is V-3's
    "average diseases per agent" the count of active (unmatched) diseases?
+8. **Integer sugar (p.55).** Did the program store sugar as integers, so that "one half of whatever his initial
+   endowment had been" rounded down? Rounding down lowers every later generation's fertility requirement, and in
+   our model it supplies most of the gap in Figs III-1 and III-4 (fifth follow-up).
 
 ## Follow-up (2026-10-23)
 
@@ -633,6 +653,81 @@ figures. What remains needs new evidence rather than more probes:
    companion CD-ROM, in Brookings' or the authors' archives.
 2. Otherwise, treat the replication as complete and tag the current state (for example `v1.1`).
 
+## Fifth follow-up (2026-10-23)
+
+The project owner found six more implementations, plus Downey's *Think Complexity* (2nd ed.). We read each one's
+code, ran the three that cover our misses, and tested their departures one at a time.
+
+| Implementation | Covers | Run | Result |
+|---|---|---|---|
+| *Think Complexity*, ch. 9 (Downey, Python) | Ch. II: carrying capacity, wealth, waves | II-6 under each departure ([Chapter II record](docs/replication/chapter-2.md#think-complexitys-waves-2026-10-23)) | Its waves need its own map (peaks 20 sites apart; the book's are 24) or vision up to 16 (p.42: at most 10); either alone puts the wave proxy in band (0.16 against 0.05). They are the first crossing, at t≈5–20, not repeated waves. |
+| Agents.jl v4.0 example (Julia) | Ch. II, 20 periods | — | Not the text's movement (agents head only for the grid's richest sites); targets none of our misses. |
+| Mesa G1MT and the SFI tutorial (Python) | Ch. IV: trade | IV-3 and Fig IV-6 ([Chapter IV record](docs/replication/chapter-4.md#mesas-sugarscape-g1mt-2026-10-23)) | Trading with everyone in sight and moving over a diamond: trades per period 32 to 42 (book ≈150); Fig IV-6 at t=500 moves by at most 8 agents. |
+| SugarscapeCW (Watts, NetLogo) | every chapter | III-1 to III-5, headless in NetLogo 6.4 ([harness](diagnostics/sugarscapecw/README.md)) | **III-1 473 and III-4's swings (range 929, period 117) at p.55's threshold.** III-3's floor (106) and III-5's extinction are missing. |
+| nkremerh/sugarscape (Python) | every chapter | III-1 to III-5, on its landscape and the book's map ([harness](diagnostics/nkremerh/README.md)) | III-1 564 and III-3's floor 279, but only because daughters can inherit a father's end of fertility; without that, 383 and 56, and with its other departures removed, 376 and 25, as ours. No III-4 swings, no III-5 extinction. |
+| langerv/sugarscape (Python 2, Pygame) | Chs. II–III | — (read only) | Its own map (capacities up to 10) and children paid for with sugar the parents may not have; its saved population plot (near 800) isn't comparable. |
+| "Creating Intelligent Agents" (Brearcliffe and Crooks, NetLogo) | learning in combat | — | Not a replication; not examined further. |
+
+**SugarscapeCW's lead: integer gifts.**
+- **Its rule S is ours,** except that each parent gives int(initial endowment / 2). The child's endowment, which is
+  also its fertility requirement, can only round down.
+- **Its two departures from the text are not the cause.** With stacking removed and the world wrapped, it still
+  gives III-1 479 and III-4 678
+  ([ablations](diagnostics/output/sugarscapecw_ablate.txt)).
+- **Births per woman match ours** (2.0), but at a lower requirement. Its population's mean endowment falls from 74
+  to 63 and holds; ours falls only to 71.
+- **The same truncation in our model**
+  ([probe](diagnostics/output/probe_integer_gift.txt); [Chapter III record](docs/replication/chapter-3.md#two-more-implementations-and-integer-gifts-2026-10-23)):
+  - **III-1:** 360 to 451, which passes with nothing fitted (our fitted 0.83 threshold gives 478).
+  - **III-4:** the range rises from 120 to 476 (562 with founders at age 0), near the band.
+  - **Still failing:** III-3's floor and III-5's extinction.
+- **Its status is open.** If the original stored sugar as integers, it is the book's rule; nothing in the book says
+  either way. Question 8 for the authors asks.
+
+**Other things learned:**
+- **Founders at age 0** give both outside models, and ours, the book's t=20 boom (≈460 against 470). Spread ages
+  don't.
+- **Two implementations ship our map file, cell for cell:** Mesa's and SugarscapeCW's.
+- **Errors found in outside code:**
+  - nkremerh's map loader swaps sugar and spice.
+  - langerv's agents see one site farther east and north than west and south.
+  - SugarscapeCW's sight procedure, which skips occupied sites, is never called.
+
+It left a decision: whether integer gifts become a registered variant, tested with C1 and C3.
+
+## Sixth follow-up (2026-10-23)
+
+1. **`VAR-intgift` registered** (user decision). Rule S gained a fourth option, off by default:
+   `gift_rounding="down"` rounds each parent's gift down to a whole unit. It applies to sugar and spice, and to
+   the whole-endowment gift or C3's capped one. The variant is p.55 otherwise: threshold 1.0, nothing fitted.
+   Defaults, saved runs and totals are unchanged.
+2. **Scored on all six population figures** (18 targets; up to 10 seeds;
+   [Chapter III record](docs/replication/chapter-3.md#var-intgift-and-its-combinations-2026-10-23)):
+
+| Variant | Fitted | Pass / near / fail | What changes |
+|---|---|---|---|
+| `VAR-book` (p.55 as written) | — | 5 / 1 / 12 | — |
+| `VAR-intgift` | — | 7 / 1 / 10 | III-1 454 (pass); III-4's range 526 (near); VI-2 dies out in 5 of 10 (pass) |
+| integer gifts + C1 | — | **9 / 4 / 5** | III-1 555; **III-3's floor 201** and VI-3's minimum (66), floor (678) and ceiling (960) pass; III-4's range 598 (near) |
+| integer gifts + C3 | — | 5 / 1 / 10 | III-4's swings (969), but III-1 falls to 220 and III-3 and VI-3 collapse |
+| integer gifts + C1 + C3 | — | 5 / 2 / 11 | III-1 314; C3's redrawn thresholds cut the link the rounding acts through |
+| `VAR-c1c3fit` | θ=0.74 | 7 / 5 / 6 | — |
+| default | θ=0.83 | 6 / 0 / 12 | — |
+
+   - **Integer gifts with C1 is the best of any variant, with nothing fitted.** It is the first to pass III-3's
+     floor, which no variant had reached (33 by default, 95 under `VAR-c1c3fit`).
+   - **What no variant reproduces:** III-5's extinction (1 run in 10 under integer gifts + C3, none under the
+     others), VI-2's crash at t≈20 (212–241 against ≈130), and the periods of III-3 and VI-3.
+   - **C1 is a departure from p.56** (partners are the four neighbors), where integer gifts may be the book's
+     own arithmetic. The two have different standing.
+
+**Next steps now.**
+1. **Decide whether integer gifts + C1 is registered too** (`VAR-intgift-c1`), and whether integer gifts should
+   replace the fitted 0.83 in the defaults. Both are the project owner's call.
+2. **Measure frequencies over 30 seeds** for the integer-gift variants, as was done for `VAR-c1c3fit`. The book's
+   single runs (III-3's floor, III-4's swings, VI-2's extinction) may sit in their tails.
+3. **The earlier two still stand:** look for the original program, or tag the current state.
+
 ## Where things are
 
 | What | Where |
@@ -643,7 +738,7 @@ figures. What remains needs new evidence rather than more probes:
 | Chapter records (results, choices, diagnostics) | [chapter-2.md](docs/replication/chapter-2.md), [chapter-3.md](docs/replication/chapter-3.md), [chapter-4.md](docs/replication/chapter-4.md), [chapter-5.md](docs/replication/chapter-5.md), [chapter-6.md](docs/replication/chapter-6.md) |
 | Rules | `sugarscape/rules/`; Schelling and Ring World in `sugarscape/variants/` |
 | Experiments and targets | `experiments/registry.py`, `replication/targets.py` |
-| Probe scripts behind the records; MASON and Ascape harnesses | [diagnostics/](diagnostics/README.md), [diagnostics/mason/](diagnostics/mason/README.md), [diagnostics/ascape/](diagnostics/ascape/README.md) |
+| Probe scripts behind the records; MASON, Ascape, SugarscapeCW and nkremerh harnesses | [diagnostics/](diagnostics/README.md), [diagnostics/mason/](diagnostics/mason/README.md), [diagnostics/ascape/](diagnostics/ascape/README.md), [diagnostics/sugarscapecw/](diagnostics/sugarscapecw/README.md), [diagnostics/nkremerh/](diagnostics/nkremerh/README.md) |
 
 ```bash
 python -m pytest -q

@@ -1,5 +1,7 @@
 """Agent sex rule S (pp.55-57, App. B p.183)."""
 
+import math
+
 from sugarscape.rules.culture import cross_tags
 
 VON_NEUMANN = ((1, 0), (-1, 0), (0, 1), (0, -1))
@@ -19,6 +21,10 @@ def is_fertile(agent, threshold: float = 1.0) -> bool:
         and agent.fertility_start <= agent.age < agent.fertility_end
         and agent.sugar >= threshold * agent.initial_sugar
     )
+
+
+def _rounded(gifts: list[float], down: bool) -> list[float]:
+    return [float(math.floor(g)) for g in gifts] if down else gifts
 
 
 def _empty_sites(model, agent) -> list[tuple[int, int]]:
@@ -49,12 +55,14 @@ def mate(model, agent) -> list:
 
     Labelled departures (Config, off by default): mate_contact="vision" takes partners in sight, not only
     neighbors; child_gift="capped" has each parent give min(5, its current sugar and spice); child_threshold=
-    "redraw" gives the child a fertility threshold drawn from the founders' endowment range.
+    "redraw" gives the child a fertility threshold drawn from the founders' endowment range; gift_rounding="down"
+    rounds each parent's gift down to a whole unit (SugarscapeCW's int(endowment / 2); VAR-intgift).
     """
     rng = model.rng
     cfg = model.config
     threshold, share = cfg.fertility_threshold, cfg.child_share
     capped, redraw = cfg.child_gift == "capped", cfg.child_threshold == "redraw"
+    rounded = cfg.gift_rounding == "down"
     children = []
     neighbors = in_sight(model, agent) if cfg.mate_contact == "vision" else model.neighbors_of(agent)
     for i in rng.permutation(len(neighbors)):
@@ -69,31 +77,22 @@ def mate(model, agent) -> list:
         vision = parents[int(rng.integers(2))].vision
         metabolism = parents[int(rng.integers(2))].metabolism
         max_age = parents[int(rng.integers(2))].max_age
-        if capped:
-            gifts = [min(GIFT_CAP, max(p.sugar, 0.0)) for p in parents]
-            agent.sugar -= gifts[0]
-            other.sugar -= gifts[1]
-            endowment = sum(gifts)
-        else:
-            endowment = agent.initial_sugar * share + other.initial_sugar * share
-            agent.sugar -= agent.initial_sugar * share
-            other.sugar -= other.initial_sugar * share
-        child = model.new_agent(x, y, vision, metabolism, endowment, max_age)
+        gifts = _rounded([min(GIFT_CAP, max(p.sugar, 0.0)) if capped else p.initial_sugar * share for p in parents],
+                         rounded)
+        agent.sugar -= gifts[0]
+        other.sugar -= gifts[1]
+        child = model.new_agent(x, y, vision, metabolism, sum(gifts), max_age)
         if redraw:
             child.initial_sugar = float(rng.integers(cfg.endowment[0], cfg.endowment[1], endpoint=True))
         model._assign_sex(child, "F" if rng.integers(2) == 0 else "M")
         if agent.tags is not None and other.tags is not None:
             child.tags = cross_tags(rng, agent.tags, other.tags)
         if cfg.spice:  # Chapter IV: draws come last so earlier streams are unchanged
-            if capped:
-                spice_gifts = [min(GIFT_CAP, max(p.spice, 0.0)) for p in parents]
-                agent.spice -= spice_gifts[0]
-                other.spice -= spice_gifts[1]
-                child.spice = child.initial_spice = sum(spice_gifts)
-            else:
-                agent.spice -= agent.initial_spice * share
-                other.spice -= other.initial_spice * share
-                child.spice = child.initial_spice = agent.initial_spice * share + other.initial_spice * share
+            spice_gifts = _rounded([min(GIFT_CAP, max(p.spice, 0.0)) if capped else p.initial_spice * share
+                                    for p in parents], rounded)
+            agent.spice -= spice_gifts[0]
+            other.spice -= spice_gifts[1]
+            child.spice = child.initial_spice = sum(spice_gifts)
             if redraw:
                 lo, hi = cfg.spice_endowment or cfg.endowment
                 child.initial_spice = float(rng.integers(lo, hi, endpoint=True))

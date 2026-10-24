@@ -1,0 +1,28 @@
+| Target | Book | nkremerh, own landscape | nkremerh, book map | Ours, p.55 (VAR-book) | Ours, default |
+|---|---|---|---|---|---|
+| III-1 steady population | 500 | 541 pass | 564 pass | 360 near | 478 pass |
+| III-1 small fluctuations | 0.1 | 0.0376 pass | 0.0578 pass | 0.059 pass | 0.065 pass |
+| III-1 mean vision at t≈900 | 5.3 | 5.55 pass | 5.54 pass | 5.68 pass | 5.64 pass |
+| III-1 mean metabolism, t=300–900 | 1 | 1 pass | 1 pass | 1 pass | 1 pass |
+| III-3 oscillation period | 200 | 371 fail (7/10) | 502 fail | 495 fail (2/5) | 412 fail (3/5) |
+| III-3 population floor | 250 | 256 pass | 279 pass | 18.4 fail | 32.8 fail |
+| III-4 oscillation period | 125 | 480 fail | 356 fail | 136 pass | 132 pass |
+| III-4 oscillation range | 1000 | 88.9 fail | 97.1 fail | 120 fail | 106 fail |
+| III-5 extinction frequency | — | 0 fail | 0 fail | 0 fail | 0 fail |
+| III-4 preset oscillation period | 125 | 410 fail (7/10) | 484 fail (8/10) | — | — |
+| III-4 preset oscillation range | 1000 | 78.2 fail | 83.3 fail | — | — |
+| III-5 preset extinction frequency | — | 0 fail | 0 fail | — | — |
+
+Trajectories (mean over seeds):
+  nkremerh III-1 own (10 seeds): t=20 466, t=85 368, min t<300 258, mean t>=500 541, range t>=1000 98, extinct 0/10
+  nkremerh III-1 book (10 seeds): t=20 469, t=85 377, min t<300 260, mean t>=500 564, range t>=1000 130, extinct 0/10
+  nkremerh III-3 own (10 seeds): t=20 466, t=85 304, min t<300 104, mean t>=500 314, range t>=1000 108, extinct 0/10
+  nkremerh III-3 book (10 seeds): t=20 469, t=85 310, min t<300 96, mean t>=500 366, range t>=1000 92, extinct 0/10
+  nkremerh III-4 own (10 seeds): t=20 435, t=85 1255, min t<300 351, mean t>=500 1240, range t>=1000 90, extinct 0/10
+  nkremerh III-4 book (10 seeds): t=20 442, t=85 1362, min t<300 354, mean t>=500 1374, range t>=1000 104, extinct 0/10
+  nkremerh III-5 own (10 seeds): t=20 435, t=85 1126, min t<300 351, mean t>=500 1122, range t>=1000 95, extinct 0/10
+  nkremerh III-5 book (10 seeds): t=20 442, t=85 1195, min t<300 354, mean t>=500 1245, range t>=1000 96, extinct 0/10
+  nkremerh III-4 preset own (10 seeds): t=20 454, t=85 621, min t<300 388, mean t>=500 878, range t>=1000 83, extinct 0/10
+  nkremerh III-4 preset book (10 seeds): t=20 459, t=85 619, min t<300 390, mean t>=500 990, range t>=1000 95, extinct 0/10
+  nkremerh III-5 preset own (10 seeds): t=20 454, t=85 480, min t<300 383, mean t>=500 785, range t>=1000 107, extinct 0/10
+  nkremerh III-5 preset book (10 seeds): t=20 459, t=85 470, min t<300 376, mean t>=500 883, range t>=1000 106, extinct 0/10

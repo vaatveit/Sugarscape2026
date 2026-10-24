@@ -1,0 +1,26 @@
+Integer gifts with C1 and C3 at p.55's threshold (up to 10 seeds), beside saved runs
+
+| Target | Book | VAR-book | VAR-intgift | VAR-c1c3fit | default | intgift+C1 | intgift+C3 | intgift+C1+C3 |
+|---|---|---|---|---|---|---|---|---|
+| III-1 steady population | 500 | 360 near | 454 pass | 495 pass | 478 pass | 555 pass | 220 fail | 314 near |
+| III-1 small fluctuations | 0.1 | 0.059 pass | 0.0609 pass | 0.0619 pass | 0.065 pass | 0.11 near | 0.207 fail | 0.18 fail |
+| III-1 mean vision at t≈900 | 5.3 | 5.68 pass | 5.58 pass | 5.94 near | 5.64 pass | 5.57 pass | 5.91 near | 5.79 pass |
+| III-1 mean metabolism, t=300–900 | 1 | 1 pass | 1 pass | 1 pass | 1 pass | 1 pass | 1 pass | 1 pass |
+| III-3 oscillation period | 200 | 495 fail (2/5) | 532 fail (2/5) | 144 near | 412 fail (3/5) | 393 fail | — | 597 fail (1/5) |
+| III-3 population floor | 250 | 18.4 fail | 20.8 fail | 94.6 fail | 32.8 fail | 201 pass | 0 fail | 8.4 fail |
+| III-3 agents that ever lived | 12500 | 1.61e+03 fail | 2.29e+03 fail | 9.06e+03 near | 3.69e+03 fail | 9.93e+03 near | 490 fail | 1.38e+03 fail |
+| III-4 oscillation period | 125 | 136 pass | 111 pass | 107 pass | 132 pass | 104 pass | 124 pass | 112 pass |
+| III-4 oscillation range | 1000 | 120 fail | 526 near | 866 pass | 106 fail | 598 near | 969 pass | 615 pass |
+| III-5 extinction frequency | — | 0 fail | 0 fail | 0 fail | 0 fail | 0 fail | 0.1 fail | 0 fail |
+| VI-2 crash by t≈20 | 130 | 212 fail | 212 fail | 241 fail | 213 fail | 217 fail | 214 fail | 226 fail |
+| VI-2 extinction frequency | — | 0.2 fail | 0.5 pass | 0 fail | 0.1 fail | 0 fail | 0.6 pass | 0 fail |
+| VI-3 early decline as without trade | 1 | 1.15 pass | 1.15 pass | 1.07 pass | 1.11 pass | 1.11 pass | 1.17 pass | 1.15 pass |
+| VI-3 near-extinction minimum | 65 | 26.6 fail | 26.8 fail | 198 fail | 36.4 fail | 66.2 pass | 11.4 fail | 109 fail |
+| VI-3 first peak | 1190 | 272 fail | 270 fail | 879 near | 308 fail | 831 near | 25.6 fail | 503 fail |
+| VI-3 oscillation floor | 700 | 153 fail | 206 fail | 731 pass | 204 fail | 678 pass | 4.8 fail | 401 fail |
+| VI-3 oscillation ceiling | 1200 | 358 fail | 416 fail | 904 near | 534 fail | 960 pass | 22.6 fail | 564 fail |
+| VI-3 oscillation period | 115 | 322 fail (2/5) | — | 172 fail | 241 fail (2/5) | 221 fail (4/5) | — | 145 near (4/5) |
+
+real	4m37.632s
+user	0m0.015s
+sys	0m0.031s

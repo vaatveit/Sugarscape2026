@@ -112,6 +112,38 @@ README candidates C4 and C5, checked by [candidates2.py](../../diagnostics/candi
 So neither the map nor the order of rules explains the missing waves. The tie between regrown sites behind the front and
 fresh sites ahead (the reviewer's note) remains the best account.
 
+## Think Complexity's waves (2026-10-23)
+
+Downey's *Think Complexity* (2nd ed., sec. 9.7) shows diagonal waves from a block start. His code (the book's repository,
+`soln/chap09.ipynb`) departs from the text in five ways: 300 agents in the 20×20 SW block; vision 1–16 (p.42 says
+at most 10); the agent's own site is never a candidate, so it moves whenever any visible site is empty; real-valued
+metabolism U(1,4) and endowment U(5,25); and a generated map (capacity by distance to peaks at (15,15) and (35,35)).
+He shows only t=6 and t=12. [downey_waves.py](../../diagnostics/downey_waves.py) adds the departures to II-6 one at
+a time (NE share, 5 seeds; target 0.15–1 at t=200):
+
+| Setting | t=12 | t=50 | t=200 |
+|---|---|---|---|
+| II-6 as registered | 0.009 | 0.034 | 0.049 |
+| vision 1–16 | 0.059 | 0.154 | 0.157 |
+| must move | 0.015 | 0.052 | 0.071 |
+| Downey's agents on the book's map (all but the map) | 0.017 | 0.027 | 0.030 |
+| Downey's map, registered agents | 0.036 | 0.138 | 0.164 |
+| Downey's agents and map | 0.112 | 0.212 | 0.261 |
+
+- **His waves need his map or his vision.** Either alone lifts the proxy into the band; on the book's map his agents
+  stay home (0.030). Both depart from stated parameters: p.42 caps vision at 10, and our map matches Fig II-1 (above;
+  Mesa's and Watts' map files are identical to ours, cell for cell).
+- **The difference in his map is spacing, not sugar.** It holds about as much (4,474 against 4,622) with the same
+  profile between the peaks (4 to 2 and back), but its peaks are 20 sites apart on each axis against the book's 24, so
+  the far slope comes into sight sooner.
+- **What he calls waves is the first crossing.** In the time-by-diagonal plot
+  ([downey_waves.png](../../diagnostics/output/downey_waves.png)), only his full setting shows fronts climbing from
+  the SW peak to the NE one, at t≈5–20. After that every setting settles into two colonies that zigzag in place; no
+  setting sends repeated waves.
+
+So Think Complexity does not show the book's waves under the book's parameters, and it does not point to a rule we
+read wrongly.
+
 ## Visual comparison with the book's animations
 
 - **II-1** (G∞): agents settle on terrace ridges and stop moving by t≈50 (moved = 0 at t=80–100), as in Animation II-1.

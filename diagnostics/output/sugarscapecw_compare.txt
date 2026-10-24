@@ -1,0 +1,21 @@
+| Target | Book | SugarscapeCW, founders age 0 | SugarscapeCW, spread ages | Ours, p.55 (VAR-book) | Ours, default |
+|---|---|---|---|---|---|
+| III-1 steady population | 500 | 473 pass | 465 pass | 360 near | 478 pass |
+| III-1 small fluctuations | 0.1 | 0.0617 pass | 0.0657 pass | 0.059 pass | 0.065 pass |
+| III-1 mean vision at t≈900 | 5.3 | 5.67 pass | 5.41 pass | 5.68 pass | 5.64 pass |
+| III-1 mean metabolism, t=300–900 | 1 | 1 pass | 1 pass | 1 pass | 1 pass |
+| III-3 oscillation period | 200 | 426 fail | 557 fail (4/10) | 495 fail (2/5) | 412 fail (3/5) |
+| III-3 population floor | 250 | 106 fail | 51.3 fail | 18.4 fail | 32.8 fail |
+| III-4 oscillation period | 125 | 117 pass | 118 pass | 136 pass | 132 pass |
+| III-4 oscillation range | 1000 | 929 pass | 883 pass | 120 fail | 106 fail |
+| III-5 extinction frequency | — | 0 fail | 0 fail | 0 fail | 0 fail |
+
+Trajectories (mean over seeds):
+  SugarscapeCW III-1 zero (10 seeds): t=20 456, t=85 346, min t<300 250, mean t>=500 473, range t>=1000 129, extinct 0/10
+  SugarscapeCW III-1 spread (10 seeds): t=20 337, t=85 144, min t<300 135, mean t>=500 465, range t>=1000 150, extinct 0/10
+  SugarscapeCW III-3 zero (10 seeds): t=20 456, t=85 276, min t<300 65, mean t>=500 205, range t>=1000 106, extinct 0/10
+  SugarscapeCW III-3 spread (10 seeds): t=20 320, t=85 63, min t<300 18, mean t>=500 77, range t>=1000 32, extinct 6/10 (at t=[142, 155, 171, 202, 250, 491])
+  SugarscapeCW III-4 zero (10 seeds): t=20 405, t=85 1250, min t<300 335, mean t>=500 1243, range t>=1000 932, extinct 0/10
+  SugarscapeCW III-4 spread (10 seeds): t=20 285, t=85 926, min t<300 272, mean t>=500 1228, range t>=1000 883, extinct 0/10
+  SugarscapeCW III-5 zero (10 seeds): t=20 405, t=85 1124, min t<300 335, mean t>=500 970, range t>=1000 1389, extinct 0/10
+  SugarscapeCW III-5 spread (10 seeds): t=20 262, t=85 476, min t<300 217, mean t>=500 982, range t>=1000 1293, extinct 0/10

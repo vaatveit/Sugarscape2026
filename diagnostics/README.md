@@ -59,6 +59,13 @@ numbers can differ from the records'.
 | [check_map.py](check_map.py) | The capacity map against Fig II-1, site by site, from a page render at scale 8. Output: [check_map.txt](output/check_map.txt) |
 | [mason_compare.py](mason_compare.py) | MASON's own Sugarscape on our Chapter III targets; build and run it with [mason/](mason/README.md) |
 | [ascape_compare.py](ascape_compare.py) | Ascape's Sugarscape sex model on our Chapter III targets, on its landscape and the book's map; build and run it with [ascape/](ascape/README.md). Output: [ascape_compare.txt](output/ascape_compare.txt) |
+| [downey_waves.py](downey_waves.py) | II-6 under Think Complexity's settings (vision 1–16, must move, its agents, its generated map), one at a time; `kymo` draws agents per diagonal over time. Outputs: [downey_waves.txt](output/downey_waves.txt), [downey_waves.png](output/downey_waves.png) |
+| [mesa_trade.py](mesa_trade.py) | Chapter IV (IV-3, Fig IV-6) with Mesa G1MT's trading partners within vision and diamond movement. Output: [mesa_trade.txt](output/mesa_trade.txt) |
+| [sugarscapecw_compare.py](sugarscapecw_compare.py) | SugarscapeCW (Watts, NetLogo) on our Chapter III targets; build and run it with [sugarscapecw/](sugarscapecw/README.md). Output: [sugarscapecw_compare.txt](output/sugarscapecw_compare.txt) |
+| [nkremerh_compare.py](nkremerh_compare.py) | nkremerh/sugarscape (Python) on our Chapter III targets, on its landscape and the book's map; run it with [nkremerh/](nkremerh/README.md). Output: [nkremerh_compare.txt](output/nkremerh_compare.txt) |
+| [ablation_summary.py](ablation_summary.py) | Scores the two outside models' ablation runs (stacking and wrap in SugarscapeCW; own site, birth harvest and childbearing ages in nkremerh). Outputs: [sugarscapecw_ablate.txt](output/sugarscapecw_ablate.txt), [nkremerh_ablate.txt](output/nkremerh_ablate.txt) |
+| [probe_integer_gift.py](probe_integer_gift.py) | Rule S at p.55's threshold with SugarscapeCW's integer gifts (each parent gives int(endowment / 2)), on III-1, III-3, III-4 and III-5. Output: [probe_integer_gift.txt](output/probe_integer_gift.txt) |
+| [score_intgift.py](score_intgift.py) | Integer gifts (VAR-intgift) with C1 and C3 at p.55's threshold on every population figure, beside the saved VAR-book, VAR-intgift, VAR-c1c3fit and default runs. Output: [score_intgift.txt](output/score_intgift.txt) |
 
 ## Index
 

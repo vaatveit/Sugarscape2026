@@ -870,6 +870,96 @@ README candidate C4 (every agent moves and eats, then every agent runs its other
 Sweeps widen III-4's swings somewhat and leave everything else where it was. VI-3 does worse under them (Chapter VI
 record).
 
+## Two more implementations, and integer gifts (2026-10-23)
+
+Two outside implementations get Fig III-1's level from the published rule S at p.55's threshold, with no fitted value.
+Harnesses and full tables: [diagnostics/sugarscapecw/](../../diagnostics/sugarscapecw/README.md),
+[diagnostics/nkremerh/](../../diagnostics/nkremerh/README.md).
+
+- **SugarscapeCW** (Watts, NetLogo):
+  - **III-1:** 473 (book ≈500; ours 360).
+  - **III-4:** swings of range 929 at period 117 (ours 120).
+  - **Still missing:** III-3's floor (106) and III-5's extinction.
+  - **Not the cause:** its two departures from the text. With the text's movement on a torus, it still gives III-1
+    479 and III-4 678.
+- **nkremerh** (Python):
+  - **III-1:** 564; **III-3 floor:** 279.
+  - **The cause:** a departure. Children copy their childbearing ages from a random parent, so a daughter can carry
+    her father's end of fertility. Drawn for the child's own sex, as the text's founders are, its results fall to 383
+    and 56, and with its other departures removed to 376 and 25: ours.
+
+**What lifts Watts' level is integer gifts.**
+- **His code:** each parent gives int(initial endowment / 2). The child's endowment, which is also its own fertility
+  requirement, is the sum, so it can only round down.
+- **Births per woman match ours.** On III-1, completed family size is 1.99 against our 2.01, and 44% of fertile-age
+  agents hold their endowment against our 43%.
+- **His requirements are lower.** His population's mean endowment falls from 74 to 63 by t≈500, then holds, as
+  endowments converge on a common even value. Ours falls only from 75 to 71, by selection alone. So his agents breed
+  at a requirement ≈0.85 of the founders' level, close to our fitted 0.83.
+- **The same truncation in our model** ([probe_integer_gift.py](../../diagnostics/probe_integer_gift.py), 10 seeds,
+  p.55's threshold):
+
+| Target | Book | Exact gifts, spread founders | Integer gifts, spread founders | Exact, founders at 0 | Integer, founders at 0 |
+|---|---|---|---|---|---|
+| III-1 steady population | ≈500 | 360 near | **451 pass** | 369 near | **445 pass** |
+| III-3 population floor | ≈250 | 18 fail | 21 fail | 24 fail | 70 fail |
+| III-3 oscillation period | ≈200 | 495 fail (2/5) | 532 fail (2/5) | 809 fail (3/5) | 369 fail (4/5) |
+| III-4 oscillation range | ≈1,000 | 120 fail | **476 near** | 144 fail | **562 near** |
+| III-4 oscillation period | ≈125 | 136 pass | 109 pass | 120 pass | 111 pass |
+| III-5 extinction | yes | 0 of 10 | 0 of 10 | 0 of 10 | 0 of 10 |
+
+- **This is the first change found that lifts both III-1's level and III-4's swings with nothing fitted.** It
+  quadruples the swings, though they stay short of the book's ≈1,000. III-3's floor and III-5's extinction are
+  still missing.
+- **It may be a reading, not a departure.** If the original program kept sugar as integers, p.55's "one half of
+  whatever his initial endowment had been" would truncate as Watts' code does. The book never says how sugar is
+  stored.
+- **Founders at age 0 explain both implementations' early boom.** At t=20 / t=85 they give 456 / 341 (Watts) and
+  469 / 377 (nkremerh). Ours under the same founders gives 465 / 333, against 356 / 136 with spread ages; the book
+  has 470 / 570.
+- **Lifespan doesn't set the level.** With founders at age 0, inherited maximum ages drift down from 80 to ≈75. But
+  drawing them fresh leaves the population at 365 (against 367); births adjust instead.
+
+## VAR-intgift and its combinations (2026-10-23)
+
+Integer gifts are registered as `VAR-intgift` (user decision): p.55 with each parent's gift rounded down to a whole
+unit (`gift_rounding="down"`), at threshold 1.0, nothing fitted. [score_intgift.py](../../diagnostics/score_intgift.py)
+adds C1 (mate search within vision) and C3 (Ascape's capped gift and redrawn threshold) at the same threshold, beside
+the saved runs (up to 10 seeds; the registered `VAR-intgift` runs are the report's, 5 or 10 seeds):
+
+| Target | Book | VAR-book | VAR-intgift | VAR-c1c3fit | default | intgift+C1 | intgift+C3 | intgift+C1+C3 |
+|---|---|---|---|---|---|---|---|---|
+| III-1 steady population | 500 | 360 near | 454 pass | 495 pass | 478 pass | 555 pass | 220 fail | 314 near |
+| III-1 small fluctuations | 0.1 | 0.059 pass | 0.0609 pass | 0.0619 pass | 0.065 pass | 0.11 near | 0.207 fail | 0.18 fail |
+| III-1 mean vision at t≈900 | 5.3 | 5.68 pass | 5.58 pass | 5.94 near | 5.64 pass | 5.57 pass | 5.91 near | 5.79 pass |
+| III-1 mean metabolism, t=300–900 | 1 | 1 pass | 1 pass | 1 pass | 1 pass | 1 pass | 1 pass | 1 pass |
+| III-3 oscillation period | 200 | 495 fail (2/5) | 532 fail (2/5) | 144 near | 412 fail (3/5) | 393 fail | — | 597 fail (1/5) |
+| III-3 population floor | 250 | 18.4 fail | 20.8 fail | 94.6 fail | 32.8 fail | 201 pass | 0 fail | 8.4 fail |
+| III-3 agents that ever lived | 12500 | 1.61e+03 fail | 2.29e+03 fail | 9.06e+03 near | 3.69e+03 fail | 9.93e+03 near | 490 fail | 1.38e+03 fail |
+| III-4 oscillation period | 125 | 136 pass | 111 pass | 107 pass | 132 pass | 104 pass | 124 pass | 112 pass |
+| III-4 oscillation range | 1000 | 120 fail | 526 near | 866 pass | 106 fail | 598 near | 969 pass | 615 pass |
+| III-5 extinction frequency | — | 0 fail | 0 fail | 0 fail | 0 fail | 0 fail | 0.1 fail | 0 fail |
+| VI-2 crash by t≈20 | 130 | 212 fail | 212 fail | 241 fail | 213 fail | 217 fail | 214 fail | 226 fail |
+| VI-2 extinction frequency | — | 0.2 fail | 0.5 pass | 0 fail | 0.1 fail | 0 fail | 0.6 pass | 0 fail |
+| VI-3 early decline as without trade | 1 | 1.15 pass | 1.15 pass | 1.07 pass | 1.11 pass | 1.11 pass | 1.17 pass | 1.15 pass |
+| VI-3 near-extinction minimum | 65 | 26.6 fail | 26.8 fail | 198 fail | 36.4 fail | 66.2 pass | 11.4 fail | 109 fail |
+| VI-3 first peak | 1190 | 272 fail | 270 fail | 879 near | 308 fail | 831 near | 25.6 fail | 503 fail |
+| VI-3 oscillation floor | 700 | 153 fail | 206 fail | 731 pass | 204 fail | 678 pass | 4.8 fail | 401 fail |
+| VI-3 oscillation ceiling | 1200 | 358 fail | 416 fail | 904 near | 534 fail | 960 pass | 22.6 fail | 564 fail |
+| VI-3 oscillation period | 115 | 322 fail (2/5) | — | 172 fail | 241 fail (2/5) | 221 fail (4/5) | — | 145 near (4/5) |
+
+- **`VAR-intgift`:** 7 pass, 1 near, 10 fail, against `VAR-book`'s 5 / 1 / 12. III-1, III-4's range (near) and
+  VI-2's extinction move; III-3's floor, III-5 and VI-3 don't.
+- **With C1:** 9 / 4 / 5, the best of any variant, fitted or not (`VAR-c1c3fit` 7 / 5 / 6). III-3's floor passes
+  for the first time (201), and so do VI-3's minimum, floor and ceiling. III-1 sits at 555, inside the band but
+  above the book's ≈500.
+- **With C3:** C3's redrawn threshold breaks the link between a parent's gift and the child's requirement, through
+  which the rounding acts. These columns behave like C3 and C1+C3 at threshold 1.0 (III-1 220 and 314).
+- **Still missing everywhere:**
+  - III-5's extinction: 1 run in 10, under integer gifts with C3 only.
+  - VI-2's crash at t≈20: 212–241 against ≈130.
+  - The periods of III-3 and VI-3.
+
 ## Visual comparison
 
 - **III-1** (colored by vision): high-vision agents take over, as in Animation III-2; but the population stays on the peaks instead of filling a diagonal band.

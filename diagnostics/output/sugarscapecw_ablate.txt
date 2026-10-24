@@ -1,0 +1,4 @@
+base (10 seeds): III-1 steady population 476 pass; III-1 at t=20 / 85: 456 / 341; III-4 oscillation period 116 pass; III-4 oscillation range 910 pass
+nostack (10 seeds): III-1 steady population 475 pass; III-1 at t=20 / 85: 455 / 343; III-4 oscillation period 112 pass; III-4 oscillation range 590 near
+wrap (10 seeds): III-1 steady population 475 pass; III-1 at t=20 / 85: 466 / 360; III-4 oscillation period 116 pass; III-4 oscillation range 938 pass
+nostack+wrap (10 seeds): III-1 steady population 479 pass; III-1 at t=20 / 85: 467 / 362; III-4 oscillation period 112 pass; III-4 oscillation range 678 pass

@@ -1,0 +1,19 @@
+Chapter IV under Mesa G1MT's departures, 5 seeds
+
+| Target | Book | registered | partners in vision | diamond movement | both |
+|---|---|---|---|---|---|
+| IV-3 mean price (ln p) | 0 | 0.000722 pass | -0.0011 pass | 0.00109 pass | -0.0075 pass |
+| IV-3 price dispersion at t≈1000 | 0.05 | 0.0401 pass | 0.0255 pass | 0.0366 pass | 0.0275 pass |
+| IV-3 trades per period | 150 | 32.1 fail | 42.5 fail | 30.1 fail | 35 fail |
+| IV-6/trade/v1 carrying capacity | 100 | 74.5 fail | 76.3 fail | 79.6 fail | 74.7 fail |
+| IV-6/trade/v3 carrying capacity | 158 | 123 fail | 131 near | 125 fail | 130 near |
+| IV-6/trade/v10 carrying capacity | 185 | 150 near | 150 near | 148 near | 151 near |
+| IV-6/notrade/v3 carrying capacity | 120 | 103 near | 103 near | 106 near | 106 near |
+| IV-6/trade/v1 carrying capacity at t≈50 | 100 | 112 near | 118 near | 117 near | 117 near |
+| IV-6/trade/v3 carrying capacity at t≈50 | 158 | 169 pass | 174 pass | 167 pass | 174 near |
+| IV-6/trade/v10 carrying capacity at t≈50 | 185 | 185 pass | 187 pass | 186 pass | 186 pass |
+| IV-6/notrade/v3 carrying capacity at t≈50 | 120 | 131 pass | 131 pass | 129 pass | 129 pass |
+
+real	3m56.855s
+user	0m0.046s
+sys	0m0.000s

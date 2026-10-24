@@ -153,6 +153,9 @@ Twin-peaked sugarscape, G1, movement M throughout.
   **A labelled variant departs further (registered 2026-10-23, user decision):** VAR-c1c3fit takes partners in sight,
   not only neighbors, has each parent give at most 5 sugar, and draws the child's threshold from the founders' range,
   at a threshold of 0.74 (Chapter III record).
+  **The book doesn't say whether sugar is an integer.** If it was, "half of ... initial endowment" rounds down,
+  as in Watts' SugarscapeCW, and every later generation's fertility requirement falls. That reading runs as
+  VAR-intgift (registered 2026-10-23, user decision): p.55's threshold, nothing fitted (Chapter III record).
 
 ### Sex rule S (p. 56)
 - Select a neighboring agent at random;

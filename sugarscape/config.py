@@ -13,6 +13,7 @@ FOUNDER_AGES = ("uniform", "zero")
 MATE_CONTACTS = ("neighbors", "vision")
 CHILD_GIFTS = ("endowment", "capped")
 CHILD_THRESHOLDS = ("endowment", "redraw")
+GIFT_ROUNDINGS = ("exact", "down")
 
 
 @dataclass(frozen=True)
@@ -72,6 +73,9 @@ class Config:
     mate_contact: str = field(default="neighbors", repr=False)  # "vision": partners in sight along the lattice
     child_gift: str = field(default="endowment", repr=False)  # "capped": each parent gives min(5, its sugar)
     child_threshold: str = field(default="endowment", repr=False)  # "redraw": from the founders' range
+    # "down": each parent's gift rounds down to a whole unit, as in SugarscapeCW (VAR-intgift); the reading of
+    # p.55 if the original kept sugar as integers, which the book doesn't say.
+    gift_rounding: str = field(default="exact", repr=False)
 
     # Chapter IV. New draws are gated by these and come after earlier draws.
     spice: bool = False  # second commodity (p.96); spice map = sugar map mirrored east-west
@@ -107,7 +111,7 @@ class Config:
         if self.replacement and self.max_age is None:
             raise ValueError("replacement R[a,b] needs a max_age range [a, b]")
         for name, allowed in (("mate_contact", MATE_CONTACTS), ("child_gift", CHILD_GIFTS),
-                              ("child_threshold", CHILD_THRESHOLDS)):
+                              ("child_threshold", CHILD_THRESHOLDS), ("gift_rounding", GIFT_ROUNDINGS)):
             if getattr(self, name) not in allowed:
                 raise ValueError(f"{name} must be one of {allowed}, not {getattr(self, name)!r}")
         if self.founder_ages not in FOUNDER_AGES:

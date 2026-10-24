@@ -1,0 +1,6 @@
+base (10 seeds): III-1 steady population 564 pass; III-1 at t=20 / 85: 469 / 377; III-3 oscillation period 502 fail; III-3 population floor 279 pass
+ownsite (10 seeds): III-1 steady population 551 pass; III-1 at t=20 / 85: 466 / 359; III-3 oscillation period 359 fail (8/10); III-3 population floor 222 pass
+nobirth (10 seeds): III-1 steady population 544 pass; III-1 at t=20 / 85: 470 / 369; III-3 oscillation period 374 fail; III-3 population floor 240 pass
+sexages (10 seeds): III-1 steady population 383 near; III-1 at t=20 / 85: 469 / 370; III-3 oscillation period 608 fail (7/10); III-3 population floor 55.7 fail
+both (10 seeds): III-1 steady population 554 pass; III-1 at t=20 / 85: 466 / 353; III-3 oscillation period 425 fail (8/10); III-3 population floor 270 pass
+all (10 seeds): III-1 steady population 376 near; III-1 at t=20 / 85: 466 / 358; III-3 oscillation period 714 fail (5/10); III-3 population floor 24.9 fail

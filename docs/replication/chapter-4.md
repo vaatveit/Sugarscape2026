@@ -104,6 +104,30 @@ The fertility threshold (and credit's requirement, which uses it) is now 0.83 of
 - **IV-17 and IV-18 still die out:** IV-17 in 4 of 5 seeds (t=127–232; the survivor's dispersion is 0.33 against ≈0.45, fail), IV-18 in all 5 (t=143–228).
 - **Credit (IV-A5)** lends more: 150 active loans (was 106) and 29 agents both lending and borrowing (was 21), still within their proxy bands.
 
+## Mesa's Sugarscape G1MT (2026-10-23)
+
+Mesa's example (`mesa/examples/advanced/sugarscape_g1mt`, the same code as the SFI Complexity Explorer tutorial) uses a
+map file identical to ours. Its rules M and T depart from the text in ways that would raise trade:
+- **Trading partners:** an agent trades with every agent within its vision, over a diamond (|dx| + |dy| ≤ vision),
+  not with its four lattice neighbors (p.105).
+- **Movement:** M also looks over the diamond, and an occupied site, the agent's own included, is never a candidate.
+- **Also different:** the grid doesn't wrap, every agent moves before any trades, amounts are truncated to integers,
+  and founders may share a site. Its documentation mentions a `tests.py` checking the book's results, but the current
+  repository has none.
+
+[mesa_trade.py](../../diagnostics/mesa_trade.py) adds the first two to our model (5 seeds):
+
+| Target | Book | Registered | Partners in vision | Diamond movement | Both |
+|---|---|---|---|---|---|
+| IV-3 trades per period | 150 | 32.1 | 42.5 | 30.1 | 35.0 |
+| IV-3 price dispersion | 0.05 | 0.040 | 0.026 | 0.037 | 0.028 |
+| IV-6 with trade, vision 1 / 3 / 10, t=500 | 100 / 158 / 185 | 75 / 123 / 150 | 76 / 131 / 150 | 80 / 125 / 148 | 75 / 130 / 151 |
+| IV-6 without trade, vision 3, t=500 | 120 | 103 | 103 | 106 | 106 |
+
+Neither departure closes a gap. Trading with everyone in sight adds a third more trades, still under a third of the
+book's, and Fig IV-6 at t=500 moves by at most 8 agents. Low trade volume and the long-run shortfall stay with the
+small surviving population (Open discrepancies, above).
+
 ## Visual comparison
 
 - **Trade network (Animation IV-4):** short links between neighbors, densest in the first periods (341 trades at t=1), thinning as MRSs converge. Wrapped edges show as long lines.

@@ -1,0 +1,24 @@
+Rule S at p.55's threshold with exact or integer gifts, up to 10 seeds
+
+| Target | Book | exact, spread founders | integer, spread founders | exact, founders age 0 | integer, founders age 0 |
+|---|---|---|---|---|---|
+| III-1 steady population | 500 | 360 near | 451 pass | 369 near | 445 pass |
+| III-1 small fluctuations | 0.1 | 0.059 pass | 0.0601 pass | 0.0551 pass | 0.0544 pass |
+| III-1 mean vision at t≈900 | 5.3 | 5.68 pass | 5.6 pass | 5.61 pass | 5.63 pass |
+| III-1 mean metabolism, t=300–900 | 1 | 1 pass | 1 pass | 1 pass | 1 pass |
+| III-3 oscillation period | 200 | 495 fail (2/5) | 532 fail (2/5) | 809 fail (3/5) | 369 fail (4/5) |
+| III-3 population floor | 250 | 18.4 fail | 20.8 fail | 24.2 fail | 69.8 fail |
+| III-3 agents that ever lived | 12500 | 1.61e+03 fail | 2.29e+03 fail | 2.59e+03 fail | 4.65e+03 fail |
+| III-4 oscillation period | 125 | 136 pass | 109 pass | 120 pass | 111 pass |
+| III-4 oscillation range | 1000 | 120 fail | 476 near | 144 fail | 562 near |
+| III-5 extinction frequency | — | 0 fail | 0 fail | 0 fail | 0 fail |
+
+Mean endowment of the living at the end of III-1 (founders' mean is 75):
+  exact, spread founders: 72.6
+  integer, spread founders: 62.0
+  exact, founders age 0: 70.9
+  integer, founders age 0: 62.4
+
+real	4m54.918s
+user	0m0.000s
+sys	0m0.046s

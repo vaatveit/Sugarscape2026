@@ -371,9 +371,12 @@ register(Experiment(
 # written (threshold 1.0); VAR-share is the other fitted setting, a smaller gift at p.55's threshold.
 # VAR-c1c3fit (2026-10-23, user decision to register it) departs from p.55-56 on contact, gift and threshold
 # (README candidates C1+C3), with the threshold fitted to Fig III-1's steady population alone (0.74).
+# VAR-intgift (2026-10-23, user decision to register it) is p.55 with each parent's gift rounded down to a whole
+# unit, as SugarscapeCW computes it; nothing is fitted (README fifth and sixth follow-ups).
 VARIANTS = {"book": {"fertility_threshold": 1.0}, "share": {"fertility_threshold": 1.0, "child_share": 0.4975},
             "c1c3fit": {"fertility_threshold": 0.74, "mate_contact": "vision", "child_gift": "capped",
-                        "child_threshold": "redraw"}}
+                        "child_threshold": "redraw"},
+            "intgift": {"fertility_threshold": 1.0, "gift_rounding": "down"}}
 VALIDATION = ("III-1", "III-3", "III-4", "III-5", "VI-2", "VI-3")
 for _name, _setting in VARIANTS.items():
     for _id in VALIDATION:

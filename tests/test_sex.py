@@ -132,6 +132,28 @@ def test_capped_gift_variant():  # C3 (Ascape): each parent gives at most 5 of i
     assert kid.sugar == 8.0 and f.sugar == h.sugar == 0.0
 
 
+def test_integer_gift_variant():  # SugarscapeCW: each parent gives int(initial endowment / 2)
+    m = tiny_model(np.ones((6, 6), dtype=int), sex=True, gift_rounding="down")
+    f, h = couple(m)
+    f.initial_sugar, h.initial_sugar = 61.0, 57.0  # halves 30.5 and 28.5 round down to 30 and 28
+    kid = mate(m, f)[0]
+    assert kid.sugar == kid.initial_sugar == 58.0 and (f.sugar, h.sugar) == (30.0, 32.0)
+
+
+def test_integer_gift_variant_rounds_spice_and_capped_gifts():
+    m = tiny_model(np.ones((6, 6), dtype=int), sex=True, spice=True, gift_rounding="down")
+    f, h = couple(m)
+    for a in (f, h):
+        a.initial_spice, a.spice = 41.0, 10.0
+    kid = mate(m, f)[0]
+    assert kid.spice == kid.initial_spice == 40.0 and f.spice == h.spice == 10.0 - 20.0
+    m = tiny_model(np.ones((6, 6), dtype=int), sex=True, child_gift="capped", gift_rounding="down")
+    f, h = couple(m, sugar=4.5)
+    f.initial_sugar = h.initial_sugar = 3.0
+    kid = mate(m, f)[0]
+    assert kid.sugar == kid.initial_sugar == 8.0 and f.sugar == h.sugar == 0.5
+
+
 def test_redrawn_threshold_variant():  # C3 (Ascape): the child's threshold is a fresh draw from the founders' range
     m = tiny_model(np.ones((6, 6), dtype=int), sex=True, child_gift="capped", child_threshold="redraw",
                    endowment=(50, 100))
