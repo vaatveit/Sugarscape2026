@@ -13,10 +13,11 @@ dependencies = ["numpy", "matplotlib"]
 dev = ["pytest"]
 
 [tool.setuptools.packages.find]
-include = ["sugarscape*", "experiments*", "replication*"]
+include = ["sugarscape*", "experiments*", "replication*", "viewer*"]
 
 [tool.setuptools.package-data]
 "sugarscape.maps" = ["*.txt"]
+"viewer" = ["static/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
