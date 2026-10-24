@@ -55,7 +55,7 @@ end
     b = trader(m, 1, 2, 1.0, 1.0)
     ok = true
     for _ in 1:500
-        a.sugar, a.spice, b.sugar, b.spice = (1 .+ 99 .* rand(rng, 4))...
+        a.sugar, a.spice, b.sugar, b.spice = 1 .+ 99 .* rand(rng, 4)
         a.metabolism, a.spice_metabolism, b.metabolism, b.spice_metabolism = rand(
             rng, 1:5, 4
         )

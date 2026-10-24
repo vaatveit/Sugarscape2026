@@ -16,7 +16,7 @@ export Experiment, REGISTRY_PATH, load_registry, find_experiment, config_from_to
 export MAPS_DIR, load_map, parse_map, map_sha256
 export XL_FACTOR, XL_MAP, to_xl
 export Agent, Exchange, Loan, sugar_burn
-export Landscape, wrap, growback!, is_summer_north, seasonal_growback!, diffuse!
+export Landscape, wrap, growback!, is_summer_north, seasonal_growback!, diffuse!, set_spice!
 export Model,
     VON_NEUMANN,
     agent_at,
@@ -30,6 +30,9 @@ export move!, metabolize!, pollution_active
 export METRIC_COLUMNS, collect_metrics, gini, tribe, closeness
 export random_tags, cross_tags, hamming, culture_transmit!, update_friends!
 export is_fertile, assign_sex!, in_sight, mate!, combat_move!, vulnerable
+export preference_fraction, welfare, mrs, welfare_score, bargain!, trade_with_neighbors!
+export available_to_lend,
+    shortfall, creditworthy, seek_credit!, settle_loans!, credit_on_death!
 
 include("config.jl")
 include("registry.jl")
@@ -42,6 +45,9 @@ include("rules/movement.jl")
 include("rules/culture.jl")
 include("rules/sex.jl")
 include("rules/combat.jl")
+include("rules/welfare.jl")
+include("rules/trade.jl")
+include("rules/credit.jl")
 include("stats.jl")
 include("runner.jl")
 

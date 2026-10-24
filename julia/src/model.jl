@@ -353,6 +353,15 @@ function spawn_chapter_draws!(m::Model, a::Agent, tribe::Symbol)
         a.tags, a.ntags = random_tags(rng, cfg.tag_length, tribe), cfg.tag_length
     end
     cfg.sex && assign_sex!(m, a, random_sex(rng))
+    # Chapter IV draws come after those.
+    if cfg.spice
+        a.spice_metabolism = draw(rng, cfg.spice_metabolism)
+        a.spice =
+            a.initial_spice = Float64(
+                draw(rng, something(cfg.spice_endowment, cfg.endowment))
+            )
+        cfg.foresight === nothing || (a.foresight = draw(rng, cfg.foresight))
+    end
     return a
 end
 

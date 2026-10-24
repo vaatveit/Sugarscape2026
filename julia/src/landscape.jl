@@ -24,6 +24,15 @@ function Landscape(capacity::AbstractMatrix{<:Integer}, spice_capacity=nothing)
     )
 end
 
+"""Spice capacity and level (p.96: each site has a spice level and capacity), the level starting full."""
+function set_spice!(ls::Landscape, spice_capacity::AbstractMatrix{<:Integer})
+    size(spice_capacity) == size(ls.capacity) ||
+        throw(ArgumentError("spice capacity must match the sugar map"))
+    ls.spice_capacity = Matrix{Int}(spice_capacity)
+    ls.spice = Float64.(ls.spice_capacity)
+    return ls
+end
+
 wrap(ls::Landscape, x::Int, y::Int) = (mod(x, ls.width), mod(y, ls.height))
 
 """G_alpha (p.23 fn 3): r(t+1) = min(r(t) + alpha, c); alpha = Inf gives G_inf (p.26)."""

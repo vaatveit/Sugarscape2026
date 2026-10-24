@@ -52,7 +52,7 @@ function build(sc)
             push!(a.children, agents[i + 1])
         end
     end
-    return m
+    return m, agents
 end
 
 close(a, b) = isapprox(a, b; rtol=1e-12, atol=1e-9)
@@ -60,7 +60,11 @@ grid(rows, w, h) = [rows[x][y] for x in 1:w, y in 1:h]
 
 for sc in TOML.parsefile(FIXTURES)["scenario"]
     @testset "$(sc["name"])" begin
-        m = build(sc)
+        m, agents = build(sc)
+        for (rule, who...) in get(sc, "actions", [])
+            rule == "bargain" || error("unknown scenario action $rule")
+            bargain!(m, agents[who[1] + 1], agents[who[2] + 1])
+        end
         for _ in 1:sc["steps"]
             step!(m)
         end

@@ -7,6 +7,7 @@ depends on order or draws, so it is refused (as flamegpu/tests/test_parity.py ch
 """
 
 import math
+import random
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -15,6 +16,7 @@ from bridge.export_registry import _string, _value
 from bridge.paths import JULIA_DIR
 from sugarscape.config import Config
 from sugarscape.model import Model
+from sugarscape.rules.trade import bargain
 
 FIXTURES = JULIA_DIR / "test" / "fixtures" / "scenarios.toml"
 SEEDS = (0, 1, 2)
@@ -27,6 +29,9 @@ class Scenario:
     capacity: list[list[int]]  # [x][y]
     agents: list[dict]  # x, y, vision, metabolism, sugar; optionally any Agent field, tags as 0/1 lists, children
     steps: int
+    # Rules applied directly before the steps, as (rule, agent index, ...): ("bargain", i, j) runs rule T between
+    # agents i and j. For rules whose outcome over a whole period would depend on who acts first.
+    actions: tuple = ()
     notes: str = field(default="")
 
 
@@ -88,7 +93,47 @@ SCENARIOS.update({
 })
 
 
-def build(sc: Scenario, seed: int) -> Model:
+
+def _pairs(n: int, seed: int, tags: int = 0) -> tuple[list[dict], tuple]:
+    """n trading pairs with fixed random holdings and metabolisms, for rule T applied directly."""
+    rng = random.Random(seed)
+    agents = []
+    for k in range(2 * n):
+        a = {"x": k % 10, "y": k // 10, "vision": 1, "metabolism": rng.randint(1, 5),
+             "sugar": round(rng.uniform(1, 100), 3), "spice": round(rng.uniform(1, 100), 3),
+             "spice_metabolism": rng.randint(1, 5)}
+        if tags:
+            a["tags"] = [rng.randint(0, 1) for _ in range(tags)]
+        agents.append(a)
+    return agents, tuple(("bargain", 2 * i, 2 * i + 1) for i in range(n))
+
+
+# Chapter IV. Trading neighbours are not order-free over a period (each metabolizes before trading), so rule T is
+# applied directly to fixed pairs; movement on the sugar-and-spice landscape uses the four far-apart agents.
+_TRADE = {"spice": True, "trade": True, "vision": (1, 1)}
+_PAIRS, _BARGAINS = _pairs(15, 11)
+_CPAIRS, _CBARGAINS = _pairs(15, 12, tags=3)
+SCENARIOS.update({
+    "trade_pairs": Scenario(_TRADE, _grid(10), _PAIRS, 0, _BARGAINS),
+    "trade_pairs_whole_units": Scenario({**_TRADE, "trade_rounding": "down"}, _grid(10), _PAIRS, 0, _BARGAINS),
+    "trade_pairs_cultural": Scenario({**_TRADE, "tag_length": 3, "cultural_preferences": True}, _grid(10),
+                                     _CPAIRS, 0, _CBARGAINS),
+    "spice_move": Scenario({"spice": True}, DISTINCT, _four(spice=30.0, spice_metabolism=2), 4),
+    "spice_move_foresight": Scenario({"spice": True, "foresight": (0, 10)}, DISTINCT,
+                                     _four(spice=30.0, spice_metabolism=2, foresight=5), 4),
+    "spice_move_polluted": Scenario({"spice": True, "pollution": (1.0, 1.0), "diffusion_period": 1}, DISTINCT,
+                                    _four(spice=30.0, spice_metabolism=2), 4),
+    # A lender past childbearing (metabolism 0, so its wealth is the same whoever acts first) and a fertile
+    # borrower short of its endowment, both female so no child is born; the loan falls due at t = 10 and is repaid.
+    "credit_loan_and_repayment": Scenario({"sex": True, "credit": (10, 10.0), "vision": (1, 1)},
+                                          _grid(7, {(3, 4): 10}), [
+        {"x": 3, "y": 3, "vision": 1, "metabolism": 0, "sugar": 100.0, "age": 50, "sex": "F",
+         "fertility_start": 12, "fertility_end": 40, "initial_sugar": 60.0},
+        {"x": 3, "y": 4, "vision": 1, "metabolism": 0, "sugar": 20.0, "age": 20, "sex": "F",
+         "fertility_start": 12, "fertility_end": 40, "initial_sugar": 60.0}], 12),
+})
+
+def build(sc: Scenario, seed: int) -> tuple[Model, list]:
     width, height = len(sc.capacity), len(sc.capacity[0])
     cfg = Config(width=width, height=height, initial_population=0, seed=seed, **sc.config)
     m = Model(cfg, capacity=np.array(sc.capacity, dtype=int))
@@ -102,12 +147,16 @@ def build(sc: Scenario, seed: int) -> Model:
         agents.append(a)
     for spec, a in zip(sc.agents, agents):
         a.children = [agents[i] for i in spec.get("children", ())]
-    return m
+    return m, agents
 
 
 def run_scenario(sc: Scenario, seed: int) -> dict:
     """The end state: living agents by id (x, y, sugar, spice, age) and the sugar, spice and pollution grids."""
-    m = build(sc, seed)
+    m, agents = build(sc, seed)
+    for rule, *who in sc.actions:
+        if rule != "bargain":
+            raise ValueError(f"unknown scenario action {rule!r}")
+        m.trade_log.extend(bargain(m, agents[who[0]], agents[who[1]]))
     m.run(sc.steps)
     ls = m.landscape
     return {"agents": [{"x": a.x, "y": a.y, "sugar": float(a.sugar), "spice": float(a.spice), "age": a.age}
@@ -147,6 +196,7 @@ def fixture_text() -> str:
                 f"width = {len(sc.capacity)}", f"height = {len(sc.capacity[0])}",
                 f"config = {_inline(sc.config)}", f"capacity = {_toml(sc.capacity)}",
                 f"agents = {_toml([dict(a) for a in sc.agents])}",
+                f"actions = {_toml([list(a) for a in sc.actions])}",
                 f"expected = {_inline(state)}", ""]
     return "\n".join(out)
 
