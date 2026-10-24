@@ -8,7 +8,7 @@ from contextlib import contextmanager
 import pytest
 
 from experiments.registry import EXPERIMENTS
-from viewer.run import LEAD, Run, catalog
+from viewer.run import KEEP, LEAD, Run, catalog
 from viewer.server import make_server
 
 
@@ -81,7 +81,7 @@ def test_run_then_frames_match_the_run(live):
     status, _, frame = call(base, f"/api/frame?run={info['run']}&t=5")
     assert status == 200 and frame["t"] == 5 and frame["latest"] == 5
     assert frame["run"] == info["run"]
-    assert {k: v for k, v in frame.items() if k not in ("latest", "run")} == Run("VI-1", 2).frame(5).to_json()
+    assert {k: v for k, v in frame.items() if k not in ("earliest", "latest", "run")} == Run("VI-1", 2).frame(5).to_json()
 
 
 def test_population_counts_the_agents_drawn(live):
@@ -113,6 +113,21 @@ def test_requests_for_a_replaced_run_are_409(live):
         assert status == 409 and "replaced" in err["error"], path
     status, _, frame = call(base, f"/api/frame?run={b}&t=3")
     assert status == 200 and frame["spice"] is None and frame["run"] == b
+
+
+def test_periods_past_the_window_are_410(live):
+    _, base = live
+    rid = start(base, "II-4", 0)["run"]
+    t = 0
+    while t < KEEP + 10:
+        t = min(KEEP + 10, t + LEAD)
+        assert call(base, f"/api/frame?run={rid}&t={t}")[0] == 200
+    status, _, frame = call(base, f"/api/frame?run={rid}&t={t}")
+    assert frame["earliest"] == t - KEEP + 1 and frame["latest"] == t
+    status, _, err = call(base, f"/api/frame?run={rid}&t=0")
+    assert status == 410 and "no longer kept" in err["error"]
+    status, _, pop = call(base, f"/api/population?run={rid}&from=0")
+    assert len(pop["counts"]) == t + 1 and pop["earliest"] == t - KEEP + 1
 
 
 def test_bad_requests_are_400(live):
@@ -164,6 +179,15 @@ def test_static_route_cannot_escape_the_folder(live):
     _, base = live
     for path in ("/static/../pyproject.toml", "/static/%2e%2e/pyproject.toml", "/static/..%2fpyproject.toml",
                  "/static/..%5cpyproject.toml", "/static/nope.js", "/static/"):
+        assert call(base, path)[0] == 404, path
+
+
+def test_static_route_serves_exact_file_names_only(live):
+    # Windows resolves case variants and ::$DATA streams to the same file; only the real names are served.
+    _, base = live
+    assert call(base, "/static/style.css")[0] == 200
+    for path in ("/static/STYLE.CSS", "/static/Style.css", "/static/style.css::$DATA", "/static/style.css.",
+                 "/static/style.css%20", "/static/./style.css"):
         assert call(base, path)[0] == 404, path
 
 

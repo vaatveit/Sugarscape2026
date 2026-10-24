@@ -1,6 +1,8 @@
 // The viewer page: fetches periods from the local server and draws them. Every color, size and legend entry
 // comes from encoding.mjs; this file defines no encoding of its own.
-import { COLOR_MODES, OUTLINE, OUTLINE_WIDTH, SIZE_MODES, cellColor, legendCells, wealth } from "./encoding.mjs";
+import {
+  COLOR_MODES, OUTLINE, OUTLINE_WIDTH, SIZE_MODES, cellColor, formatWealth, legendCells, wealth,
+} from "./encoding.mjs";
 
 const PREFETCH = 4; // periods requested ahead of the next one while playing (at most 5 in flight)
 const CACHE_LIMIT = 300;
@@ -21,6 +23,7 @@ const state = {
   frame: null, // decoded frame on the board
   target: 0, // the period the user last asked to see
   latest: 0,
+  earliest: 0, // oldest period the server still keeps (it keeps the newest 500)
   populations: [],
   popRequest: null,
   cache: new Map(), // t -> decoded frame
@@ -65,7 +68,7 @@ function fetchFrame(t) {
     const frame = decode(json);
     state.cache.set(t, frame);
     if (state.cache.size > CACHE_LIMIT) state.cache.delete(state.cache.keys().next().value);
-    setLatest(json.latest);
+    setLatest(json.latest, json.earliest);
     return frame;
   }).finally(() => {
     if (runId === state.runId) state.inflight.delete(t);
@@ -74,7 +77,12 @@ function fetchFrame(t) {
   return request;
 }
 
-function setLatest(latest) {
+function setLatest(latest, earliest) {
+  if (earliest > state.earliest) {
+    state.earliest = earliest;
+    els.slider.min = String(earliest);
+    for (const t of state.cache.keys()) if (t < earliest) state.cache.delete(t);
+  }
   if (latest <= state.latest) return;
   state.latest = latest;
   els.slider.max = String(latest);
@@ -86,6 +94,7 @@ function refreshPopulations() {
   const runId = state.runId;
   state.popRequest = api(`/api/population?run=${state.info.run}&from=${state.populations.length}`).then((json) => {
     if (runId !== state.runId) return;
+    setLatest(json.latest, json.earliest);
     if (json.from === state.populations.length) state.populations.push(...json.counts);
     drawChart();
     updateStatus();
@@ -100,7 +109,7 @@ function refreshPopulations() {
 // Show period t on the board, unless the user has since asked for another.
 async function goTo(t) {
   if (!state.info) return;
-  t = Math.max(0, Math.min(t, state.latest + 1));
+  t = Math.max(state.earliest, Math.min(t, state.latest + 1));
   state.target = t;
   try {
     const frame = await fetchFrame(t);
@@ -246,6 +255,12 @@ function drawChart() {
   g.textAlign = "center";
   g.textBaseline = "top";
   for (let t = 0; t <= xmax; t += xstep) g.fillText(String(t), px(t), ch - chartBox.bottom + 6);
+  if (state.earliest > 0) { // periods no longer kept for the board: counted, but not reachable
+    g.fillStyle = style.getPropertyValue("--border");
+    g.globalAlpha = 0.35;
+    g.fillRect(chartBox.left, chartBox.top, px(state.earliest) - chartBox.left, plotH);
+    g.globalAlpha = 1;
+  }
 
   if (pops.length) {
     g.strokeStyle = style.getPropertyValue("--accent");
@@ -342,7 +357,7 @@ function updateHover() {
   if (info.spice) rows.push(["spice", `${fmt(frame.spice[i])} of ${info.spice_capacity[i]}`]);
   const agent = frame.at.get(i);
   if (agent) {
-    rows.push(["agent", agent.id], ["wealth", fmt(wealth(agent))], ["sugar held", fmt(agent.sugar)],
+    rows.push(["agent", agent.id], ["wealth", formatWealth(wealth(agent))], ["sugar held", fmt(agent.sugar)],
       ["spice held", fmt(agent.spice)], ["tribe", fmt(agent.tribe)], ["vision", agent.vision],
       ["metabolism", agent.metabolism], ["age", agent.age], ["sex", fmt(agent.sex)]);
   } else {
@@ -357,7 +372,8 @@ function updateHover() {
 function updateStatus() {
   const { frame } = state;
   els.status.textContent = frame
-    ? `t = ${frame.t} · population ${frame.population} · computed to t = ${state.latest}`
+    ? `t = ${frame.t} · population ${frame.population} · computed to t = ${state.latest}` +
+      (state.earliest > 0 ? ` · kept from t = ${state.earliest} (the newest 500)` : "")
     : "";
 }
 
@@ -388,11 +404,12 @@ async function startRun(experiment, seed) {
     if (seq !== state.startSeq) return; // a later Start press owns the page
     state.runId += 1;
     Object.assign(state, {
-      info, frame: null, target: 0, latest: 0, populations: [], popRequest: null, hoverCell: null,
+      info, frame: null, target: 0, latest: 0, earliest: 0, populations: [], popRequest: null, hoverCell: null,
     });
     state.cache.clear();
     state.inflight.clear();
     els.slider.max = "0";
+    els.slider.min = "0";
     els.runInfo.textContent = `${info.experiment}: ${info.title} ${info.rules} · seed ${info.seed} ` +
       `(run index ${info.seed_index}) · registered length ${info.steps} periods`;
     fillMenus();
@@ -432,7 +449,7 @@ async function init() {
     const xmax = Math.max(1, state.populations.length - 1);
     const frac = (event.clientX - rect.left - chartBox.left) / (rect.width - chartBox.left - chartBox.right);
     setPlaying(false);
-    goTo(Math.max(0, Math.min(state.latest, Math.floor(frac * xmax + 0.5))));
+    goTo(Math.max(state.earliest, Math.min(state.latest, Math.floor(frac * xmax + 0.5))));
   });
 
   els.board.addEventListener("mousemove", (event) => {

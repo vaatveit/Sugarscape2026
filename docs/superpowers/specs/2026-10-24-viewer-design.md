@@ -6,7 +6,7 @@ Date: 2026-10-24. Follows [the project design](2026-10-21-sugarscape-design.md),
 ## Intent
 
 Watch a run of the simulation unfold: the landscape, the agents on it, and the population over time. Start from a
-registered experiment, choose a seed, press play, and scrub back to any period already seen. The viewer exists to
+registered experiment, choose a seed, press play, and scrub back through the newest 500 periods. The viewer exists to
 *look at* the model, so it must never show anything the model didn't do.
 
 **Goals**
@@ -15,7 +15,7 @@ registered experiment, choose a seed, press play, and scrub back to any period a
 - Agent color and size driven by attributes the user picks from menus. First attributes: **tribe** and **wealth**
   (wealth = sugar + spice; on sugar-only runs spice is 0, so wealth is sugar).
 - A population-over-time chart beside the board.
-- Play, pause, speed, and a time slider to scrub back and forth through the periods already computed.
+- Play, pause, speed, and a time slider to scrub back and forth through the newest 500 periods computed.
 - Runs use a registered experiment's settings exactly; the user chooses only the seed.
 
 **Non-goals (this version)**
@@ -86,7 +86,8 @@ attribute menus, and the legend. Exact layout is the builder's.
 
 ### Hover
 - **Over a cell:** its coordinates, sugar and spice levels, and capacities.
-- **Over an agent:** its id, wealth, sugar, spice, tribe, vision, metabolism, age and sex.
+- **Over an agent:** its id, wealth, sugar, spice, tribe, vision, metabolism, age and sex. Wealth shows more
+  decimals when two would round it across a band edge (9.996, not "10.00" beside "< 10"). *(2026-10-24.)*
 - Values are shown as the model holds them, rounded only for display (e.g. two decimals).
 
 ### Population chart
@@ -97,14 +98,16 @@ attribute menus, and the legend. Exact layout is the builder's.
 
 ### Time controls
 - Play/pause, a speed control, and step forward and back by one period.
-- The slider spans t = 0 to the latest computed period.
+- The slider spans the periods still kept: the newest 500 (user decision 2026-10-24, to bound memory on long
+  runs). Older periods can't be shown again; the population chart still covers the whole run and shades them.
 - Playing past the last computed period computes new ones; the run continues until paused, with no cap at the
   experiment's registered `steps`. The registered length is shown for reference.
 - Computation happens only while playing, at most a short way ahead of the board, and stops on pause, so a paused
-  run never grows. "How far ahead" is that short lead. *(My call, after the review.)*
+  run never grows. "How far ahead" is that short lead. *(My call, after the review.)* An explicit step forward
+  from the newest period computes exactly that one period (user decision 2026-10-24).
 - Dragging the slider or clicking the chart shows that period at once.
 - **Responsiveness target:** scrubbing within a computed run feels immediate (well under a second to show a
-  period). Playback speed is limited by how fast the model computes. The page shows the current t, the
+  period), and never waits for a period being computed. Playback speed is limited by how fast the model computes. The page shows the current t, the
   population, and how far ahead the computation has got.
 
 ## How it's made (my calls, not the user's)
@@ -143,8 +146,8 @@ attribute menus, and the legend. Exact layout is the builder's.
 
 - Page layout, styling and the exact color values: rust and yellow close to the mockup, tribe red and blue
   distinguishable, and a wealth ramp ordered light to dark.
-- How periods are stored for scrubbing (every frame kept, checkpoints with replay, or something else), as long as
-  values are exact and a long run (III-8 registers 6,000 periods) stays within reasonable memory.
+- How periods are stored for scrubbing, as long as values are exact. (Settled 2026-10-24: the newest 500 are
+  kept as exact frames, about 25 KB each.)
 - The transport (polling or streaming) and the frame format.
 - The speed control's range.
 - Error handling for a bad seed or a model exception: show it on the page and leave the server running.

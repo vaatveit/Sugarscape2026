@@ -879,7 +879,8 @@ grid (Schelling and Ring World are not included) and a seed, then press Start. T
 - **The board.** Cells blend sugar yellow and spice rust by their current levels, and agents are dots colored and
   sized by the attributes chosen in the menus (tribe and wealth = sugar + spice).
 - **Population over time.** A chart of the number of living agents; click it to jump to a period.
-- **Controls.** Play, pause, speed, step, and a slider back through every period computed so far.
+- **Controls.** Play, pause, speed, step, and a slider back through the newest 500 periods (older ones are
+  dropped to bound memory; the chart still shows the whole run).
 
 What the page shows, and how to read it:
 - **Exact values on hover.** Hovering over a cell shows its levels and capacities, and over an agent shows its
@@ -890,7 +891,8 @@ What the page shows, and how to read it:
   placement.
 - **Seeds.** The seed is the run index used everywhere else, so seed k is the run saved as `seed{k}.csv` under
   `results/`.
-- **When it computes.** Periods are computed only while playing.
+- **When it computes.** Periods are computed only while playing, or one at a time when you step forward from
+  the newest.
 
 Keyboard: space plays and pauses, and the arrow keys step one period. `--port N` picks the port and
 `--no-browser` skips opening a tab. The page's encoding tests run with `node --test "tests/js/*.test.mjs"`, and the

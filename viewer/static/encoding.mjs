@@ -50,6 +50,17 @@ export function bandOf(w) {
   return band;
 }
 
+// Wealth for display: two decimals, or as many more as it takes for the number shown to fall in the same band
+// as the value (9.996 shows as "9.996", never "10.00" beside a "< 10" band). Whole numbers show as they are.
+export function formatWealth(w) {
+  if (Number.isInteger(w)) return String(w);
+  for (let digits = 2; digits <= 17; digits++) {
+    const shown = w.toFixed(digits);
+    if (bandOf(Number(shown)) === bandOf(w)) return shown;
+  }
+  return String(w); // shortest exact form
+}
+
 // Agent color by attribute. Adding an attribute later means adding a key.
 export const COLOR_MODES = {
   tribe: {

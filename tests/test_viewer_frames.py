@@ -9,7 +9,7 @@ from experiments.registry import EXPERIMENTS
 from sugarscape.config import Config
 from sugarscape.model import Model
 from viewer.frames import capture
-from viewer.run import LEAD, Run, RunBroken, catalog
+from viewer.run import KEEP, LEAD, NotKept, Run, RunBroken, catalog
 
 
 def reference(exp_id, k, t):
@@ -40,6 +40,17 @@ def test_frame_matches_an_independent_model(exp_id, t):
 def test_each_run_has_its_own_id():
     a, b = Run("II-4", 0), Run("II-4", 0)
     assert a.id != b.id and a.info()["run"] == a.id and a.frame(0).to_json()["t"] == 0
+
+
+@pytest.mark.parametrize("exp_id", ["III-1", "III-9", "IV-14", "VI-1"])
+def test_every_frame_has_at_most_one_agent_per_cell(exp_id):
+    # Hover shows the one agent in a cell; this pins the model invariant it relies on, including under combat
+    # (III-9), sex and replacement.
+    run = Run(exp_id, 0)
+    for t in range(0, 41):
+        a = run.frame(t).to_json()["agents"]
+        cells = list(zip(a["x"], a["y"]))
+        assert len(cells) == len(set(cells)), (exp_id, t)
 
 
 def test_seed_index_offsets_the_registered_seed():
@@ -78,6 +89,50 @@ def test_a_model_error_stops_the_run_where_it_broke():
     with pytest.raises(RunBroken, match="boom"):
         run.frame(4)
     assert run.latest == 3 and run.frame(3).t == 3 and run.frame(0).t == 0
+
+
+def step_to(run, t):
+    while run.latest < t:
+        run.frame(min(t, run.latest + LEAD))
+
+
+def test_only_the_last_KEEP_periods_are_kept():
+    # Memory stays bounded on long runs (user decision 2026-10-24); the population series stays whole.
+    run = Run("II-4", 0)
+    step_to(run, KEEP + 30)
+    assert run.earliest == run.latest - KEEP + 1 == 31 and len(run._frames) == KEEP
+    m = reference("II-4", 0, run.earliest)
+    j = run.frame(run.earliest).to_json()
+    assert j["t"] == run.earliest and j["agents"]["id"] == [g.id for g in m.agents]
+    assert j["sugar"] == m.landscape.sugar.ravel().tolist()
+    with pytest.raises(NotKept, match="no longer kept"):
+        run.frame(run.earliest - 1)
+    with pytest.raises(NotKept):
+        run.frame(0)
+    pops = run.populations()
+    assert len(pops) == run.latest + 1 and pops[-1] == run.frame(run.latest).population
+
+
+def test_reading_a_computed_period_does_not_wait_for_a_step():
+    run = Run("II-4", 0)
+    real, release = run.model.step, threading.Event()
+
+    def slow():
+        release.wait(5)
+        real()
+
+    run.model.step = slow
+    stepper = threading.Thread(target=run.frame, args=(1,))
+    stepper.start()
+    got = []
+    reader = threading.Thread(target=lambda: got.append((run.frame(0).t, run.populations())))
+    reader.start()
+    reader.join(1)
+    alive = reader.is_alive()
+    release.set()
+    stepper.join()
+    reader.join()
+    assert not alive and got[0][0] == 0 and run.latest == 1
 
 
 def test_populations_are_the_frames_agent_counts():

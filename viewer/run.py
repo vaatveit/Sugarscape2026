@@ -2,6 +2,7 @@
 
 import threading
 import uuid
+from collections import deque
 from dataclasses import replace
 
 from experiments.registry import EXPERIMENTS
@@ -10,10 +11,15 @@ from sugarscape.model import Model
 from viewer.frames import Frame, capture
 
 LEAD = 50  # furthest a request may reach past the latest computed period
+KEEP = 500  # periods kept for scrubbing, the newest ones (user decision 2026-10-24); about 25 KB each
 
 
 class OutOfRange(ValueError):
     """A period the run can't serve yet; kept apart from any ValueError the model itself raises."""
+
+
+class NotKept(OutOfRange):
+    """A period that was computed but has since dropped out of the KEEP-period window."""
 
 
 class RunBroken(RuntimeError):
@@ -40,33 +46,60 @@ class Run:
         self.experiment, self.seed_index = exp, seed_index
         self.seed = exp.config.seed + seed_index
         self.model = Model(replace(exp.config, seed=self.seed))
-        self._frames: list[Frame] = [capture(self.model)]
-        self._lock = threading.Lock()
+        first = capture(self.model)
+        self._frames: deque[Frame] = deque([first], maxlen=KEEP)  # the newest KEEP periods
+        self._populations: list[int] = [first.population]  # every period, for the chart
+        self._step_lock = threading.Lock()  # one stepper at a time
+        self._lock = threading.Lock()  # guards the window and series; held only briefly, never across a step
         self.error: Exception | None = None  # set when a step raised; periods before it still serve
 
     @property
     def latest(self) -> int:
-        return len(self._frames) - 1
+        return len(self._populations) - 1
+
+    @property
+    def earliest(self) -> int:
+        """Oldest period still kept."""
+        return self.latest - len(self._frames) + 1
 
     def frame(self, t: int) -> Frame:
-        """The state after period t, stepping the model up to t first if it hasn't got there."""
-        with self._lock:
-            if t < 0 or t > self.latest + LEAD:
-                raise OutOfRange(f"t={t} is outside 0..{self.latest + LEAD}")
-            if t > self.latest and self.error is not None:
-                raise RunBroken(f"the run stopped at t={self.latest + 1}: {self.error}") from self.error
+        """The state after period t, stepping the model up to t first if it hasn't got there.
+
+        A period already computed is served without waiting for a step in progress (scrubbing stays immediate).
+        """
+        kept = self._kept(t)
+        if kept is not None:
+            return kept
+        with self._step_lock:
+            with self._lock:
+                if t > self.latest + LEAD:
+                    raise OutOfRange(f"t={t} is outside 0..{self.latest + LEAD}")
+                if t > self.latest and self.error is not None:
+                    raise RunBroken(f"the run stopped at t={self.latest + 1}: {self.error}") from self.error
             while self.latest < t:
                 try:
                     self.model.step()
                 except Exception as e:
                     self.error = e
                     raise
-                self._frames.append(capture(self.model))
-            return self._frames[t]
+                frame = capture(self.model)
+                with self._lock:
+                    self._frames.append(frame)
+                    self._populations.append(frame.population)
+        return self._kept(t)
+
+    def _kept(self, t: int) -> Frame | None:
+        """Period t if it is in the window; None if not computed yet; raises if it is out of reach."""
+        with self._lock:
+            if t < 0:
+                raise OutOfRange(f"t={t} is outside 0..{self.latest + LEAD}")
+            if t < self.earliest:
+                raise NotKept(f"t={t} is no longer kept: only the last {KEEP} periods are ({self.earliest}..{self.latest})")
+            return self._frames[t - self.earliest] if t <= self.latest else None
 
     def populations(self, start: int = 0) -> list[int]:
         with self._lock:
-            return [f.population for f in self._frames[start:]]
+            return self._populations[start:]
 
     def info(self) -> dict:
         exp, cfg, land = self.experiment, self.model.config, self.model.landscape

@@ -9,7 +9,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlsplit
 
-from viewer.run import OutOfRange, Run, catalog
+from viewer.run import NotKept, OutOfRange, Run, catalog
 
 STATIC = (Path(__file__).parent / "static").resolve()
 # Fixed table: on Windows, mimetypes can report .js/.mjs as text/plain from the registry, and browsers then
@@ -62,10 +62,13 @@ class Handler(BaseHTTPRequestHandler):
         self._send(status, json.dumps(value).encode(), "application/json", no_store=True)
 
     def _file(self, name: str) -> None:
-        path = (STATIC / unquote(name)).resolve()
-        if not name or path.parent != STATIC or not path.is_file() or path.suffix not in CONTENT_TYPES:
+        # Only the folder's real file names, compared exactly: Windows would otherwise resolve case variants,
+        # trailing dots and ::$DATA streams to the same file.
+        name = unquote(name)
+        files = {p.name: p for p in STATIC.iterdir() if p.is_file() and p.suffix in CONTENT_TYPES}
+        if name not in files:
             raise ApiError(HTTPStatus.NOT_FOUND, "not found")
-        self._send(HTTPStatus.OK, path.read_bytes(), CONTENT_TYPES[path.suffix])
+        self._send(HTTPStatus.OK, files[name].read_bytes(), CONTENT_TYPES[files[name].suffix])
 
     # --- routes --------------------------------------------------------------------------
 
@@ -96,13 +99,16 @@ class Handler(BaseHTTPRequestHandler):
             t = _int(query, "t")
             try:
                 frame = run.frame(t)
+            except NotKept as e:
+                raise ApiError(HTTPStatus.GONE, str(e))
             except OutOfRange as e:
                 raise ApiError(HTTPStatus.BAD_REQUEST, str(e))
-            self._json(HTTPStatus.OK, {**frame.to_json(), "run": run.id, "latest": run.latest})
+            self._json(HTTPStatus.OK, {**frame.to_json(), "run": run.id, "earliest": run.earliest,
+                                       "latest": run.latest})
         elif url.path == "/api/population":
             run = self._run(query)
             start = _int(query, "from")
-            self._json(HTTPStatus.OK, {"run": run.id, "latest": run.latest, "from": start,
+            self._json(HTTPStatus.OK, {"run": run.id, "earliest": run.earliest, "latest": run.latest, "from": start,
                                        "counts": run.populations(start)})
         else:
             raise ApiError(HTTPStatus.NOT_FOUND, "not found")

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   BANDS, BAND_COLORS, BAND_LABELS, BAND_RADII, COLOR_MODES, NEUTRAL, SIZE_MODES, TRIBE_COLORS,
-  OUTLINE, bandOf, cellColor, legendCells, wealth,
+  OUTLINE, bandOf, cellColor, formatWealth, legendCells, wealth,
 } from "../../viewer/static/encoding.mjs";
 
 const LOWER = [0, ...BANDS]; // each band's lower bound
@@ -105,4 +105,22 @@ test("every agent's outline stands out from every cell color", () => {
       assert.ok(c >= 3, `outline vs cell ${i / 8},${j / 8}: ${c.toFixed(2)}`);
     }
   }
+});
+
+test("wealth readout never lands in a different band from the value", () => {
+  // Two-decimal rounding showed 9.996 as "10.00" beside the "< 10" band (final review, set aside then fixed).
+  assert.equal(formatWealth(3.14159), "3.14");
+  assert.equal(formatWealth(12.5), "12.50");
+  assert.equal(formatWealth(10), "10");
+  assert.equal(formatWealth(9.996), "9.996");
+  for (const edge of BANDS) {
+    for (let k = 1; k <= 15; k++) {
+      for (const w of [edge - 10 ** -k, edge + 10 ** -k, edge]) {
+        const shown = formatWealth(w);
+        assert.equal(bandOf(Number(shown)), bandOf(w), `${w} shown as ${shown}`);
+      }
+    }
+  }
+  const justUnder = 10 - Number.EPSILON * 8; // closest doubles below an edge
+  assert.equal(bandOf(Number(formatWealth(justUnder))), 0);
 });
