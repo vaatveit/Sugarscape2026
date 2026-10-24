@@ -161,6 +161,13 @@ def test_version(exe, build):
     assert info["gpu"] != "" and info["cuda_runtime"] != ""
 
 
+def test_version_output_is_never_lost(exe):
+    # --version starts CUDA; its output was once lost in about 1 run in 4 (exit 0, empty stdout) when CUDA's
+    # teardown ended the process before stdout was flushed.
+    outputs = [run_exe(exe, "--version").stdout for _ in range(60)]
+    assert all("flamegpu = " in out for out in outputs), f"{sum('flamegpu = ' not in o for o in outputs)} of 60 lost"
+
+
 def test_max_age_below_one_is_rejected(exe, tmp_path):
     # Python cannot draw a founder age from U[0, 0); an agent must be able to live at least one period.
     result = run_exe(exe, "--config", write_cfg(tmp_path, max_age="0,5"), "--print-config")
