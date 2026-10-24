@@ -2,9 +2,75 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Sugarscape viewer</title>
+<link rel="stylesheet" href="/static/style.css">
+<script type="module" src="/static/app.mjs"></script>
 </head>
 <body>
-<main></main>
+<header>
+  <h1>Sugarscape viewer</h1>
+  <form id="start" class="start">
+    <label for="experiment">Experiment</label>
+    <select id="experiment" required></select>
+    <label for="seed">Seed (run index)</label>
+    <input id="seed" type="number" min="0" step="1" value="0" required>
+    <button type="submit">Start</button>
+  </form>
+  <p id="run-info" class="run-info">Pick an experiment and a seed, then press Start.</p>
+  <p id="error" class="error" role="alert"></p>
+</header>
+
+<main>
+  <section class="board-column" aria-label="World">
+    <figure class="board-figure">
+      <canvas id="board" width="500" height="500"></canvas>
+      <figcaption>The 50 × 50 world after period <span id="caption-t">0</span>, y increasing upward. Hover over a cell for its exact values.</figcaption>
+    </figure>
+    <div class="time" role="group" aria-label="Time">
+      <button id="back" type="button" aria-label="Step back one period">◀</button>
+      <button id="play" type="button">Play</button>
+      <button id="forward" type="button" aria-label="Step forward one period">▶</button>
+      <label for="slider" class="visually-hidden">Period</label>
+      <input id="slider" type="range" min="0" max="0" value="0" step="1">
+      <label for="speed">Speed</label>
+      <select id="speed">
+        <option value="1">1 / s</option>
+        <option value="2">2 / s</option>
+        <option value="5">5 / s</option>
+        <option value="10" selected>10 / s</option>
+        <option value="20">20 / s</option>
+        <option value="30">30 / s</option>
+        <option value="max">max</option>
+      </select>
+    </div>
+    <p id="status" class="status"></p>
+  </section>
+
+  <section class="side-column" aria-label="Details">
+    <figure class="chart-figure">
+      <canvas id="chart" width="420" height="200"></canvas>
+      <figcaption>Population (living agents) by period. The vertical line marks the period on the board; click to jump.</figcaption>
+    </figure>
+
+    <div class="menus">
+      <label for="color-by">Color by</label>
+      <select id="color-by"></select>
+      <label for="size-by">Size by</label>
+      <select id="size-by"></select>
+    </div>
+
+    <section class="legend" aria-labelledby="legend-title">
+      <h2 id="legend-title">Legend</h2>
+      <div id="legend-cells"></div>
+      <div id="legend-agents"></div>
+    </section>
+
+    <section class="hover" aria-labelledby="hover-title">
+      <h2 id="hover-title">Under the pointer</h2>
+      <dl id="hover"><dt>—</dt><dd>Hover over the board.</dd></dl>
+    </section>
+  </section>
+</main>
 </body>
 </html>

@@ -40,6 +40,9 @@ def _int(query: dict, name: str) -> int:
 
 class Handler(BaseHTTPRequestHandler):
     server: "ViewerServer"
+    # Keep-alive: every response carries Content-Length. Without it each request opens a new connection, which
+    # costs ~300 ms on Windows when "localhost" tries ::1 before 127.0.0.1.
+    protocol_version = "HTTP/1.1"
 
     def log_message(self, format, *args):  # keep the console to the URL and errors
         pass

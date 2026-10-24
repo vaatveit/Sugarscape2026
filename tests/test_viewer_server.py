@@ -1,3 +1,4 @@
+import http.client
 import json
 import threading
 import urllib.error
@@ -40,6 +41,18 @@ def call(base, path, body=None, raw=None):
         status, headers, payload = e.code, e.headers, e.read()
     text = payload.decode()
     return status, headers, json.loads(text) if headers.get("Content-Type", "").startswith("application/json") else text
+
+
+def test_connections_are_kept_alive(live):
+    # A new connection costs ~300 ms on Windows when "localhost" tries ::1 first; reusing one avoids that.
+    _, base = live
+    conn = http.client.HTTPConnection(base.removeprefix("http://"))
+    for _ in range(2):
+        conn.request("GET", "/api/experiments")
+        r = conn.getresponse()
+        r.read()
+        assert r.status == 200 and r.version == 11 and not r.will_close
+    conn.close()
 
 
 def test_binds_loopback_only(live):
