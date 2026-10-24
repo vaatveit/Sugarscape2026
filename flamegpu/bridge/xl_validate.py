@@ -26,7 +26,8 @@ SMOKE = "II-5/m3/v10.5"  # the longest visions at xl (10-200): GPU only
 FRACTIONS = (0.10, 0.25, 0.50, 1.00)
 GAP_PCT = 1.0  # a gap over 1% of the metric's scale ...
 T_LIMIT = 3.0  # ... and over 3 seed spreads (|Welch t|) disagrees
-VERDICT_ORDER = {"disagrees": 0, "agrees": 1, "not judged": 2}
+# A metric undefined (nan) in every seed on one side only is a difference too, so it sorts with the disagreements.
+VERDICT_ORDER = {"disagrees": 0, "undefined on one side": 1, "agrees": 2, "not judged": 3}
 
 
 @dataclass
@@ -39,6 +40,8 @@ class Comparison:
     gap_pct: float
     welch_t: float | None
     verdict: str
+    n_gpu: int = 0  # seeds where the metric is defined at t
+    n_py: int = 0
 
 
 def checkpoints(steps: int) -> list[int]:
@@ -81,13 +84,17 @@ def compare(exp_id: str, gpu: list[Series], py: list[Series], steps: int) -> lis
         scale = max((abs(m) for m in py_means), default=0.0)
         for t in checkpoints(steps):
             g, p = _values(gpu, metric, t), _values(py, metric, t)
-            if not g or not p:  # undefined on one side (e.g. a seasons metric without seasons)
-                out.append(Comparison(exp_id, metric, t, math.nan, math.nan, math.nan, None, "not judged"))
+            gm = statistics.fmean(g) if g else math.nan
+            pm = statistics.fmean(p) if p else math.nan
+            if not g or not p:
+                # Undefined on both sides (e.g. a seasons metric without seasons) is not judged; on one side only,
+                # it is a difference.
+                verdict = "not judged" if not g and not p else "undefined on one side"
+                out.append(Comparison(exp_id, metric, t, gm, pm, math.nan, None, verdict, len(g), len(p)))
                 continue
-            gm, pm = statistics.fmean(g), statistics.fmean(p)
             gap = 100 * abs(gm - pm) / scale if scale else math.nan
             welch = _welch_t(g, p)
-            out.append(Comparison(exp_id, metric, t, gm, pm, gap, welch, _verdict(scale, gap, welch)))
+            out.append(Comparison(exp_id, metric, t, gm, pm, gap, welch, _verdict(scale, gap, welch), len(g), len(p)))
     return out
 
 
@@ -107,20 +114,24 @@ def render_report(comparisons: list[Comparison], smoke_ok: bool, timings: dict, 
         f"- **Gap:** |GPU − Python| as a percentage of the metric's scale, the largest |Python mean| over the run.",
         f"- **Spread:** Welch's t over seeds.",
         f"- A comparison **disagrees** when its gap is over {GAP_PCT:g}% *and* |t| > {T_LIMIT:g} (or there is no"
-        f" spread on either side). A metric whose Python scale is 0, or that is undefined on a side, is not judged.",
+        f" spread on both sides, so no t).",
+        "- A metric undefined (nan) in every seed on one side only is **undefined on one side**, listed with the"
+        " disagreements. One undefined on both sides, or whose Python scale is 0, is not judged. Seeds where a"
+        " metric is undefined are left out of its means; the n columns count the seeds that remain.",
         "",
-        f"**Counts:** {counts['disagrees']} disagree, {counts['agrees']} agree, {counts['not judged']} not judged.",
+        f"**Counts:** {counts['disagrees']} disagree, {counts['undefined on one side']} undefined on one side,"
+        f" {counts['agrees']} agree, {counts['not judged']} not judged.",
         "",
         f"**Smoke test** ({SMOKE} at xl, visions 10–200, GPU only): {'finished' if smoke_ok else 'FAILED'}.",
         "",
         "## Comparisons",
         "",
-        "| Experiment | Metric | t | GPU mean | Python mean | Gap % | Welch t | Verdict |",
-        "|---|---|---|---|---|---|---|---|",
+        "| Experiment | Metric | t | GPU mean | Python mean | n GPU | n Python | Gap % | Welch t | Verdict |",
+        "|---|---|---|---|---|---|---|---|---|---|",
     ]
     for c in sorted(comparisons, key=lambda c: (VERDICT_ORDER[c.verdict], c.exp_id, c.metric, c.t)):
-        lines.append(f"| {c.exp_id} | {c.metric} | {c.t} | {_num(c.gpu_mean)} | {_num(c.py_mean)} | "
-                     f"{_num(c.gap_pct)} | {_num(c.welch_t)} | {c.verdict} |")
+        lines.append(f"| {c.exp_id} | {c.metric} | {c.t} | {_num(c.gpu_mean)} | {_num(c.py_mean)} | {c.n_gpu} | "
+                     f"{c.n_py} | {_num(c.gap_pct)} | {_num(c.welch_t)} | {c.verdict} |")
     lines += ["", "## Timing", "",
               "Mean seconds per seed. The GPU's are from the fast build, run one seed at a time; Python's were taken "
               "with the stated `--jobs`, sharing the processor.", "",
@@ -188,7 +199,8 @@ def main(argv: list[str] | None = None) -> None:
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text(render_report(comparisons, smoke_ok, timings, machine), encoding="utf-8")
     counts = {v: sum(c.verdict == v for c in comparisons) for v in VERDICT_ORDER}
-    print(f"{args.report}: {counts['disagrees']} disagree, {counts['agrees']} agree, {counts['not judged']} not judged")
+    print(f"{args.report}: {counts['disagrees']} disagree, {counts['undefined on one side']} undefined on one side, "
+          f"{counts['agrees']} agree, {counts['not judged']} not judged")
 
 
 if __name__ == "__main__":

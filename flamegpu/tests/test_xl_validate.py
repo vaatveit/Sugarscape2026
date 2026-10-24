@@ -1,5 +1,7 @@
 """The xl fidelity comparison's rules (xl design, section 5), on synthetic seed series."""
 
+import math
+
 from bridge.xl_validate import checkpoints, compare, render_report
 
 STEPS = 20
@@ -57,6 +59,45 @@ def test_no_spread_judged_by_gap():
 
 def test_zero_scale_not_judged():
     assert _verdicts(_seeds(1.0), _seeds(0.0, (0.0,) * 10)) == {"not judged"}
+
+
+def _with_nan(runs, every_seed=True):
+    """The runs with the metric undefined (nan) in every seed, or in the first half of the seeds."""
+    n = len(runs) if every_seed else len(runs) // 2
+    return [[{**r, "m": math.nan} for r in s] if k < n else s for k, s in enumerate(runs)]
+
+
+def test_undefined_on_one_side_is_flagged():
+    # A metric the GPU leaves undefined where Python has values (or the reverse) is a difference, never hidden.
+    for gpu, py in ((_with_nan(_seeds(100.0)), _seeds(100.0)), (_seeds(100.0), _with_nan(_seeds(100.0)))):
+        rows = compare("X", gpu, py, STEPS)
+        assert {c.verdict for c in rows} == {"undefined on one side"}
+    gpu_nan = compare("X", _with_nan(_seeds(100.0)), _seeds(100.0), STEPS)[0]
+    assert math.isnan(gpu_nan.gpu_mean) and gpu_nan.py_mean == 100.0  # the side that has a value keeps it
+    assert (gpu_nan.n_gpu, gpu_nan.n_py) == (0, 10)
+
+
+def test_undefined_on_both_sides_is_not_judged():
+    assert _verdicts(_with_nan(_seeds(100.0)), _with_nan(_seeds(100.0))) == {"not judged"}
+
+
+def test_seed_counts_show_partly_undefined_seeds():
+    rows = compare("X", _with_nan(_seeds(100.0), every_seed=False), _seeds(100.0), STEPS)
+    assert all((c.n_gpu, c.n_py) == (5, 10) for c in rows)
+
+
+def test_report_shows_one_sided_rows_with_disagreements():
+    rows = (compare("A", _seeds(100.0), _seeds(100.0), STEPS)
+            + compare("B", _with_nan(_seeds(100.0)), _seeds(100.0), STEPS))
+    lines = [line for line in render_report(rows, True, {}, {}).splitlines() if line.startswith("| ")]
+    one_sided = [i for i, line in enumerate(lines) if "undefined on one side" in line]
+    agree = [i for i, line in enumerate(lines) if line.endswith("| agrees |")]
+    assert one_sided and agree and max(one_sided) < min(agree)
+
+
+def test_report_states_the_no_spread_rule_as_coded():
+    # _welch_t has no t only when both sides have no spread.
+    assert "no spread on both sides" in render_report([], True, {}, {})
 
 
 def test_report_lists_disagreements_first():
