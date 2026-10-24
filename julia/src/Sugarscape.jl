@@ -34,6 +34,10 @@ export preference_fraction, welfare, mrs, welfare_score, bargain!, trade_with_ne
 export available_to_lend,
     shortfall, creditworthy, seek_credit!, settle_loans!, credit_on_death!
 
+export intern_disease!,
+    nearest_substring, is_immune, immune_step!, infect!, immune_response!
+export disease_transmit!
+
 include("config.jl")
 include("registry.jl")
 include("maps.jl")
@@ -48,6 +52,7 @@ include("rules/combat.jl")
 include("rules/welfare.jl")
 include("rules/trade.jl")
 include("rules/credit.jl")
+include("rules/disease.jl")
 include("stats.jl")
 include("runner.jl")
 

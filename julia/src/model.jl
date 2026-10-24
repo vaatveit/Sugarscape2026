@@ -362,6 +362,12 @@ function spawn_chapter_draws!(m::Model, a::Agent, tribe::Symbol)
             )
         cfg.foresight === nothing || (a.foresight = draw(rng, cfg.foresight))
     end
+    # Chapter V draws come last.
+    if cfg.disease_list > 0
+        a.immune_genotype = rand(rng, UInt64) & tag_mask(cfg.immune_length)
+        a.immune, a.nimmune = a.immune_genotype, cfg.immune_length  # the phenotype trains on a copy (p.146)
+        a.disease_fee = cfg.disease_fee
+    end
     return a
 end
 

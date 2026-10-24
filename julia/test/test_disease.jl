@@ -65,7 +65,6 @@ end
     m = host()
     @test disease!(m, "101") == disease!(m, "101")
     @test disease!(m, "101") != disease!(m, "1010")  # same bits, different length
-    a = put_agent(tiny_model(ones(Int, 3, 3)), 0, 0)
     m2 = Model(Config(; initial_population=0))
     x, y = disease!(m2, "11"), disease!(m2, "11")
     new_agent!(m2, 0, 0, 1, 1, 10.0).diseases = [x]
