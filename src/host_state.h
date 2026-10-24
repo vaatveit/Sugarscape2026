@@ -3,6 +3,7 @@
 #define SRC_HOST_STATE_H_
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <random>
 #include <stdexcept>
@@ -13,6 +14,7 @@
 
 #include "config.h"
 #include "landscape_io.h"
+#include "metrics.h"
 
 struct InvariantError : std::runtime_error {  // --check found a violation: exit 3
     using std::runtime_error::runtime_error;
@@ -32,6 +34,8 @@ struct RunState {
     std::string dump_agents, dump_landscape;
     std::optional<unsigned int> dump_at;
     bool check = false;
+    std::unique_ptr<CsvWriter> csv;  // --out
+    unsigned int metrics_every = 1;
 };
 
 RunState& state();
@@ -43,6 +47,8 @@ flamegpu::AgentVector make_cells(flamegpu::ModelDescription& model);
 
 // Dumps for --dump-at and the --check invariants, for the period that has just completed (t = 0 after init).
 void write_dumps(flamegpu::HostAPI* api, unsigned int t);
+// The metrics row for period t, when --out is given and t % --metrics-every == 0.
+void write_metrics(flamegpu::HostAPI* api, unsigned int t);
 void check_invariants(flamegpu::HostAPI* api, unsigned int t, unsigned int deaths, unsigned int births);
 
 FLAMEGPU_HOST_FUNCTION_DECL(init_landscape)  // init: capacity, sugar, occupied; t = 0 outputs

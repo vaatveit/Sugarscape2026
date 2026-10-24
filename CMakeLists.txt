@@ -45,6 +45,8 @@ SET(ALL_SRC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/host_state.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/host_state.cu
     ${CMAKE_CURRENT_SOURCE_DIR}/src/checks.cu
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/metrics.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/metrics.cu
 )
 
 # Add the executable and set required flags for the target

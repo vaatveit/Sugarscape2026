@@ -97,6 +97,26 @@ flamegpu::AgentVector make_cells(flamegpu::ModelDescription& model) {
     return flamegpu::AgentVector(model.Agent("cell"), static_cast<unsigned int>(state().cfg.cells()));
 }
 
+void write_metrics(flamegpu::HostAPI* api, unsigned int t) {
+    RunState& s = state();
+    if (!s.csv || t % s.metrics_every != 0) return;
+    flamegpu::DeviceAgentVector pop = api->agent("citizen").getPopulationData();
+    AgentColumns c;
+    const unsigned int n = pop.size();
+    for (auto* v : {&c.x, &c.y, &c.vision, &c.metabolism}) v->reserve(n);
+    for (unsigned int i = 0; i < n; ++i) {
+        const auto a = pop[i];
+        c.x.push_back(a.getVariable<int>("x"));
+        c.y.push_back(a.getVariable<int>("y"));
+        c.vision.push_back(a.getVariable<int>("vision"));
+        c.metabolism.push_back(a.getVariable<int>("metabolism"));
+        c.sugar.push_back(a.getVariable<float>("sugar"));
+        c.moved.push_back(a.getVariable<unsigned int>("moved"));
+        c.neighbors.push_back(a.getVariable<unsigned int>("neighbors"));
+    }
+    s.csv->write(compute_metrics(c, s.cfg, s.capacity, t));
+}
+
 FLAMEGPU_INIT_FUNCTION(init_landscape) {
     RunState& s = state();
     auto capacity = FLAMEGPU->environment.getMacroProperty<unsigned int, MAX_CELLS>("capacity");
@@ -110,6 +130,7 @@ FLAMEGPU_INIT_FUNCTION(init_landscape) {
     s.population = static_cast<unsigned int>(s.initial_sites.size());
     write_dumps(FLAMEGPU, 0);
     check_invariants(FLAMEGPU, 0, 0, 0);
+    write_metrics(FLAMEGPU, 0);
 }
 
 FLAMEGPU_HOST_FUNCTION(begin_period) {
@@ -167,5 +188,6 @@ FLAMEGPU_STEP_FUNCTION(end_period) {
     deaths_prop = 0u;
     write_dumps(FLAMEGPU, t);
     check_invariants(FLAMEGPU, t, deaths, s.births);
+    write_metrics(FLAMEGPU, t);
     s.population = FLAMEGPU->agent("citizen").count();
 }

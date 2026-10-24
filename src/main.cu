@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
+#include <memory>
 #include <numeric>
 #include <optional>
 #include <string>
@@ -136,6 +137,13 @@ int main(int argc, const char** argv) {
     s.dump_landscape = opts.dump_landscape;
     if (opts.dump_at) s.dump_at = static_cast<unsigned int>(*opts.dump_at);
     s.check = opts.check;
+    s.metrics_every = static_cast<unsigned int>(opts.metrics_every);
+    try {
+        if (!opts.out.empty()) s.csv = std::make_unique<CsvWriter>(opts.out);
+    } catch (const std::runtime_error& e) {
+        std::fprintf(stderr, "sugarscape_gpu: %s\n", e.what());
+        return 2;
+    }
 
     try {
         flamegpu::ModelDescription model("sugarscape");
