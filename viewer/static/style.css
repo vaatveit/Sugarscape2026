@@ -39,6 +39,8 @@ h2 { font-size: 0.95rem; margin: 0 0 6px; }
 .start { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .start select { max-width: min(560px, 100%); }
 .start input { width: 6em; }
+.start .xl-switch { display: inline-flex; align-items: center; gap: 4px; }
+.start .xl-switch input { width: auto; min-block-size: 0; }
 .run-info { margin: 8px 0 0; color: var(--muted); font-variant-numeric: tabular-nums; }
 .error { margin: 4px 0 0; color: var(--error); font-weight: 600; }
 .error:empty { display: none; }
@@ -52,6 +54,7 @@ main {
 @media (max-width: 900px) { main { grid-template-columns: minmax(0, 1fr); } }
 
 figure { margin: 0; }
+.board-figure { overflow: auto; } /* an xl board keeps whole pixels per cell and scrolls rather than shrink */
 figcaption { color: var(--muted); font-size: 0.85rem; margin-top: 4px; }
 
 #board {
@@ -63,6 +66,8 @@ figcaption { color: var(--muted); font-size: 0.85rem; margin-top: 4px; }
   border: 1px solid var(--border);
   cursor: crosshair;
 }
+/* xl: the inline size is the content box, exactly the board's device pixels; never smoothed (xl review #1) */
+#board.xl { box-sizing: content-box; image-rendering: pixelated; }
 #chart {
   display: block;
   width: 100%;

@@ -850,6 +850,7 @@ in winter, is untested (pulse growth is). Beyond that, look for the original pro
 | Rules | `sugarscape/rules/`; Schelling and Ring World in `sugarscape/variants/` |
 | Experiments and targets | `experiments/registry.py`, `replication/targets.py` |
 | Viewer (watch one run in the browser) | `viewer/`; [design](docs/superpowers/specs/2026-10-24-viewer-design.md) |
+| xl, the 500×500 workload for comparing implementations | [docs/xl.md](docs/xl.md); `sugarscape/xl.py`, `sugarscape/maps/xl.py`; [design](docs/superpowers/specs/2026-10-24-xl-design.md) |
 | Probe scripts behind the records; MASON, Ascape, SugarscapeCW and nkremerh harnesses | [diagnostics/](diagnostics/README.md), [diagnostics/mason/](diagnostics/mason/README.md), [diagnostics/ascape/](diagnostics/ascape/README.md), [diagnostics/sugarscapecw/](diagnostics/sugarscapecw/README.md), [diagnostics/nkremerh/](diagnostics/nkremerh/README.md) |
 
 ```bash
@@ -897,3 +898,19 @@ What the page shows, and how to read it:
 Keyboard: space plays and pauses, and the arrow keys step one period. `--port N` picks the port and
 `--no-browser` skips opening a tab. The page's encoding tests run with `node --test "tests/js/*.test.mjs"`, and the
 suite runs them too when Node is installed.
+
+## xl
+
+xl is the sugarscape at 10× the resolution: 500 × 500 sites, 100× the agents, and vision, starting blocks and
+pollution diffusion scaled to match, so a run looks like a regular one, only more detailed. It is the shared
+workload for comparing this model with the FLAME GPU port and a planned Julia version. [docs/xl.md](docs/xl.md) is
+the contract for other implementations: the map file and its checksum, the configuration table, and the timing
+measures.
+
+```bash
+python -m experiments.run II-4 --xl --seeds 1
+```
+
+This writes the xl run to `results-xl/`. Every run, regular or xl, also writes `timing.csv` (setup, stepping and
+metrics seconds per seed) and `machine.txt`. In the viewer, tick **xl** before Start. In Python an xl period takes
+seconds rather than milliseconds (about 4–6 s for II-4's rules).

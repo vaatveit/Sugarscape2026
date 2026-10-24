@@ -208,7 +208,8 @@ class Model:
             and self.t >= cfg.diffusion_start
             and self.t % cfg.diffusion_period == 0
         ):
-            self.landscape.diffuse()
+            for _ in range(cfg.diffusion_passes):
+                self.landscape.diffuse()
         self.t += 1
 
     def run(self, steps: int, observer: Callable[["Model"], None] | None = None) -> None:

@@ -21,11 +21,27 @@ export const OUTLINE = "#1d1d1f";
 export const OUTLINE_WIDTH = 0.06; // fraction of a cell, at least one device pixel
 const UNIFORM_RADIUS = 0.4;
 
+// xl runs (500 x 500) draw each cell as about one pixel, with each agent filling its cell: no room for the outline.
+// So xl has its own palettes: a paler landscape (the same blend at XL_WEIGHT, the smallest weight tried at which all
+// 33 x 33 eighths still draw distinctly) and agent colors with contrast >= 3 against every xl cell (3.26 at worst,
+// tested). The bands still darken with wealth; the tribes stay red and blue, as the book colors them.
+export const XL_WEIGHT = 0.3;
+export const PALETTES = {
+  regular: { weight: WEIGHT, tribe: TRIBE_COLORS, neutral: NEUTRAL, bands: BAND_COLORS },
+  xl: {
+    weight: XL_WEIGHT,
+    tribe: { red: "#b71c1c", blue: "#1f5fbf" },
+    neutral: "#333333",
+    bands: ["#b23a0c", "#a01036", "#6d1a7a", "#3a0c6b", "#0a0612"],
+  },
+};
+
 // Cell color for sugar level s and spice level p, each scaled by its run's highest capacity (0 max: no term).
 // Linear in s and p, so different (s, p) pairs never share a color before rounding; rounded half up.
-export function cellColor(s, p, smax, pmax) {
-  const fs = smax > 0 ? (WEIGHT * s) / smax : 0;
-  const fp = pmax > 0 ? (WEIGHT * p) / pmax : 0;
+// `weight` is WEIGHT, or XL_WEIGHT on xl runs.
+export function cellColor(s, p, smax, pmax, weight = WEIGHT) {
+  const fs = smax > 0 ? (weight * s) / smax : 0;
+  const fp = pmax > 0 ? (weight * p) / pmax : 0;
   return WHITE.map((w, i) => Math.floor(w + fs * (YELLOW[i] - w) + fp * (RUST[i] - w) + 0.5));
 }
 
@@ -34,10 +50,10 @@ function levels(max) {
 }
 
 // Legend swatches: whole levels 0..max of each resource, colored by cellColor itself.
-export function legendCells(smax, pmax) {
+export function legendCells(smax, pmax, weight = WEIGHT) {
   const sugar = levels(smax);
   const spice = levels(pmax);
-  return { sugar, spice, colors: sugar.map((s) => spice.map((p) => cellColor(s, p, smax, pmax))) };
+  return { sugar, spice, colors: sugar.map((s) => spice.map((p) => cellColor(s, p, smax, pmax, weight))) };
 }
 
 export function wealth(agent) {
@@ -61,28 +77,28 @@ export function formatWealth(w) {
   return String(w); // shortest exact form
 }
 
-// Agent color by attribute. Adding an attribute later means adding a key.
+// Agent color by attribute, from a palette (PALETTES.regular unless given). Adding an attribute means adding a key.
 export const COLOR_MODES = {
   tribe: {
     label: "tribe",
     available: (info) => Boolean(info.tribes),
-    color: (agent) => TRIBE_COLORS[agent.tribe] ?? NEUTRAL,
-    legend: () => [
-      { label: "red tribe", color: TRIBE_COLORS.red },
-      { label: "blue tribe", color: TRIBE_COLORS.blue },
+    color: (agent, palette = PALETTES.regular) => palette.tribe[agent.tribe] ?? palette.neutral,
+    legend: (palette = PALETTES.regular) => [
+      { label: "red tribe", color: palette.tribe.red },
+      { label: "blue tribe", color: palette.tribe.blue },
     ],
   },
   wealth: {
     label: "wealth (sugar + spice)",
     available: () => true,
-    color: (agent) => BAND_COLORS[bandOf(wealth(agent))],
-    legend: () => BAND_LABELS.map((label, i) => ({ label, color: BAND_COLORS[i] })),
+    color: (agent, palette = PALETTES.regular) => palette.bands[bandOf(wealth(agent))],
+    legend: (palette = PALETTES.regular) => BAND_LABELS.map((label, i) => ({ label, color: palette.bands[i] })),
   },
   none: {
     label: "none",
     available: () => true,
-    color: () => NEUTRAL,
-    legend: () => [{ label: "every agent", color: NEUTRAL }],
+    color: (agent, palette = PALETTES.regular) => palette.neutral,
+    legend: (palette = PALETTES.regular) => [{ label: "every agent", color: palette.neutral }],
   },
 };
 

@@ -15,6 +15,7 @@
     <select id="experiment" required></select>
     <label for="seed">Seed (run index)</label>
     <input id="seed" type="number" min="0" step="1" value="0" required>
+    <label class="xl-switch"><input id="xl" type="checkbox"> xl (500 × 500)</label>
     <button type="submit">Start</button>
   </form>
   <p id="run-info" class="run-info">Pick an experiment and a seed, then press Start.</p>
@@ -25,7 +26,7 @@
   <section class="board-column" aria-label="World">
     <figure class="board-figure">
       <canvas id="board" width="500" height="500"></canvas>
-      <figcaption>The 50 × 50 world after period <span id="caption-t">0</span>, y increasing upward. Hover over a cell for its exact values.</figcaption>
+      <figcaption>The <span id="caption-size">50 × 50</span> world after period <span id="caption-t">0</span>, y increasing upward. Hover over a cell for its exact values.</figcaption>
     </figure>
     <div class="time" role="group" aria-label="Time">
       <button id="back" type="button" aria-label="Step back one period">◀</button>
@@ -50,7 +51,7 @@
   <section class="side-column" aria-label="Details">
     <figure class="chart-figure">
       <canvas id="chart" width="420" height="200"></canvas>
-      <figcaption>Population (living agents) by period. The vertical line marks the period on the board; click to jump. Only the newest 500 periods are kept for the board; older ones are shaded.</figcaption>
+      <figcaption>Population (living agents) by period. The vertical line marks the period on the board; click to jump. Only the newest periods are kept for the board (500, or 100 for xl runs); older ones are shaded.</figcaption>
     </figure>
 
     <div class="menus">
