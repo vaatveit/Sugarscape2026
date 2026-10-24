@@ -118,11 +118,13 @@ class Handler(BaseHTTPRequestHandler):
             raise ApiError(HTTPStatus.NOT_FOUND, "not found")
         try:
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))))
-            exp_id, seed = body["experiment"], body["seed"]
-        except (ValueError, KeyError, TypeError):
-            raise ApiError(HTTPStatus.BAD_REQUEST, 'body must be {"experiment": id, "seed": k}')
+            exp_id, seed, xl = body["experiment"], body["seed"], body.get("xl", False)
+        except (ValueError, KeyError, TypeError, AttributeError):
+            raise ApiError(HTTPStatus.BAD_REQUEST, 'body must be {"experiment": id, "seed": k, "xl": false}')
+        if not isinstance(xl, bool):
+            raise ApiError(HTTPStatus.BAD_REQUEST, f"xl must be true or false, not {xl!r}")
         try:
-            run = Run(exp_id, seed)
+            run = Run(exp_id, seed, xl)
         except ValueError as e:
             raise ApiError(HTTPStatus.BAD_REQUEST, str(e))
         self.server.run = run

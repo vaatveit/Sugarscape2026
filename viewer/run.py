@@ -8,10 +8,12 @@ from dataclasses import replace
 from experiments.registry import EXPERIMENTS
 from sugarscape.config import Config
 from sugarscape.model import Model
+from sugarscape.xl import to_xl
 from viewer.frames import Frame, capture
 
 LEAD = 50  # furthest a request may reach past the latest computed period
 KEEP = 500  # periods kept for scrubbing, the newest ones (user decision 2026-10-24); about 25 KB each
+KEEP_XL = 100  # the same for xl runs, whose frames are about 2.5 MB each (xl design)
 
 
 class OutOfRange(ValueError):
@@ -19,7 +21,7 @@ class OutOfRange(ValueError):
 
 
 class NotKept(OutOfRange):
-    """A period that was computed but has since dropped out of the KEEP-period window."""
+    """A period that was computed but has since dropped out of the run's window of kept periods."""
 
 
 class RunBroken(RuntimeError):
@@ -34,9 +36,9 @@ def catalog() -> list[dict]:
 
 
 class Run:
-    """Run k of an experiment, seeded as experiments/run.py seeds it (base seed + k)."""
+    """Run k of an experiment (or its xl version), seeded as experiments/run.py seeds it (base seed + k)."""
 
-    def __init__(self, exp_id: str, seed_index: int) -> None:
+    def __init__(self, exp_id: str, seed_index: int, xl: bool = False) -> None:
         exp = EXPERIMENTS.get(exp_id)
         if exp is None or exp_id == "TEST-tiny" or not isinstance(exp.config, Config):
             raise ValueError(f"no grid experiment {exp_id!r}")
@@ -45,9 +47,11 @@ class Run:
         self.id = uuid.uuid4().hex  # requests name it, so a replaced run's page can't be fed another run's frames
         self.experiment, self.seed_index = exp, seed_index
         self.seed = exp.config.seed + seed_index
-        self.model = Model(replace(exp.config, seed=self.seed))
+        self.xl = xl
+        self.keep = KEEP_XL if xl else KEEP
+        self.model = Model(replace(to_xl(exp.config) if xl else exp.config, seed=self.seed))
         first = capture(self.model)
-        self._frames: deque[Frame] = deque([first], maxlen=KEEP)  # the newest KEEP periods
+        self._frames: deque[Frame] = deque([first], maxlen=self.keep)  # the newest periods
         self._populations: list[int] = [first.population]  # every period, for the chart
         self._step_lock = threading.Lock()  # one stepper at a time
         self._lock = threading.Lock()  # guards the window and series; held only briefly, never across a step
@@ -94,7 +98,7 @@ class Run:
             if t < 0:
                 raise OutOfRange(f"t={t} is outside 0..{self.latest + LEAD}")
             if t < self.earliest:
-                raise NotKept(f"t={t} is no longer kept: only the last {KEEP} periods are ({self.earliest}..{self.latest})")
+                raise NotKept(f"t={t} is no longer kept: only the last {self.keep} periods are ({self.earliest}..{self.latest})")
             return self._frames[t - self.earliest] if t <= self.latest else None
 
     def populations(self, start: int = 0) -> list[int]:
@@ -112,6 +116,8 @@ class Run:
             "seeds": exp.seeds,
             "seed_index": self.seed_index,
             "seed": self.seed,
+            "xl": self.xl,
+            "keep": self.keep,
             "width": land.width,
             "height": land.height,
             "tribes": bool(cfg.tag_length),
