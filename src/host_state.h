@@ -2,6 +2,7 @@
 #ifndef SRC_HOST_STATE_H_
 #define SRC_HOST_STATE_H_
 
+#include <chrono>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -36,6 +37,10 @@ struct RunState {
     bool check = false;
     std::unique_ptr<CsvWriter> csv;  // --out
     unsigned int metrics_every = 1;
+    // --timing: wall-clock seconds of each period, the GPU synchronised at both ends.
+    bool timing = false;
+    std::chrono::steady_clock::time_point period_start;
+    std::vector<double> period_seconds;
 };
 
 RunState& state();

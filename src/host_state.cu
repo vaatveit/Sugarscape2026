@@ -134,7 +134,12 @@ FLAMEGPU_INIT_FUNCTION(init_landscape) {
 }
 
 FLAMEGPU_HOST_FUNCTION(begin_period) {
-    const RunConfig& cfg = state().cfg;
+    RunState& s = state();
+    if (s.timing) {
+        cudaDeviceSynchronize();
+        s.period_start = std::chrono::steady_clock::now();
+    }
+    const RunConfig& cfg = s.cfg;
     const int t = static_cast<int>(FLAMEGPU->getStepCounter());  // Python's Model.t during the period
     // P (p.47): active from pollution_start until pollution_stop (Python movement.pollution_active).
     const bool polluting = cfg.pollution && t >= cfg.pollution_start && (!cfg.pollution_stop || t < *cfg.pollution_stop);
@@ -182,6 +187,10 @@ FLAMEGPU_HOST_FUNCTION(replace_dead) {
 
 FLAMEGPU_STEP_FUNCTION(end_period) {
     RunState& s = state();
+    if (s.timing) {
+        cudaDeviceSynchronize();  // kernels may still be running when step functions start
+        s.period_seconds.push_back(std::chrono::duration<double>(std::chrono::steady_clock::now() - s.period_start).count());
+    }
     const unsigned int t = FLAMEGPU->getStepCounter() + 1;  // the period just completed
     auto deaths_prop = FLAMEGPU->environment.getMacroProperty<unsigned int>("deaths");
     const unsigned int deaths = deaths_prop;

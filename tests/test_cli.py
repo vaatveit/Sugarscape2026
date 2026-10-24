@@ -1,3 +1,5 @@
+import pytest
+
 from conftest import run_exe
 from gpu import SUGAR_MAP, parse_printed, write_cfg, write_map
 
@@ -112,3 +114,26 @@ def test_world_over_max_cells_is_rejected(exe, tmp_path):
     result = run_exe(exe, "--config", write_cfg(tmp_path), "--tile", "51", "--print-config")
     assert result.returncode == 2
     assert "SUGARSCAPE_MAX_CELLS" in _error(result)
+
+
+# --- Task 10: timing ----------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("build", ["build", "build-fast"])
+def test_timing_json(exe, tmp_path, build):
+    import json
+
+    from bridge.paths import FAST_EXE
+
+    program = exe if build == "build" else FAST_EXE
+    if not program.exists():
+        pytest.skip(f"no {program}")
+    timing = tmp_path / "t.json"
+    result = run_exe(program, "--config", write_cfg(tmp_path, steps="20"), "--timing", timing)
+    assert result.returncode == 0, result.stderr
+    data = json.loads(timing.read_text())
+    assert set(data) == {"cells", "agents_initial", "steps", "simulate_seconds", "step_seconds_mean"}
+    assert data["steps"] == 20 and data["cells"] == 2500 and data["agents_initial"] == 400
+    assert data["step_seconds_mean"] > 0
+    # The periods are most of the simulation's wall-clock time; only initialisation is left out.
+    assert 0.2 * data["simulate_seconds"] <= data["step_seconds_mean"] * data["steps"] <= data["simulate_seconds"]

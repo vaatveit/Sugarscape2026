@@ -1,6 +1,7 @@
 // sugarscape_gpu: the Chapter II Sugarscape rules on FLAME GPU 2.
 // Design: docs/superpowers/specs/2026-10-23-phase1-chapter2-gpu-design.md
 
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
@@ -138,6 +139,7 @@ int main(int argc, const char** argv) {
     if (opts.dump_at) s.dump_at = static_cast<unsigned int>(*opts.dump_at);
     s.check = opts.check;
     s.metrics_every = static_cast<unsigned int>(opts.metrics_every);
+    s.timing = !opts.timing.empty();
     try {
         if (!opts.out.empty()) s.csv = std::make_unique<CsvWriter>(opts.out);
     } catch (const std::runtime_error& e) {
@@ -146,6 +148,7 @@ int main(int argc, const char** argv) {
     }
 
     try {
+        flamegpu::io::Telemetry::suppressNotice();  // telemetry is off (design: Constraints)
         flamegpu::ModelDescription model("sugarscape");
         describe_model(model, cfg);
         flamegpu::CUDASimulation simulation(model);
@@ -158,7 +161,24 @@ int main(int argc, const char** argv) {
         flamegpu::AgentVector cells = make_cells(model);
         simulation.setPopulationData(citizens);
         simulation.setPopulationData(cells);
+        const auto start = std::chrono::steady_clock::now();
         simulation.simulate();
+        const double seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
+        if (!opts.timing.empty()) {
+            // Periods timed by begin_period/end_period with the GPU synchronised, leaving out initialisation (every
+            // site's macro values). FLAME GPU's own step timer stops before the kernels finish when seatbelts are off.
+            const std::vector<double>& steps = s.period_seconds;
+            double step_total = 0;
+            for (const double v : steps) step_total += v;
+            FILE* f = std::fopen(opts.timing.c_str(), "w");
+            if (!f) throw std::runtime_error("cannot write " + opts.timing);
+            std::fprintf(f,
+                         "{\"cells\": %lld, \"agents_initial\": %u, \"steps\": %d, \"simulate_seconds\": %.9g, "
+                         "\"step_seconds_mean\": %.9g}\n",
+                         static_cast<long long>(cfg.cells()), citizens.size(), cfg.steps, seconds,
+                         steps.empty() ? 0.0 : step_total / static_cast<double>(steps.size()));
+            std::fclose(f);
+        }
     } catch (const InvariantError& e) {
         std::fprintf(stderr, "sugarscape_gpu: invariant violated: %s\n", e.what());
         return 3;
