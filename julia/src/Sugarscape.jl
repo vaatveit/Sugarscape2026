@@ -26,6 +26,7 @@ export Model,
     spawn_at!
 export move_agent!, kill!, die!, deaths_this_step, agents_ever, step!, run!, sample_distinct
 export move!, metabolize!, pollution_active
+export METRIC_COLUMNS, collect_metrics, gini, tribe, closeness
 
 include("config.jl")
 include("registry.jl")
@@ -35,5 +36,6 @@ include("agent.jl")
 include("landscape.jl")
 include("model.jl")
 include("rules/movement.jl")
+include("stats.jl")
 
 end
