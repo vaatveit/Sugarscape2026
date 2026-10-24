@@ -21,7 +21,7 @@ measurable outcome lands within an agreed tolerance of the book's value.
 **Non-goals**
 - Synchronous/parallel updating (the book is explicitly sequential, Ch II fn 12).
 - Speed for its own sake; runs only need to be fast enough for multi-seed sweeps.
-- A polished GUI. A viewer comes after the core is verified.
+- A polished GUI. A viewer comes after the core is verified (built 2026-10-24: [viewer design](2026-10-24-viewer-design.md)).
 
 **Anti-goals** (would count as failure even if the code runs)
 - Silently picking a value where the book is silent. Every such choice is a named,

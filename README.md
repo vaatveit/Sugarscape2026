@@ -849,6 +849,7 @@ in winter, is untested (pulse growth is). Beyond that, look for the original pro
 | Chapter records (results, choices, diagnostics) | [chapter-2.md](docs/replication/chapter-2.md), [chapter-3.md](docs/replication/chapter-3.md), [chapter-4.md](docs/replication/chapter-4.md), [chapter-5.md](docs/replication/chapter-5.md), [chapter-6.md](docs/replication/chapter-6.md) |
 | Rules | `sugarscape/rules/`; Schelling and Ring World in `sugarscape/variants/` |
 | Experiments and targets | `experiments/registry.py`, `replication/targets.py` |
+| Viewer (watch one run in the browser) | `viewer/`; [design](docs/superpowers/specs/2026-10-24-viewer-design.md) |
 | Probe scripts behind the records; MASON, Ascape, SugarscapeCW and nkremerh harnesses | [diagnostics/](diagnostics/README.md), [diagnostics/mason/](diagnostics/mason/README.md), [diagnostics/ascape/](diagnostics/ascape/README.md), [diagnostics/sugarscapecw/](diagnostics/sugarscapecw/README.md), [diagnostics/nkremerh/](diagnostics/nkremerh/README.md) |
 
 ```bash
@@ -866,3 +867,31 @@ python -m experiments.run III-4 --seeds 5 --jobs 8
 The first command runs the fast suite. The second writes the replication table for one chapter;
 add `--rerun` to ignore cached results, and use `--chapter VAR` for the book-rule variants. The
 third runs one experiment, saving CSV and PNG output under `results/`.
+
+## Viewer
+
+```bash
+python -m viewer
+```
+
+This starts a local server on 127.0.0.1 and opens a browser tab. Pick any experiment on the sugar and spice
+grid (Schelling and Ring World are not included) and a seed, then press Start. The page shows:
+- **The board.** Cells blend sugar yellow and spice rust by their current levels, and agents are dots colored and
+  sized by the attributes chosen in the menus (tribe and wealth = sugar + spice).
+- **Population over time.** A chart of the number of living agents; click it to jump to a period.
+- **Controls.** Play, pause, speed, step, and a slider back through every period computed so far.
+
+What the page shows, and how to read it:
+- **Exact values on hover.** Hovering over a cell shows its levels and capacities, and over an agent shows its
+  attributes.
+- **Fixed encodings.** The legend maps every color and dot size back to numbers, and nothing rescales from one
+  period to the next. Wealth bands are < 10, 10–30, 30–100, 100–300 and ≥ 300.
+- **Which moment.** The board at period t is the state after period t's rules have all run; t = 0 is the starting
+  placement.
+- **Seeds.** The seed is the run index used everywhere else, so seed k is the run saved as `seed{k}.csv` under
+  `results/`.
+- **When it computes.** Periods are computed only while playing.
+
+Keyboard: space plays and pauses, and the arrow keys step one period. `--port N` picks the port and
+`--no-browser` skips opening a tab. The page's encoding tests run with `node --test "tests/js/*.test.mjs"`, and the
+suite runs them too when Node is installed.
