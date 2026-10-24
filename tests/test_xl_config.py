@@ -58,6 +58,11 @@ def test_xl_refuses_a_world_that_is_not_the_50x50_map():
         to_xl(to_xl(Config()))
 
 
+def test_xl_refuses_a_50x50_world_on_another_map():
+    with pytest.raises(ValueError, match="other-map.txt"):
+        to_xl(Config(sugar_map="other-map.txt"))  # the xl map is the upscale of sugar-map.txt only
+
+
 def test_every_registered_sugarscape_experiment_has_an_xl_config():
     for exp in EXPERIMENTS.values():
         if isinstance(exp.config, Config):
