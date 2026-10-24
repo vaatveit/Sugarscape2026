@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { boardPixels, paintCells } from "../../viewer/static/board.mjs";
+import { boardPixels, cellAt, paintCells } from "../../viewer/static/board.mjs";
 import { COLOR_MODES, PALETTES, cellColor } from "../../viewer/static/encoding.mjs";
 
 const hexRgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
@@ -66,4 +66,18 @@ test("the image holds no color that is neither a cell's nor an agent's", () => {
     assert.ok(allowed.has(Array.from(image.slice(k, k + 3)).join()), `pixel ${k / 4}`);
     assert.equal(image[k + 3], 255);
   }
+});
+
+test("the pointer maps to the cell drawn under it, measured inside the border", () => {
+  // Positions and sizes are the board's content box, measured unrounded; the border-box rect skewed
+  // the mapping by up to 3 cells at the edges of an xl board (xl review #2).
+  const w = 500 / 1.5; // an xl board of 500 device pixels at devicePixelRatio 1.5, in CSS px
+  const per = w / 500;
+  assert.deepEqual(cellAt(0.5 * per, 0.5 * per, w, w, 500, 500), [0, 499]); // top-left cell
+  assert.deepEqual(cellAt(1.5 * per, 1.5 * per, w, w, 500, 500), [1, 498]);
+  assert.deepEqual(cellAt(w - 0.5 * per, w - 0.5 * per, w, w, 500, 500), [499, 0]); // bottom-right cell
+  assert.deepEqual(cellAt(250.5 * per, 249.5 * per, w, w, 500, 500), [250, 250]);
+  assert.equal(cellAt(-0.1, 10, w, w, 500, 500), null);
+  assert.equal(cellAt(10, w, w, w, 500, 500), null);
+  assert.deepEqual(cellAt(14.9, 0, 750 / 1.5, 750 / 1.5, 50, 50), [1, 49]); // regular boards use it too
 });

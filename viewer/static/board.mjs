@@ -8,6 +8,15 @@ export function boardPixels(available, cells) {
   return Math.max(cells, Math.floor(available / cells) * cells);
 }
 
+// The cell under a pointer at (px, py) CSS px from the board's content box, which is w x h CSS px and shows a
+// W x H world with north at the top; null outside it. Measure inside the border, unrounded: the border-box rect
+// is offset by the border, which at about one pixel per cell is a whole cell (xl review #2).
+export function cellAt(px, py, w, h, W, H) {
+  const x = Math.floor((px / w) * W);
+  const row = Math.floor((py / h) * H);
+  return x >= 0 && x < W && row >= 0 && row < H ? [x, H - 1 - row] : null;
+}
+
 function rgbOf(color) {
   return [1, 3, 5].map((i) => parseInt(color.slice(i, i + 2), 16));
 }

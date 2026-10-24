@@ -66,6 +66,8 @@ figcaption { color: var(--muted); font-size: 0.85rem; margin-top: 4px; }
   border: 1px solid var(--border);
   cursor: crosshair;
 }
+/* xl: the inline size is the content box, exactly the board's device pixels; never smoothed (xl review #1) */
+#board.xl { box-sizing: content-box; image-rendering: pixelated; }
 #chart {
   display: block;
   width: 100%;

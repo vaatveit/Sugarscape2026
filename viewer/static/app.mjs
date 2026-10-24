@@ -1,6 +1,6 @@
 // The viewer page: fetches periods from the local server and draws them. Every color, size and legend entry
 // comes from encoding.mjs; this file defines no encoding of its own.
-import { boardPixels, paintCells } from "./board.mjs";
+import { boardPixels, cellAt, paintCells } from "./board.mjs";
 import {
   COLOR_MODES, OUTLINE, OUTLINE_WIDTH, PALETTES, SIZE_MODES, cellColor, formatWealth, legendCells, wealth,
 } from "./encoding.mjs";
@@ -193,7 +193,8 @@ function drawBoard() {
   const { info, frame } = state;
   if (!info || !frame) return;
   if (info.xl) return drawXlBoard();
-  els.board.style.width = els.board.style.height = ""; // back to the stylesheet's size after an xl run
+  els.board.classList.remove("xl"); // back to the stylesheet's size after an xl run
+  els.board.style.width = els.board.style.height = "";
   const { width: W, height: H } = info;
   const { w } = fitCanvas(els.board, W);
   const cell = w / W;
@@ -226,15 +227,27 @@ function drawBoard() {
   }
 }
 
+// The element's content box in CSS px, unrounded (clientWidth and clientLeft round to whole CSS px, which at
+// about one device pixel per cell is half a cell; the board's 1px border is 0.67 CSS px at devicePixelRatio 1.5).
+function contentBox(el) {
+  const r = el.getBoundingClientRect();
+  const s = getComputedStyle(el);
+  const [l, t, rt, b] = [s.borderLeftWidth, s.borderTopWidth, s.borderRightWidth, s.borderBottomWidth].map(parseFloat);
+  return { left: r.left + l, top: r.top + t, width: r.width - l - rt, height: r.height - t - b };
+}
+
 // xl: one solid color per cell, every cell k x k device pixels (k whole, at least 1), never smoothed. The board's
-// CSS size is set to exactly its pixels / devicePixelRatio so the browser doesn't resample it either.
+// content box (class "xl": content-box sizing, so the border sits outside it) is set to exactly its pixels /
+// devicePixelRatio, and it renders pixelated, so the browser doesn't resample it either (xl review #1).
 function drawXlBoard() {
   const { info, frame } = state;
   const W = info.width, H = info.height;
   const dpr = window.devicePixelRatio || 1;
   if (state.boardPx === null) {
-    els.board.style.width = els.board.style.height = ""; // measure the space the stylesheet gives the board
-    state.boardPx = boardPixels(Math.round(els.board.getBoundingClientRect().width * dpr), W);
+    els.board.classList.remove("xl"); // measure the content box the stylesheet gives the board
+    els.board.style.width = els.board.style.height = "";
+    state.boardPx = boardPixels(Math.floor(contentBox(els.board).width * dpr + 1e-6), W);
+    els.board.classList.add("xl");
   }
   const n = state.boardPx;
   if (els.board.width !== n || els.board.height !== n) els.board.width = els.board.height = n;
@@ -512,20 +525,20 @@ async function init() {
     goTo(Math.max(state.earliest, Math.min(state.latest, Math.floor(frac * xmax + 0.5))));
   });
 
-  els.board.addEventListener("mousemove", (event) => {
+  // Pointer events, not mouse events: their coordinates keep fractions of a CSS pixel, and an xl cell is 0.67 CSS px
+  // at devicePixelRatio 1.5 (MouseEvent.clientX is a whole number, so some cells could never be hovered).
+  els.board.addEventListener("pointermove", (event) => {
     if (!state.info) return;
-    const rect = els.board.getBoundingClientRect();
     const { width: W, height: H } = state.info;
-    const x = Math.floor(((event.clientX - rect.left) / rect.width) * W);
-    const row = Math.floor(((event.clientY - rect.top) / rect.height) * H);
-    const cell = x >= 0 && x < W && row >= 0 && row < H ? [x, H - 1 - row] : null;
+    const box = contentBox(els.board);
+    const cell = cellAt(event.clientX - box.left, event.clientY - box.top, box.width, box.height, W, H);
     if (String(cell) !== String(state.hoverCell)) {
       state.hoverCell = cell;
       drawBoard();
       updateHover();
     }
   });
-  els.board.addEventListener("mouseleave", () => { state.hoverCell = null; drawBoard(); updateHover(); });
+  els.board.addEventListener("pointerleave", () => { state.hoverCell = null; drawBoard(); updateHover(); });
 
   document.addEventListener("keydown", (event) => {
     if (event.target.closest("input, select, textarea, button") || !state.info) return;
