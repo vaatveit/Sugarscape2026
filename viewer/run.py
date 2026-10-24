@@ -11,6 +11,10 @@ from viewer.frames import Frame, capture
 LEAD = 50  # furthest a request may reach past the latest computed period
 
 
+class OutOfRange(ValueError):
+    """A period the run can't serve yet; kept apart from any ValueError the model itself raises."""
+
+
 def catalog() -> list[dict]:
     """Experiments on the sugar/spice grid (Schelling and Ring World excluded), the book's first, then VAR-."""
     grid = [e for i, e in EXPERIMENTS.items() if isinstance(e.config, Config) and i != "TEST-tiny"]
@@ -41,7 +45,7 @@ class Run:
         """The state after period t, stepping the model up to t first if it hasn't got there."""
         with self._lock:
             if t < 0 or t > self.latest + LEAD:
-                raise ValueError(f"t={t} is outside 0..{self.latest + LEAD}")
+                raise OutOfRange(f"t={t} is outside 0..{self.latest + LEAD}")
             while self.latest < t:
                 self.model.step()
                 self._frames.append(capture(self.model))
