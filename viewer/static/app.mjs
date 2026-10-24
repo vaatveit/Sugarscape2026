@@ -3,6 +3,8 @@
 import {
   COLOR_MODES, OUTLINE, OUTLINE_WIDTH, SIZE_MODES, cellColor, formatWealth, legendCells, wealth,
 } from "./encoding.mjs";
+import { pause } from "./pace.mjs";
+import { PopulationSeries } from "./series.mjs";
 
 const PREFETCH = 4; // periods requested ahead of the next one while playing (at most 5 in flight)
 const CACHE_LIMIT = 300;
@@ -24,7 +26,7 @@ const state = {
   target: 0, // the period the user last asked to see
   latest: 0,
   earliest: 0, // oldest period the server still keeps (it keeps the newest 500)
-  populations: [],
+  populations: new PopulationSeries(),
   popRequest: null,
   cache: new Map(), // t -> decoded frame
   inflight: new Map(), // t -> promise
@@ -95,7 +97,7 @@ function refreshPopulations() {
   state.popRequest = api(`/api/population?run=${state.info.run}&from=${state.populations.length}`).then((json) => {
     if (runId !== state.runId) return;
     setLatest(json.latest, json.earliest);
-    if (json.from === state.populations.length) state.populations.push(...json.counts);
+    state.populations.append(json.from, json.counts);
     drawChart();
     updateStatus();
   }).catch(showError).finally(() => {
@@ -158,9 +160,7 @@ async function playLoop(gen) {
     if (!current()) return;
     state.target = frame.t;
     setFrame(frame);
-    const speed = els.speed.value;
-    const wait = speed === "max" ? 0 : 1000 / Number(speed) - (performance.now() - started);
-    await new Promise((resolve) => (wait > 0 ? setTimeout(resolve, wait) : requestAnimationFrame(resolve)));
+    await pause(els.speed.value, performance.now() - started);
   }
 }
 
@@ -234,7 +234,7 @@ function drawChart() {
   g.clearRect(0, 0, cw, ch);
   const pops = state.populations;
   const xmax = Math.max(1, pops.length - 1);
-  const ymax = Math.max(1, ...pops);
+  const ymax = Math.max(1, pops.max);
   const ystep = niceStep(ymax, 4);
   const ytop = Math.ceil(ymax / ystep) * ystep;
   const xstep = niceStep(xmax, 5);
@@ -266,8 +266,9 @@ function drawChart() {
     g.strokeStyle = style.getPropertyValue("--accent");
     g.lineWidth = 1.5;
     g.beginPath();
-    pops.forEach((n, t) => (t ? g.lineTo(px(t), py(n)) : g.moveTo(px(t), py(n))));
-    if (pops.length === 1) g.lineTo(px(0) + 1, py(pops[0]));
+    g.moveTo(px(0), py(pops.at(0)));
+    for (let t = 1; t < pops.length; t++) g.lineTo(px(t), py(pops.at(t)));
+    if (pops.length === 1) g.lineTo(px(0) + 1, py(pops.at(0)));
     g.stroke();
   }
   if (state.frame) {
@@ -404,7 +405,8 @@ async function startRun(experiment, seed) {
     if (seq !== state.startSeq) return; // a later Start press owns the page
     state.runId += 1;
     Object.assign(state, {
-      info, frame: null, target: 0, latest: 0, earliest: 0, populations: [], popRequest: null, hoverCell: null,
+      info, frame: null, target: 0, latest: 0, earliest: 0, populations: new PopulationSeries(),
+      popRequest: null, hoverCell: null,
     });
     state.cache.clear();
     state.inflight.clear();
