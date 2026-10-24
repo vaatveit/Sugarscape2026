@@ -13,8 +13,10 @@ A GPU version of the Chapter II rules of Epstein and Axtell's Sugarscape, built 
 - Visual Studio with the C++ desktop workload. The build uses the CMake and Ninja that ship with
   Visual Studio, run inside `vcvars64`. `scripts/build.cmd` defaults to
   `C:\Program Files\Microsoft Visual Studio\18\Insiders`; set `VS_ROOT` for another install.
-- Python 3.14 for the bridge and tests, plus a checkout of Sugarscape2026, found through
-  `SUGARSCAPE_ROOT` (default `C:\Projects\Sugarscape2026`).
+- Python 3.14 for the bridge and tests, plus the Sugarscape2026 Python project. It is found as the
+  folder containing this one, which is where it lives inside the Sugarscape2026 repository
+  (`flamegpu/`). For a standalone checkout it defaults to `C:\Projects\Sugarscape2026`.
+  `SUGARSCAPE_ROOT` overrides both.
 
 FLAME GPU 2 is AGPL-3.0 licensed, and so is the template this project started from. FLAME GPU's
 usage statistics (telemetry) are switched off in the build and in every script here.

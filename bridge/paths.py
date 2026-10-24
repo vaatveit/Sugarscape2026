@@ -7,7 +7,18 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 # The Python reference model, read but never written (design: Non-goals).
-SUGARSCAPE_ROOT = Path(os.environ.get("SUGARSCAPE_ROOT", r"C:\Projects\Sugarscape2026"))
+DEFAULT_SUGARSCAPE_ROOT = r"C:\Projects\Sugarscape2026"
+
+
+def default_sugarscape_root(project_root: Path) -> Path:
+    """The parent folder when this project is a subfolder of the Python project, else the standalone default."""
+    parent = Path(project_root).parent
+    if (parent / "sugarscape" / "config.py").is_file():
+        return parent
+    return Path(DEFAULT_SUGARSCAPE_ROOT)
+
+
+SUGARSCAPE_ROOT = Path(os.environ.get("SUGARSCAPE_ROOT", default_sugarscape_root(PROJECT_ROOT)))
 if str(SUGARSCAPE_ROOT) not in sys.path:
     sys.path.insert(0, str(SUGARSCAPE_ROOT))
 
