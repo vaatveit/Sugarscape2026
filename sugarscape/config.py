@@ -63,19 +63,20 @@ class Config:
     # (tribe "blue"|"red", x0, y0, w, h, n); non-empty replaces placement/initial_population
     initial_blocks: tuple[tuple[str, int, int, int, int, int], ...] = ()
     replacement_same_tribe: bool = False  # R with newcomers of the dead agent's tribe (p.86)
-    # Reproduction (docs/replication/chapter-3.md). p.55's rule is a threshold of 1.0 (the whole birth
-    # endowment). The default 0.83 is a fitted departure (fitted to Fig III-1's steady population alone),
-    # adopted by user decision 2026-10-22; the book's rule runs as the VAR-book experiments.
-    fertility_threshold: float = 0.83  # share of its birth endowment an agent must hold to be fertile
+    # Reproduction (docs/replication/chapter-3.md). p.55's threshold of 1.0 (the whole birth endowment).
+    # From 2026-10-22 to 2026-10-23 the default was a fitted 0.83; it runs as the VAR-fit83 experiments.
+    fertility_threshold: float = 1.0  # share of its birth endowment an agent must hold to be fertile
     child_share: float = 0.5  # share of its initial endowment each parent gives a child (p.55)
-    # Labelled departures from rule S (README candidates C1 and C3; VAR-c1c3fit), off by default. Left out of
-    # repr so saved results' fingerprints are unchanged; experiments.run.fingerprint adds them when set.
-    mate_contact: str = field(default="neighbors", repr=False)  # "vision": partners in sight along the lattice
+    # Rule S options (README candidates C1 and C3, and integer gifts). Left out of repr; experiments.run.fingerprint
+    # adds them when they leave their defaults. The defaults (user decision, 2026-10-23) are partners in sight and
+    # integer gifts; p.55-56 as written (the four neighbors, exact halves) runs as the VAR-book experiments.
+    # "vision": partners in sight along the lattice (C1, a departure from p.56); "neighbors": the four neighbors
+    mate_contact: str = field(default="vision", repr=False)
     child_gift: str = field(default="endowment", repr=False)  # "capped": each parent gives min(5, its sugar)
     child_threshold: str = field(default="endowment", repr=False)  # "redraw": from the founders' range
-    # "down": each parent's gift rounds down to a whole unit, as in SugarscapeCW (VAR-intgift); the reading of
-    # p.55 if the original kept sugar as integers, which the book doesn't say.
-    gift_rounding: str = field(default="exact", repr=False)
+    # "down": each parent's gift rounds down to a whole unit, as in SugarscapeCW; the reading of p.55 if the
+    # original kept sugar as integers, which the book doesn't say. "exact": half, unrounded.
+    gift_rounding: str = field(default="down", repr=False)
 
     # Chapter IV. New draws are gated by these and come after earlier draws.
     spice: bool = False  # second commodity (p.96); spice map = sugar map mirrored east-west

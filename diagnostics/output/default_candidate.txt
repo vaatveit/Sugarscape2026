@@ -1,0 +1,87 @@
+Defaults: the fitted 0.83 against p.55's threshold with exact gifts, integer gifts, or integer gifts and C1. Rerun: III-1, III-3, III-4, III-5, III-7, III-15, IV-14, IV-17, IV-18, IV-A5, VI-1, VI-2, VI-3
+
+| Target | Book | default (θ=0.83) | p.55 (θ=1.0) | integer gifts (θ=1.0) | integer gifts + C1 (θ=1.0) |
+|---|---|---|---|---|---|
+| III-1 steady population | 500 | 478 pass | 360 near | 454 pass | 555 pass |
+| III-1 small fluctuations | 0.1 | 0.065 pass | 0.059 pass | 0.0609 pass | 0.11 near |
+| III-1 mean vision at t≈900 | 5.3 | 5.64 pass | 5.68 pass | 5.58 pass | 5.57 pass |
+| III-1 mean metabolism, t=300–900 | 1 | 1 pass | 1 pass | 1 pass | 1 pass |
+| III-3 oscillation period | 200 | 412 fail (3/5) | 495 fail (2/5) | 532 fail (2/5) | 393 fail |
+| III-3 population floor | 250 | 32.8 fail | 18.4 fail | 20.8 fail | 201 pass |
+| III-3 agents that ever lived | 12500 | 3.69e+03 fail | 1.61e+03 fail | 2.29e+03 fail | 9.93e+03 near |
+| III-4 oscillation period | 125 | 132 pass | 136 pass | 111 pass | 104 pass |
+| III-4 oscillation range | 1000 | 106 fail | 120 fail | 526 near | 598 near |
+| III-5 extinction frequency | — | 0 fail | 0 fail | 0 fail | 0 fail |
+| III-7 Gini with inheritance | 0.743 | 0.31 fail | 0.346 fail | 0.337 fail | 0.312 fail |
+| III-7 mean vision at t≈900 | 4.3 | 5.19 fail | 5.13 fail | 5.18 fail | 5.37 fail |
+| III-15 Red and Blue on opposite mountains | 0.45 | 0 fail | 0.05 fail | 0 fail | 0 fail |
+| III-15 Red dominates both | 0.25 | 0.2 pass | 0.2 pass | 0.25 pass | 0.45 near |
+| III-15 Blue dominates both | 0.25 | 0.5 near | 0.1 pass | 0.35 pass | 0.4 pass |
+| III-15 extinction (small frequency) | — | 0.1 pass | 0.3 fail | 0.3 fail | 0.05 pass |
+| IV-14 dispersion with S | 0.37 | 0.39 pass | — | 0.332 fail (2/5) | 0.378 pass |
+| IV-17 dispersion with S and K | 0.45 | 0.332 fail (1/5) | — | 0.407 fail (1/5) | 0.271 near (3/5) |
+| IV-18 long-run mean foresight | 4.9 | — | — | 5.94 fail (1/5) | 5.6 near (4/5) |
+| IV-A5 active loans | 187 | 149 pass | 106 pass | 123 pass | 137 pass |
+| IV-A5 agents both lending and borrowing | 21 | 28.7 pass | 20.9 pass | 23.6 pass | 22.1 pass |
+| IV-A5 hierarchy levels | 5 | 6.8 pass | 7 pass | 6.2 pass | 6.6 pass |
+| VI-1 population at t≈50 | 155 | 40.8 fail | 36.2 fail | 36.6 fail | 39.7 fail |
+| VI-1 Gini of total wealth | 0.246 | 0.303 near | 0.318 near | 0.32 near | 0.277 pass |
+| VI-1 average neighbors | 0.7 | 0.358 fail | 0.333 fail | 0.354 fail | 0.351 fail |
+| VI-1 average fertility | 1.3 | 0.361 fail | 0.26 fail | 0.258 fail | 0.416 fail |
+| VI-1 best-friend closeness | 0.86 | 0.744 near | 0.726 near | 0.729 near | 0.75 near |
+| VI-1 friend closeness | 0.79 | 0.637 near | 0.637 near | 0.627 near | 0.643 near |
+| VI-1 mean price (ln p) | 0 | -0.0213 pass | -0.0214 pass | 0.0241 pass | -0.0265 pass |
+| VI-1 price dispersion | 0.35 | 0.334 pass | 0.334 pass | 0.331 pass | 0.352 pass |
+| VI-1 trades per period | 125 | 14.9 fail | 11.8 fail | 12.8 fail | 15.6 fail |
+| VI-1 active loans | 215 | 0.248 fail | 0.21 fail | 0.171 fail | 1.15 fail |
+| VI-1 agents both lending and borrowing | 37 | 0 fail | 0 fail | 0 fail | 0.133 fail |
+| VI-1 infected fraction dips | 0.6 | 0 fail | 0 fail | 0 fail | 0 fail |
+| VI-1 infected fraction recovers | 0.85 | 0 fail (4/5) | 0 fail (4/5) | 0 fail (3/5) | 0 fail |
+| VI-1 average diseases | 2.26 | 0 fail (4/5) | 0 fail (4/5) | 0 fail (3/5) | 0 fail |
+| VI-1 spread of diseases per agent | 1.47 | 0 fail (4/5) | 0 fail (4/5) | 0 fail (3/5) | 0 fail |
+| VI-2 crash by t≈20 | 130 | 213 fail | 212 fail | 212 fail | 217 fail |
+| VI-2 extinction frequency | — | 0.1 fail | 0.2 fail | 0.5 pass | 0 fail |
+| VI-3 early decline as without trade | 1 | 1.11 pass | 1.15 pass | 1.15 pass | 1.11 pass |
+| VI-3 near-extinction minimum | 65 | 36.4 fail | 26.6 fail | 26.8 fail | 66.2 pass |
+| VI-3 first peak | 1190 | 308 fail | 272 fail | 270 fail | 831 near |
+| VI-3 oscillation floor | 700 | 204 fail | 153 fail | 206 fail | 678 pass |
+| VI-3 oscillation ceiling | 1200 | 534 fail | 358 fail | 416 fail | 960 pass |
+| VI-3 oscillation period | 115 | 241 fail (2/5) | 322 fail (2/5) | — | 221 fail (4/5) |
+
+Totals over all non-variant targets (pass / near / fail):
+  default (θ=0.83): 95 / 22 / 52 of 169  (affected experiments: 14 / 4 / 27 of 45)
+  p.55 (θ=1.0): 93 / 22 / 54 of 169  (affected experiments: 12 / 4 / 29 of 45)
+  integer gifts (θ=1.0): 95 / 22 / 52 of 169  (affected experiments: 14 / 4 / 27 of 45)
+  integer gifts + C1 (θ=1.0): 99 / 27 / 43 of 169  (affected experiments: 18 / 9 / 18 of 45)
+
+Status changes, default -> p.55 (θ=1.0):
+  III-1 steady population: pass -> near (478 pass -> 360 near)
+  III-15 Blue dominates both: near -> pass (0.5 near -> 0.1 pass)
+  III-15 extinction (small frequency): pass -> fail (0.1 pass -> 0.3 fail)
+  IV-14 dispersion with S: pass -> fail (0.39 pass -> —)
+
+Status changes, default -> integer gifts (θ=1.0):
+  III-4 oscillation range: fail -> near (106 fail -> 526 near)
+  III-15 Blue dominates both: near -> pass (0.5 near -> 0.35 pass)
+  III-15 extinction (small frequency): pass -> fail (0.1 pass -> 0.3 fail)
+  IV-14 dispersion with S: pass -> fail (0.39 pass -> 0.332 fail (2/5))
+  VI-2 extinction frequency: fail -> pass (0.1 fail -> 0.5 pass)
+
+Status changes, default -> integer gifts + C1 (θ=1.0):
+  III-1 small fluctuations: pass -> near (0.065 pass -> 0.11 near)
+  III-3 population floor: fail -> pass (32.8 fail -> 201 pass)
+  III-3 agents that ever lived: fail -> near (3.69e+03 fail -> 9.93e+03 near)
+  III-4 oscillation range: fail -> near (106 fail -> 598 near)
+  III-15 Red dominates both: pass -> near (0.2 pass -> 0.45 near)
+  III-15 Blue dominates both: near -> pass (0.5 near -> 0.4 pass)
+  IV-17 dispersion with S and K: fail -> near (0.332 fail (1/5) -> 0.271 near (3/5))
+  IV-18 long-run mean foresight: fail -> near (— -> 5.6 near (4/5))
+  VI-1 Gini of total wealth: near -> pass (0.303 near -> 0.277 pass)
+  VI-3 near-extinction minimum: fail -> pass (36.4 fail -> 66.2 pass)
+  VI-3 first peak: fail -> near (308 fail -> 831 near)
+  VI-3 oscillation floor: fail -> pass (204 fail -> 678 pass)
+  VI-3 oscillation ceiling: fail -> pass (534 fail -> 960 pass)
+
+real	18m14.031s
+user	0m0.015s
+sys	0m0.016s

@@ -13,8 +13,10 @@ design is in [the spec](docs/superpowers/specs/2026-10-21-sugarscape-design.md),
 ## The short version
 
 - **Every rule in the book is implemented**, with 96 registered experiments and 169 measured
-  targets. Across the targets, **95 pass, 22 are near and 52 fail**. (Before the follow-up added 28
-  early carrying-capacity rows and tightened "near", 141 targets scored 68 / 30 / 43.)
+  targets. Across the targets, **99 pass, 27 are near and 43 fail**, under the default rule S since
+  2026-10-23 (integer gifts and partners in sight; below). Under the previous default, a fitted
+  threshold of 0.83, they scored 95 / 22 / 52. (Before the follow-up added 28 early
+  carrying-capacity rows and tightened "near", 141 targets scored 68 / 30 / 43.)
 - **Results driven by movement, the landscape, markets and local imitation reproduce well.** These
   include carrying capacity and selection on the plain sugarscape, wealth inequality, price
   formation and market thickness, credit networks, combat patterns, Schelling segregation, and Ring
@@ -22,9 +24,14 @@ design is in [the spec](docs/superpowers/specs/2026-10-21-sugarscape-design.md),
 - **Results driven by births do not.** Under the sex rule S as written, the population is too low
   and too damped. Fig III-1's steady population of ≈500 comes out at ≈360. Fig III-3's floor,
   Fig III-4's large swings and Fig III-5's extinction are missing, and so are Chapter VI's
-  extinction (VI-2) and waves (VI-3). Inheritance doesn't raise inequality (III-7). One fitted
-  departure, a fertility test at 0.83 of the birth endowment, fixes the level but not the
-  dynamics.
+  extinction (VI-2) and waves (VI-3). Inheritance doesn't raise inequality (III-7). A fitted
+  fertility test at 0.83 of the birth endowment fixed the level but not the dynamics.
+- **The default rule S now keeps p.55's threshold, with two changes** (user decision, 2026-10-23):
+  each parent's gift rounds down to a whole unit, and partners are the agents in sight, not only the
+  four neighbors (C1). Nothing is fitted. III-1's level, III-3's floor and VI-3's minimum, floor
+  and ceiling pass; III-4's swings and IV-17's and IV-18's survival come near. III-5's and VI-2's
+  extinctions, VI-2's crash, the periods of III-3 and VI-3, and III-7 are still missing. Integer
+  gifts may be the original's own arithmetic; partners in sight depart from p.56.
 - **Four other families fail**:
   - long-run carrying capacity (Figs II-5, IV-6), which matches at t≈50 (27 of 28 points pass) but
     not at t=500;
@@ -56,11 +63,11 @@ design is in [the spec](docs/superpowers/specs/2026-10-21-sugarscape-design.md),
 | Chapter | Targets | Pass | Near | Fail | Strongest results | Weakest results |
 |---|---|---|---|---|---|---|
 | II Life and death | 49 | 37 | 9 | 3 | carrying capacity (II-4), Gini, selection, neighbors, Fig II-5 at t≈50 (18 of 18), seasons, pollution | Fig II-5 metabolism 2–3 at t=500, waves (II-6), hibernation (II-7) |
-| III Sex, culture, conflict | 25 | 11 | 2 | 12 | III-1 level (with the 0.83 departure), evolution, III-4's period, combat, friendship, proto-history dominance | III-3 to III-5 dynamics, inheritance (III-7), cultural absorption (III-8), waves |
-| IV Trade | 51 | 28 | 7 | 16 | price formation, market thickness, lifespan effect, high-vision Gini, credit, Fig IV-6 at t≈50 (9 of 10) | Fig IV-6 at t=500, trade volume, reproduction runs IV-17/IV-18 |
+| III Sex, culture, conflict | 25 | 11 | 5 | 9 | III-1 level, III-3's floor, evolution, III-4's period, combat, friendship, proto-history dominance | III-3's period, III-4's range (near), III-5's extinction, inheritance (III-7), cultural absorption (III-8), waves |
+| IV Trade | 51 | 28 | 9 | 14 | price formation, market thickness, lifespan effect, high-vision Gini, credit, Fig IV-6 at t≈50 (9 of 10) | Fig IV-6 at t=500, trade volume, reproduction runs IV-17/IV-18 (near) |
 | V Disease | 6 | 2 | 0 | 4 | V-1 clears | V-2's endemic level |
-| VI Conclusions | 38 | 17 | 4 | 17 | Schelling, Ring World, VI-1 prices | VI-1's society, disease and credit; VI-2 extinction; VI-3 waves |
-| **Total** | **169** | **95** | **22** | **52** | | |
+| VI Conclusions | 38 | 21 | 4 | 13 | Schelling, Ring World, VI-1 prices, VI-3's minimum, floor and ceiling | VI-1's society, disease and credit; VI-2's crash and extinction; VI-3's period |
+| **Total** | **169** | **99** | **27** | **43** | | |
 
 **How to read the score.**
 - **Bands are ours, not the book's.** The book reports single runs, usually as pictures, so each
@@ -73,9 +80,11 @@ design is in [the spec](docs/superpowers/specs/2026-10-21-sugarscape-design.md),
 - **Carrying capacity is scored twice.** Each Fig II-5 and IV-6 point is read at t=500 (the
   asymptote, the user's 2026-10-21 decision) and at t≈50 (where the book's sweeps match ours), and
   both count.
-- **Some passes depend on a departure from the book.** III-1's level, IV-14 and III-15's rare
-  extinctions pass only because the default fertility threshold is the fitted 0.83, not p.55's 1.0. Under the book's rule (the
-  `VAR-book` experiments) III-1 settles at 360, a near.
+- **Some passes depend on a departure from the book.** III-3's floor, VI-3's minimum, floor and
+  ceiling, IV-14 and III-15's rare extinctions pass only with partners in sight (C1), which departs
+  from p.56. III-1's level needs integer gifts or C1. Under rule S as written (the `VAR-book`
+  experiments) III-1 settles at 360, a near. The former default, a fitted threshold of 0.83, runs as
+  `VAR-fit83`.
 - **Some proxies are weak.** Ring World's "size bounded by the most nearsighted" passes trivially:
   groups never grow large enough to test the bound.
 
@@ -128,12 +137,14 @@ then a whole-branch review and a fix pass, then the chapter record.
 | 2026-10-21 | Carrying capacity is measured at t=500, the asymptote | Fig II-5's metabolism-2 and -3 points and Fig IV-6 stay near or fail; both match at t≈50 |
 | 2026-10-21 | Fertility tests sugar only (p.55), not sugar and spice | Requiring both had wiped out 4 of 5 seeds in IV-14, IV-17 and IV-18 |
 | 2026-10-22 | Founders with finite lives start at ages U[0, max age) | Matches Animation III-1's first histogram, VI-2's early births and Ascape's code. It also lowered III-1's early curve and killed IV-14, IV-17 and IV-18 |
-| 2026-10-22 | Default fertility threshold 0.83 of the birth endowment, fitted to III-1's level alone; the book's 1.0 runs as `VAR-book` | III-1 and IV-14 pass. III-15's extinctions fall to the book's rare level. The dynamics rows don't change |
+| 2026-10-22 | Default fertility threshold 0.83 of the birth endowment, fitted to III-1's level alone; the book's 1.0 runs as `VAR-book` (replaced 2026-10-23) | III-1 and IV-14 pass. III-15's extinctions fall to the book's rare level. The dynamics rows don't change |
 | 2026-10-23 | "Near" capped at a quarter of the nearer bound | Nine near rows become fails; no status improves |
 | 2026-10-23 | Carrying capacity also read at t≈50, counted in the totals | 27 of the 28 new rows pass; the t=500 rows are unchanged |
 | 2026-10-23 | Run MASON's own Sugarscape | Built from its project archive; see [Follow-up](#follow-up-2026-10-23) |
 | 2026-10-23 | Register C1+C3fit as the labelled variant `VAR-c1c3fit` | Rule S gains three options, off by default (`mate_contact`, `child_gift`, `child_threshold`); the report scores the variant on every population target. Defaults and totals unchanged |
 | 2026-10-23 | Register integer gifts as the labelled variant `VAR-intgift` | Rule S gains a fourth option, off by default (`gift_rounding`); p.55's threshold, nothing fitted. Defaults and totals unchanged; see [sixth follow-up](#sixth-follow-up-2026-10-23) |
+| 2026-10-23 | Register integer gifts + C1 as `VAR-intgiftc1` | 9 of 18 population targets pass, nothing fitted. Defaults and totals unchanged; see [seventh follow-up](#seventh-follow-up-2026-10-23) |
+| 2026-10-23 | Default rule S: p.55's threshold with integer gifts and partners in sight (C1); the fitted 0.83 runs as `VAR-fit83` | 99 / 27 / 43 of 169 (was 95 / 22 / 52). III-3's floor and VI-3's minimum, floor and ceiling pass; III-4's swings and IV-17/IV-18 come near; III-1's fluctuations and III-15's Red dominance slip to near. Every experiment re-run |
 
 ## What reproduced
 
@@ -153,13 +164,15 @@ then a whole-branch review and a fix pass, then the chapter record.
 **Chapter III: evolution, culture and combat.**
 - **Evolution under S:** mean vision 5.6 at t≈900 (book 5.3), and metabolism falls to 1.0 (book
   1.0).
-- **III-1:** fluctuations of 6.5% (book under 10%). The level is 478 with the 0.83 threshold.
-- **III-4:** its damped cycle has the book's period, 132 against ≈125 (peak spacing).
+- **III-1:** the level is 555 (book ≈500) with nothing fitted. Fluctuations are 11%, just over the
+  book's 10% (near; 6.5% under the former 0.83 default).
+- **III-3's floor:** 201 (book ≈250), the first setting to reach it.
+- **III-4:** its cycle has the book's period, 104 against ≈125 (peak spacing).
 - **Combat (III-9, III-11, III-14):** every run ends in one of the book's three patterns.
   Same-tribe war persists, and assimilation prevents hegemony in about half the runs.
 - **Friendship:** best-friend closeness 0.98 (book 0.91).
-- **Proto-history (III-15):** Red dominates both mountains in 20% of runs (book ≈25%), and
-  extinction is rare (10%).
+- **Proto-history (III-15):** Blue dominates both mountains in 40% of runs and Red in 45% (book
+  ≈25% each; Red's is near), and extinction is rare (5%).
 
 **Chapter IV: trade and credit.**
 - **Price formation:** mean price ≈1.0, and ln-price dispersion falls to 0.047 by t=1000 (book
@@ -169,10 +182,10 @@ then a whole-branch review and a fix pass, then the chapter record.
   ≈0.5 / 0.3 / 0.2 / 0.15.
 - **Gini at mean vision 10–14.5:** with and without trade.
 - **Fig IV-6 at t≈50:** 9 of 10 points pass, with trade's lift; the tenth is near (119 against 100).
-- **Trade with reproduction (IV-14):** dispersion 0.39 (book ≈0.37).
+- **Trade with reproduction (IV-14):** dispersion 0.38 (book ≈0.37).
 - **Pollution:** a sugar-price spike follows pollution (2.3, book ≈3.5).
-- **Credit networks (IV-A5):** 150 active loans and 29 agents both lending and borrowing (book
-  frame: 187 and 21). Hierarchies run 6–7 levels deep (book "as many as five").
+- **Credit networks (IV-A5):** 137 active loans and 22 agents both lending and borrowing (book
+  frame: 187 and 21). Hierarchies run 6–8 levels deep (book "as many as five").
 
 **Chapter V: disease.**
 - **V-1:** the society rids itself of disease, with a sick share of 0.6% at t=450–500.
@@ -183,26 +196,29 @@ then a whole-branch review and a fix pass, then the chapter record.
   individual preference makes a large change in segregation.
 - **Ring World (VI-8, VI-9):** all 9 rows pass. Agents form ≈5–6 travelling groups that move ≈6×
   faster than loners, and they leapfrog. A megagroup breaks up within ≈10 periods.
-- **VI-1 prices:** mean ≈1 and dispersion 0.33 (book 0.3–0.4).
+- **VI-1 prices:** mean ≈1 and dispersion 0.35 (book 0.3–0.4).
 - **VI-3 against VI-2:** over the first 75 periods the trading society tracks the non-trading one
   (ratio 1.11), as the book says.
+- **VI-3's waves:** after the crash the population sinks to 66 (book ≈65), then swings between a
+  floor of 678 and a ceiling of 960 (book 700–1,200). The first peak (831) and the period (221
+  against ≈115) still miss.
 
 ## What did not reproduce
 
 ### 1. Population dynamics under the sex rule (the largest family)
 
-| Result | Book | Ours (defaults) | Under the book's threshold (`VAR-book`) |
-|---|---|---|---|
-| III-1 steady population | ≈500 | 478 (fitted) | 360 |
-| III-1 early boom, t=20 / 85 | 470 / 570 | 398 / 208 | 356 / 136 |
-| III-3 floor / period / agents ever lived | ≈250 / ≈200 / ≈12,500 | 33 / 412 (3 of 5 seeds) / 3,690 | 18 / 495 / 1,613 |
-| III-4 oscillation range | ≈1,000 | 106 | 120 |
-| III-5 extinction | yes, t≈610 | 0 of 10 seeds | 0 of 10 |
-| III-7 Gini with inheritance / vision | 0.743 / 4.3 | 0.31 / 5.19 | 0.35 / 5.13 |
-| IV-17, IV-18 (trade or foresight with S) | run 1,000 periods | 4 of 5 and 5 of 5 seeds extinct | — |
-| VI-1 population at t≈50 | ≈155 | 41; extinct in 5 of 5 seeds | — |
-| VI-2 crash at t≈20 / extinction | ≈130 / yes | 213 / 1 of 10 seeds | — |
-| VI-3 minimum / first peak / waves | ≈65 / ≈1,190 / 700–1,200 | 36 / 308 / 204–534 | 272 first peak |
+| Result | Book | Ours (default since 2026-10-23: integer gifts + C1) | Former default (θ=0.83, `VAR-fit83`) | Rule S as written (`VAR-book`) |
+|---|---|---|---|---|
+| III-1 steady population | ≈500 | 555 | 478 (fitted) | 360 |
+| III-1 early boom, t=20 / 85 | 470 / 570 | 377 / 220 | 398 / 208 | 356 / 136 |
+| III-3 floor / period / agents ever lived | ≈250 / ≈200 / ≈12,500 | 201 / 393 / 9,934 | 33 / 412 (3 of 5 seeds) / 3,690 | 18 / 495 / 1,613 |
+| III-4 oscillation range | ≈1,000 | 598 | 106 | 120 |
+| III-5 extinction | yes, t≈610 | 0 of 10 seeds | 0 of 10 seeds | 0 of 10 |
+| III-7 Gini with inheritance / vision | 0.743 / 4.3 | 0.31 / 5.37 | 0.31 / 5.19 | 0.35 / 5.13 |
+| IV-17, IV-18 (trade or foresight with S) | run 1,000 periods | 3 of 5 and 1 of 5 seeds extinct | 4 of 5 and 5 of 5 | — |
+| VI-1 population at t≈50 | ≈155 | 40; extinct in 3 of 5 seeds | 41; extinct in 5 of 5 | — |
+| VI-2 crash at t≈20 / extinction | ≈130 / yes | 217 / 0 of 10 seeds | 213 / 1 of 10 | — |
+| VI-3 minimum / first peak / waves | ≈65 / ≈1,190 / 700–1,200 | 66 / 831 / 678–960 | 36 / 308 / 204–534 | 272 first peak |
 
 **What we established, in the order we found it** (details in the [Chapter III record](docs/replication/chapter-3.md)):
 
@@ -333,15 +349,15 @@ follow-up's candidates and frequencies sharpen this ([below](#follow-up-2026-10-
   before they became bugs. Later disputes went back to the page, as when p.28's ridge passage
   decided that the agent's own site wins ties.
 - **Writing the anti-goals down.** "Don't tune to the target" kept the records honest:
-  - the only fitted value (0.83) was fitted to a single number, frozen, and validated out of
-    sample;
-  - it was adopted only by explicit decision;
-  - the book's rule still runs beside it.
+  - the only fitted value (0.83, the default until 2026-10-23) was fitted to a single number,
+    frozen, and validated out of sample;
+  - it was adopted, and later replaced by a setting with nothing fitted, only by explicit decision;
+  - the book's rule still runs beside the default, and so does the former default.
 - **Unit tests built from the book's own worked examples.** They pinned the rules where the book is
   exact, so later failures could be blamed on readings, not on arithmetic.
 - **Determinism and regression re-runs.** Seeded streams, fingerprint caching and stream pins made
-  "every row identical" a checkable claim after each default change. They also made `VAR-book`
-  reproduce the old default exactly.
+  "every row identical" a checkable claim after each default change. They also made `VAR-book`,
+  and later `VAR-fit83`, reproduce the old default exactly.
 - **Whole-branch reviews.** They caught real defects:
   - the order of transmission and immune response within E;
   - pollution swamping the two-commodity welfare;
@@ -404,7 +420,8 @@ These are grouped by how far they move from the book. None has been adopted, exc
 
 | Change | Helps | Costs |
 |---|---|---|
-| Fertility threshold 0.83 (**adopted**) | III-1 level, IV-14 survival, III-15 extinction | Contradicts p.55; no help with the dynamics |
+| Fertility threshold 0.83 (adopted 2026-10-22, **replaced** 2026-10-23) | III-1 level, IV-14 survival, III-15 extinction | Contradicts p.55; no help with the dynamics |
+| Integer gifts with partners in sight (**adopted** 2026-10-23) | III-1 level, III-3 floor, VI-3 minimum, floor and ceiling, III-4 swings and IV-17/IV-18 survival (near) | Partners in sight contradict p.56; III-1 sits at 555 and fluctuates 11% |
 | Age-0 founders with θ=0.83 | III-3 floor 174, agents ever lived 8,739, III-4 range 304, VI-3 floor 705 and first peak 848 | Contradicts Animation III-1's ages and VI-2's early births |
 | Wider or unrestricted mating contact | Low-density births reach the book's: the III-4 response curve and the first peak (≈1,560 at t≈90); 4 of 10 culled III-4 runs lock into the book's cycle | Contradicts von Neumann mating (p.56); raises III-1's level, so θ would need re-fitting |
 | Ignoring "nearest" in M | III-1 452; spacing 0.97 (book 0.9) | Contradicts p.25; Fig II-5 +12–14% at t≈50 |
@@ -721,12 +738,56 @@ It left a decision: whether integer gifts become a registered variant, tested wi
    - **C1 is a departure from p.56** (partners are the four neighbors), where integer gifts may be the book's
      own arithmetic. The two have different standing.
 
+It left two decisions: whether to register integer gifts + C1, and whether integer gifts should replace the
+fitted 0.83 in the defaults.
+
+## Seventh follow-up (2026-10-23)
+
+1. **`VAR-intgiftc1` registered** (user decision): integer gifts and C1 at p.55's threshold, nothing fitted. In the
+   report it scores 9 pass, 4 near, 5 fail on the population figures, as in the diagnostic.
+2. **Integer gifts as the default, tested on every target**
+   ([Chapter III record](docs/replication/chapter-3.md#var-intgiftc1-and-integer-gifts-as-the-default-2026-10-23)).
+   The 13 experiments the threshold touches were rerun under p.55's threshold: with exact gifts, with integer gifts,
+   and with integer gifts and C1 (at the project owner's request):
+
+| Default | All 169 targets (pass / near / fail) |
+|---|---|
+| fitted 0.83 (today) | 95 / 22 / 52 |
+| p.55, exact gifts | 93 / 22 / 54 |
+| p.55, integer gifts | 95 / 22 / 52 |
+| p.55, integer gifts + C1 | **99 / 27 / 43** |
+
+   - **Integer gifts tie the fitted default,** without a fitted value.
+   - **Gains:** III-4's swings reach near (106 to 526), VI-2 dies out like the book's run (5 of 10), and III-15's
+     Blue dominance passes.
+   - **Losses:** IV-14 dies out in 3 of 5 runs (its dispersion fails), and III-15's extinctions rise from 2 to 6 of
+     20 runs, where the book calls them rare.
+   - **Integer gifts + C1 is better on every total:** four more passes, five more nears, nine fewer fails. Of 13
+     status changes, 11 improve: III-3's floor, VI-3's minimum, floor and ceiling pass, and IV-17 and IV-18
+     survive (near). Two slip from pass to near (III-1's fluctuations, III-15's Red dominance); none falls to
+     fail. IV-14 and III-15's rare extinctions pass again. VI-2 no longer dies out.
+   - **Why integer gifts tie 0.83 on III-1:** the fitted value lowers every agent's requirement to 0.83 at once. Integer gifts
+     lower children's requirements by up to a unit a generation, to ≈0.85 of the founders' level. Only the
+     gradual route moves the dynamics.
+
+**Recommendation.** If the default is to score best, integer gifts + C1 wins outright, with nothing fitted. But C1
+departs from p.56, which names the four neighbors as partners, so it trades a fitted number for a departure in the
+rule. Integer gifts alone tie 0.83 with neither a fitted number nor a departure (if the original stored sugar as
+integers). The choice of default is the project owner's.
+
+3. **Decision (user, 2026-10-23): the default is integer gifts + C1.**
+   - **What changed:** `Config` now defaults to threshold 1.0, `gift_rounding="down"` and `mate_contact="vision"`.
+     Every experiment was re-run. The full report reproduces the candidate test: 99 / 27 / 43 of 169. Chapters II
+     and V are unchanged row for row.
+   - **The variants keep their meaning.** Each now names its threshold, gift rounding and contact. `VAR-fit83` is
+     the former default, and reproduces its saved III-1 runs exactly. `VAR-intgiftc1` now equals the default.
+   - **Older diagnostics still regenerate:** epochs A–C in `diagnostics/_pin.py` pin exact gifts and the four
+     neighbors, and a new epoch D holds the current defaults.
+
 **Next steps now.**
-1. **Decide whether integer gifts + C1 is registered too** (`VAR-intgift-c1`), and whether integer gifts should
-   replace the fitted 0.83 in the defaults. Both are the project owner's call.
-2. **Measure frequencies over 30 seeds** for the integer-gift variants, as was done for `VAR-c1c3fit`. The book's
-   single runs (III-3's floor, III-4's swings, VI-2's extinction) may sit in their tails.
-3. **The earlier two still stand:** look for the original program, or tag the current state.
+1. **Measure frequencies over 30 seeds** under the new default, as for `VAR-c1c3fit`. The book's single runs may sit
+   in their tails.
+2. **The earlier two still stand:** look for the original program, or tag the current state.
 
 ## Where things are
 

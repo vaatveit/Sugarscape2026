@@ -65,6 +65,7 @@ numbers can differ from the records'.
 | [nkremerh_compare.py](nkremerh_compare.py) | nkremerh/sugarscape (Python) on our Chapter III targets, on its landscape and the book's map; run it with [nkremerh/](nkremerh/README.md). Output: [nkremerh_compare.txt](output/nkremerh_compare.txt) |
 | [ablation_summary.py](ablation_summary.py) | Scores the two outside models' ablation runs (stacking and wrap in SugarscapeCW; own site, birth harvest and childbearing ages in nkremerh). Outputs: [sugarscapecw_ablate.txt](output/sugarscapecw_ablate.txt), [nkremerh_ablate.txt](output/nkremerh_ablate.txt) |
 | [probe_integer_gift.py](probe_integer_gift.py) | Rule S at p.55's threshold with SugarscapeCW's integer gifts (each parent gives int(endowment / 2)), on III-1, III-3, III-4 and III-5. Output: [probe_integer_gift.txt](output/probe_integer_gift.txt) |
+| [default_candidate.py](default_candidate.py) | Integer gifts as the default: every experiment the fertility threshold touches, rerun under p.55's threshold with exact and integer gifts, all targets scored beside the saved default runs, with totals and status changes. Output: [default_candidate.txt](output/default_candidate.txt) |
 | [score_intgift.py](score_intgift.py) | Integer gifts (VAR-intgift) with C1 and C3 at p.55's threshold on every population figure, beside the saved VAR-book, VAR-intgift, VAR-c1c3fit and default runs. Output: [score_intgift.txt](output/score_intgift.txt) |
 
 ## Index

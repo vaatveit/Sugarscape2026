@@ -365,18 +365,26 @@ register(Experiment(
 
 # --- Reproduction-rule variants (docs/replication/chapter-3.md) ------------------------------
 # The book's sex rule, implemented as written, doesn't reproduce its own population figures (as in
-# Kehoe's thesis; MASON and Ascape depart from the text). The default fertility threshold, 0.83 of the
-# birth endowment, was fitted to Fig III-1's steady population (500) alone and adopted by user decision
-# (2026-10-22). These variants run the reproduction figures unchanged otherwise: VAR-book is p.55 as
-# written (threshold 1.0); VAR-share is the other fitted setting, a smaller gift at p.55's threshold.
+# Kehoe's thesis; MASON and Ascape depart from the text). From 2026-10-22 the default fertility threshold was
+# 0.83 of the birth endowment, fitted to Fig III-1's steady population (500) alone (VAR-fit83 now). These
+# variants run the reproduction figures unchanged otherwise: VAR-book is p.55 as written (threshold 1.0, exact
+# gifts, the four neighbors); VAR-share is another fitted setting, a smaller gift at p.55's threshold.
 # VAR-c1c3fit (2026-10-23, user decision to register it) departs from p.55-56 on contact, gift and threshold
 # (README candidates C1+C3), with the threshold fitted to Fig III-1's steady population alone (0.74).
 # VAR-intgift (2026-10-23, user decision to register it) is p.55 with each parent's gift rounded down to a whole
-# unit, as SugarscapeCW computes it; nothing is fitted (README fifth and sixth follow-ups).
-VARIANTS = {"book": {"fertility_threshold": 1.0}, "share": {"fertility_threshold": 1.0, "child_share": 0.4975},
+# unit, as SugarscapeCW computes it; nothing is fitted (README fifth and sixth follow-ups). VAR-intgiftc1
+# (2026-10-23, user decision) adds candidate C1, partners in sight (a departure from p.56); nothing fitted.
+# Since 2026-10-23 (user decision) the default is integer gifts with partners in sight at p.55's threshold, which
+# VAR-intgiftc1 repeats. Every variant names its threshold, gift rounding and contact, so each keeps its meaning
+# across default changes; VAR-fit83 is the former default (threshold 0.83, exact gifts, the four neighbors).
+_BOOK_S = {"gift_rounding": "exact", "mate_contact": "neighbors"}
+VARIANTS = {"book": {"fertility_threshold": 1.0, **_BOOK_S},
+            "share": {"fertility_threshold": 1.0, "child_share": 0.4975, **_BOOK_S},
             "c1c3fit": {"fertility_threshold": 0.74, "mate_contact": "vision", "child_gift": "capped",
-                        "child_threshold": "redraw"},
-            "intgift": {"fertility_threshold": 1.0, "gift_rounding": "down"}}
+                        "child_threshold": "redraw", "gift_rounding": "exact"},
+            "intgift": {"fertility_threshold": 1.0, "gift_rounding": "down", "mate_contact": "neighbors"},
+            "intgiftc1": {"fertility_threshold": 1.0, "gift_rounding": "down", "mate_contact": "vision"},
+            "fit83": {"fertility_threshold": 0.83, **_BOOK_S}}
 VALIDATION = ("III-1", "III-3", "III-4", "III-5", "VI-2", "VI-3")
 for _name, _setting in VARIANTS.items():
     for _id in VALIDATION:

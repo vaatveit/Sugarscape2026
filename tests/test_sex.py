@@ -134,10 +134,10 @@ def test_capped_gift_variant():  # C3 (Ascape): each parent gives at most 5 of i
 
 def test_integer_gift_variant():  # SugarscapeCW: each parent gives int(initial endowment / 2)
     m = tiny_model(np.ones((6, 6), dtype=int), sex=True, gift_rounding="down")
-    f, h = couple(m)
+    f, h = couple(m, sugar=61.0)
     f.initial_sugar, h.initial_sugar = 61.0, 57.0  # halves 30.5 and 28.5 round down to 30 and 28
     kid = mate(m, f)[0]
-    assert kid.sugar == kid.initial_sugar == 58.0 and (f.sugar, h.sugar) == (30.0, 32.0)
+    assert kid.sugar == kid.initial_sugar == 58.0 and (f.sugar, h.sugar) == (31.0, 33.0)
 
 
 def test_integer_gift_variant_rounds_spice_and_capped_gifts():

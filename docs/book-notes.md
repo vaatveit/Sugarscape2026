@@ -148,8 +148,9 @@ Twin-peaked sugarscape, G1, movement M throughout.
   initial endowment**. First generation gets random initial endowments (fn 2).
 - To be a parent an agent must currently have **at least the amount of sugar it was
   endowed with at birth**. (Chapter IV credit lets agents borrow for this.)
-  **Our default departs from this (user decision, 2026-10-22):** 0.83 of the birth endowment, fitted to
-  Fig III-1's steady population; p.55's rule runs as the VAR-book experiments.
+  **Our default keeps p.55's threshold (user decision, 2026-10-23)**, with integer gifts and partners in sight
+  (below; C1 departs from p.56). From 2026-10-22 to 10-23 the default was 0.83 of the birth endowment, fitted to
+  Fig III-1's steady population; it runs as VAR-fit83, and p.55-56 as written run as VAR-book.
   **A labelled variant departs further (registered 2026-10-23, user decision):** VAR-c1c3fit takes partners in sight,
   not only neighbors, has each parent give at most 5 sugar, and draws the child's threshold from the founders' range,
   at a threshold of 0.74 (Chapter III record).
@@ -164,6 +165,10 @@ Twin-peaked sugarscape, G1, movement M throughout.
 - Repeat for all neighbors.
 - An agent can mate with each of up to 4 neighbors in its turn (multiple births per
   period allowed, fn 3; no incest prohibition; no one-baby-per-female limit).
+- **Our default departs from "neighboring" (user decision, 2026-10-23):** partners are the agents in sight
+  along the four lattice directions (README candidate C1), with the child still placed next to a parent. With
+  integer gifts it scores best on every total (README seventh follow-up). The four neighbors run as VAR-book
+  and VAR-intgift.
 - Baby follows M from birth. Sex random 50/50.
 - Genetics (metabolism, vision, maximum age, ...) Mendelian: each attribute taken
   from one parent or the other with equal probability (Table III-1).

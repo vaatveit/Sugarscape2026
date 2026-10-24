@@ -1,32 +1,32 @@
 # Replication report
 
-17 pass, 4 near, 17 fail, of 38 targets.
+21 pass, 4 near, 13 fail, of 38 targets.
 
 | Experiment | Target | Source | Book | Band | Observed mean [min–max] | Seeds | Status |
 |---|---|---|---|---|---|---|---|
-| VI-1 | population at t≈50 | Anim VI-1 fr. 6 | 155 | 125–185 | 40.83 [31.5–55.33] | 5/5 | fail |
-| VI-1 | Gini of total wealth | Anim VI-1 fr. 5 | 0.246 | 0.2–0.3 | 0.3025 [0.2602–0.3375] | 5/5 | near |
-| VI-1 | average neighbors | Anim VI-1 fr. 2 | 0.7 | 0.56–0.84 | 0.358 [0.3152–0.4097] | 5/5 | fail |
-| VI-1 | average fertility | Anim VI-1 fr. 8 | 1.3 | 1.04–1.56 | 0.3609 [0.1908–0.7718] | 5/5 | fail |
-| VI-1 | best-friend closeness | Anim VI-1 fr. 10 | 0.86 | 0.76–0.96 | 0.7438 [0.705–0.7857] | 5/5 | near |
-| VI-1 | friend closeness | Anim VI-1 fr. 10 | 0.79 | 0.69–0.89 | 0.6374 [0.6102–0.6857] | 5/5 | near |
-| VI-1 | mean price (ln p) | Anim VI-1 fr. 11 | 0 | -0.2–0.2 | -0.02129 [-0.1436–0.1218] | 5/5 | pass |
-| VI-1 | price dispersion | Anim VI-1 fr. 12 | 0.35 | 0.28–0.42 | 0.3338 [0.2767–0.3768] | 5/5 | pass |
-| VI-1 | trades per period | Anim VI-1 fr. 13 | 125 | 100–150 | 14.86 [8.775–19.92] | 5/5 | fail |
-| VI-1 | active loans | Anim VI-1 fr. 15-16 | 215 | 108–322 | 0.2476 [0–1.238] | 5/5 | fail |
-| VI-1 | agents both lending and borrowing | Anim VI-1 fr. 15-16 | 37 | 18–56 | 0 [0–0] | 5/5 | fail |
+| VI-1 | population at t≈50 | Anim VI-1 fr. 6 | 155 | 125–185 | 39.67 [31.67–43.33] | 5/5 | fail |
+| VI-1 | Gini of total wealth | Anim VI-1 fr. 5 | 0.246 | 0.2–0.3 | 0.2767 [0.2328–0.3066] | 5/5 | pass |
+| VI-1 | average neighbors | Anim VI-1 fr. 2 | 0.7 | 0.56–0.84 | 0.3505 [0.3177–0.3864] | 5/5 | fail |
+| VI-1 | average fertility | Anim VI-1 fr. 8 | 1.3 | 1.04–1.56 | 0.4158 [0.2597–0.5584] | 5/5 | fail |
+| VI-1 | best-friend closeness | Anim VI-1 fr. 10 | 0.86 | 0.76–0.96 | 0.7495 [0.7084–0.7908] | 5/5 | near |
+| VI-1 | friend closeness | Anim VI-1 fr. 10 | 0.79 | 0.69–0.89 | 0.6435 [0.6027–0.6794] | 5/5 | near |
+| VI-1 | mean price (ln p) | Anim VI-1 fr. 11 | 0 | -0.2–0.2 | -0.02647 [-0.1514–0.06529] | 5/5 | pass |
+| VI-1 | price dispersion | Anim VI-1 fr. 12 | 0.35 | 0.28–0.42 | 0.3516 [0.3178–0.3898] | 5/5 | pass |
+| VI-1 | trades per period | Anim VI-1 fr. 13 | 125 | 100–150 | 15.63 [11.45–19.76] | 5/5 | fail |
+| VI-1 | active loans | Anim VI-1 fr. 15-16 | 215 | 108–322 | 1.152 [0–3.714] | 5/5 | fail |
+| VI-1 | agents both lending and borrowing | Anim VI-1 fr. 15-16 | 37 | 18–56 | 0.1333 [0–0.4762] | 5/5 | fail |
 | VI-1 | infected fraction dips | Anim VI-1 fr. 17 | 0.6 | 0.5–0.7 | 0 [0–0] | 5/5 | fail |
-| VI-1 | infected fraction recovers | Anim VI-1 fr. 17 | 0.85 | 0.75–0.95 | 0 [0–0] | 4/5 | fail |
-| VI-1 | average diseases | Anim VI-1 fr. 18 | 2.26 | 1.81–2.71 | 0 [0–0] | 4/5 | fail |
-| VI-1 | spread of diseases per agent | Anim VI-1 fr. 18 | 1.47 | 1.18–1.76 | 0 [0–0] | 4/5 | fail |
-| VI-2 | crash by t≈20 | Anim VI-2, p.160 | 130 | 104–156 | 212.8 [186–240.6] | 10/10 | fail |
-| VI-2 | extinction frequency (proxy) | Anim VI-2, p.159 | — | 0.5–1 | 0.1 [0–1] | 10/10 | fail |
-| VI-3 | early decline as without trade (vs VI-2) | p.159 | 1 | 0.8–1.25 | 1.108 [1.063–1.153] | 5/5 | pass |
-| VI-3 | near-extinction minimum | Anim VI-3, p.161 | 65 | 52–78 | 36.4 [9–73] | 5/5 | fail |
-| VI-3 | first peak | Anim VI-3, p.161 | 1190 | 952–1428 | 307.6 [3–978] | 5/5 | fail |
-| VI-3 | oscillation floor | p.159 | 700 | 560–840 | 203.6 [0–746] | 5/5 | fail |
-| VI-3 | oscillation ceiling | Anim VI-3, p.161 | 1200 | 960–1440 | 533.8 [0–980] | 5/5 | fail |
-| VI-3 | oscillation period | p.159 | 115 | 92–138 | 241 [217–265] | 2/5 | fail |
+| VI-1 | infected fraction recovers | Anim VI-1 fr. 17 | 0.85 | 0.75–0.95 | 0 [0–0] | 5/5 | fail |
+| VI-1 | average diseases | Anim VI-1 fr. 18 | 2.26 | 1.81–2.71 | 0 [0–0] | 5/5 | fail |
+| VI-1 | spread of diseases per agent | Anim VI-1 fr. 18 | 1.47 | 1.18–1.76 | 0 [0–0] | 5/5 | fail |
+| VI-2 | crash by t≈20 | Anim VI-2, p.160 | 130 | 104–156 | 217.3 [182.4–245.6] | 10/10 | fail |
+| VI-2 | extinction frequency (proxy) | Anim VI-2, p.159 | — | 0.5–1 | 0 [0–0] | 10/10 | fail |
+| VI-3 | early decline as without trade (vs VI-2) | p.159 | 1 | 0.8–1.25 | 1.114 [1.011–1.224] | 5/5 | pass |
+| VI-3 | near-extinction minimum | Anim VI-3, p.161 | 65 | 52–78 | 66.2 [29–82] | 5/5 | pass |
+| VI-3 | first peak | Anim VI-3, p.161 | 1190 | 952–1428 | 831.2 [321–985] | 5/5 | near |
+| VI-3 | oscillation floor | p.159 | 700 | 560–840 | 678.2 [177–832] | 5/5 | pass |
+| VI-3 | oscillation ceiling | Anim VI-3, p.161 | 1200 | 960–1440 | 960 [821–1021] | 5/5 | pass |
+| VI-3 | oscillation period | p.159 | 115 | 92–138 | 221 [165.5–274.5] | 4/5 | fail |
 | VI-4 | equilibrium: nobody moves | p.166 | 0 | 0–0 | 0 [0–0] | 10/10 | pass |
 | VI-4 | more segregated than the start (proxy) | Anim VI-4, p.166 | — | 1.05–2 | 1.249 [1.213–1.291] | 10/10 | pass |
 | VI-5 | never settles (proxy) | p.166 | — | 1–2000 | 3.333 [3.02–3.574] | 10/10 | pass |
@@ -162,6 +162,23 @@ The registered variant's settings applied to VI-1 by [score_variant.py](../../di
 Easier contact and cheap children nearly double the society, bring family size into band and lift credit from almost
 none to 41 loans. But the society is still half the book's, so trade, credit and the friend networks stay short, and
 wealth is more unequal. The disease still clears (Chapter V record).
+
+## Integer gifts as the default? (2026-10-23)
+
+Under p.55's threshold with integer gifts (the Chapter III record's default test), VI-2 dies out in 5 of 10 runs
+(1 under the fitted 0.83), so its extinction row passes. Its crash at t≈20 (212) and every VI-1 and VI-3 row stay
+where they are: VI-3's floor 206 and ceiling 416 against 204 and 534.
+
+## Default switched (2026-10-23)
+
+Under the new default rule S (p.55's threshold, integer gifts, partners in sight; Chapter III record), this
+chapter's table moves from 17 / 4 / 17 to 21 / 4 / 13:
+- **VI-3's waves** mostly reproduce. The population sinks to 66 after the crash (book ≈65), then swings between
+  678 and 960 (book 700–1,200): minimum, floor and ceiling pass. The first peak (831) is near; the period (221
+  against ≈115) still fails.
+- **VI-1's Gini** passes (0.28). Its society still dies out in 3 of 5 runs, and its disease and credit rows still
+  fail.
+- **VI-2** still crashes too gently (217 by t≈20 against ≈130) and no longer dies out (0 of 10).
 
 ## Visual comparison
 

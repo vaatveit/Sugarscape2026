@@ -1,6 +1,6 @@
 # Replication report
 
-28 pass, 7 near, 16 fail, of 51 targets.
+28 pass, 9 near, 14 fail, of 51 targets.
 
 | Experiment | Target | Source | Book | Band | Observed mean [min–max] | Seeds | Status |
 |---|---|---|---|---|---|---|---|
@@ -44,17 +44,17 @@
 | IV-13/notrade/v5.5 | Gini without trade | Fig IV-13, p.123 | 0.34 | 0.29–0.39 | 0.3207 [0.3169–0.3274] | 10/10 | pass |
 | IV-13/notrade/v10 | Gini without trade | Fig IV-13, p.123 | 0.33 | 0.28–0.38 | 0.3261 [0.3191–0.3362] | 10/10 | pass |
 | IV-13/notrade/v14.5 | Gini without trade | Fig IV-13, p.123 | 0.31 | 0.26–0.36 | 0.3335 [0.3218–0.3436] | 10/10 | pass |
-| IV-14 | dispersion with S | Fig IV-14, p.124 | 0.37 | 0.28–0.48 | 0.3905 [0.314–0.5082] | 5/5 | pass |
+| IV-14 | dispersion with S | Fig IV-14, p.124 | 0.37 | 0.28–0.48 | 0.3775 [0.284–0.5379] | 5/5 | pass |
 | IV-15 | dispersion, cultural preferences | Fig IV-16, p.126 | 0.45 | 0.3–0.6 | 0.1832 [0.1432–0.2285] | 5/5 | fail |
 | IV-15 | trades per period | p.125 | 1000 | 500–1500 | 266.8 [145.2–354.7] | 5/5 | fail |
-| IV-17 | dispersion with S and K | Fig IV-17, p.127 | 0.45 | 0.35–0.55 | 0.3324 [0.3324–0.3324] | 1/5 | fail |
+| IV-17 | dispersion with S and K | Fig IV-17, p.127 | 0.45 | 0.35–0.55 | 0.2705 [0.1061–0.3905] | 3/5 | near |
 | IV-A3 | price before pollution (ln p) | Anim IV-3, p.128 | 0 | -0.2–0.2 | 0.02095 [-0.06898–0.1112] | 10/10 | pass |
 | IV-A3 | sugar price spike (proxy) | Anim IV-3 | 3.5 | 2–6 | 2.332 [1.782–2.887] | 10/10 | pass |
 | IV-A3 | recovery by t≈300 (ln p) | Anim IV-3, p.129 | 0 | -0.25–0.25 | 0.5952 [0.04745–0.9893] | 10/10 | fail |
-| IV-18 | long-run mean foresight | Fig IV-18, p.130 | 4.9 | 4.25–5.5 | — [—–—] | 0/5 | fail |
-| IV-A5 | active loans (proxy) | Anim IV-5, p.134 | 187 | 50–400 | 149.5 [124.2–179] | 5/5 | pass |
-| IV-A5 | agents both lending and borrowing (proxy) | Anim IV-5 | 21 | 5–100 | 28.73 [22.89–36.45] | 5/5 | pass |
-| IV-A5 | hierarchy levels (proxy) | p.133 | 5 | 3–8 | 6.8 [6–7] | 5/5 | pass |
+| IV-18 | long-run mean foresight | Fig IV-18, p.130 | 4.9 | 4.25–5.5 | 5.595 [4.321–6.241] | 4/5 | near |
+| IV-A5 | active loans (proxy) | Anim IV-5, p.134 | 187 | 50–400 | 136.6 [120.2–151] | 5/5 | pass |
+| IV-A5 | agents both lending and borrowing (proxy) | Anim IV-5 | 21 | 5–100 | 22.14 [19.8–24.61] | 5/5 | pass |
+| IV-A5 | hierarchy levels (proxy) | p.133 | 5 | 3–8 | 6.6 [6–8] | 5/5 | pass |
 
 Run: `python -m replication.report --chapter IV --jobs 8` on 2026-10-21 (branch feat/chapter-4). Seeds as registered (5 or 10).
 Fast suite 201 passed. IV-14, IV-17 and IV-18 were re-run after the fertility decision below.
@@ -127,6 +127,22 @@ map file identical to ours. Its rules M and T depart from the text in ways that 
 Neither departure closes a gap. Trading with everyone in sight adds a third more trades, still under a third of the
 book's, and Fig IV-6 at t=500 moves by at most 8 agents. Low trade volume and the long-run shortfall stay with the
 small surviving population (Open discrepancies, above).
+
+## Integer gifts as the default? (2026-10-23)
+
+Under p.55's threshold with integer gifts (the Chapter III record's default test), IV-14 dies out in 3 of 5 runs
+(none under the fitted 0.83), and its price dispersion, read from the two survivors, fails (0.33). IV-17 and IV-18
+still die out in 4 of 5. IV-A5's credit rows pass either way (123 active loans against 149).
+
+## Default switched (2026-10-23)
+
+Under the new default rule S (p.55's threshold, integer gifts, partners in sight; Chapter III record), this
+chapter's table moves from 28 / 7 / 16 to 28 / 9 / 14:
+- **IV-14** survives in all 5 runs and passes (dispersion 0.38).
+- **IV-17** survives in 2 of 5 runs, and a third dies only at t=482, after its dispersion is read: 0.27 over
+  three runs (near; one run before).
+- **IV-18** survives in 4 of 5 runs, with mean foresight 5.6 (near; none survived before).
+- **IV-A5's** credit rows still pass (137 active loans, 22 agents both lending and borrowing, 6.6 levels).
 
 ## Visual comparison
 

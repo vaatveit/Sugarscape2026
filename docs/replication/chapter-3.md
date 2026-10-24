@@ -1,21 +1,21 @@
 # Replication report
 
-11 pass, 2 near, 12 fail, of 25 targets.
+11 pass, 5 near, 9 fail, of 25 targets.
 
 | Experiment | Target | Source | Book | Band | Observed mean [min–max] | Seeds | Status |
 |---|---|---|---|---|---|---|---|
-| III-1 | steady population | Fig III-1, p.58 | 500 | 400–600 | 478.3 [442.4–523.5] | 5/5 | pass |
-| III-1 | small fluctuations | p.57 | 0.1 | 0–0.1 | 0.065 [0.05515–0.07192] | 5/5 | pass |
-| III-1 | mean vision at t≈900 | Fig III-2, p.63 | 5.3 | 4.8–5.8 | 5.636 [5.526–5.774] | 5/5 | pass |
-| III-1 | mean metabolism, t=300–900 | Fig III-2, p.63 | 1 | 0.9–1.15 | 1.001 [1–1.004] | 5/5 | pass |
-| III-3 | oscillation period | p.64 | 200 | 150–250 | 411.5 [181–617] | 3/5 | fail |
-| III-3 | population floor | p.64 | 250 | 200–350 | 32.8 [0–85] | 5/5 | fail |
-| III-3 | agents that ever lived | p.64 fn 10 | 1.25e+04 | 1e+04–1.5e+04 | 3690 [518–6347] | 5/5 | fail |
-| III-4 | oscillation period | p.65 | 125 | 100–150 | 131.7 [117.5–160.5] | 5/5 | pass |
-| III-4 | oscillation range | Fig III-4, p.65 | 1000 | 600–1400 | 106.2 [82–121] | 5/5 | fail |
+| III-1 | steady population | Fig III-1, p.58 | 500 | 400–600 | 554.8 [508.6–608.9] | 5/5 | pass |
+| III-1 | small fluctuations | p.57 | 0.1 | 0–0.1 | 0.1099 [0.08494–0.1329] | 5/5 | near |
+| III-1 | mean vision at t≈900 | Fig III-2, p.63 | 5.3 | 4.8–5.8 | 5.57 [5.342–5.809] | 5/5 | pass |
+| III-1 | mean metabolism, t=300–900 | Fig III-2, p.63 | 1 | 0.9–1.15 | 1 [1–1] | 5/5 | pass |
+| III-3 | oscillation period | p.64 | 200 | 150–250 | 392.9 [257–595] | 5/5 | fail |
+| III-3 | population floor | p.64 | 250 | 200–350 | 201 [102–286] | 5/5 | pass |
+| III-3 | agents that ever lived | p.64 fn 10 | 1.25e+04 | 1e+04–1.5e+04 | 9934 [6203–1.168e+04] | 5/5 | near |
+| III-4 | oscillation period | p.65 | 125 | 100–150 | 104 [97–112.5] | 5/5 | pass |
+| III-4 | oscillation range | Fig III-4, p.65 | 1000 | 600–1400 | 598.4 [231–843] | 5/5 | near |
 | III-5 | extinction frequency (proxy) | Fig III-5, p.66 | — | 0.5–1 | 0 [0–0] | 10/10 | fail |
-| III-7 | Gini with inheritance | p.67 | 0.743 | 0.65–0.85 | 0.31 [0.2969–0.3345] | 5/5 | fail |
-| III-7 | mean vision at t≈900 | Fig III-7, p.68 | 4.3 | 3.9–4.7 | 5.194 [4.577–5.544] | 5/5 | fail |
+| III-7 | Gini with inheritance | p.67 | 0.743 | 0.65–0.85 | 0.3116 [0.2764–0.3589] | 5/5 | fail |
+| III-7 | mean vision at t≈900 | Fig III-7, p.68 | 4.3 | 3.9–4.7 | 5.368 [5.006–5.681] | 5/5 | fail |
 | III-8 | each side culturally pure (proxy) | p.74 | — | 0.8–1 | 0.4 [0–1] | 5/5 | fail |
 | III-8 | time until every side is pure | p.74 | 2700 | 1350–5400 | — [—–—] | 0/5 | fail |
 | III-8 | best-friend closeness | Anim III-8, p.80 | 0.91 | 0.8–1 | 0.9819 [0.9791–0.9857] | 5/5 | pass |
@@ -26,9 +26,9 @@
 | III-13 | combat suppresses Blue's wave (proxy) | Anim III-13, p.89 | — | -5–5 | 9.62 [9.024–10.73] | 5/5 | fail |
 | III-14 | no runaway hegemony (proxy) | p.90 | — | 0.5–1 | 0.5 [0–1] | 10/10 | pass |
 | III-15 | Red and Blue on opposite mountains | p.92 fn 32 | 0.45 | 0.3–0.5 | 0 [0–0] | 20/20 | fail |
-| III-15 | Red dominates both | p.92 fn 32 | 0.25 | 0.1–0.4 | 0.2 [0–1] | 20/20 | pass |
-| III-15 | Blue dominates both | p.92 fn 32 | 0.25 | 0.1–0.4 | 0.5 [0–1] | 20/20 | near |
-| III-15 | extinction (small frequency) | p.92 fn 32 | — | 0–0.15 | 0.1 [0–1] | 20/20 | pass |
+| III-15 | Red dominates both | p.92 fn 32 | 0.25 | 0.1–0.4 | 0.45 [0–1] | 20/20 | near |
+| III-15 | Blue dominates both | p.92 fn 32 | 0.25 | 0.1–0.4 | 0.4 [0–1] | 20/20 | pass |
+| III-15 | extinction (small frequency) | p.92 fn 32 | — | 0–0.15 | 0.05 [0–1] | 20/20 | pass |
 
 Run: `python -m replication.report --chapter III --jobs 8` on 2026-10-21 (branch feat/chapter-3, after the final-review fix pass). Seeds as registered (5, 10, or 20).
 Fast suite 144 passed; `pytest -m slow tests/test_replication_ch3.py`: 11 passed, 13 failed (the near + fail rows).
@@ -959,6 +959,114 @@ the saved runs (up to 10 seeds; the registered `VAR-intgift` runs are the report
   - III-5's extinction: 1 run in 10, under integer gifts with C3 only.
   - VI-2's crash at t≈20: 212–241 against ≈130.
   - The periods of III-3 and VI-3.
+
+## VAR-intgiftc1, and integer gifts as the default? (2026-10-23)
+
+**`VAR-intgiftc1` is registered** (user decision): integer gifts and C1 (partners in sight) at p.55's threshold,
+nothing fitted. The report reproduces the diagnostic's columns exactly: 9 pass, 4 near, 5 fail on the six population
+figures (table above).
+
+**Integer gifts as the default.** [default_candidate.py](../../diagnostics/default_candidate.py) reruns every
+experiment the fertility threshold touches (III-1, III-3, III-4, III-5, III-7, III-15, IV-14, IV-17, IV-18, IV-A5,
+VI-1, VI-2, VI-3; credit's lending requirement uses it too). Each runs under p.55's threshold with exact and with
+integer gifts, and with integer gifts and C1 (`VAR-intgiftc1`'s settings). Every target is scored beside the
+saved default runs (registry seeds):
+
+| Target | Book | default (θ=0.83) | p.55 (θ=1.0) | integer gifts (θ=1.0) | integer gifts + C1 (θ=1.0) |
+|---|---|---|---|---|---|
+| III-1 steady population | 500 | 478 pass | 360 near | 454 pass | 555 pass |
+| III-1 small fluctuations | 0.1 | 0.065 pass | 0.059 pass | 0.0609 pass | 0.11 near |
+| III-1 mean vision at t≈900 | 5.3 | 5.64 pass | 5.68 pass | 5.58 pass | 5.57 pass |
+| III-1 mean metabolism, t=300–900 | 1 | 1 pass | 1 pass | 1 pass | 1 pass |
+| III-3 oscillation period | 200 | 412 fail (3/5) | 495 fail (2/5) | 532 fail (2/5) | 393 fail |
+| III-3 population floor | 250 | 32.8 fail | 18.4 fail | 20.8 fail | 201 pass |
+| III-3 agents that ever lived | 12500 | 3.69e+03 fail | 1.61e+03 fail | 2.29e+03 fail | 9.93e+03 near |
+| III-4 oscillation period | 125 | 132 pass | 136 pass | 111 pass | 104 pass |
+| III-4 oscillation range | 1000 | 106 fail | 120 fail | 526 near | 598 near |
+| III-5 extinction frequency | — | 0 fail | 0 fail | 0 fail | 0 fail |
+| III-7 Gini with inheritance | 0.743 | 0.31 fail | 0.346 fail | 0.337 fail | 0.312 fail |
+| III-7 mean vision at t≈900 | 4.3 | 5.19 fail | 5.13 fail | 5.18 fail | 5.37 fail |
+| III-15 Red and Blue on opposite mountains | 0.45 | 0 fail | 0.05 fail | 0 fail | 0 fail |
+| III-15 Red dominates both | 0.25 | 0.2 pass | 0.2 pass | 0.25 pass | 0.45 near |
+| III-15 Blue dominates both | 0.25 | 0.5 near | 0.1 pass | 0.35 pass | 0.4 pass |
+| III-15 extinction (small frequency) | — | 0.1 pass | 0.3 fail | 0.3 fail | 0.05 pass |
+| IV-14 dispersion with S | 0.37 | 0.39 pass | — | 0.332 fail (2/5) | 0.378 pass |
+| IV-17 dispersion with S and K | 0.45 | 0.332 fail (1/5) | — | 0.407 fail (1/5) | 0.271 near (3/5) |
+| IV-18 long-run mean foresight | 4.9 | — | — | 5.94 fail (1/5) | 5.6 near (4/5) |
+| IV-A5 active loans | 187 | 149 pass | 106 pass | 123 pass | 137 pass |
+| IV-A5 agents both lending and borrowing | 21 | 28.7 pass | 20.9 pass | 23.6 pass | 22.1 pass |
+| IV-A5 hierarchy levels | 5 | 6.8 pass | 7 pass | 6.2 pass | 6.6 pass |
+| VI-1 population at t≈50 | 155 | 40.8 fail | 36.2 fail | 36.6 fail | 39.7 fail |
+| VI-1 Gini of total wealth | 0.246 | 0.303 near | 0.318 near | 0.32 near | 0.277 pass |
+| VI-1 average neighbors | 0.7 | 0.358 fail | 0.333 fail | 0.354 fail | 0.351 fail |
+| VI-1 average fertility | 1.3 | 0.361 fail | 0.26 fail | 0.258 fail | 0.416 fail |
+| VI-1 best-friend closeness | 0.86 | 0.744 near | 0.726 near | 0.729 near | 0.75 near |
+| VI-1 friend closeness | 0.79 | 0.637 near | 0.637 near | 0.627 near | 0.643 near |
+| VI-1 mean price (ln p) | 0 | -0.0213 pass | -0.0214 pass | 0.0241 pass | -0.0265 pass |
+| VI-1 price dispersion | 0.35 | 0.334 pass | 0.334 pass | 0.331 pass | 0.352 pass |
+| VI-1 trades per period | 125 | 14.9 fail | 11.8 fail | 12.8 fail | 15.6 fail |
+| VI-1 active loans | 215 | 0.248 fail | 0.21 fail | 0.171 fail | 1.15 fail |
+| VI-1 agents both lending and borrowing | 37 | 0 fail | 0 fail | 0 fail | 0.133 fail |
+| VI-1 infected fraction dips | 0.6 | 0 fail | 0 fail | 0 fail | 0 fail |
+| VI-1 infected fraction recovers | 0.85 | 0 fail (4/5) | 0 fail (4/5) | 0 fail (3/5) | 0 fail |
+| VI-1 average diseases | 2.26 | 0 fail (4/5) | 0 fail (4/5) | 0 fail (3/5) | 0 fail |
+| VI-1 spread of diseases per agent | 1.47 | 0 fail (4/5) | 0 fail (4/5) | 0 fail (3/5) | 0 fail |
+| VI-2 crash by t≈20 | 130 | 213 fail | 212 fail | 212 fail | 217 fail |
+| VI-2 extinction frequency | — | 0.1 fail | 0.2 fail | 0.5 pass | 0 fail |
+| VI-3 early decline as without trade | 1 | 1.11 pass | 1.15 pass | 1.15 pass | 1.11 pass |
+| VI-3 near-extinction minimum | 65 | 36.4 fail | 26.6 fail | 26.8 fail | 66.2 pass |
+| VI-3 first peak | 1190 | 308 fail | 272 fail | 270 fail | 831 near |
+| VI-3 oscillation floor | 700 | 204 fail | 153 fail | 206 fail | 678 pass |
+| VI-3 oscillation ceiling | 1200 | 534 fail | 358 fail | 416 fail | 960 pass |
+| VI-3 oscillation period | 115 | 241 fail (2/5) | 322 fail (2/5) | — | 221 fail (4/5) |
+
+| Default | All 169 targets (pass / near / fail) | The 45 targets of these experiments |
+|---|---|---|
+| fitted 0.83 (today) | 95 / 22 / 52 | 14 / 4 / 27 |
+| p.55, exact gifts | 93 / 22 / 54 | 12 / 4 / 29 |
+| p.55, integer gifts | 95 / 22 / 52 | 14 / 4 / 27 |
+| p.55, integer gifts + C1 | **99 / 27 / 43** | 18 / 9 / 18 |
+
+- **Integer gifts tie the fitted default on every total,** and they fit nothing. p.55's rule with exact gifts
+  loses two passes.
+- **Gains over 0.83:**
+  - III-4's swings, fail to near (106 to 526).
+  - VI-2's extinction, fail to pass (5 of 10 runs).
+  - III-15's Blue dominance, near to pass.
+- **Losses:** both come from small societies dying more often.
+  - IV-14 dies out in 3 of 5 runs, so its dispersion is read from two (0.33; pass to fail).
+  - III-15's extinctions rise from 2 to 6 of 20 runs, where the book calls them rare (pass to fail).
+- **Unchanged:** III-1's level passes either way (478, 454). Nothing else moves: III-3, III-5, III-7, VI-1 and
+  VI-3 fail under 0.83, p.55 and integer gifts alike.
+- **Integer gifts with C1 as the default** score 99 / 27 / 43: four more passes, five more nears, nine fewer
+  fails. Of 13 status changes, 11 improve. The improvements:
+  - III-3's floor, VI-3's minimum, floor and ceiling, and III-15's Blue dominance and VI-1's Gini, to pass.
+  - III-4's swings, III-3's agents ever lived, VI-3's first peak, and IV-17's and IV-18's rows, to near.
+  - IV-17 and IV-18 now survive in 3 and 4 of 5 runs.
+
+  Two slip from pass to near: III-1's fluctuations (0.11, the population sits at 555 and swings more) and III-15's
+  Red dominance (0.45). None falls from pass to fail. Integer gifts' two losses are gone: IV-14 survives and passes
+  (0.38), and III-15's extinctions are rare again (1 of 20). VI-2 no longer dies out (0 of 10; 1 under 0.83).
+- **The fitted default reaches III-1's level by lowering every agent's requirement to 0.83.** Integer gifts lower
+  it too, but only for children, and by up to a unit a generation. The steady endowment ends ≈15% below the
+  founders' (62 against 75), close to 0.83. That is why the two tie on III-1, while only integer gifts move the
+  dynamics.
+
+## Default switched to integer gifts with partners in sight (2026-10-23)
+
+**Decision (user, 2026-10-23):** the default rule S keeps p.55's threshold (1.0), rounds each parent's gift down
+to a whole unit, and takes partners in sight (C1, a departure from p.56). The fitted 0.83 runs as `VAR-fit83`;
+seed 0 of `VAR-fit83/III-1` reproduces the former default's saved run (population 139, 508 and 510 at t=100, 500
+and 2,000). Every experiment was re-run. This chapter's table (top) moves from 11 / 2 / 12 to 11 / 5 / 9:
+
+- **Pass:** III-1's level (555), III-3's floor (201), III-4's period (104), III-15's Blue dominance (0.40) and
+  its rare extinction (1 of 20).
+- **Near:** III-1's fluctuations (0.11, against 0.065 at 0.83), III-3's agents ever lived (9,934), III-4's
+  range (598), III-15's Red dominance (0.45).
+- **Still failing:** III-3's period (393), III-5's extinction, III-7's inequality and vision, III-15's opposite
+  mountains, and the culture and wave rows (III-8, III-12, III-13), which don't use rule S.
+
+The Chapter III stream pin in `tests/test_model.py` was re-pinned (III-1 at t=200: 492 agents, against 405).
 
 ## Visual comparison
 

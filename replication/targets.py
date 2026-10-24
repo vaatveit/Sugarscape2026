@@ -503,8 +503,8 @@ TARGETS += [
 
 # --- Reproduction-rule variants ------------------------------------------------------------
 # The same targets, run on each variant (experiments.registry.VARIANTS): VAR-book is p.55 as written.
-# III-1's steady population is the quantity the default threshold, VAR-share and VAR-c1c3fit were fitted to.
-_VAR_NAMES = ("book", "share", "c1c3fit", "intgift")
+# III-1's steady population is the quantity VAR-fit83 (the former default), VAR-share and VAR-c1c3fit were fitted to.
+_VAR_NAMES = ("book", "share", "c1c3fit", "intgift", "intgiftc1", "fit83")
 _VAR_FIGURES = ("III-1", "III-3", "III-4", "III-5", "VI-2", "VI-3")
 TARGETS += [
     replace(t, experiment=f"VAR-{name}/{t.experiment}", baseline=f"VAR-{name}/{t.baseline}" if t.baseline else None)
