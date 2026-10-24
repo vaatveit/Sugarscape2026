@@ -128,4 +128,4 @@ Details are in [docs/validation/phase1-chapter2.md](docs/validation/phase1-chapt
 - **Population per tile** stays within the II-4 band (205–245) at every size except K = 1. That point
   is a single seed of a single tile; the 10-seed means are GPU 237 and Python 233.
 
-![benchmark](results-gpu/bench.png)
+![benchmark](docs/validation/phase1-bench.png)

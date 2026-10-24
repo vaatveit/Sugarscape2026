@@ -508,3 +508,4 @@ build-fast/
 .superpowers/
 __pycache__/
 .pytest_cache/
+!docs/validation/*.png
