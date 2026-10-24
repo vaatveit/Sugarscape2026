@@ -144,3 +144,25 @@ def test_max_age_below_one_is_rejected(exe, tmp_path):
     result = run_exe(exe, "--config", write_cfg(tmp_path, max_age="0,5"), "--print-config")
     assert result.returncode == 2
     assert "max_age" in _error(result)
+
+
+# --- xl: diffusion_passes ------------------------------------------------------------------------
+
+
+def test_diffusion_passes_defaults_to_one(exe, tmp_path):
+    result = run_exe(exe, "--config", write_cfg(tmp_path), "--print-config")
+    assert result.returncode == 0, result.stderr
+    assert parse_printed(result.stdout)["diffusion_passes"] == "1"
+
+
+def test_diffusion_passes_is_read(exe, tmp_path):
+    result = run_exe(exe, "--config", write_cfg(tmp_path, diffusion_passes="100"), "--print-config")
+    assert result.returncode == 0, result.stderr
+    assert parse_printed(result.stdout)["diffusion_passes"] == "100"
+
+
+def test_diffusion_passes_below_one_is_rejected(exe, tmp_path):
+    result = run_exe(exe, "--config", write_cfg(tmp_path, diffusion_passes="0"), "--print-config")
+    assert result.returncode == 2
+    # The validation message, not the unknown-key one that also names the key.
+    assert "diffusion_passes" in _error(result) and ">= 1" in _error(result)

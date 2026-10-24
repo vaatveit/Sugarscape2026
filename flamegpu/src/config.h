@@ -44,6 +44,7 @@ struct RunConfig {
     std::optional<int> pollution_stop;
     std::optional<int> diffusion_period;
     int diffusion_start = 0;
+    int diffusion_passes = 1;  // passes of D per diffusion period (100 at xl, docs/xl.md)
     // Run.
     int steps = 0;
     uint64_t seed = 0;
