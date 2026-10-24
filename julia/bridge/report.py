@@ -220,7 +220,8 @@ def write_report(report: Report, path: Path) -> None:
         if t.kind == "untestable":
             untestable[t.experiment] = untestable.get(t.experiment, 0) + 1
     lines += ["## Untestable windows", "",
-              "Fewer than two seeds with a value on a side (after extinctions); extinction is tested instead.", ""]
+              "Fewer than two seeds with a value on a side: after an extinction (tested instead as extinction), or "
+              "once the measured group is gone, such as agents of vision 2 or less after selection.", ""]
     lines += [f"- {i}: {n}" for i, n in untestable.items()] or ["None."]
     lines.append("")
 

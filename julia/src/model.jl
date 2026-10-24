@@ -12,9 +12,9 @@ end
 
 random_directions(rng::AbstractRNG) = @inbounds DIRECTION_ORDERS[rand(rng, 1:24)]
 
-mutable struct Model
+mutable struct Model{R<:AbstractRNG}
     config::Config
-    rng::Xoshiro
+    rng::R  # Xoshiro(seed) unless a caller supplies one (the lockstep test replays Python's choices)
     landscape::Landscape
     grid::Matrix{Union{Nothing,Agent}}
     agents::Vector{Agent}  # the living, in no particular order (each period draws a fresh order)
@@ -32,12 +32,16 @@ mutable struct Model
 end
 
 """
-    Model(cfg; capacity=nothing)
+    Model(cfg; capacity=nothing, rng=Xoshiro(cfg.seed))
 
 Builds the world and its founders as `Model.__init__` does, drawing in Python's gated order: the disease master
 list, the founders (Chapter II draws, then III, IV, V as enabled), initial infections, then founder ages.
 """
-function Model(cfg::Config; capacity::Union{Nothing,AbstractMatrix{<:Integer}}=nothing)
+function Model(
+    cfg::Config;
+    capacity::Union{Nothing,AbstractMatrix{<:Integer}}=nothing,
+    rng::AbstractRNG=Xoshiro(cfg.seed),
+)
     validate(cfg)
     cap = capacity === nothing ? load_map(cfg.sugar_map) : Matrix{Int}(capacity)
     size(cap) == (cfg.width, cfg.height) ||
@@ -46,7 +50,7 @@ function Model(cfg::Config; capacity::Union{Nothing,AbstractMatrix{<:Integer}}=n
     ls = Landscape(cap, cfg.spice ? reverse(cap; dims=1) : nothing)
     m = Model(
         cfg,
-        Xoshiro(cfg.seed),
+        rng,
         ls,
         fill!(Matrix{Union{Nothing,Agent}}(undef, cfg.width, cfg.height), nothing),
         Agent[],
