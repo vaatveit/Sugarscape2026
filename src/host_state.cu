@@ -113,8 +113,16 @@ FLAMEGPU_INIT_FUNCTION(init_landscape) {
 }
 
 FLAMEGPU_HOST_FUNCTION(begin_period) {
-    FLAMEGPU->environment.setProperty<unsigned int>("t", FLAMEGPU->getStepCounter());
+    const RunConfig& cfg = state().cfg;
+    const int t = static_cast<int>(FLAMEGPU->getStepCounter());  // Python's Model.t during the period
+    // P (p.47): active from pollution_start until pollution_stop (Python movement.pollution_active).
+    const bool polluting = cfg.pollution && t >= cfg.pollution_start && (!cfg.pollution_stop || t < *cfg.pollution_stop);
+    // D_alpha (p.48): every diffusion_period periods from diffusion_start (Python Model.step).
+    const bool diffusing = cfg.diffusion_period && t >= cfg.diffusion_start && t % *cfg.diffusion_period == 0;
+    FLAMEGPU->environment.setProperty<unsigned int>("t", static_cast<unsigned int>(t));
     FLAMEGPU->environment.setProperty<unsigned int>("round", 1u);
+    FLAMEGPU->environment.setProperty<unsigned int>("pollution_active", polluting ? 1u : 0u);
+    FLAMEGPU->environment.setProperty<unsigned int>("diffuse_now", diffusing ? 1u : 0u);
 }
 
 FLAMEGPU_STEP_FUNCTION(end_period) {

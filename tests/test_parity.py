@@ -26,6 +26,10 @@ CASES = {
                         [{"x": 0, "y": 19, "vision": 9, "metabolism": 2, "sugar": 10.0, "age": 0, "max_age": None}], 3),
     "starvation": ({}, _agents(metabolisms=(500, 500, 500, 500), sugar=1.0), 2),
     "max_age_death": ({"max_age": "2,2"}, _agents(max_age=2), 3),
+    "seasons_fractional": ({"seasons": "4,3", "winter_growback": "fractional"}, _agents(), 7),
+    "seasons_pulse": ({"seasons": "4,3", "winter_growback": "pulse"}, _agents(), 7),
+    "pollution": ({"pollution": "1.0,1.0", "pollution_start": "1", "pollution_stop": "3"}, _agents(), 5),
+    "pollution_diffusion": ({"pollution": "1.0,1.0", "diffusion_period": "2", "diffusion_start": "1"}, _agents(), 6),
 }
 
 

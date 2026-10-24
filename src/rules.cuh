@@ -55,17 +55,45 @@ FLAMEGPU_AGENT_FUNCTION(metabolize_and_age, flamegpu::MessageNone, flamegpu::Mes
     return flamegpu::ALIVE;
 }
 
-// Cell layer A (reads sugar, capacity, pollution; writes sugar_next, pollution_next): growback G_alpha / G_inf.
+// Cell layer A (reads sugar, capacity, pollution; writes sugar_next, pollution_next): growback G_alpha / G_inf or
+// seasonal S_alpha,beta,gamma (p.44), and diffusion D_alpha (p.48).
 FLAMEGPU_AGENT_FUNCTION(cell_grow, flamegpu::MessageNone, flamegpu::MessageNone) {
     const unsigned int i = FLAMEGPU->getIndex();  // the site index (make_cells)
+    const int w = static_cast<int>(FLAMEGPU->environment.getProperty<unsigned int>("width"));
+    const int h = static_cast<int>(FLAMEGPU->environment.getProperty<unsigned int>("height"));
+    const int x = static_cast<int>(i) % w, y = static_cast<int>(i) / w;
+    const unsigned int t = FLAMEGPU->environment.getProperty<unsigned int>("t");
     auto capacity = FLAMEGPU->environment.getMacroProperty<unsigned int, MAX_CELLS>("capacity");
     auto sugar = FLAMEGPU->environment.getMacroProperty<float, MAX_CELLS>("sugar");
     auto pollution = FLAMEGPU->environment.getMacroProperty<float, MAX_CELLS>("pollution");
     auto sugar_next = FLAMEGPU->environment.getMacroProperty<float, MAX_CELLS>("sugar_next");
     auto pollution_next = FLAMEGPU->environment.getMacroProperty<float, MAX_CELLS>("pollution_next");
-    const float rate = FLAMEGPU->environment.getProperty<float>("growback_rate");  // inf gives capacity (G_inf)
+
+    float rate = FLAMEGPU->environment.getProperty<float>("growback_rate");  // inf gives capacity (G_inf)
+    const unsigned int gamma = FLAMEGPU->environment.getProperty<unsigned int>("seasons_gamma");
+    if (gamma) {
+        // Summer north while t mod 2*gamma < gamma (p.44 fn 33); the north is y >= height / 2.
+        const bool summer_north = t % (2 * gamma) < gamma;
+        const bool north = y >= h / 2;
+        if (north != summer_north) {
+            const unsigned int beta = FLAMEGPU->environment.getProperty<unsigned int>("seasons_beta");
+            if (FLAMEGPU->environment.getProperty<unsigned int>("winter_pulse")) {
+                rate = t % beta == 0 ? rate : 0.0f;  // alpha on periods with t % beta == 0
+            } else {
+                rate = rate / static_cast<float>(beta);  // alpha / beta every period
+            }
+        }
+    }
     sugar_next[i].exchange(fminf(static_cast<float>(sugar[i]) + rate, static_cast<float>(static_cast<unsigned int>(capacity[i]))));
-    pollution_next[i].exchange(static_cast<float>(pollution[i]));
+
+    float p = pollution[i];
+    if (FLAMEGPU->environment.getProperty<unsigned int>("diffuse_now")) {
+        // The mean of the four von Neumann neighbours, the site's own value left out (Python Landscape.diffuse).
+        p = (static_cast<float>(pollution[wrap(x - 1, w) + y * w]) + static_cast<float>(pollution[wrap(x + 1, w) + y * w]) +
+             static_cast<float>(pollution[x + wrap(y - 1, h) * w]) + static_cast<float>(pollution[x + wrap(y + 1, h) * w])) /
+            4.0f;
+    }
+    pollution_next[i].exchange(p);
     return flamegpu::ALIVE;
 }
 
