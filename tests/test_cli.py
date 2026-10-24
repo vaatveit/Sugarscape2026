@@ -137,3 +137,10 @@ def test_timing_json(exe, tmp_path, build):
     assert data["step_seconds_mean"] > 0
     # The periods are most of the simulation's wall-clock time; only initialisation is left out.
     assert 0.2 * data["simulate_seconds"] <= data["step_seconds_mean"] * data["steps"] <= data["simulate_seconds"]
+
+
+def test_max_age_below_one_is_rejected(exe, tmp_path):
+    # Python cannot draw a founder age from U[0, 0); an agent must be able to live at least one period.
+    result = run_exe(exe, "--config", write_cfg(tmp_path, max_age="0,5"), "--print-config")
+    assert result.returncode == 2
+    assert "max_age" in _error(result)

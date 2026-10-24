@@ -9,8 +9,10 @@ import math
 from dataclasses import dataclass
 from pathlib import Path
 
+from bridge.gpu_run import GPU_FINGERPRINT
 from bridge.paths import SUGARSCAPE_ROOT
-from experiments.run import load_results, result_dir, results_current
+from experiments.registry import EXPERIMENTS
+from experiments.run import fingerprint, load_results, result_dir, results_current
 from replication.report import Result, _fmt, evaluate
 from replication.targets import TARGETS, Target
 
@@ -21,6 +23,16 @@ class Comparison:
     gpu: Result | None
     py: Result | None
     py_stale: bool
+    gpu_stale: bool = False
+
+
+def gpu_current(exp_id: str, gpu_dir: Path) -> bool:
+    """GPU results match the experiment's current settings and hold every registered seed (as results_current)."""
+    folder = result_dir(exp_id, gpu_dir)
+    fp = folder / "fingerprint.txt"
+    if not fp.exists() or fp.read_text(encoding="utf-8") != GPU_FINGERPRINT + fingerprint(exp_id):
+        return False
+    return len(list(folder.glob("seed*.csv"))) >= EXPERIMENTS[exp_id].seeds
 
 
 def _load(exp_id: str, folder: Path, cache: dict) -> list | None:
@@ -49,7 +61,9 @@ def compare(targets, gpu_dir: Path, py_dir: Path) -> list[Comparison]:
     for t in targets:
         py = _score(t, Path(py_dir), cache)
         stale = py is not None and not results_current(t.experiment, Path(py_dir))
-        rows.append(Comparison(t, _score(t, Path(gpu_dir), cache), py, stale))
+        gpu = _score(t, Path(gpu_dir), cache)
+        gpu_stale = gpu is not None and not gpu_current(t.experiment, Path(gpu_dir))
+        rows.append(Comparison(t, gpu, py, stale, gpu_stale))
     return rows
 
 
@@ -79,7 +93,7 @@ def write_comparison(rows: list[Comparison], path: Path) -> None:
         t = r.target
         name = f"{t.name} (proxy)" if t.proxy else t.name
         py_status = "—" if r.py is None else r.py.status + (" (stale)" if r.py_stale else "")
-        gpu_status = "—" if r.gpu is None else r.gpu.status
+        gpu_status = "—" if r.gpu is None else r.gpu.status + (" (stale)" if r.gpu_stale else "")
         diff = math.nan if r.py is None or r.gpu is None else r.gpu.observed_mean - r.py.observed_mean
         lines.append(f"| {t.experiment} | {name} | {t.source} {_fmt(t.book_value)} | {_fmt(t.low)}–{_fmt(t.high)} | "
                      f"{_observed(r.py)} | {py_status} | {_observed(r.gpu)} | {gpu_status} | {_fmt(diff)} |")

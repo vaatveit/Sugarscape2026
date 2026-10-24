@@ -233,7 +233,11 @@ void validate(const RunConfig& cfg) {
     check_range("vision", cfg.vision);
     check_range("metabolism", cfg.metabolism);
     check_range("endowment", cfg.endowment);
-    if (cfg.max_age) check_range("max_age", *cfg.max_age);
+    if (cfg.max_age) {
+        check_range("max_age", *cfg.max_age);
+        // Founder ages are drawn from U[0, max_age): an empty range for max_age 0 (Python's rng.integers raises).
+        if (cfg.max_age->lo < 1) invalid("max_age range must start at >= 1, not " + std::to_string(cfg.max_age->lo));
+    }
     // Agents see only along the four lattice directions; opposite scans must not meet (Python Config).
     if (cfg.vision.hi * 2 >= std::min(cfg.base_width(), cfg.base_height())) {
         invalid("max vision " + std::to_string(cfg.vision.hi) + " must be less than half the grid (" +

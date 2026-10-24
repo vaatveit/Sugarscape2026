@@ -35,28 +35,34 @@ The same experiment's t ≈ 50 target passes on both sides.
 
 ## How close the two models are
 
-For every one of the 49 targets, the GPU's mean lies inside the range of Python's seeds. The largest
-gap, as a fraction of Python's seed range:
+For 47 of the 49 targets, the GPU's mean lies inside the range of Python's seeds. Two lie outside it:
 
-| Target | Python | GPU | Gap / Python range |
+| Target | Python mean [seed range] | GPU mean | Welch t (seeds a side) |
 |---|---|---|---|
-| II-4 mean neighbors | 0.797 | 0.855 | 0.68 |
-| II-8 lower carrying capacity when polluted | 0.839 | 0.814 | 0.64 |
-| II-5/m2/v2 carrying capacity at t ≈ 50 | 368.3 | 373.3 | 0.42 |
-| II-5/m2/v3 carrying capacity at t ≈ 50 | 388.4 | 392.9 | 0.37 |
-| II-4 mean vision at t = 500 | 3.791 | 3.884 | 0.34 |
+| II-4 mean neighbors | 0.797 [0.758–0.844] | 0.855 | 5.5 (10) |
+| II-8 lower carrying capacity when polluted | 0.839 [0.822–0.861] | 0.814 | −2.25 (5) |
 
-All the other targets are within 0.25 of Python's range.
+Both are discussed below. An earlier version of this document said every GPU mean was inside
+Python's range. That was wrong: it read a "gap ÷ range" column as if a value below 1 meant "inside".
+
+The next largest gaps, measured against the width of Python's seed range:
+- II-5/m2/v2 carrying capacity at t ≈ 50: 0.42 of the range;
+- II-5/m2/v3 at t ≈ 50: 0.37;
+- II-4 mean vision at t = 500: 0.34.
+
+All the other targets are within 0.25.
 
 ## Differences the parallel update makes
 
 The design named where moving everyone at once can differ from Python's one-at-a-time order. Two of
 those differences show in the results.
 
-**Neighbors are counted after everyone has moved: +7%.** II-4's mean neighbors is 0.855 on the GPU
-and 0.797 in Python. Python counts an agent's neighbors right after its own move, so agents that
-move later and settle next to it are not counted. The GPU counts after all moves, so they are. Both
-pass the book's band (0.75–1.05), and the GPU is closer to the book's 0.9.
+**Neighbors are counted after everyone has moved: +7%, and significant.** II-4's mean neighbors is
+0.855 on the GPU and 0.797 in Python (Welch t = 5.5, 10 seeds a side). The GPU's mean is above every
+Python seed. Python counts an agent's neighbors right after its own move, so agents that move later
+and settle next to it are not counted. The GPU counts after all moves, so they are. This is a
+difference in how the metric is measured, named in the design, not a difference in where agents go.
+Both pass the book's band (0.75–1.05), and the GPU is closer to the book's 0.9.
 
 **Carrying capacity runs about 1% higher, mostly early.** Over the Fig II-5 sweep and II-4:
 
@@ -75,14 +81,26 @@ except the edge case above. The cause has not been isolated. Candidates from the
 If later chapters, whose births are density-dependent, turn out sensitive to it, an ablation could
 separate the two: for example, letting deaths free their sites within the period.
 
-**Pollution.** II-8's ratio of carrying capacity polluted to unpolluted is 0.814 on the GPU against
-0.839 in Python. Both pass the proxy band (0–0.9). Pollution values are float32 on the GPU, which is
-the only place float32 cannot represent Chapter II's quantities exactly. That likely contributes,
-along with the parallel update; this run does not separate the two.
+**Pollution: borderline, not yet explained.** II-8's ratio of carrying capacity polluted to
+unpolluted is 0.814 on the GPU against 0.839 in Python. The GPU's mean is just below Python's lowest
+seed (0.822), but with 5 seeds a side the difference is only borderline (Welch t = −2.25). Both pass
+the proxy band (0–0.9).
+
+The cause is not known. Pollution is stored in float32 on the GPU, but rounding at about 1e-7
+relative is very unlikely to make a 3% difference. A parallel-update effect, for example on how
+agents choose among polluted sites, is more plausible but untested. More seeds, and a build with
+double-precision pollution, would separate the two.
 
 ## Conclusion
 
-For Chapter II, the GPU model reproduces the Python model's results. Every target's GPU mean is
-inside the Python seed range, the same targets fail for the same reasons, and the only status change
-is a mean on a band edge. Two effects of parallel updating are measurable: neighbor counts (+7%) and
-early carrying capacity (+1%). Both are well inside the book's bands.
+For Chapter II, the GPU model reproduces the Python model's results.
+- The scores are almost identical (36/10/3 against 37/9/3), and the same targets fail for the same
+  reasons.
+- The only status change is a mean on a band edge.
+- The GPU's mean is inside Python's seed range for 47 of 49 targets. The two exceptions:
+  - mean neighbors, +7%, a measurement difference the design named;
+  - II-8's pollution ratio, −3%, borderline and not yet explained.
+- Early carrying capacity runs about 1% higher, a small systematic shift.
+
+All of these are well inside the book's bands. The pollution difference should be settled before
+Chapter VI, which combines pollution with other rules.

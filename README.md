@@ -46,7 +46,7 @@ python -m venv .venv
 
 The tests drive the built program, `build\bin\Release\sugarscape_gpu.exe` (override with
 `SUGARSCAPE_GPU_EXE`). Rule tests run the same small scenarios through the GPU program and the Python
-model, and require identical results. Each scenario is chosen so that the order agents act in cannot
+model, and require the same results (sugar to within 1e-5). Each scenario is chosen so that the order agents act in cannot
 matter.
 
 ## Running
@@ -99,7 +99,9 @@ targets:
 | Python | 37 | 9 | 3 |
 | GPU | 36 | 10 | 3 |
 
-- Every GPU mean lies inside the range of Python's seeds.
+- The GPU's mean is inside the range of Python's seeds for 47 of the 49 targets. The two outside are
+  mean neighbors (+7%, a measurement difference the design named) and II-8's pollution ratio (−3%,
+  borderline, not yet explained).
 - The one status change is a mean on a band's edge: II-5/m3/v8, Python 252.3 against GPU 251.5,
   band from 252.
 - Two effects of updating in parallel are measurable: mean neighbors is 7% higher, and early carrying
@@ -107,7 +109,8 @@ targets:
 
 Details are in [docs/validation/phase1-chapter2.md](docs/validation/phase1-chapter2.md).
 
-**Scaling** (II-4 rules, RTX 4080, `build-fast`, mean of 200 periods; Python 3.14, 50 periods):
+**Scaling** (II-4 rules, RTX 4080, `build-fast`, mean of 200 periods; Python 3.14, 50 periods; run as
+`python -m bridge.bench --python-tiles 1,2,4,8`):
 
 | World | Agents | GPU ms/period | Python ms/period | Population per 50×50 tile |
 |---|---|---|---|---|
@@ -121,7 +124,7 @@ Details are in [docs/validation/phase1-chapter2.md](docs/validation/phase1-chapt
 | 2500 × 2500 | 1,000,000 | 4.83 | — | 234.6 |
 
 - **Python** grows about linearly with agents, roughly 13 µs per agent. Extrapolated to 1M agents
-  that is around 13 s per period, about 2,800× the GPU's 4.8 ms. The extrapolation is a rough figure;
+  that is around 13 s per period, about 2,700× the GPU's 4.8 ms. The extrapolation is a rough figure;
   1M agents was not run in Python.
 - **The GPU** is nearly flat up to 250k agents: the device is not yet full, and launch and
   synchronisation overhead dominate.

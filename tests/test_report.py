@@ -39,3 +39,22 @@ def test_status_change_listed(tmp_path):
     text = report.read_text(encoding="utf-8")
     changes = text.split("## Status changes", 1)[1]
     assert "II-4" in changes and "carrying capacity" in changes and "Python pass → GPU fail" in changes
+
+
+def test_gpu_results_checked_for_staleness(tmp_path):
+    from bridge.gpu_run import GPU_FINGERPRINT
+    from experiments.run import fingerprint
+
+    _results(tmp_path / "gpu", "II-4", 230, seeds=1)  # a partial set without a fingerprint
+    _results(tmp_path / "py", "II-4", 220)
+    (row,) = compare(II_4_CC, tmp_path / "gpu", tmp_path / "py")
+    assert row.gpu_stale
+    report = tmp_path / "REPORT.md"
+    write_comparison([row], report)
+    assert "pass (stale)" in report.read_text(encoding="utf-8").split("| 230")[1]
+
+    folder = result_dir("II-4", tmp_path / "gpu2")
+    _results(tmp_path / "gpu2", "II-4", 230, seeds=10)
+    (folder / "fingerprint.txt").write_text(GPU_FINGERPRINT + fingerprint("II-4"), encoding="utf-8")
+    (row,) = compare(II_4_CC, tmp_path / "gpu2", tmp_path / "py")
+    assert not row.gpu_stale

@@ -109,7 +109,7 @@ culture, trade, credit, disease, combat), each with its own design.
 
 Python's step order is followed, except where marked **[parallel]**.
 
-1. **Start of period** (cells): reset `claim` to 0. Citizens draw a fresh random 24-bit priority and
+1. **Start of period** (cells): reset `claim` to 0. Citizens draw a fresh random 20-bit priority and
    clear `moved`.
 2. **Movement sub-model** (unsettled citizens), repeated in rounds until all are settled:
    1. *Scan* (reads `occupied`, `sugar` and `pollution`; writes `claim`): build the candidate list as
