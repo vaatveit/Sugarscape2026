@@ -3,6 +3,7 @@
 using Sugarscape, Test, TOML
 using Random: AbstractRNG
 using Random: Random
+isdefined(@__MODULE__, :tiny_model) || include("helpers.jl")
 
 """An RNG that replays Python's recorded permutations, in Python's call order; any other draw is an error."""
 struct ScriptedRNG <: AbstractRNG
@@ -38,7 +39,6 @@ function lockbits(v)
         (acc, (i, b)) -> acc | (UInt64(b) << (i - 1)), enumerate(v); init=UInt64(0)
     )
 end
-near(a, b) = isapprox(a, b; rtol=1e-12, atol=1e-9)
 
 for case in TOML.parsefile(joinpath(@__DIR__, "fixtures", "lockstep.toml"))["case"]
     @testset "lockstep $(case["name"])" begin

@@ -66,6 +66,13 @@ class Report:
         return [t for t in self.tests if t.flagged]
 
     @property
+    def caveats(self) -> list[str]:
+        """Compared experiments whose results on either side are stale or incomplete."""
+        compared = {t.experiment for t in self.tests}
+        return [i for i, s in self.inputs.items()
+                if i in compared and {"stale", "incomplete"} & {*s["python"], *s["julia"]}]
+
+    @property
     def agrees(self) -> bool:
         return bool(self.tests) and not self.flags and not any(t.changed for t in self.targets)
 
@@ -117,6 +124,11 @@ def _speed(exp_id: str, py_root: Path, jl_root: Path) -> Speed:
                  _machine(jl_folder))
 
 
+def _unrecorded(error: KeyError, *runs) -> bool:
+    """Whether the missing key is a column some of these results do not record (older runs lack newer columns)."""
+    return any(r and r[0] and error.args[0] not in r[0][0] for r in runs)
+
+
 def _targets(ids: set[str], jl_root: Path, py_root: Path, cache: dict) -> list[TargetRow]:
     def runs(exp_id: str, root: Path):
         key = (exp_id, str(root))
@@ -135,8 +147,10 @@ def _targets(ids: set[str], jl_root: Path, py_root: Path, cache: dict) -> list[T
                 ok = main is not None and not (t.baseline and base is None)
                 scored.append(evaluate(t, main, base) if ok else None)
                 per_seed.append(_per_seed(t, main, base) if ok else None)
-            except KeyError:  # a column this result does not record
-                scored.append(None)
+            except KeyError as e:
+                if not _unrecorded(e, main, base):
+                    raise
+                scored.append(None)  # a column this result does not record
                 per_seed.append(None)
         p = math.nan if None in per_seed else seed_level_p(*per_seed)
         rows.append(TargetRow(t, *scored, p))
@@ -194,7 +208,10 @@ def write_report(report: Report, path: Path) -> None:
     verdict = "agrees with" if report.agrees else "does not agree with"
     lines += [f"**Julia {verdict} Python** on {len({t.experiment for t in report.tests})} experiments: "
               f"{len(report.flags)} flags among {tested} tested windows and {extinctions} extinction tests "
-              f"(Benjamini–Hochberg, q = {Q}), and {len(changes)} book-target status changes.", ""]
+              f"(Benjamini–Hochberg, q = {Q}), and {len(changes)} book-target status changes."
+              + (f" Compared from stale or incomplete results: {len(report.caveats)} of the "
+                 f"{len({t.experiment for t in report.tests})} experiments (see Inputs)." if report.caveats else ""),
+              ""]
 
     issues = {i: s for i, s in report.inputs.items() if s["python"] or s["julia"]}
     lines += ["## Inputs", "",
@@ -285,7 +302,8 @@ def main(argv: list[str] | None = None) -> None:
     report = build_report(julia, python, args.xl, args.only)
     write_report(report, julia / "REPORT.md")
     print(f"wrote {julia / 'REPORT.md'}: {'agrees' if report.agrees else 'does not agree'}; "
-          f"{len(report.flags)} flags, {sum(t.changed for t in report.targets)} target status changes")
+          f"{len(report.flags)} flags, {sum(t.changed for t in report.targets)} target status changes, "
+          f"{len(report.caveats)} experiments compared from stale or incomplete results")
 
 
 if __name__ == "__main__":

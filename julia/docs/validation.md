@@ -96,8 +96,13 @@ Three groups were followed up because they pointed one way or looked qualitative
 - **IV-18 long-run mean foresight.** 4 of 5 Julia seeds went extinct against 1 of 5 Python seeds, so the target
   had one Julia seed to measure. With 50 seeds each: 26/50 extinct on both sides (Fisher p = 1.0), population
   agreeing at every time (p ≥ 0.58). Sampling noise.
-- **VI-3 near-extinction minimum** (and its VAR- copies): Julia higher (66 → 87, p = 0.15). Same kind: VI-3's
-  minimum follows the early die-off, which 5 seeds measure loosely.
+- **VI-3 near-extinction minimum** (and its VAR- copies): Julia higher on the registered seeds, in VI-3 (66 → 87,
+  p = 0.15; 66.2 → 76.2, p = 0.57, once the old-age fix was in the results) and in VAR-inttrade, VAR-fit83 and
+  VAR-c1c3fit. The minimum follows the early die-off, which 5 seeds measure loosely. With 50 seeds each, on the 45
+  seeds never looked at before: VI-3 77.9 against 77.2 (p = 0.91), VAR-inttrade 68.1 against 74.4 (p = 0.29),
+  VAR-fit83 55.6 against 45.6 (p = 0.08), VAR-c1c3fit 211.2 against 214.4 (p = 0.65). Julia is lower in two and
+  higher in two, so the one-way pattern was the registered seeds; every VI-3 target in the four has p ≥ 0.15 over
+  all 50 seeds. Sampling noise.
 
 **Untimed:** every Python result is still from 2026-10-23, before the runner recorded timing, so the speed tables
 are Julia only until the user's timed re-run lands.

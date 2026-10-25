@@ -1,6 +1,7 @@
 # Replays the cross-language scenarios: small states whose outcome cannot depend on the agents' order or on random
 # draws, with the end state the Python model reached (julia/bridge/scenarios.py writes fixtures/scenarios.toml).
 using Sugarscape, Test, TOML
+isdefined(@__MODULE__, :tiny_model) || include("helpers.jl")
 
 const FIXTURES = joinpath(@__DIR__, "fixtures", "scenarios.toml")
 const SEXES = Dict("F" => :F, "M" => :M)
@@ -55,7 +56,6 @@ function build(sc)
     return m, agents
 end
 
-close(a, b) = isapprox(a, b; rtol=1e-12, atol=1e-9)
 grid(rows, w, h) = [rows[x][y] for x in 1:w, y in 1:h]
 
 for sc in TOML.parsefile(FIXTURES)["scenario"]
@@ -73,11 +73,11 @@ for sc in TOML.parsefile(FIXTURES)["scenario"]
         @test length(got) == length(want["agents"])
         for (a, e) in zip(got, want["agents"])
             @test (a.x, a.y, a.age) == (e["x"], e["y"], e["age"])
-            @test close(a.sugar, e["sugar"]) && close(a.spice, e["spice"])
+            @test near(a.sugar, e["sugar"]) && near(a.spice, e["spice"])
         end
         w, h = sc["width"], sc["height"]
-        @test all(close.(m.landscape.sugar, grid(want["sugar"], w, h)))
-        @test all(close.(m.landscape.spice, grid(want["spice"], w, h)))
-        @test all(close.(m.landscape.pollution, grid(want["pollution"], w, h)))
+        @test all(near.(m.landscape.sugar, grid(want["sugar"], w, h)))
+        @test all(near.(m.landscape.spice, grid(want["spice"], w, h)))
+        @test all(near.(m.landscape.pollution, grid(want["pollution"], w, h)))
     end
 end

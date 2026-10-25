@@ -1,5 +1,6 @@
-# Ports tests/test_model.py (the numpy-stream pins have no Julia counterpart).
-using Sugarscape, Test
+# Ports tests/test_model.py. Its numpy-stream pins become the gating tests at the end: Julia's stream can't match
+# numpy's values, so they test the property the pins guard instead.
+using Random, Sugarscape, Test
 isdefined(@__MODULE__, :tiny_model) || include("helpers.jl")
 
 @testset "test_random_placement_is_distinct_and_seeded" begin
@@ -154,4 +155,98 @@ end
     empty!(m.dead_this_step)
     step!(m)
     @test [a.id for a in m.dead_this_step] == [0, 2, 4, 5, 6]
+end
+
+# Python pins III-1, IV-3 and V-2 to values recorded before the next chapter existed, which catches any draw a
+# later chapter adds without a gate. Julia's stream can't reproduce those values, so it restates the property:
+# with a later chapter's rule off, its parameters change nothing and setting up makes fewer draws than with the
+# rule on (an ungated draw would make the counts equal). Where the order allows, turning the rule on also leaves
+# the placement and the first founder's earlier draws alone: each founder's later draws follow its own earlier
+# ones, and founder ages come after every founder (Python's order).
+function registry_config(id; kw...)
+    return replace_config(find_experiment(load_registry(), id).config; kw...)
+end
+
+"""Xoshiro, counting its draws: every rand the model makes (ranges, shuffles, bit fields) comes from these."""
+struct CountingRNG <: AbstractRNG
+    rng::Xoshiro
+    draws::Base.RefValue{Int}
+end
+CountingRNG(seed) = CountingRNG(Xoshiro(seed), Ref(0))
+function Random.rand(r::CountingRNG, sp::Random.SamplerType{T}) where {T<:Base.BitInteger}
+    r.draws[] += 1
+    return rand(r.rng, sp)
+end
+
+function setup_draws(cfg)
+    rng = CountingRNG(cfg.seed)
+    m = Model(cfg; rng=rng)
+    return m, rng.draws[]
+end
+
+function metric_series(cfg, steps)
+    out = Vector{Float64}[]
+    run!(Model(cfg), steps; observer=m -> push!(out, collect_metrics(m)))
+    return out
+end
+
+founder(m) = m.agents[findfirst(g -> g.id == 0, m.agents)]
+positions(m) = [(g.x, g.y) for g in m.agents]
+
+@testset "test_chapter3_stream_unchanged_by_chapter4_fields" begin
+    base = registry_config("III-1"; seed=3)
+    inert = replace_config(
+        base;
+        spice_metabolism=(2, 3),
+        spice_endowment=(7, 9),
+        trade_rounding="down",
+        disease_length=(2, 4),
+        immune_length=21,
+        disease_fee=2.0,
+    )
+    @test isequal(metric_series(base, 200), metric_series(inert, 200))
+    (a, off), (b, on) = setup_draws(base), setup_draws(replace_config(base; spice=true))
+    @test on - off == 2 * length(a.agents)  # spice metabolism and endowment, per founder
+    @test positions(a) == positions(b)
+    f, g = founder(a), founder(b)
+    @test (f.vision, f.metabolism, f.sugar, f.max_age, f.sex, f.fertility_end) ==
+        (g.vision, g.metabolism, g.sugar, g.max_age, g.sex, g.fertility_end)
+end
+
+@testset "test_chapter4_stream_unchanged_by_chapter5_fields" begin
+    base = registry_config("IV-3"; seed=3)
+    inert = replace_config(base; disease_length=(2, 4), immune_length=21, disease_fee=2.0)
+    @test isequal(metric_series(base, 100), metric_series(inert, 100))
+    # The master disease list is drawn before placement (p.147, Python's order), so turning disease on changes the
+    # whole society; only the draw counts compare: a length and a bit field per listed disease, and an immune
+    # system per founder.
+    (a, off), (_, on) = setup_draws(base),
+    setup_draws(replace_config(base; disease_list=10))
+    @test on - off == 2 * 10 + length(a.agents)
+end
+
+@testset "test_chapter5_stream_unchanged_by_chapter6" begin
+    # Chapter VI's new rule is credit, which needs rule S and draws nothing when agents are made, so VI-2 and VI-3
+    # seed k start from the same society. V-2's world with rule S, then with credit on.
+    base = registry_config("V-2"; sex=true, seed=3)
+    (a, off), (b, on) = setup_draws(base),
+    setup_draws(replace_config(base; credit=(10, 0.1)))
+    @test off == on
+    traits(m) = [
+        (
+            g.id,
+            g.x,
+            g.y,
+            g.vision,
+            g.metabolism,
+            g.sugar,
+            g.age,
+            g.sex,
+            g.fertility_start,
+            g.fertility_end,
+            g.immune_genotype,
+            copy(g.diseases),
+        ) for g in m.agents
+    ]
+    @test traits(a) == traits(b)
 end

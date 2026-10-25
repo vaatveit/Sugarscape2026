@@ -70,7 +70,7 @@ cd julia
 ..\.venv\Scripts\python -m bridge.report --xl
 ```
 
-The report reads the Python results in the main checkout (`results/`, `results-xl/`; `SUGARSCAPE_RESULTS_ROOT`
+The report reads the Python results in this checkout (`results/`, `results-xl/`; `SUGARSCAPE_RESULTS_ROOT`
 overrides where) and Julia's, runs nothing, and writes `REPORT.md` into the Julia results folder:
 
 - **Agreement.** For every experiment, every metric and each quarter of the run, each seed's mean over the window;

@@ -17,6 +17,9 @@ function put_agent(m, x, y; vision=1, metabolism=1, sugar=10.0, max_age=Inf)
     return new_agent!(m, x, y, vision, metabolism, sugar; max_age=max_age)
 end
 
+"""Equal up to float rounding: how cross-language fixtures compare amounts."""
+near(a, b) = isapprox(a, b; rtol=1e-12, atol=1e-9)
+
 """A 0/1 vector as the bit field the Agent stores (bit i-1 is position i)."""
 function bits(v)
     return foldl(
