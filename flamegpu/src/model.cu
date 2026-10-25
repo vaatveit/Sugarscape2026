@@ -17,7 +17,8 @@ void landscape_macros(flamegpu::EnvironmentDescription env, bool all) {
     env.newMacroProperty<unsigned int>("deaths");
 }
 
-// The movement sub-model: scan and resolve until every citizen has settled (design: One period, step 2).
+// The movement sub-model: propose and bid until a round places no bid (spec 2026-10-25-gpu-sequential-semantics,
+// section 2); commit_move then moves everyone at once.
 void describe_movement(flamegpu::ModelDescription& sub, const RunConfig& cfg) {
     flamegpu::EnvironmentDescription env = sub.Environment();
     env.newProperty<unsigned int>("width", cfg.width);
@@ -38,8 +39,9 @@ void describe_movement(flamegpu::ModelDescription& sub, const RunConfig& cfg) {
     citizen.newVariable<unsigned int>("settled");
     citizen.newVariable<unsigned int>("priority");
     citizen.newVariable<unsigned int>("target");
-    sub.newLayer().addAgentFunction(citizen.newFunction("scan", scan));
-    sub.newLayer().addAgentFunction(citizen.newFunction("resolve", resolve));
+    env.newMacroProperty<unsigned int>("bids");  // bids placed this round (bid; movement_settled)
+    sub.newLayer().addAgentFunction(citizen.newFunction("propose", propose));
+    sub.newLayer().addAgentFunction(citizen.newFunction("bid", bid));
     sub.addExitCondition(movement_settled);
 }
 
@@ -126,6 +128,7 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
     model.newLayer().addHostFunction(finish_init);
     model.newLayer().addAgentFunction(citizen.newFunction("start_period", start_period));
     model.newLayer().addSubModel(movement_sub);
+    model.newLayer().addAgentFunction(citizen.newFunction("commit_move", commit_move));
     model.newLayer().addAgentFunction(citizen.newFunction("count_neighbors", count_neighbors));
     model.newLayer().addAgentFunction(metabolize);
     if (cfg.replacement) model.newLayer().addAgentFunction(citizen.newFunction("place_newcomer", place_newcomer));

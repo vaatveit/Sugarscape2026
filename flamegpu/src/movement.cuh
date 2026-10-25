@@ -1,4 +1,6 @@
-// Movement rule M in parallel: rounds of atomic claims inside a sub-model (design: One period, step 2).
+// Movement rule M in parallel: deferred acceptance over the period's order inside a sub-model, then one commit
+// (spec 2026-10-25-gpu-sequential-semantics, section 2). Every site prefers the agent earliest in the order, so the
+// rounds end where Python's one-agent-at-a-time rule ends over the sites free at the period's start.
 // Included only by model.cu.
 #ifndef SRC_MOVEMENT_CUH_
 #define SRC_MOVEMENT_CUH_
@@ -10,7 +12,13 @@
 __device__ __constant__ int MOVE_DX[4] = {1, -1, 0, 0};
 __device__ __constant__ int MOVE_DY[4] = {0, 0, 1, -1};
 
-constexpr unsigned int MAX_ROUNDS = 4095;
+constexpr unsigned int MAX_ROUNDS = 65535;
+
+// Movement states (the citizen's "settled" variable during the movement sub-model).
+constexpr unsigned int MOVE_SCAN = 0u;     // must scan: the period's first round, or displaced from its site
+constexpr unsigned int MOVE_HOLD = 1u;     // holds a bid on its target
+constexpr unsigned int MOVE_STAY = 2u;     // stays put: its own site is its best available, which only shrinks
+constexpr unsigned int MOVE_PENDING = 3u;  // chose a new target this round; bid places the bid
 
 // The period's order: priority (32 bits) | agent id (32 bits). Larger is earlier in the order, and the largest key
 // at a site wins it. Never 0, since ids start at 1.
@@ -39,11 +47,19 @@ __device__ __forceinline__ int look_distance(unsigned int look_seed, int d, int 
     return stride * k + 1 + static_cast<int>(h % static_cast<unsigned int>(stride));
 }
 
-// Scan (reads occupied, sugar, pollution; writes claim): the nearest best unoccupied site in view, scanned as
-// candidate_sites does — own site at distance 0, then the four directions in a random order out to vision: every
-// site, or with a look stride one site per stretch.
-FLAMEGPU_AGENT_FUNCTION(scan, flamegpu::MessageNone, flamegpu::MessageNone) {
-    if (FLAMEGPU->getVariable<unsigned int>("settled")) return flamegpu::ALIVE;
+// Propose (reads occupied, sugar, pollution, claim): the nearest best site in view that was free at the period's
+// start (occupied does not change during the sub-model) and that no earlier agent holds, scanned as candidate_sites
+// does: own site at distance 0, then the four directions in the period's order out to vision, every site or with a
+// look stride one site per stretch. Agents that stay, or whose bid still stands, have nothing to do.
+FLAMEGPU_AGENT_FUNCTION(propose, flamegpu::MessageNone, flamegpu::MessageNone) {
+    const unsigned int state = FLAMEGPU->getVariable<unsigned int>("settled");
+    if (state == MOVE_STAY) return flamegpu::ALIVE;
+    const uint64_t key = order_key(FLAMEGPU->getVariable<unsigned int>("priority"), FLAMEGPU->getID());
+    auto claim = FLAMEGPU->environment.getMacroProperty<uint64_t, MAX_CELLS>("claim");
+    if (state == MOVE_HOLD &&
+        static_cast<uint64_t>(claim[FLAMEGPU->getVariable<unsigned int>("target")]) == key) {
+        return flamegpu::ALIVE;
+    }
     const int w = static_cast<int>(FLAMEGPU->environment.getProperty<unsigned int>("width"));
     const int h = static_cast<int>(FLAMEGPU->environment.getProperty<unsigned int>("height"));
     const int x = FLAMEGPU->getVariable<int>("x");
@@ -69,6 +85,7 @@ FLAMEGPU_AGENT_FUNCTION(scan, flamegpu::MessageNone, flamegpu::MessageNone) {
             const unsigned int site =
                 static_cast<unsigned int>(wrap(x + MOVE_DX[d] * dist, w) + wrap(y + MOVE_DY[d] * dist, h) * w);
             if (static_cast<unsigned int>(occupied[site])) continue;  // check occupancy before reading the site
+            if (static_cast<uint64_t>(claim[site]) > key) continue;  // an earlier agent holds it
             const float score = static_cast<float>(sugar[site]) / (1.0f + static_cast<float>(pollution[site]));
             if (score > best_score || (score == best_score && dist < best_dist)) {
                 best = site;
@@ -78,52 +95,60 @@ FLAMEGPU_AGENT_FUNCTION(scan, flamegpu::MessageNone, flamegpu::MessageNone) {
         }
     }
     FLAMEGPU->setVariable<unsigned int>("target", best);
-    if (best != own) {
-        auto claim = FLAMEGPU->environment.getMacroProperty<uint64_t, MAX_CELLS>("claim");
-        claim[best].max(order_key(FLAMEGPU->getVariable<unsigned int>("priority"), FLAMEGPU->getID()));
-    }
+    FLAMEGPU->setVariable<unsigned int>("settled", best == own ? MOVE_STAY : MOVE_PENDING);
     return flamegpu::ALIVE;
 }
 
-// Resolve (reads claim; writes occupied, sugar, pollution): winners move, harvest all the site's sugar, and settle.
-FLAMEGPU_AGENT_FUNCTION(resolve, flamegpu::MessageNone, flamegpu::MessageNone) {
-    if (FLAMEGPU->getVariable<unsigned int>("settled")) return flamegpu::ALIVE;
-    const unsigned int w = FLAMEGPU->environment.getProperty<unsigned int>("width");
-    const int x = FLAMEGPU->getVariable<int>("x");
-    const int y = FLAMEGPU->getVariable<int>("y");
-    const unsigned int own = static_cast<unsigned int>(x) + static_cast<unsigned int>(y) * w;
-    const unsigned int target = FLAMEGPU->getVariable<unsigned int>("target");
-    if (target != own) {
-        auto claim = FLAMEGPU->environment.getMacroProperty<uint64_t, MAX_CELLS>("claim");
-        const uint64_t key = order_key(FLAMEGPU->getVariable<unsigned int>("priority"), FLAMEGPU->getID());
-        if (static_cast<uint64_t>(claim[target]) != key) return flamegpu::ALIVE;  // lost: scan again next round
-    }
-    auto occupied = FLAMEGPU->environment.getMacroProperty<unsigned int, MAX_CELLS>("occupied");
-    auto sugar = FLAMEGPU->environment.getMacroProperty<float, MAX_CELLS>("sugar");
-    if (target != own) {
-        occupied[own].exchange(0u);
-        occupied[target].exchange(1u);
-        FLAMEGPU->setVariable<int>("x", static_cast<int>(target % w));
-        FLAMEGPU->setVariable<int>("y", static_cast<int>(target / w));
-        FLAMEGPU->setVariable<unsigned int>("moved", 1u);
-    }
-    const float harvest = sugar[target].exchange(0.0f);
-    FLAMEGPU->setVariable<float>("sugar", FLAMEGPU->getVariable<float>("sugar") + harvest);
-    if (FLAMEGPU->environment.getProperty<unsigned int>("pollution_active")) {
-        auto pollution = FLAMEGPU->environment.getMacroProperty<float, MAX_CELLS>("pollution");
-        pollution[target] += FLAMEGPU->environment.getProperty<float>("pollution_alpha") * harvest;  // production (p.47)
-    }
-    FLAMEGPU->setVariable<unsigned int>("settled", 1u);
+// Bid (writes claim, bids): a site keeps the largest key, the earliest agent, across rounds. A later holder it
+// displaces finds out in the next round's propose and chooses again.
+FLAMEGPU_AGENT_FUNCTION(bid, flamegpu::MessageNone, flamegpu::MessageNone) {
+    if (FLAMEGPU->getVariable<unsigned int>("settled") != MOVE_PENDING) return flamegpu::ALIVE;
+    auto claim = FLAMEGPU->environment.getMacroProperty<uint64_t, MAX_CELLS>("claim");
+    claim[FLAMEGPU->getVariable<unsigned int>("target")].max(
+        order_key(FLAMEGPU->getVariable<unsigned int>("priority"), FLAMEGPU->getID()));
+    auto bids = FLAMEGPU->environment.getMacroProperty<unsigned int>("bids");
+    ++bids;
+    FLAMEGPU->setVariable<unsigned int>("settled", MOVE_HOLD);
     return flamegpu::ALIVE;
 }
 
-// Another round while anyone is unsettled; each round's claims outrank the last round's.
+// Another round while the last one placed a bid: only a bid can displace a holder. Every bid raises a site's claim,
+// so the rounds end.
 FLAMEGPU_EXIT_CONDITION(movement_settled) {
-    if (FLAMEGPU->agent("citizen").count<unsigned int>("settled", 0u) == 0) return flamegpu::EXIT;
+    auto bids = FLAMEGPU->environment.getMacroProperty<unsigned int>("bids");
+    const unsigned int placed = bids;
+    bids = 0u;
+    if (placed == 0u) return flamegpu::EXIT;
     const unsigned int round = FLAMEGPU->environment.getProperty<unsigned int>("round") + 1;
     if (round > MAX_ROUNDS) throw RoundLimitError("movement needed more than " + std::to_string(MAX_ROUNDS) + " rounds");
     FLAMEGPU->environment.setProperty<unsigned int>("round", round);
     return flamegpu::CONTINUE;
+}
+
+// Commit (writes occupied, sugar, pollution), after the sub-model: holders move to their targets and harvest them;
+// stayers harvest their own sites. Targets were free at the start and are distinct, so no two agents write a site.
+FLAMEGPU_AGENT_FUNCTION(commit_move, flamegpu::MessageNone, flamegpu::MessageNone) {
+    const unsigned int w = FLAMEGPU->environment.getProperty<unsigned int>("width");
+    const unsigned int own = static_cast<unsigned int>(FLAMEGPU->getVariable<int>("x")) +
+                             static_cast<unsigned int>(FLAMEGPU->getVariable<int>("y")) * w;
+    const bool moving = FLAMEGPU->getVariable<unsigned int>("settled") == MOVE_HOLD;
+    const unsigned int site = moving ? FLAMEGPU->getVariable<unsigned int>("target") : own;
+    if (moving) {
+        auto occupied = FLAMEGPU->environment.getMacroProperty<unsigned int, MAX_CELLS>("occupied");
+        occupied[own].exchange(0u);
+        occupied[site].exchange(1u);
+        FLAMEGPU->setVariable<int>("x", static_cast<int>(site % w));
+        FLAMEGPU->setVariable<int>("y", static_cast<int>(site / w));
+        FLAMEGPU->setVariable<unsigned int>("moved", 1u);
+    }
+    auto sugar = FLAMEGPU->environment.getMacroProperty<float, MAX_CELLS>("sugar");
+    const float harvest = sugar[site].exchange(0.0f);
+    FLAMEGPU->setVariable<float>("sugar", FLAMEGPU->getVariable<float>("sugar") + harvest);
+    if (FLAMEGPU->environment.getProperty<unsigned int>("pollution_active")) {
+        auto pollution = FLAMEGPU->environment.getMacroProperty<float, MAX_CELLS>("pollution");
+        pollution[site] += FLAMEGPU->environment.getProperty<float>("pollution_alpha") * harvest;  // production (p.47)
+    }
+    return flamegpu::ALIVE;
 }
 
 #endif  // SRC_MOVEMENT_CUH_
