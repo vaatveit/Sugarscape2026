@@ -53,6 +53,9 @@ Base.@kwdef struct Config
     diffusion_period::Union{Nothing,Int} = nothing
     diffusion_start::Int = 0
     diffusion_passes::Int = 1
+    # Along each lattice line, agents look at one random site in each stretch of look_stride sites (rules M and C,
+    # and rule S's partners in sight), and vision is drawn in whole strides. xl sets 10 (docs/xl.md, "Looking").
+    look_stride::Int = 1
 
     # Chapter III.
     sex::Bool = false
@@ -163,6 +166,10 @@ function validate(c::Config)
         bad("diffusion_period must be None or >= 1, not $(c.diffusion_period)")
     c.diffusion_passes < 1 &&
         bad("diffusion_passes must be a whole number >= 1, not $(c.diffusion_passes)")
+    c.look_stride < 1 &&
+        bad("look_stride must be a whole number >= 1, not $(c.look_stride)")
+    (c.vision[1] % c.look_stride != 0 || c.vision[2] % c.look_stride != 0) &&
+        bad("vision range $(c.vision) must be in whole look strides of $(c.look_stride)")
     c.pollution !== nothing &&
         minimum(c.pollution) < 0 &&
         bad("pollution coefficients must be >= 0, not $(c.pollution)")

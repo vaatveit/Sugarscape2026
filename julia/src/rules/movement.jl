@@ -10,6 +10,23 @@ function pollution_active(m::Model)
     return cfg.pollution_stop === nothing || m.t < cfg.pollution_stop
 end
 
+"""
+    look_distance(rng, stride, k)
+
+The distance of an agent's k-th look (k = 0, 1, ...) along one lattice line: k + 1 with a stride of 1, which draws
+nothing, or one site drawn uniformly from the stretch stride k + 1 .. stride (k + 1) (docs/xl.md, "Looking"). A
+line of vision v has v ÷ stride looks.
+"""
+@inline function look_distance(rng::AbstractRNG, stride::Int, k::Int)
+    return stride == 1 ? k + 1 : stride * k + rand(rng, 1:stride)
+end
+
+"""The distances of every look along one lattice line, nearest first (Python's `look_distances`)."""
+function look_distances(m::Model, vision::Int)
+    s = m.config.look_stride
+    return [look_distance(m.rng, s, k) for k in 0:(vision ÷ s - 1)]
+end
+
 """Sugar-to-pollution ratio s/(1+p) (p.47 fn 37); equals plain sugar while p = 0."""
 @inline site_score(ls::Landscape, i::Int, j::Int) =
     @inbounds ls.sugar[i, j] / (1.0 + ls.pollution[i, j])
@@ -29,9 +46,11 @@ function move!(m::Model, a::Agent)
     best_x, best_y, best_d = a.x, a.y, 0
     sw = spice ? SiteWelfare(m, a) : NO_WELFARE  # the agent's part of welfare_score, once per move
     best = spice ? score(sw, ls, a.x + 1, a.y + 1) : site_score(ls, a.x + 1, a.y + 1)
+    stride = m.config.look_stride
     for d in random_directions(m.rng)
         dx, dy = @inbounds VON_NEUMANN[d]
-        for dist in 1:(a.vision)
+        for k in 0:(a.vision ÷ stride - 1)
+            dist = look_distance(m.rng, stride, k)
             x = mod(a.x + dx * dist, w)
             y = mod(a.y + dy * dist, h)
             @inbounds m.grid[x + 1, y + 1] === nothing || continue

@@ -31,9 +31,11 @@ random_sex(rng::AbstractRNG) = rand(rng, 0:1) == 0 ? :F : :M
 
 """Agents within the agent's vision along the four lattice directions, nearest first (mate_contact="vision")."""
 function in_sight(m::Model, a::Agent)
+    lines = [look_distances(m, a.vision) for _ in VON_NEUMANN]  # each direction draws its own looks
     found = Agent[]
-    for k in 1:(a.vision), (dx, dy) in VON_NEUMANN
-        other = agent_at(m, a.x + dx * k, a.y + dy * k)
+    for k in eachindex(lines[1]), (d, (dx, dy)) in enumerate(VON_NEUMANN)  # stretch by stretch: nearest first
+        dist = lines[d][k]
+        other = agent_at(m, a.x + dx * dist, a.y + dy * dist)
         other === nothing || push!(found, other)
     end
     return found

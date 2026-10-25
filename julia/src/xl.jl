@@ -35,5 +35,6 @@ function to_xl(cfg::Config)
             (t, x0, y0, w, h, n) in cfg.initial_blocks
         ],
         diffusion_passes=cfg.diffusion_passes * f * f,
+        look_stride=cfg.look_stride * f,  # as many sites per look as a regular agent, over the same distance
     )
 end

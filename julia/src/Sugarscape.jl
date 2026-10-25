@@ -26,7 +26,7 @@ export Model,
     spawn_random_agent!,
     spawn_at!
 export move_agent!, kill!, die!, deaths_this_step, agents_ever, step!, run!, sample_distinct
-export move!, metabolize!, pollution_active
+export move!, metabolize!, pollution_active, look_distance, look_distances
 export METRIC_COLUMNS, collect_metrics, gini, tribe, closeness
 export random_tags, cross_tags, hamming, culture_transmit!, update_friends!
 export is_fertile, assign_sex!, in_sight, mate!, combat_move!, vulnerable

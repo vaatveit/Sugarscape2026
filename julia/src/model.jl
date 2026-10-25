@@ -340,7 +340,8 @@ earlier ones and only when their rules are on, as in Python.
 """
 function spawn_at!(m::Model, x::Int, y::Int; tribe::Symbol=:none)
     cfg, rng = m.config, m.rng
-    vision = draw(rng, cfg.vision)
+    s = cfg.look_stride  # 1 except in xl, where vision is drawn in whole strides: 10, 20, ...
+    vision = s * draw(rng, (cfg.vision[1] ÷ s, cfg.vision[2] ÷ s))
     metabolism = draw(rng, cfg.metabolism)
     sugar = draw(rng, cfg.endowment)
     max_age = cfg.max_age === nothing ? Inf : Float64(draw(rng, cfg.max_age))

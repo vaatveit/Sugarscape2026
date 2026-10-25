@@ -15,7 +15,7 @@ using Sugarscape, Test
     xl = to_xl(cfg)
     @test (xl.width, xl.height, xl.sugar_map) == (500, 500, "sugar-map-xl.txt")
     @test xl.initial_population == 40_000 && xl.vision == (10, 60)
-    @test xl.block == (0, 0, 200, 190) && xl.diffusion_passes == 100
+    @test xl.block == (0, 0, 200, 190) && xl.diffusion_passes == 100 && xl.look_stride == 10
     back = replace_config(
         xl;
         width=50,
@@ -25,6 +25,7 @@ using Sugarscape, Test
         vision=(1, 6),
         block=(0, 0, 20, 19),
         diffusion_passes=1,
+        look_stride=1,
     )
     @test back == cfg  # nothing else changed
 end
