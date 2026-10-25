@@ -22,6 +22,8 @@ mutable struct Model{R<:AbstractRNG}
     dead_this_step::Vector{Agent}
     trade_log::Vector{Exchange}  # this period's exchanges (rule T)
     loans::Vector{Loan}  # active loans (rule L), in creation order
+    debts::Dict{Int,Vector{Loan}}  # each borrower's loans by id, in the loan book's order (creditworthy)
+    lent::Dict{Int,Int}  # how many loans each lender has made, by id (deaths without loans skip rule L)
     next_id::Int
     infection_log::Vector{Tuple{Agent,Agent}}  # this period's (source, target) infections
     disease_list::Vector{Int}  # the master list (p.147), as interned disease ids
@@ -29,6 +31,9 @@ mutable struct Model{R<:AbstractRNG}
     disease_len::Vector{Int}
     disease_ids::Dict{Tuple{UInt64,Int},Int}
     order::Vector{Agent}  # scratch: this period's acting order
+    looks::Vector{Int}  # scratch: in_sight's look distances, line by line
+    sight::Vector{Agent}  # scratch: in_sight's agents, nearest first
+    sites::Vector{Tuple{Int,Int}}  # scratch: mate!'s empty sites next to the parents
 end
 
 """
@@ -58,6 +63,8 @@ function Model(
         Agent[],
         Exchange[],
         Loan[],
+        Dict{Int,Vector{Loan}}(),
+        Dict{Int,Int}(),
         0,
         Tuple{Agent,Agent}[],
         Int[],
@@ -65,6 +72,9 @@ function Model(
         Int[],
         Dict{Tuple{UInt64,Int},Int}(),
         Agent[],
+        Int[],
+        Agent[],
+        Tuple{Int,Int}[],
     )
     cfg.disease_list > 0 && init_disease_list!(m)
     place_initial_population!(m)
@@ -174,14 +184,14 @@ deaths_this_step(m::Model) = length(m.dead_this_step)
 agents_ever(m::Model) = m.next_id
 
 """
-    die!(m, a; excluded_heirs=())
+    die!(m, a; excluded_heirs=(), loans=true)
 
 Every death goes through here: loans (rule L), inheritance I (p.67) when enabled, then removal. The positive part of
 the agent's wealth is split equally among its living children, skipping `excluded_heirs` (agents dying in the same
-batch; Kehoe's reading).
+batch; Kehoe's reading). `loans=false` when the caller has already settled the agent's loans (`credit_on_deaths!`).
 """
-function die!(m::Model, a::Agent; excluded_heirs=())
-    isempty(m.loans) || credit_on_death!(m, a, excluded_heirs)
+function die!(m::Model, a::Agent; excluded_heirs=(), loans::Bool=true)
+    loans && !isempty(m.loans) && credit_on_death!(m, a, excluded_heirs)
     if m.config.inheritance
         heirs = [c for c in a.children if c.alive && !(c in excluded_heirs)]
         for heir in heirs
@@ -250,8 +260,11 @@ function step!(m::Model)
     dying = sort!([a for a in m.agents if a.age >= a.max_age]; by=a -> a.id)
     if !isempty(dying)
         batch = Set{Agent}(dying)  # identity: Agent is mutable
+        # The batch's loans in one pass: the same book as one death at a time, since heirs are never in the batch and
+        # nothing in between reads loans.
+        isempty(m.loans) || credit_on_deaths!(m, batch, batch)
         for a in dying
-            die!(m, a; excluded_heirs=batch)
+            die!(m, a; excluded_heirs=batch, loans=false)
         end
     end
     cfg.credit !== nothing && settle_loans!(m)

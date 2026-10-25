@@ -29,12 +29,20 @@ end
 
 random_sex(rng::AbstractRNG) = rand(rng, 0:1) == 0 ? :F : :M
 
-"""Agents within the agent's vision along the four lattice directions, nearest first (mate_contact="vision")."""
+"""
+Agents within the agent's vision along the four lattice directions, nearest first (mate_contact="vision"). Returns
+`m.sight`, which the next call reuses.
+"""
 function in_sight(m::Model, a::Agent)
-    lines = [look_distances(m, a.vision) for _ in VON_NEUMANN]  # each direction draws its own looks
-    found = Agent[]
-    for k in eachindex(lines[1]), (d, (dx, dy)) in enumerate(VON_NEUMANN)  # stretch by stretch: nearest first
-        dist = lines[d][k]
+    stride = m.config.look_stride
+    n = a.vision ÷ stride
+    looks = resize!(m.looks, 4n)
+    for d in 1:4, k in 1:n  # each direction draws its own looks, line by line (look_distances)
+        @inbounds looks[(d - 1) * n + k] = look_distance(m.rng, stride, k - 1)
+    end
+    found = empty!(m.sight)
+    for k in 1:n, (d, (dx, dy)) in enumerate(VON_NEUMANN)  # stretch by stretch: nearest first
+        dist = @inbounds looks[(d - 1) * n + k]
         other = agent_at(m, a.x + dx * dist, a.y + dy * dist)
         other === nothing || push!(found, other)
     end
@@ -69,7 +77,7 @@ function mate!(m::Model, a::Agent)
     down = cfg.gift_rounding == "down"
     children = Agent[]
     partners = cfg.mate_contact == "vision" ? in_sight(m, a) : neighbors_of(m, a)
-    sites = Tuple{Int,Int}[]
+    sites = m.sites
     for other in shuffle!(rng, partners)
         (other.sex === :none || other.sex === a.sex) && continue
         (is_fertile(a, threshold) && is_fertile(other, threshold)) || continue

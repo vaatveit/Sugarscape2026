@@ -179,3 +179,26 @@ end
     poor.sugar = 20.0
     @test isempty(seek_credit!(m, poor))  # another 40 (due 80) exceeds what income covers
 end
+
+@testset "the loan indexes match the loan book" begin
+    # creditworthy sums a borrower's loans from m.debts; they must be the loan book's, in its order, so the sum
+    # (and every run) is unchanged.
+    cfg = replace_config(find_experiment(load_registry(), "VI-1").config; seed=2)
+    m = Model(cfg)
+    ok, seen = true, 0
+    for _ in 1:150
+        step!(m)
+        for (id, list) in m.debts
+            ok &= list == [l for l in m.loans if l.borrower.id == id]  # === per element: Loan is mutable
+        end
+        ok &= all(haskey(m.debts, l.borrower.id) for l in m.loans)
+        ok &= all(!isempty, values(m.debts))
+        lenders = Dict{Int,Int}()
+        for l in m.loans
+            lenders[l.lender.id] = get(lenders, l.lender.id, 0) + 1
+        end
+        ok &= m.lent == lenders  # how many loans each lender has made, for skipping deaths without loans
+        seen += length(m.loans)
+    end
+    @test ok && seen > 0
+end

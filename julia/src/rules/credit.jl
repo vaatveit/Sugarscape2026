@@ -34,8 +34,39 @@ obligations (our reading of p.132).
 """
 function creditworthy(m::Model, borrower::Agent, due::Float64)
     d, _ = m.config.credit
-    owed = sum((loan.due for loan in m.loans if loan.borrower === borrower); init=0.0)
+    loans = get(m.debts, borrower.id, nothing)
+    owed = loans === nothing ? 0.0 : sum((loan.due for loan in loans); init=0.0)
     return borrower.last_income * d - owed >= due
+end
+
+"""Adds a loan to the book, to its borrower's entry in `m.debts` (both keep creation order) and to `m.lent`."""
+function add_loan!(m::Model, loan::Loan)
+    push!(m.loans, loan)
+    push!(get!(Vector{Loan}, m.debts, loan.borrower.id), loan)
+    count_lender!(m, loan.lender.id, 1)
+    return loan
+end
+
+function count_lender!(m::Model, id::Int, change::Int)
+    n = get(m.lent, id, 0) + change
+    n == 0 ? delete!(m.lent, id) : (m.lent[id] = n)
+    return nothing
+end
+
+"""Whether the agent is a borrower or a lender in any loan."""
+holds_loans(m::Model, a::Agent) = haskey(m.debts, a.id) || haskey(m.lent, a.id)
+
+"""Rebuilds the `m.debts` entries of these borrowers from the loan book, in its order."""
+function reindex_debts!(m::Model, ids)
+    isempty(ids) && return nothing
+    for id in ids
+        delete!(m.debts, id)
+    end
+    for loan in m.loans
+        id = loan.borrower.id
+        id in ids && push!(get!(Vector{Loan}, m.debts, id), loan)
+    end
+    return nothing
 end
 
 """
@@ -53,8 +84,7 @@ function seek_credit!(m::Model, a::Agent)
         (amount <= 0 || !creditworthy(m, a, amount_due(m, amount))) && continue
         lender.sugar -= amount
         a.sugar += amount
-        loan = Loan(lender, a, amount, amount_due(m, amount), m.t + d)
-        push!(m.loans, loan)
+        loan = add_loan!(m, Loan(lender, a, amount, amount_due(m, amount), m.t + d))
         push!(made, loan)
         need -= amount
         need <= 0 && break
@@ -71,6 +101,10 @@ function settle_loans!(m::Model)
     due = [loan for loan in m.loans if loan.due_t == m.t]
     isempty(due) && return nothing
     filter!(loan -> loan.due_t != m.t, m.loans)
+    reindex_debts!(m, Set(loan.borrower.id for loan in due))
+    for loan in due
+        count_lender!(m, loan.lender.id, -1)
+    end
     for loan in due
         borrower, lender = loan.borrower, loan.lender
         if borrower.sugar >= loan.due
@@ -82,7 +116,7 @@ function settle_loans!(m::Model)
         borrower.sugar -= paid
         lender.sugar += paid
         rest = loan.due - paid
-        push!(m.loans, Loan(lender, borrower, rest, amount_due(m, rest), m.t + d))
+        add_loan!(m, Loan(lender, borrower, rest, amount_due(m, rest), m.t + d))
     end
     return nothing
 end
@@ -93,24 +127,40 @@ living children become the creditors (p.133). An heir who is the borrower would 
 extinguished.
 """
 function credit_on_death!(m::Model, a::Agent, excluded_heirs)
+    return credit_on_deaths!(m, (a,), excluded_heirs)
+end
+
+"""
+The loans of every agent in `dying` at once, in one pass over the book: the same book as `credit_on_death!` one
+agent at a time when no heir is dying (each is in `excluded_heirs`). Agents without loans cost nothing.
+"""
+function credit_on_deaths!(m::Model, dying, excluded_heirs)
+    any(a -> holds_loans(m, a), dying) || return nothing
     keep = Loan[]
+    lent_to = Set{Int}()  # borrowers whose entries change: the dead's loans to them go to heirs or are void
     for loan in m.loans
-        loan.borrower === a && continue
-        if loan.lender === a
+        if loan.borrower in dying
+            count_lender!(m, loan.lender.id, -1)
+            continue
+        end
+        if loan.lender in dying
+            push!(lent_to, loan.borrower.id)
+            count_lender!(m, loan.lender.id, -1)
             heirs = [
-                c for
-                c in a.children if c.alive && !(c in excluded_heirs) && c !== loan.borrower
+                c for c in loan.lender.children if
+                c.alive && !(c in excluded_heirs) && c !== loan.borrower
             ]
             if m.config.inheritance && !isempty(heirs)
                 k = length(heirs)
-                append!(
-                    keep,
-                    (
+                for h in heirs
+                    push!(
+                        keep,
                         Loan(
                             h, loan.borrower, loan.principal / k, loan.due / k, loan.due_t
-                        ) for h in heirs
-                    ),
-                )
+                        ),
+                    )
+                    count_lender!(m, h.id, 1)
+                end
             end
             continue
         end
@@ -118,5 +168,9 @@ function credit_on_death!(m::Model, a::Agent, excluded_heirs)
     end
     empty!(m.loans)
     append!(m.loans, keep)
+    for a in dying
+        delete!(m.debts, a.id)
+    end
+    reindex_debts!(m, lent_to)
     return nothing
 end

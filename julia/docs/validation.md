@@ -171,3 +171,38 @@ agrees (0 flags).
 |---|---|---|---|
 | II-4 regular (400 → 236 agents) | 0.0131 (4 jobs) | 0.000091 (10 jobs) | about 144× |
 | II-4 xl (40,000 → about 23,230) | 1.89 (10 jobs) | 0.022 (5 jobs) | about 86× |
+
+## Single-thread speed-ups, results unchanged (2026-10-25)
+
+Profiling the slowest xl experiments for a threads investigation found three costs that grow faster than the
+population, all in Chapter III–VI rules. Each is fixed without changing a draw or an arithmetic order:
+
+- **Credit worthiness** summed a borrower's debts by scanning the whole loan book for every loan considered. Each
+  borrower's loans are now indexed (`Model.debts`), in the book's order, so the sum is the same additions in the same
+  order. (A running total would round differently once loans are repaid.)
+- **Deaths** rebuilt the loan book once per death. Agents with no loans now skip rule L (`Model.lent` counts each
+  lender's loans), and the end-of-period old-age batch settles its loans in one pass, which gives the same book as
+  one death at a time: heirs are never in the batch, and nothing in between reads loans.
+- **Partners in sight** (rule S) built six new lists per agent per period; `in_sight` and `mate!` now reuse
+  buffers on the model and draw their looks in the same order.
+
+**Identical results:** all 1,047 regular seed files of the registry and the 15 xl seed files of VI-1 and III-5 are
+byte-identical to runs of the code before the change. A test checks the loan indexes against the book every period
+of a VI-1 run.
+
+**Timing, xl** (VI-1 with `--jobs 5` and III-5 with `--jobs 10`, run together, shared machine):
+
+| Code | VI-1 s/period | III-5 s/period |
+|---|---|---|
+| Before | 1.435 | 0.559 |
+| Credit index and rule S buffers | 0.709 | 0.373 |
+| Plus the death path | 0.503 | 0.451 |
+
+III-5 has no credit, so the last change runs none of its new code there: its 0.373 → 0.451 is the machine's load,
+about 20%. Profiling VI-1 per phase at t = 400 (86,000 agents, about 20,500 loans, 1,200 deaths a period), before
+and after: credit went from 1,111 to 10 ms a period, the aging phase from 233 to 125 ms, and the period from 1,945
+to 613 ms.
+
+**Stale xl results:** `results-julia-xl/` VI-1 and III-5 predate the old-age ordering fix (479b911) and diverge
+from today's code at the first old-age deaths; other experiments with finite lives may too. They are statistically
+the same model; a re-run would make them reproducible from the code.
