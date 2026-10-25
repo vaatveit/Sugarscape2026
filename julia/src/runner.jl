@@ -74,11 +74,12 @@ compiled). Returns the seconds it took, 0.0 when already warm.
 function warm_up!(exp::Experiment)
     exp.id in WARMED && return 0.0
     t0 = time_ns()
-    m = Model(exp.config)
-    collect_metrics(m)
+    to_xl(exp.config)  # compile the timed seed's own path: to_xl, replace_config(; seed), Model, step!, metrics
+    m = Model(replace_config(exp.config; seed=exp.config.seed))
+    pushfirst!(collect_metrics(m), m.t)
     for _ in 1:2
         step!(m)
-        collect_metrics(m)
+        pushfirst!(collect_metrics(m), m.t)
     end
     push!(WARMED, exp.id)
     return seconds_since(t0)
