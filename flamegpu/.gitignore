@@ -503,6 +503,8 @@ MigrationBackup/
 
 # Sugarscape GPU project
 results-gpu/
+results-gpu-xl/
+results-gpu-xl-fast/
 .venv/
 build-fast/
 .superpowers/

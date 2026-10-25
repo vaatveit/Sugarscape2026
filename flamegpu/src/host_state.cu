@@ -14,6 +14,13 @@ namespace {
 
 int draw(std::mt19937_64& rng, const IntRange& r) { return std::uniform_int_distribution<int>(r.lo, r.hi)(rng); }
 
+// Vision in whole look strides, stride * U[lo / stride, hi / stride] (Python Model._spawn_at). Stride 1 is the plain
+// draw, so regular runs keep their random stream.
+int draw_vision(std::mt19937_64& rng, const RunConfig& cfg) {
+    const int s = cfg.look_stride;
+    return s * draw(rng, IntRange{cfg.vision.lo / s, cfg.vision.hi / s});
+}
+
 // Candidate starting sites: every site, or with block placement the block (wrapped as Python wraps it) in
 // every tile.
 std::vector<uint32_t> placement_sites(const RunConfig& cfg) {
@@ -54,14 +61,12 @@ void set_citizen(flamegpu::AgentVector::Agent a, int x, int y, int vision, int m
 flamegpu::AgentVector make_citizens(flamegpu::ModelDescription& model, const std::vector<InitAgent>* init) {
     RunState& s = state();
     const RunConfig& cfg = s.cfg;
-    s.initial_sites.clear();
     if (init) {
         flamegpu::AgentVector pop(model.Agent("citizen"), static_cast<unsigned int>(init->size()));
         for (size_t i = 0; i < init->size(); ++i) {
             const InitAgent& a = (*init)[i];
             set_citizen(pop[static_cast<unsigned int>(i)], a.x, a.y, a.vision, a.metabolism, a.sugar, a.age,
                         a.max_age.value_or(IMMORTAL));
-            s.initial_sites.push_back(static_cast<uint32_t>(a.x + a.y * cfg.width));
         }
         return pop;
     }
@@ -74,13 +79,12 @@ flamegpu::AgentVector make_citizens(flamegpu::ModelDescription& model, const std
     flamegpu::AgentVector pop(model.Agent("citizen"), static_cast<unsigned int>(n));
     std::vector<int> max_ages(n);
     for (size_t i = 0; i < n; ++i) {
-        const int vision = draw(s.rng, cfg.vision);
+        const int vision = draw_vision(s.rng, cfg);
         const int metabolism = draw(s.rng, cfg.metabolism);
         const int sugar = draw(s.rng, cfg.endowment);
         max_ages[i] = cfg.max_age ? draw(s.rng, *cfg.max_age) : IMMORTAL;
         set_citizen(pop[static_cast<unsigned int>(i)], static_cast<int>(sites[i] % cfg.width),
                     static_cast<int>(sites[i] / cfg.width), vision, metabolism, static_cast<float>(sugar), 0, max_ages[i]);
-        s.initial_sites.push_back(sites[i]);
     }
     // Founders of a society with finite lives start at ages U[0, max age) (Python Config.founder_ages).
     if (cfg.max_age && cfg.founder_ages == "uniform") {
@@ -94,12 +98,18 @@ flamegpu::AgentVector make_citizens(flamegpu::ModelDescription& model, const std
 
 flamegpu::AgentVector make_cells(flamegpu::ModelDescription& model) {
     // A cell's site index is its index in the population (DeviceAPI::getIndex()); cells never die or sort.
-    return flamegpu::AgentVector(model.Agent("cell"), static_cast<unsigned int>(state().cfg.cells()));
+    const std::vector<uint32_t>& capacity = state().capacity;
+    flamegpu::AgentVector cells(model.Agent("cell"), static_cast<unsigned int>(capacity.size()));
+    for (size_t i = 0; i < capacity.size(); ++i) {
+        cells[static_cast<unsigned int>(i)].setVariable<unsigned int>("capacity", capacity[i]);
+    }
+    return cells;
 }
 
 void write_metrics(flamegpu::HostAPI* api, unsigned int t) {
     RunState& s = state();
     if (!s.csv || t % s.metrics_every != 0) return;
+    const auto start = std::chrono::steady_clock::now();  // docs/xl.md's metrics: gathering, not writing
     flamegpu::DeviceAgentVector pop = api->agent("citizen").getPopulationData();
     AgentColumns c;
     const unsigned int n = pop.size();
@@ -114,23 +124,9 @@ void write_metrics(flamegpu::HostAPI* api, unsigned int t) {
         c.moved.push_back(a.getVariable<unsigned int>("moved"));
         c.neighbors.push_back(a.getVariable<unsigned int>("neighbors"));
     }
-    s.csv->write(compute_metrics(c, s.cfg, s.capacity, t));
-}
-
-FLAMEGPU_INIT_FUNCTION(init_landscape) {
-    RunState& s = state();
-    auto capacity = FLAMEGPU->environment.getMacroProperty<unsigned int, MAX_CELLS>("capacity");
-    auto sugar = FLAMEGPU->environment.getMacroProperty<float, MAX_CELLS>("sugar");
-    auto occupied = FLAMEGPU->environment.getMacroProperty<unsigned int, MAX_CELLS>("occupied");
-    for (size_t i = 0; i < s.capacity.size(); ++i) {
-        capacity[static_cast<unsigned int>(i)] = s.capacity[i];
-        sugar[static_cast<unsigned int>(i)] = static_cast<float>(s.capacity[i]);  // p.21: sites start at capacity
-    }
-    for (const uint32_t site : s.initial_sites) occupied[site] = 1u;
-    s.population = static_cast<unsigned int>(s.initial_sites.size());
-    write_dumps(FLAMEGPU, 0);
-    check_invariants(FLAMEGPU, 0, 0, 0);
-    write_metrics(FLAMEGPU, 0);
+    const auto row = compute_metrics(c, s.cfg, s.capacity, t);
+    s.metrics_seconds += std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
+    s.csv->write(row);
 }
 
 FLAMEGPU_HOST_FUNCTION(begin_period) {
@@ -149,6 +145,27 @@ FLAMEGPU_HOST_FUNCTION(begin_period) {
     FLAMEGPU->environment.setProperty<unsigned int>("round", 1u);
     FLAMEGPU->environment.setProperty<unsigned int>("pollution_active", polluting ? 1u : 0u);
     FLAMEGPU->environment.setProperty<unsigned int>("diffuse_now", diffusing ? 1u : 0u);
+    // The pollution_diffusion sub-model runs the passes after cell_grow's first.
+    FLAMEGPU->environment.setProperty<unsigned int>(
+        "extra_passes", diffusing ? static_cast<unsigned int>(cfg.diffusion_passes - 1) : 0u);
+    FLAMEGPU->environment.setProperty<unsigned int>("diffusion_pass", 0u);
+    FLAMEGPU->environment.setProperty<unsigned int>("initialising", t == 0 ? 1u : 0u);
+}
+
+// After the first period's initialise layer (cell_initialise, occupy_site): the state at t = 0 and its outputs.
+FLAMEGPU_HOST_FUNCTION(finish_init) {
+    if (FLAMEGPU->getStepCounter() != 0) return;
+    RunState& s = state();
+    if (s.timing) {
+        cudaDeviceSynchronize();
+        s.setup_end = std::chrono::steady_clock::now();
+    }
+    s.population = FLAMEGPU->agent("citizen").count();
+    write_dumps(FLAMEGPU, 0);
+    check_invariants(FLAMEGPU, 0, 0, 0);
+    write_metrics(FLAMEGPU, 0);
+    // The first period starts now: initialisation is setup's and the t = 0 metrics are metrics'.
+    if (s.timing) s.period_start = std::chrono::steady_clock::now();
 }
 
 // R[a,b] (p.32): each agent that died this period is replaced by a new random agent at a random empty site,
@@ -159,24 +176,31 @@ FLAMEGPU_HOST_FUNCTION(replace_dead) {
     if (!s.cfg.replacement) return;
     const unsigned int deaths = FLAMEGPU->environment.getMacroProperty<unsigned int>("deaths");
     if (deaths == 0) return;
-    auto occupied = FLAMEGPU->environment.getMacroProperty<unsigned int, MAX_CELLS>("occupied");
-    std::vector<uint32_t> empty;
-    for (uint32_t i = 0; i < static_cast<uint32_t>(s.capacity.size()); ++i) {
-        if (static_cast<unsigned int>(occupied[i]) == 0u) empty.push_back(i);
-    }
     flamegpu::HostAgentAPI citizens = FLAMEGPU->agent("citizen");
     const RunConfig& cfg = s.cfg;
+    // The occupied sites from the living citizens' positions, read as agent data: the occupied macro property is
+    // sized for SUGARSCAPE_MAX_CELLS, and a host access would copy all of it (xl design, section 3).
+    std::vector<uint8_t> taken(s.capacity.size(), 0);
+    {
+        flamegpu::DeviceAgentVector pop = citizens.getPopulationData();
+        for (unsigned int i = 0; i < pop.size(); ++i) {
+            taken[pop[i].getVariable<int>("x") + pop[i].getVariable<int>("y") * cfg.width] = 1;
+        }
+    }
+    std::vector<uint32_t> empty;  // ascending, so the draws below are the same as with the occupied array
+    for (uint32_t i = 0; i < static_cast<uint32_t>(taken.size()); ++i) {
+        if (!taken[i]) empty.push_back(i);
+    }
     for (unsigned int k = 0; k < deaths; ++k) {
         if (empty.empty()) throw std::runtime_error("no empty site for a new agent: the lattice is full");
         const size_t pick = std::uniform_int_distribution<size_t>(0, empty.size() - 1)(s.rng);
         const uint32_t site = empty[pick];
         empty[pick] = empty.back();
-        empty.pop_back();
-        occupied[site] = 1u;
+        empty.pop_back();  // occupy_site marks the newcomer's site in the next layer
         flamegpu::HostNewAgentAPI a = citizens.newAgent();
         a.setVariable<int>("x", static_cast<int>(site % cfg.width));
         a.setVariable<int>("y", static_cast<int>(site / cfg.width));
-        a.setVariable<int>("vision", draw(s.rng, cfg.vision));
+        a.setVariable<int>("vision", draw_vision(s.rng, cfg));
         a.setVariable<int>("metabolism", draw(s.rng, cfg.metabolism));
         a.setVariable<float>("sugar", static_cast<float>(draw(s.rng, cfg.endowment)));
         a.setVariable<int>("max_age", draw(s.rng, *cfg.max_age));  // validate(): replacement needs max_age

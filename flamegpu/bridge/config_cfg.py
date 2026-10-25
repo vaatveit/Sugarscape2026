@@ -9,7 +9,10 @@ from sugarscape.config import Config
 # The Config fields the GPU program reads, in run.cfg order.
 FIELDS = ("width", "height", "initial_population", "placement", "block", "vision", "metabolism", "endowment",
           "max_age", "founder_ages", "replacement", "growback_rate", "seasons", "winter_growback", "pollution",
-          "pollution_start", "pollution_stop", "diffusion_period", "diffusion_start")
+          "pollution_start", "pollution_stop", "diffusion_period", "diffusion_start", "diffusion_passes",
+          "look_stride")
+# Read too, but written as run.cfg's map path rather than as its own line.
+READ_AS_MAP = "sugar_map"
 
 
 class UnsupportedFeature(ValueError):
@@ -21,13 +24,13 @@ def _default(f: Field):
 
 
 def unsupported_features(cfg: Config) -> list[str]:
-    """Every Config field the GPU program does not read (FIELDS, plus the seed) that is not at its default.
+    """Every Config field the GPU program does not read (FIELDS, the map and the seed) that is not at its default.
 
-    The map is among them, so only the default sugar-map.txt runs. Fields left out of repr count too, and so does
-    any field the Python project adds later: a setting the GPU cannot honour is refused, never dropped.
+    Fields left out of repr count too, and so does any field the Python project adds later: a setting the GPU
+    cannot honour is refused, never dropped.
     """
     return [f.name for f in fields(cfg)
-            if f.name not in FIELDS and f.name != "seed" and getattr(cfg, f.name) != _default(f)]
+            if f.name not in FIELDS and f.name not in (READ_AS_MAP, "seed") and getattr(cfg, f.name) != _default(f)]
 
 
 def _value(v) -> str:

@@ -2,3 +2,5 @@
 *.cmd text eol=crlf
 *.bat text eol=crlf
 *.png binary
+# Golden runs are compared byte for byte with the program's output, so no checkout may rewrite their line endings.
+tests/data/golden/** -text

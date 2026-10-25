@@ -78,6 +78,29 @@ The scaling benchmark tiles the 50×50 map up to 50 × 50 times (2500 × 2500, a
 
 It writes `results-gpu\bench.csv` and `results-gpu\bench.png`.
 
+### xl (500 × 500)
+
+xl ([`docs/xl.md`](../docs/xl.md) in the repository root) is the shared workload for comparing the Python, GPU and
+Julia implementations. `--xl` runs an experiment's xl version, built by the Python project's own `to_xl`, into
+`results-gpu-xl\`:
+
+```bat
+.venv\Scripts\python -m bridge.gpu_run II-4 --xl --exe build-fast\bin\Release\sugarscape_gpu.exe
+```
+
+Every run, xl or not, also writes `timing.csv` (docs/xl.md's setup, stepping and metrics seconds per seed) and
+`machine.txt` (the GPU, driver, CUDA and FLAME GPU versions, the build, and `--jobs`). Time with the fast build,
+whose seatbelts are off.
+
+The one-off check of the GPU's xl results against Python's, which writes `docs\validation\xl-chapter2.md`:
+
+```bat
+.venv\Scripts\python -m bridge.xl_validate
+```
+
+It needs Python's xl results first, about 2–3 hours on the CPU; if they are missing it prints the commands to run.
+The results of 2026-10-25 are in [docs/validation/xl-chapter2.md](docs/validation/xl-chapter2.md).
+
 ## How the GPU version differs from the Python model
 
 The Python model is sequential: in each period, agents act one at a time in a fresh random order. The

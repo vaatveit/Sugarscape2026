@@ -89,3 +89,85 @@ def test_seed_and_chapter_ii_fields_are_free():
 
     base = EXPERIMENTS["II-4"].config
     assert unsupported_features(replace(base, seed=7, width=60, height=60, pollution=(1.0, 2.0))) == []
+
+
+# --- xl: gpu_run --xl, timing.csv and machine.txt ----------------------------------------------
+
+
+def test_xl_config_reaches_run_cfg():
+    from experiments.run import experiment_config
+
+    text = config_to_cfg(experiment_config("II-8", xl=True), steps=5, seed=0)
+    assert "width = 500\n" in text and "vision = 10,60\n" in text
+    assert "diffusion_passes = 100\n" in text and "look_stride = 10\n" in text
+    assert [line for line in text.splitlines() if line.startswith("map = ")][0].endswith("sugar-map-xl.txt")
+
+
+def test_regular_cfg_has_one_pass():
+    text = config_to_cfg(EXPERIMENTS["II-4"].config, steps=5, seed=0)
+    assert "diffusion_passes = 1\n" in text and "look_stride = 1\n" in text
+
+
+def test_xl_chapter_ii_is_supported():
+    from experiments.run import experiment_config
+
+    for exp_id in ("II-4", "II-4-gini", "II-6", "II-7", "II-8", "II-5/m3/v10.5"):
+        assert unsupported_features(experiment_config(exp_id, xl=True)) == [], exp_id
+
+
+def test_mismatched_map_is_refused(exe, tmp_path):
+    # Review Focus 1: the 500x500 map in a 50x50 world is an error naming the map, never a misread run.
+    from dataclasses import replace
+
+    cfg = tmp_path / "run.cfg"
+    cfg.write_text(config_to_cfg(replace(EXPERIMENTS["II-4"].config, sugar_map="sugar-map-xl.txt"), 1, 0),
+                   encoding="utf-8")
+    result = run_exe(exe, "--config", cfg, "--print-config")
+    assert result.returncode == 2
+    assert "sugar-map-xl.txt" in result.stderr.splitlines()[0]
+
+
+def test_gpu_run_xl(exe, tmp_path):
+    import csv
+
+    from bridge.gpu_run import GPU_FINGERPRINT
+    from experiments.run import TIMING_COLUMNS, fingerprint
+
+    run_experiment_gpu("II-8", seeds=1, out_dir=tmp_path, exe=exe, xl=True)
+    folder = tmp_path / "II-8"
+    assert len(load_results("II-8", tmp_path)[0]) == 201
+    assert (folder / "fingerprint.txt").read_text(encoding="utf-8") == GPU_FINGERPRINT + fingerprint("II-8", xl=True)
+    with (folder / "timing.csv").open(newline="") as f:
+        reader = csv.DictReader(f)
+        rows = list(reader)
+    assert tuple(reader.fieldnames) == TIMING_COLUMNS
+    assert len(rows) == 1 and int(rows[0]["agents_start"]) == 40000
+    machine = (folder / "machine.txt").read_text(encoding="utf-8")
+    assert "seatbelts = on" in machine and "jobs = 1" in machine
+
+
+def test_machine_note_with_jobs(exe):
+    # Review Focus 5: timings taken side by side say they shared the GPU.
+    from bridge.timing import machine_note
+
+    assert "timings taken with --jobs 2 share the GPU" in machine_note(exe, 2)
+    assert "share the GPU" not in machine_note(exe, 1)
+
+
+def test_xl_refuses_other_worlds(capsys):
+    from bridge.gpu_run import main
+
+    other = next(i for i, e in EXPERIMENTS.items() if not isinstance(e.config, Config))
+    with pytest.raises(SystemExit) as e:
+        main([other, "--xl"])
+    assert e.value.code == 2
+    assert "xl applies to sugarscape experiments" in capsys.readouterr().err  # Python's refusal, not argparse's
+
+
+def test_default_out_gpu():
+    from pathlib import Path
+
+    from bridge.gpu_run import default_out_gpu
+
+    assert default_out_gpu(True) == Path("results-gpu-xl")
+    assert default_out_gpu(False) == Path("results-gpu")

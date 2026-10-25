@@ -20,8 +20,28 @@ __device__ __forceinline__ uint64_t claim_key(unsigned int round, unsigned int p
 
 __device__ __forceinline__ int wrap(int v, int n) { return ((v % n) + n) % n; }
 
+// A 32-bit integer hash (lowbias32: Wellons, "Prospecting for Hash Functions").
+__device__ __forceinline__ unsigned int mix32(unsigned int h) {
+    h ^= h >> 16;
+    h *= 0x7FEB352Du;
+    h ^= h >> 15;
+    h *= 0x846CA68Bu;
+    h ^= h >> 16;
+    return h;
+}
+
+// With look stride s > 1, the distance looked at in direction d (VON_NEUMANN index) and stretch k: s·k plus an offset
+// uniform on 1..s (Python look_distances). A pure function of the period's look seed, so every movement round of a
+// period sees the same sites (xl design, section 2a).
+__device__ __forceinline__ int look_distance(unsigned int look_seed, int d, int k, int stride) {
+    const unsigned int h = mix32(mix32(look_seed ^ (static_cast<unsigned int>(d) * 0x9E3779B9u)) ^
+                                 (static_cast<unsigned int>(k + 1) * 0x85EBCA6Bu));
+    return stride * k + 1 + static_cast<int>(h % static_cast<unsigned int>(stride));
+}
+
 // Scan (reads occupied, sugar, pollution; writes claim): the nearest best unoccupied site in view, scanned as
-// candidate_sites does — own site at distance 0, then the four directions in a random order out to vision.
+// candidate_sites does — own site at distance 0, then the four directions in a random order out to vision: every
+// site, or with a look stride one site per stretch.
 FLAMEGPU_AGENT_FUNCTION(scan, flamegpu::MessageNone, flamegpu::MessageNone) {
     if (FLAMEGPU->getVariable<unsigned int>("settled")) return flamegpu::ALIVE;
     const int w = static_cast<int>(FLAMEGPU->environment.getProperty<unsigned int>("width"));
@@ -45,9 +65,13 @@ FLAMEGPU_AGENT_FUNCTION(scan, flamegpu::MessageNone, flamegpu::MessageNone) {
         order[i] = order[j];
         order[j] = tmp;
     }
+    const int stride = static_cast<int>(FLAMEGPU->environment.getProperty<unsigned int>("look_stride"));
+    const unsigned int look_seed = stride > 1 ? FLAMEGPU->getVariable<unsigned int>("look_seed") : 0u;
     for (int k = 0; k < 4; ++k) {
         const int d = order[k];
-        for (int dist = 1; dist <= vision; ++dist) {
+        const int looks = vision / stride;  // validate(): vision is in whole strides
+        for (int i = 0; i < looks; ++i) {
+            const int dist = stride == 1 ? i + 1 : look_distance(look_seed, d, i, stride);
             const unsigned int site =
                 static_cast<unsigned int>(wrap(x + MOVE_DX[d] * dist, w) + wrap(y + MOVE_DY[d] * dist, h) * w);
             if (static_cast<unsigned int>(occupied[site])) continue;  // check occupancy before reading the site

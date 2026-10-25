@@ -141,7 +141,8 @@ class Reader {
 const std::set<std::string> KNOWN = {
     "width", "height", "map", "initial_population", "placement", "block", "vision", "metabolism", "endowment",
     "max_age", "founder_ages", "replacement", "growback_rate", "seasons", "winter_growback", "pollution",
-    "pollution_start", "pollution_stop", "diffusion_period", "diffusion_start", "steps", "seed"};
+    "pollution_start", "pollution_stop", "diffusion_period", "diffusion_start", "diffusion_passes", "look_stride", "steps",
+    "seed"};
 
 [[noreturn]] void invalid(const std::string& message) { throw ConfigError("invalid configuration: " + message); }
 
@@ -210,6 +211,8 @@ RunConfig parse_config(const std::string& path) {
     r.get("pollution_stop", cfg.pollution_stop);
     r.get("diffusion_period", cfg.diffusion_period);
     r.get("diffusion_start", cfg.diffusion_start);
+    r.get("diffusion_passes", cfg.diffusion_passes);
+    r.get("look_stride", cfg.look_stride);
     r.get("steps", cfg.steps);
     r.get("seed", cfg.seed);
     return cfg;
@@ -257,6 +260,13 @@ void validate(const RunConfig& cfg) {
     if (cfg.growback_rate < 0) invalid("growback_rate must be >= 0");
     if (cfg.seasons && (cfg.seasons->first < 1 || cfg.seasons->second < 1)) invalid("seasons (beta, gamma) must both be >= 1");
     if (cfg.diffusion_period && *cfg.diffusion_period < 1) invalid("diffusion_period must be >= 1");
+    if (cfg.diffusion_passes < 1) invalid("diffusion_passes must be >= 1");
+    if (cfg.look_stride < 1) invalid("look_stride must be >= 1");
+    // Vision is drawn in whole strides (Python Config, docs/xl.md).
+    if (cfg.vision.lo % cfg.look_stride || cfg.vision.hi % cfg.look_stride) {
+        invalid("vision range " + fmt(cfg.vision) + " must be in whole look strides of " +
+                std::to_string(cfg.look_stride) + " (look_stride)");
+    }
     if (cfg.pollution && (cfg.pollution->first < 0 || cfg.pollution->second < 0)) invalid("pollution coefficients must be >= 0");
     if (cfg.pollution_stop && *cfg.pollution_stop <= cfg.pollution_start) invalid("pollution_stop must come after pollution_start");
     if (cfg.steps < 1) invalid("steps must be >= 1");
@@ -298,6 +308,8 @@ void print_config(std::ostream& out, const RunConfig& cfg) {
         << "pollution_stop = " << opt_int(cfg.pollution_stop) << "\n"
         << "diffusion_period = " << opt_int(cfg.diffusion_period) << "\n"
         << "diffusion_start = " << cfg.diffusion_start << "\n"
+        << "diffusion_passes = " << cfg.diffusion_passes << "\n"
+        << "look_stride = " << cfg.look_stride << "\n"
         << "steps = " << cfg.steps << "\n"
         << "seed = " << cfg.seed << "\n";
 }

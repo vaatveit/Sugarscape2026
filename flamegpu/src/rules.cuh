@@ -6,10 +6,34 @@
 #include "model.h"
 #include "movement.cuh"
 
+// Initialisation, on the device so no host function copies a site-sized macro property (xl design, section 3).
+// Cell layer (writes sugar): in the first period only, every site starts at capacity (p.21).
+FLAMEGPU_AGENT_FUNCTION(cell_initialise, flamegpu::MessageNone, flamegpu::MessageNone) {
+    if (!FLAMEGPU->environment.getProperty<unsigned int>("initialising")) return flamegpu::ALIVE;
+    auto sugar = FLAMEGPU->environment.getMacroProperty<float, MAX_CELLS>("sugar");
+    sugar[FLAMEGPU->getIndex()].exchange(static_cast<float>(FLAMEGPU->getVariable<unsigned int>("capacity")));
+    return flamegpu::ALIVE;
+}
+
+// Citizen layer (writes occupied): every citizen marks its site. Run before the first period's movement (the
+// founders) and after replacement (the newcomers); for everyone else it re-marks a site already marked.
+FLAMEGPU_AGENT_FUNCTION(occupy_site, flamegpu::MessageNone, flamegpu::MessageNone) {
+    const int w = static_cast<int>(FLAMEGPU->environment.getProperty<unsigned int>("width"));
+    auto occupied = FLAMEGPU->environment.getMacroProperty<unsigned int, MAX_CELLS>("occupied");
+    occupied[FLAMEGPU->getVariable<int>("x") + FLAMEGPU->getVariable<int>("y") * w].exchange(1u);
+    return flamegpu::ALIVE;
+}
+
 // Start of period: a fresh random priority stands in for the period's random order.
 FLAMEGPU_AGENT_FUNCTION(start_period, flamegpu::MessageNone, flamegpu::MessageNone) {
     const unsigned int priority = static_cast<unsigned int>(FLAMEGPU->random.uniform<float>() * 1048576.0f);
     FLAMEGPU->setVariable<unsigned int>("priority", min(priority, 0xFFFFFu));
+    // One look per period (xl design, section 2a): the strided scan's offsets all derive from this seed, so a rescan
+    // in a later movement round sees the same sites. Drawn only above stride 1, so regular random streams stay.
+    if (FLAMEGPU->environment.getProperty<unsigned int>("look_stride") > 1u) {
+        FLAMEGPU->setVariable<unsigned int>(
+            "look_seed", static_cast<unsigned int>(FLAMEGPU->random.uniform<uint64_t>(0, 0xFFFFFFFFull)));
+    }
     FLAMEGPU->setVariable<unsigned int>("settled", 0u);
     FLAMEGPU->setVariable<unsigned int>("moved", 0u);
     return flamegpu::ALIVE;
@@ -55,7 +79,7 @@ FLAMEGPU_AGENT_FUNCTION(metabolize_and_age, flamegpu::MessageNone, flamegpu::Mes
     return flamegpu::ALIVE;
 }
 
-// Cell layer A (reads sugar, capacity, pollution; writes sugar_next, pollution_next): growback G_alpha / G_inf or
+// Cell layer A (reads sugar, pollution; writes sugar_next, pollution_next): growback G_alpha / G_inf or
 // seasonal S_alpha,beta,gamma (p.44), and diffusion D_alpha (p.48).
 FLAMEGPU_AGENT_FUNCTION(cell_grow, flamegpu::MessageNone, flamegpu::MessageNone) {
     const unsigned int i = FLAMEGPU->getIndex();  // the site index (make_cells)
@@ -63,7 +87,7 @@ FLAMEGPU_AGENT_FUNCTION(cell_grow, flamegpu::MessageNone, flamegpu::MessageNone)
     const int h = static_cast<int>(FLAMEGPU->environment.getProperty<unsigned int>("height"));
     const int x = static_cast<int>(i) % w, y = static_cast<int>(i) / w;
     const unsigned int t = FLAMEGPU->environment.getProperty<unsigned int>("t");
-    auto capacity = FLAMEGPU->environment.getMacroProperty<unsigned int, MAX_CELLS>("capacity");
+    const unsigned int capacity = FLAMEGPU->getVariable<unsigned int>("capacity");
     auto sugar = FLAMEGPU->environment.getMacroProperty<float, MAX_CELLS>("sugar");
     auto pollution = FLAMEGPU->environment.getMacroProperty<float, MAX_CELLS>("pollution");
     auto sugar_next = FLAMEGPU->environment.getMacroProperty<float, MAX_CELLS>("sugar_next");
@@ -84,7 +108,7 @@ FLAMEGPU_AGENT_FUNCTION(cell_grow, flamegpu::MessageNone, flamegpu::MessageNone)
             }
         }
     }
-    sugar_next[i].exchange(fminf(static_cast<float>(sugar[i]) + rate, static_cast<float>(static_cast<unsigned int>(capacity[i]))));
+    sugar_next[i].exchange(fminf(static_cast<float>(sugar[i]) + rate, static_cast<float>(capacity)));
 
     float p = pollution[i];
     if (FLAMEGPU->environment.getProperty<unsigned int>("diffuse_now")) {
@@ -109,6 +133,48 @@ FLAMEGPU_AGENT_FUNCTION(cell_commit, flamegpu::MessageNone, flamegpu::MessageNon
     pollution[i].exchange(static_cast<float>(pollution_next[i]));
     claim[i].min(uint64_t{0});
     return flamegpu::ALIVE;
+}
+
+// The pollution_diffusion sub-model: the passes of D after cell_grow's first, each the mean of the four neighbours of
+// the previous pass (Python's loop of Landscape.diffuse). It runs one step every period; with no extra passes due,
+// both layers return at once.
+__device__ inline bool extra_pass_due(flamegpu::DeviceAPI<flamegpu::MessageNone, flamegpu::MessageNone>* api) {
+    return api->environment.getProperty<unsigned int>("diffusion_pass") <
+           api->environment.getProperty<unsigned int>("extra_passes");
+}
+
+// Diffusion layer A (reads pollution; writes pollution_next).
+FLAMEGPU_AGENT_FUNCTION(diffuse, flamegpu::MessageNone, flamegpu::MessageNone) {
+    if (!extra_pass_due(FLAMEGPU)) return flamegpu::ALIVE;
+    const unsigned int i = FLAMEGPU->getIndex();  // the site index (make_cells)
+    const int w = static_cast<int>(FLAMEGPU->environment.getProperty<unsigned int>("width"));
+    const int h = static_cast<int>(FLAMEGPU->environment.getProperty<unsigned int>("height"));
+    const int x = static_cast<int>(i) % w, y = static_cast<int>(i) / w;
+    auto pollution = FLAMEGPU->environment.getMacroProperty<float, MAX_CELLS>("pollution");
+    auto pollution_next = FLAMEGPU->environment.getMacroProperty<float, MAX_CELLS>("pollution_next");
+    // The same arithmetic as cell_grow's pass, so every pass rounds alike.
+    const float p = (static_cast<float>(pollution[wrap(x - 1, w) + y * w]) + static_cast<float>(pollution[wrap(x + 1, w) + y * w]) +
+                     static_cast<float>(pollution[x + wrap(y - 1, h) * w]) + static_cast<float>(pollution[x + wrap(y + 1, h) * w])) /
+                    4.0f;
+    pollution_next[i].exchange(p);
+    return flamegpu::ALIVE;
+}
+
+// Diffusion layer B (reads pollution_next; writes pollution).
+FLAMEGPU_AGENT_FUNCTION(diffuse_commit, flamegpu::MessageNone, flamegpu::MessageNone) {
+    if (!extra_pass_due(FLAMEGPU)) return flamegpu::ALIVE;
+    const unsigned int i = FLAMEGPU->getIndex();
+    auto pollution = FLAMEGPU->environment.getMacroProperty<float, MAX_CELLS>("pollution");
+    auto pollution_next = FLAMEGPU->environment.getMacroProperty<float, MAX_CELLS>("pollution_next");
+    pollution[i].exchange(static_cast<float>(pollution_next[i]));
+    return flamegpu::ALIVE;
+}
+
+// Another pass while extra passes remain this period.
+FLAMEGPU_EXIT_CONDITION(diffusion_done) {
+    const unsigned int pass = FLAMEGPU->environment.getProperty<unsigned int>("diffusion_pass") + 1;
+    FLAMEGPU->environment.setProperty<unsigned int>("diffusion_pass", pass);
+    return pass >= FLAMEGPU->environment.getProperty<unsigned int>("extra_passes") ? flamegpu::EXIT : flamegpu::CONTINUE;
 }
 
 #endif  // SRC_RULES_CUH_

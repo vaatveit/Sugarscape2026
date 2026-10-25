@@ -4,7 +4,7 @@ from conftest import run_exe
 from gpu import SUGAR_MAP, parse_printed, write_cfg, write_map
 
 OPTIONS = ("--config", "--out", "--init", "--metrics-every", "--dump-agents", "--dump-landscape", "--dump-at",
-           "--tile", "--timing", "--check")
+           "--tile", "--timing", "--check", "--version")
 
 
 def test_help_lists_options(exe):
@@ -128,15 +128,44 @@ def test_timing_json(exe, tmp_path, build):
     program = exe if build == "build" else FAST_EXE
     if not program.exists():
         pytest.skip(f"no {program}")
-    timing = tmp_path / "t.json"
-    result = run_exe(program, "--config", write_cfg(tmp_path, steps="20"), "--timing", timing)
+    timing, metrics = tmp_path / "t.json", tmp_path / "m.csv"
+    result = run_exe(program, "--config", write_cfg(tmp_path, steps="20"), "--timing", timing, "--out", metrics)
     assert result.returncode == 0, result.stderr
     data = json.loads(timing.read_text())
-    assert set(data) == {"cells", "agents_initial", "steps", "simulate_seconds", "step_seconds_mean"}
+    # docs/xl.md's measures join the keys bridge.bench reads, which stay.
+    assert set(data) >= {"cells", "agents_initial", "steps", "simulate_seconds", "step_seconds_mean", "setup_s",
+                         "stepping_s", "metrics_s", "periods", "agents_start", "agents_end"}
     assert data["steps"] == 20 and data["cells"] == 2500 and data["agents_initial"] == 400
     assert data["step_seconds_mean"] > 0
+    assert data["periods"] == 20 and data["agents_start"] == 400
+    assert data["agents_end"] == int(metrics.read_text().splitlines()[-1].split(",")[1])  # the population column
+    assert data["setup_s"] > 0 and data["stepping_s"] > 0 and data["metrics_s"] > 0
+    assert data["stepping_s"] == pytest.approx(data["step_seconds_mean"] * 20, rel=1e-6)
     # The periods are most of the simulation's wall-clock time; only initialisation is left out.
     assert 0.2 * data["simulate_seconds"] <= data["step_seconds_mean"] * data["steps"] <= data["simulate_seconds"]
+
+
+@pytest.mark.parametrize("build", ["build", "build-fast"])
+def test_version(exe, build):
+    from bridge.paths import FAST_EXE
+
+    program = exe if build == "build" else FAST_EXE
+    if not program.exists():
+        pytest.skip(f"no {program}")
+    result = run_exe(program, "--version")
+    assert result.returncode == 0, result.stderr
+    info = parse_printed(result.stdout)
+    assert info["flamegpu"].startswith("2.0.0-rc.5")
+    assert info["seatbelts"] == ("on" if build == "build" else "off")
+    assert info["max_cells"] == "6250000"
+    assert info["gpu"] != "" and info["cuda_runtime"] != ""
+
+
+def test_version_output_is_never_lost(exe):
+    # --version starts CUDA; its output was once lost in about 1 run in 4 (exit 0, empty stdout) when CUDA's
+    # teardown ended the process before stdout was flushed.
+    outputs = [run_exe(exe, "--version").stdout for _ in range(60)]
+    assert all("flamegpu = " in out for out in outputs), f"{sum('flamegpu = ' not in o for o in outputs)} of 60 lost"
 
 
 def test_max_age_below_one_is_rejected(exe, tmp_path):
@@ -144,3 +173,53 @@ def test_max_age_below_one_is_rejected(exe, tmp_path):
     result = run_exe(exe, "--config", write_cfg(tmp_path, max_age="0,5"), "--print-config")
     assert result.returncode == 2
     assert "max_age" in _error(result)
+
+
+# --- xl: diffusion_passes ------------------------------------------------------------------------
+
+
+def test_diffusion_passes_defaults_to_one(exe, tmp_path):
+    result = run_exe(exe, "--config", write_cfg(tmp_path), "--print-config")
+    assert result.returncode == 0, result.stderr
+    assert parse_printed(result.stdout)["diffusion_passes"] == "1"
+
+
+def test_diffusion_passes_is_read(exe, tmp_path):
+    result = run_exe(exe, "--config", write_cfg(tmp_path, diffusion_passes="100"), "--print-config")
+    assert result.returncode == 0, result.stderr
+    assert parse_printed(result.stdout)["diffusion_passes"] == "100"
+
+
+def test_diffusion_passes_below_one_is_rejected(exe, tmp_path):
+    result = run_exe(exe, "--config", write_cfg(tmp_path, diffusion_passes="0"), "--print-config")
+    assert result.returncode == 2
+    # The validation message, not the unknown-key one that also names the key.
+    assert "diffusion_passes" in _error(result) and ">= 1" in _error(result)
+
+
+# --- xl: look_stride -----------------------------------------------------------------------------
+
+
+def test_look_stride_defaults_to_one(exe, tmp_path):
+    result = run_exe(exe, "--config", write_cfg(tmp_path), "--print-config")
+    assert result.returncode == 0, result.stderr
+    assert parse_printed(result.stdout)["look_stride"] == "1"
+
+
+def test_look_stride_is_read(exe, tmp_path):
+    result = run_exe(exe, "--config", write_cfg(tmp_path, look_stride="2", vision="2,6"), "--print-config")
+    assert result.returncode == 0, result.stderr
+    assert parse_printed(result.stdout)["look_stride"] == "2"
+
+
+def test_look_stride_below_one_is_rejected(exe, tmp_path):
+    result = run_exe(exe, "--config", write_cfg(tmp_path, look_stride="0"), "--print-config")
+    assert result.returncode == 2
+    assert "look_stride" in _error(result) and ">= 1" in _error(result)
+
+
+def test_vision_not_in_whole_strides_is_rejected(exe, tmp_path):
+    result = run_exe(exe, "--config", write_cfg(tmp_path, look_stride="2", vision="1,6"), "--print-config")
+    assert result.returncode == 2
+    # The validation message, not the unknown-key one.
+    assert "look_stride" in _error(result) and "whole look strides" in _error(result)
