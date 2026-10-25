@@ -70,7 +70,7 @@ def test_run_tiny_experiment(exe, tmp_path):
     assert len(paths) == 2
     series = load_results("TEST-tiny", tmp_path)
     assert len(series) == 2 and all(len(s) == 6 for s in series)
-    assert (tmp_path / "TEST-tiny" / "fingerprint.txt").read_text(encoding="utf-8").startswith("gpu-phase1")
+    assert (tmp_path / "TEST-tiny" / "fingerprint.txt").read_text(encoding="utf-8").startswith("gpu-phase2")
 
 
 def test_any_other_field_off_default_is_refused():
