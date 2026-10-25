@@ -15,8 +15,8 @@ FLAMEGPU_AGENT_FUNCTION(cell_initialise, flamegpu::MessageNone, flamegpu::Messag
     return flamegpu::ALIVE;
 }
 
-// Citizen layer (writes occupied): every citizen marks its site. Run before the first period's movement (the
-// founders) and after replacement (the newcomers); for everyone else it re-marks a site already marked.
+// Citizen layer (writes occupied): every citizen marks its site. Run before the first period's movement, for the
+// founders; newcomers mark their own sites in place_newcomer.
 FLAMEGPU_AGENT_FUNCTION(occupy_site, flamegpu::MessageNone, flamegpu::MessageNone) {
     const int w = static_cast<int>(FLAMEGPU->environment.getProperty<unsigned int>("width"));
     auto occupied = FLAMEGPU->environment.getMacroProperty<unsigned int, MAX_CELLS>("occupied");
@@ -54,8 +54,28 @@ FLAMEGPU_AGENT_FUNCTION(count_neighbors, flamegpu::MessageNone, flamegpu::Messag
     return flamegpu::ALIVE;
 }
 
-// Metabolism (p.25) with consumption pollution (p.47), then aging; death frees the site
-// (writes occupied, pollution, deaths).
+// R[a,b] (p.32), first half: the newcomer replacing a citizen that dies, drawn with the dying citizen's random
+// stream as Python's spawn_random_agent draws it (uniform on each inclusive range; vision in whole look strides).
+// It is unplaced (x = y = -1) until place_newcomer; age 0 and every other variable at its default, as before.
+__device__ __forceinline__ void output_newcomer(flamegpu::DeviceAPI<flamegpu::MessageNone, flamegpu::MessageNone>* FLAMEGPU) {
+    const auto& env = FLAMEGPU->environment;
+    const int stride = static_cast<int>(env.getProperty<unsigned int>("look_stride"));
+    FLAMEGPU->agent_out.setVariable<int>("x", -1);
+    FLAMEGPU->agent_out.setVariable<int>("y", -1);
+    FLAMEGPU->agent_out.setVariable<int>(
+        "vision", stride * FLAMEGPU->random.uniform<int>(env.getProperty<int>("vision_lo") / stride,
+                                                         env.getProperty<int>("vision_hi") / stride));
+    FLAMEGPU->agent_out.setVariable<int>(
+        "metabolism", FLAMEGPU->random.uniform<int>(env.getProperty<int>("metabolism_lo"), env.getProperty<int>("metabolism_hi")));
+    FLAMEGPU->agent_out.setVariable<float>("sugar", static_cast<float>(FLAMEGPU->random.uniform<int>(
+        env.getProperty<int>("endowment_lo"), env.getProperty<int>("endowment_hi"))));
+    FLAMEGPU->agent_out.setVariable<int>(
+        "max_age", FLAMEGPU->random.uniform<int>(env.getProperty<int>("max_age_lo"), env.getProperty<int>("max_age_hi")));
+    FLAMEGPU->agent_out.setVariable<int>("age", 0);
+}
+
+// Metabolism (p.25) with consumption pollution (p.47), then aging; death frees the site and, with replacement,
+// outputs the newcomer (writes occupied, pollution, deaths).
 FLAMEGPU_AGENT_FUNCTION(metabolize_and_age, flamegpu::MessageNone, flamegpu::MessageNone) {
     const unsigned int w = FLAMEGPU->environment.getProperty<unsigned int>("width");
     const unsigned int site = static_cast<unsigned int>(FLAMEGPU->getVariable<int>("x")) +
@@ -74,8 +94,35 @@ FLAMEGPU_AGENT_FUNCTION(metabolize_and_age, flamegpu::MessageNone, flamegpu::Mes
         auto deaths = FLAMEGPU->environment.getMacroProperty<unsigned int>("deaths");
         occupied[site].exchange(0u);
         ++deaths;
+        if (FLAMEGPU->environment.getProperty<unsigned int>("replacement")) output_newcomer(FLAMEGPU);
         return flamegpu::DEAD;
     }
+    return flamegpu::ALIVE;
+}
+
+// R[a,b] (p.32), second half (writes occupied, by CAS only): each unplaced newcomer claims a site drawn uniformly
+// from all sites until it finds an empty one. The draws treat every empty site alike, so the newcomers' sites are a
+// uniformly random set of empty sites, as Python's one-after-another draws give. There are always at least as many
+// empty sites as newcomers (each death freed its own), and after PLACE_TRIES misses a newcomer scans on from its
+// last draw, so the claim always ends (spec 2026-10-25, section 2).
+constexpr unsigned int PLACE_TRIES = 4096;
+FLAMEGPU_AGENT_FUNCTION(place_newcomer, flamegpu::MessageNone, flamegpu::MessageNone) {
+    if (FLAMEGPU->getVariable<int>("x") >= 0) return flamegpu::ALIVE;
+    const unsigned int w = FLAMEGPU->environment.getProperty<unsigned int>("width");
+    const unsigned int cells = w * FLAMEGPU->environment.getProperty<unsigned int>("height");
+    auto occupied = FLAMEGPU->environment.getMacroProperty<unsigned int, MAX_CELLS>("occupied");
+    unsigned int site = 0;
+    bool placed = false;
+    for (unsigned int k = 0; k < PLACE_TRIES && !placed; ++k) {
+        site = FLAMEGPU->random.uniform<unsigned int>(0u, cells - 1u);
+        placed = occupied[site].CAS(0u, 1u) == 0u;
+    }
+    while (!placed) {
+        site = site + 1u == cells ? 0u : site + 1u;
+        placed = occupied[site].CAS(0u, 1u) == 0u;
+    }
+    FLAMEGPU->setVariable<int>("x", static_cast<int>(site % w));
+    FLAMEGPU->setVariable<int>("y", static_cast<int>(site / w));
     return flamegpu::ALIVE;
 }
 

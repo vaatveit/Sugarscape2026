@@ -174,47 +174,6 @@ FLAMEGPU_HOST_FUNCTION(finish_init) {
     if (s.timing) s.period_start = std::chrono::steady_clock::now();
 }
 
-// R[a,b] (p.32): each agent that died this period is replaced by a new random agent at a random empty site,
-// as Python's spawn_random_agent; newcomers do not harvest on arrival.
-FLAMEGPU_HOST_FUNCTION(replace_dead) {
-    RunState& s = state();
-    s.births = 0;
-    if (!s.cfg.replacement) return;
-    const unsigned int deaths = FLAMEGPU->environment.getMacroProperty<unsigned int>("deaths");
-    if (deaths == 0) return;
-    flamegpu::HostAgentAPI citizens = FLAMEGPU->agent("citizen");
-    const RunConfig& cfg = s.cfg;
-    // The occupied sites from the living citizens' positions, read as agent data: the occupied macro property is
-    // sized for SUGARSCAPE_MAX_CELLS, and a host access would copy all of it (xl design, section 3).
-    std::vector<uint8_t> taken(s.capacity.size(), 0);
-    {
-        flamegpu::DeviceAgentVector pop = citizens.getPopulationData();
-        for (unsigned int i = 0; i < pop.size(); ++i) {
-            taken[pop[i].getVariable<int>("x") + pop[i].getVariable<int>("y") * cfg.width] = 1;
-        }
-    }
-    std::vector<uint32_t> empty;  // ascending, so the draws below are the same as with the occupied array
-    for (uint32_t i = 0; i < static_cast<uint32_t>(taken.size()); ++i) {
-        if (!taken[i]) empty.push_back(i);
-    }
-    for (unsigned int k = 0; k < deaths; ++k) {
-        if (empty.empty()) throw std::runtime_error("no empty site for a new agent: the lattice is full");
-        const size_t pick = std::uniform_int_distribution<size_t>(0, empty.size() - 1)(s.rng);
-        const uint32_t site = empty[pick];
-        empty[pick] = empty.back();
-        empty.pop_back();  // occupy_site marks the newcomer's site in the next layer
-        flamegpu::HostNewAgentAPI a = citizens.newAgent();
-        a.setVariable<int>("x", static_cast<int>(site % cfg.width));
-        a.setVariable<int>("y", static_cast<int>(site / cfg.width));
-        a.setVariable<int>("vision", draw_vision(s.rng, cfg));
-        a.setVariable<int>("metabolism", draw(s.rng, cfg.metabolism));
-        a.setVariable<float>("sugar", static_cast<float>(draw(s.rng, cfg.endowment)));
-        a.setVariable<int>("max_age", draw(s.rng, *cfg.max_age));  // validate(): replacement needs max_age
-        a.setVariable<int>("age", 0);
-    }
-    s.births = deaths;
-}
-
 FLAMEGPU_STEP_FUNCTION(end_period) {
     RunState& s = state();
     if (s.timing) {
@@ -226,6 +185,7 @@ FLAMEGPU_STEP_FUNCTION(end_period) {
     const unsigned int deaths = deaths_prop;
     deaths_prop = 0u;
     write_dumps(FLAMEGPU, t);
-    check_invariants(FLAMEGPU, t, deaths, s.births);
+    // R's newcomers were born on the device, one for each death (rules.cuh, output_newcomer).
+    check_invariants(FLAMEGPU, t, deaths, s.cfg.replacement ? deaths : 0u);
     s.population = FLAMEGPU->agent("citizen").count();
 }

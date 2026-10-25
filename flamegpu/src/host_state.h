@@ -27,9 +27,8 @@ struct RoundLimitError : std::runtime_error {  // movement needed more rounds th
 struct RunState {
     RunConfig cfg;
     std::vector<uint32_t> capacity;  // indexed x + y * width
-    std::mt19937_64 rng;             // host-side draws: placement, replacement
+    std::mt19937_64 rng;             // host-side draws: the founders (replacement draws on the device)
     unsigned int population = 0;     // citizens at the end of the last completed period
-    unsigned int births = 0;         // replacements created this period
     // Output options.
     std::string dump_agents, dump_landscape;
     std::optional<unsigned int> dump_at;
@@ -60,7 +59,6 @@ void check_invariants(flamegpu::HostAPI* api, unsigned int t, unsigned int death
 
 FLAMEGPU_HOST_FUNCTION_DECL(begin_period)    // layer: t, round and the period's rule switches
 FLAMEGPU_HOST_FUNCTION_DECL(finish_init)     // layer, first period only: the t = 0 dumps and checks
-FLAMEGPU_HOST_FUNCTION_DECL(replace_dead)    // layer: replacement R
 FLAMEGPU_HOST_FUNCTION_DECL(end_period)      // step: deaths, dumps, checks
 
 #endif  // SRC_HOST_STATE_H_

@@ -127,6 +127,16 @@ def test_mismatched_map_is_refused(exe, tmp_path):
     assert "sugar-map-xl.txt" in result.stderr.splitlines()[0]
 
 
+def test_replacement_fingerprint():
+    # Results made since replacement moved to the device must not pass for older ones (spec 2026-10-25, section 3).
+    from bridge.gpu_run import GPU_FINGERPRINT, gpu_fingerprint
+    from experiments.run import fingerprint
+
+    assert "replacement: device\n" in gpu_fingerprint("II-4-gini")
+    assert "replacement: device\n" in gpu_fingerprint("II-4-gini", xl=True)
+    assert gpu_fingerprint("II-4") == GPU_FINGERPRINT + fingerprint("II-4")
+
+
 def test_gpu_run_xl(exe, tmp_path):
     import csv
 

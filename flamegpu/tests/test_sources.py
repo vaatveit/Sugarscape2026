@@ -23,17 +23,9 @@ def test_no_site_sized_host_macro_access():
 POPULATION_READ = re.compile(r"\.getPopulationData\(\)")  # HostAgentAPI's per-agent DeviceAgentVector
 
 
-def _between(text, start, end_pattern):
-    i = text.index(start)
-    m = re.compile(end_pattern).search(text, i + len(start))
-    return text[i:m.start() if m else len(text)]
-
-
-def test_metrics_not_read_per_agent():
-    # Metrics are gathered in bulk between steps (spec 2026-10-25, section 4); only replace_dead may still read
-    # agents through DeviceAgentVector in timed host code (until Task 2), and the diagnostics in checks.cu.
-    text = (SRC / "host_state.cu").read_text(encoding="utf-8")
-    outside = text.replace(_between(text, "FLAMEGPU_HOST_FUNCTION(replace_dead)", r"\nFLAMEGPU_|\Z"), "")
-    assert not POPULATION_READ.search(outside)
-    for name in ("main.cu", "metrics.cu", "model.cu"):
+def test_agent_data_read_only_in_diagnostics():
+    # Metrics are gathered in bulk between steps and replacement runs on the device (spec 2026-10-25, sections 1-4):
+    # no timed host code reads agents through DeviceAgentVector or creates agents; checks.cu is the exception.
+    for name in TIMED_HOST_SOURCES:
         assert not POPULATION_READ.search((SRC / name).read_text(encoding="utf-8")), name
+    assert "newAgent(" not in (SRC / "host_state.cu").read_text(encoding="utf-8")

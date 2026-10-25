@@ -72,6 +72,16 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
     env.newProperty<unsigned int>("diffusion_pass", 0u);  // extra passes done so far this period
     env.newProperty<unsigned int>("initialising", 0u);    // 1 in the first period only: cell_initialise runs
     env.newProperty<unsigned int>("look_stride", static_cast<unsigned int>(cfg.look_stride));
+    // R's newcomers (rules.cuh, output_newcomer): their draws' inclusive ranges.
+    env.newProperty<unsigned int>("replacement", cfg.replacement ? 1u : 0u);
+    env.newProperty<int>("vision_lo", cfg.vision.lo);
+    env.newProperty<int>("vision_hi", cfg.vision.hi);
+    env.newProperty<int>("metabolism_lo", cfg.metabolism.lo);
+    env.newProperty<int>("metabolism_hi", cfg.metabolism.hi);
+    env.newProperty<int>("endowment_lo", cfg.endowment.lo);
+    env.newProperty<int>("endowment_hi", cfg.endowment.hi);
+    env.newProperty<int>("max_age_lo", cfg.max_age ? cfg.max_age->lo : 0);
+    env.newProperty<int>("max_age_hi", cfg.max_age ? cfg.max_age->hi : 0);
     env.newProperty<unsigned int>("t", 0u);
     env.newProperty<unsigned int>("round", 1u);
     env.newProperty<unsigned int>("seasons_beta", cfg.seasons ? static_cast<unsigned int>(cfg.seasons->first) : 0u);
@@ -102,6 +112,8 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
 
     flamegpu::AgentFunctionDescription metabolize = citizen.newFunction("metabolize_and_age", metabolize_and_age);
     metabolize.setAllowAgentDeath(true);
+    // Replacement on the device (spec 2026-10-25): only when it is on, so other runs execute today's kernels.
+    if (cfg.replacement) metabolize.setAgentOutput(citizen);
 
     flamegpu::AgentFunctionDescription occupy = citizen.newFunction("occupy_site", occupy_site);
 
@@ -114,8 +126,7 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
     model.newLayer().addSubModel(movement_sub);
     model.newLayer().addAgentFunction(citizen.newFunction("count_neighbors", count_neighbors));
     model.newLayer().addAgentFunction(metabolize);
-    model.newLayer().addHostFunction(replace_dead);
-    model.newLayer().addAgentFunction(occupy);  // the newcomers' sites
+    if (cfg.replacement) model.newLayer().addAgentFunction(citizen.newFunction("place_newcomer", place_newcomer));
     model.newLayer().addAgentFunction(cell.newFunction("cell_grow", cell_grow));
     model.newLayer().addAgentFunction(cell.newFunction("cell_commit", cell_commit));
     model.newLayer().addSubModel(diffusion_sub);

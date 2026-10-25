@@ -18,6 +18,14 @@ from experiments.registry import EXPERIMENTS
 from experiments.run import experiment_config, fingerprint, result_dir
 
 GPU_FINGERPRINT = "gpu-phase1\n"
+# Replacement moved to the device (spec 2026-10-25): its random stream changed, so results made before are stale.
+REPLACEMENT_FINGERPRINT = "replacement: device\n"
+
+
+def gpu_fingerprint(exp_id: str, xl: bool = False) -> str:
+    """The fingerprint.txt of the GPU's results for an experiment (or its xl version)."""
+    extra = REPLACEMENT_FINGERPRINT if experiment_config(exp_id, xl).replacement else ""
+    return GPU_FINGERPRINT + extra + fingerprint(exp_id, xl)
 
 
 def default_out_gpu(xl: bool) -> Path:
@@ -59,7 +67,7 @@ def run_experiment_gpu(exp_id: str, seeds: int | None = None, jobs: int = 1, out
     texts = [config_to_cfg(config, steps=exp.steps, seed=config.seed + k) for k in range(n)]
     with ThreadPoolExecutor(max_workers=max(1, jobs)) as pool:
         timings = list(pool.map(lambda k: _run_seed(Path(exe), folder, texts[k], k), range(n)))
-    (folder / "fingerprint.txt").write_text(GPU_FINGERPRINT + fingerprint(exp_id, xl), encoding="utf-8")
+    (folder / "fingerprint.txt").write_text(gpu_fingerprint(exp_id, xl), encoding="utf-8")
     write_timing_csv(folder / "timing.csv", [timing_row(k, t) for k, t in enumerate(timings)])
     (folder / "machine.txt").write_text(machine_note(Path(exe), jobs), encoding="utf-8")
     return [folder / f"seed{k}.csv" for k in range(n)]
