@@ -904,7 +904,7 @@ suite runs them too when Node is installed.
 xl is the sugarscape at 10× the resolution: 500 × 500 sites, 100× the agents, vision, starting blocks and pollution
 diffusion scaled to match, and agents looking at one random site in every 10 along their lines of sight, so a run
 looks like a regular one, only more detailed. It is the shared workload for comparing this model with the FLAME GPU
-port and a planned Julia version. [docs/xl.md](docs/xl.md) is the contract for other implementations: the map file
+port and the Julia version in `julia/`. [docs/xl.md](docs/xl.md) is the contract for other implementations: the map file
 and its checksum, the configuration table, and the timing measures.
 
 ```bash
@@ -914,3 +914,12 @@ python -m experiments.run II-4 --xl --seeds 1
 This writes the xl run to `results-xl/`. Every run, regular or xl, also writes `timing.csv` (setup, stepping and
 metrics seconds per seed) and `machine.txt`. In the viewer, tick **xl** before Start. In Python an xl period takes
 seconds rather than milliseconds (about 2.4 s for II-4's rules, 6.5 s for VI-1's).
+
+## Julia
+
+[julia/](julia/README.md) is a Julia port of the sugarscape model, every rule of Chapters II–VI, that runs every
+sugarscape experiment of the registry at regular and xl size and writes results in this runner's layout. Its
+comparison report (`python -m bridge.report`, from `julia/`) tests agreement with this model's saved results metric
+by metric, scores both against the book's targets, and puts their timings side by side. Across all 134 experiments
+Julia agrees with Python (no flagged difference in 8,165 tested windows), and II-4 at xl agrees too, about 84× faster
+per period. The method and every follow-up are in [julia/docs/validation.md](julia/docs/validation.md).
