@@ -41,7 +41,7 @@ struct RunState {
     std::chrono::steady_clock::time_point setup_end;  // the t = 0 state reached, before its outputs (finish_init)
     std::chrono::steady_clock::time_point period_start;
     std::vector<double> period_seconds;
-    double metrics_seconds = 0;  // gathering each metrics row, t = 0 included (the CSV write left out)
+    double metrics_seconds = 0;  // gathering each metrics row, t = 0 included (the CSV write left out; write_metrics)
 };
 
 RunState& state();
@@ -53,12 +53,13 @@ flamegpu::AgentVector make_cells(flamegpu::ModelDescription& model);
 
 // Dumps for --dump-at and the --check invariants, for the period that has just completed (t = 0 after init).
 void write_dumps(flamegpu::HostAPI* api, unsigned int t);
-// The metrics row for period t, when --out is given and t % --metrics-every == 0.
-void write_metrics(flamegpu::HostAPI* api, unsigned int t);
+// The metrics row for period t, when --out is given and t % --metrics-every == 0. Run by main between steps: with
+// a simulation, citizens is first refreshed from the device; with nullptr (t = 0) it is read as given, the founders.
+void write_metrics(flamegpu::CUDASimulation* simulation, flamegpu::AgentVector& citizens, unsigned int t);
 void check_invariants(flamegpu::HostAPI* api, unsigned int t, unsigned int deaths, unsigned int births);
 
 FLAMEGPU_HOST_FUNCTION_DECL(begin_period)    // layer: t, round and the period's rule switches
-FLAMEGPU_HOST_FUNCTION_DECL(finish_init)     // layer, first period only: the t = 0 outputs
+FLAMEGPU_HOST_FUNCTION_DECL(finish_init)     // layer, first period only: the t = 0 dumps and checks
 FLAMEGPU_HOST_FUNCTION_DECL(replace_dead)    // layer: replacement R
 FLAMEGPU_HOST_FUNCTION_DECL(end_period)      // step: deaths, dumps, checks
 

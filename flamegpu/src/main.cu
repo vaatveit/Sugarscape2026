@@ -190,8 +190,17 @@ int main(int argc, const char** argv) {
         flamegpu::AgentVector cells = make_cells(model);
         simulation.setPopulationData(citizens);
         simulation.setPopulationData(cells);
+        // The periods are stepped here rather than by simulate(), which adds only init and exit functions and
+        // logging, none of which this model has: each metrics row is gathered between steps as whole columns of
+        // a host AgentVector (spec 2026-10-25, section 4). The t = 0 row is the founders', as they were set.
         const auto start = std::chrono::steady_clock::now();
-        simulation.simulate();
+        write_metrics(nullptr, citizens, 0);
+        const double t0_metrics = s.metrics_seconds;  // made before the first step, but setup leaves it out
+        flamegpu::AgentVector metrics_pop(model.Agent("citizen"));
+        for (unsigned int t = 1; t <= static_cast<unsigned int>(cfg.steps); ++t) {
+            simulation.step();
+            write_metrics(&simulation, metrics_pop, t);
+        }
         const double seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
         if (!opts.timing.empty()) {
             // Periods timed by begin_period/end_period with the GPU synchronised, leaving out initialisation and the
@@ -199,7 +208,7 @@ int main(int argc, const char** argv) {
             const std::vector<double>& steps = s.period_seconds;
             double step_total = 0;
             for (const double v : steps) step_total += v;
-            const double setup = std::chrono::duration<double>(s.setup_end - setup_start).count();
+            const double setup = std::chrono::duration<double>(s.setup_end - setup_start).count() - t0_metrics;
             FILE* f = std::fopen(opts.timing.c_str(), "w");
             if (!f) throw std::runtime_error("cannot write " + opts.timing);
             // The first five keys are bridge.bench's; the rest are docs/xl.md's timing measures.

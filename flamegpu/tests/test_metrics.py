@@ -88,3 +88,21 @@ def test_csv_reads_back(exe, tmp_path):
     series = _read_csv(out)
     assert all(isinstance(v, (int, float)) for row in series for v in row.values())
     assert math.isfinite(window_mean("population", 0, 10)(series))
+
+
+def test_csv_same_with_and_without_timing(exe, tmp_path):
+    (tmp_path / "a").mkdir()
+    (tmp_path / "b").mkdir()
+    _, plain = _run(exe, tmp_path / "a", steps=15)
+    _, timed = _run(exe, tmp_path / "b", steps=15, extra=("--timing", tmp_path / "b" / "t.json"))
+    assert plain.read_bytes() == timed.read_bytes()
+
+
+def test_metrics_after_extinction(exe, tmp_path):
+    # A sugarless world: everyone starves in period 1 (endowment 1, metabolism 1, no replacement); rows continue
+    # with population 0.
+    _, out = _run(exe, tmp_path, {"endowment": "1,1", "metabolism": "1,1"}, steps=4,
+                  capacity=np.zeros((50, 50), dtype=int))
+    rows = read_rows(out)
+    assert [r["t"] for r in rows] == list(range(5))
+    assert rows[-1]["population"] == 0 and math.isnan(rows[-1]["mean_vision"]) and math.isnan(rows[-1]["gini"])
