@@ -139,6 +139,9 @@ The rule is that **no host function in setup or in a period touches a site-sized
 exceptions are the diagnostics (`--check` and the dumps), which run only in tests and are never timed. Today two
 places break the rule:
 
+- *Superseded on 2026-10-25* by [replacement on the device](2026-10-25-gpu-replacement-metrics-design.md):
+  `replace_dead` is gone, newcomers are born and placed on the GPU, and the 50×50 replacement results changed by
+  design. The bullet below records what this design did.
 - **Replacing dead agents, `replace_dead`, every period with deaths.** Today it reads and writes back the whole
   `occupied` array (25 MB each way).
   - Instead, it finds the empty sites from the living citizens' `x` and `y`, read as agent data.

@@ -16,7 +16,8 @@ def test_replacement_keeps_population(exe, tmp_path):
 
 
 def test_replacement_keeps_occupancy_consistent(exe, tmp_path):
-    # Newcomers mark their own sites; --check fails if any agent's site is unmarked or two agents share one.
+    # Newcomers claim their own sites (place_newcomer); --check fails if any agent's site is unmarked or two agents
+    # share one.
     dump = run_gpu(exe, tmp_path, II_4_GINI, steps=60, extra_args=("--check",))
     assert dump.returncode == 0, dump.stderr
 

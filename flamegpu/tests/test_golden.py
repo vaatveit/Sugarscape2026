@@ -2,6 +2,11 @@
 
 The files in data/golden/ were written by make_golden.py with the program as it was before the xl work. Never
 regenerate them to make a test pass: a difference means behaviour changed.
+
+One deliberate regeneration, approved by the user: on 2026-10-25 replacement moved to the device (spec
+2026-10-25-gpu-replacement-metrics), which changed its random stream by design. Only the files replacement reaches
+were rewritten: gini_t0/metrics.csv (from t = 1) and gini_t30/*. The other cases, and gini_t0's t = 0 dumps, are
+still the pre-xl bytes.
 """
 
 from pathlib import Path
