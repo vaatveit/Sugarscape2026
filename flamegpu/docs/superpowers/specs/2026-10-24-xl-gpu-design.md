@@ -23,7 +23,8 @@ but is not re-run. **The world may grow later** (user), so nothing here may assu
 
 1. `python -m bridge.gpu_run <id> --xl` runs an experiment's xl version on the GPU, using the Python project's own
    transform, so the GPU never re-implements the xl table.
-2. Rule D runs `diffusion_passes` passes per diffusion period, as the Python model does.
+2. Rule D runs `diffusion_passes` passes per diffusion period, as the Python model does. Movement looks with
+   `look_stride`, and vision is drawn in whole strides (section 2a, an amendment).
 3. No host-side work that runs in the timed parts of a run copies an array sized for the compiled maximum
    (`SUGARSCAPE_MAX_CELLS`, 6.25M sites) when the world is smaller (user).
 4. Every GPU run reports `docs/xl.md`'s timing measures (setup, stepping and metrics, plus periods and the agent
@@ -68,10 +69,11 @@ As Phase 1:
 - **Config.** `--xl` builds each experiment's config with `experiment_config(id, xl=True)`, Python's `to_xl`.
   Experiments that aren't sugarscape configs are refused, as Python refuses them. An xl config that still uses
   non-Chapter II rules is skipped, as such configs are now.
-- **Two fields stop being refused.**
+- **Three fields stop being refused.**
   - `sugar_map` becomes a field the GPU reads. `run.cfg`'s `map` line already names the configured map file, and
     `load_map` checks the file against the configured width and height.
   - `diffusion_passes` is written to `run.cfg` (section 2).
+  - `look_stride` is written to `run.cfg` (section 2a; amendment of 2026-10-24).
   - Every other field outside Chapter II is still refused when it isn't at its default.
 - **Output folder.** xl results go to `results-gpu-xl/`, which is git-ignored like `results-gpu/`. `--out` still
   overrides it.
@@ -102,6 +104,29 @@ As Phase 1:
   - a period without diffusion costs about nothing extra.
 
   The movement sub-model, which repeats layers until an exit condition holds, is the precedent.
+
+### 2a. Look stride (amendment, 2026-10-24; user-approved)
+
+`docs/xl.md` gained a look stride after this design was approved (main, commit 0b6b937). At xl, `look_stride = 10`:
+along each lattice line, an agent looks at one site drawn uniformly from each stretch of 10 (one of the sites 1–10
+away, one of 11–20, and so on out to its vision), and vision is drawn in whole strides (10, 20, … 60). Python's
+reference is `look_distances` in `sugarscape/rules/movement.py` and the vision draw in `Model._spawn_at`.
+
+- **New `run.cfg` key `look_stride`**: an integer ≥ 1, default 1, parsed, validated and printed like the other keys.
+  Validation refuses a vision range whose bounds aren't whole multiples of the stride, as Python's `Config` does.
+- **Vision draws.** Founders and newcomers draw `stride × U[lo / stride, hi / stride]`. With stride 1 that is the
+  current draw, so the host random stream is unchanged.
+- **Movement's scan.** In each direction, for each stretch k = 0, 1, … (vision / stride − 1), the agent looks only at
+  distance `stride · k + offset`, with offset uniform on 1 … stride. It still takes the nearest of the best sites it
+  saw, by that site's actual distance.
+- **One look per period** (*my call*, approved by the user). Python's agents look once per period. The GPU resolves
+  conflicts in rounds, and an agent that loses its site scans again. That rescan must see the same sites, less any
+  taken since, not a fresh sample, or losers would get extra looks. So each citizen draws one look seed per period
+  (in `start_period`), and each offset is a hash of (look seed, direction, stretch). There are no per-agent arrays.
+- **Stride 1 draws nothing extra.** The look seed is drawn only when the stride is above 1, so 50×50 results stay
+  byte-identical (the golden runs prove it).
+- Combat and mate search use the stride in Python too. The GPU has neither yet (Chapter II only); whoever ports
+  them must use the same looks.
 
 ### 3. No copies sized for the maximum
 
@@ -200,14 +225,25 @@ runs: if Python's xl results are missing or stale, it prints the exact commands 
 - **Bridge**
   - `--xl` writes to `results-gpu-xl/` with the xl fingerprint.
   - It refuses Schelling and Ring World ids.
-  - `sugar_map` and `diffusion_passes` reach `run.cfg`.
+  - `sugar_map`, `diffusion_passes` and `look_stride` reach `run.cfg`.
   - Any other non-Chapter II field off its default is still refused (the existing tests stay as they are).
 - **Diffusion**: exact parity with Python at 50×50 for `diffusion_passes` = 3, over a few diffusion periods, using
   the existing `--init` and dump harness.
+- **Look stride** (section 2a). Exact parity with Python is impossible at stride > 1, since the draws differ, so
+  the tests check the rule's properties:
+  - vision values are whole strides, and every one of them occurs;
+  - a vision range not in whole strides is refused;
+  - an agent looks once per stretch, at a uniform offset: with equal food on every site of one stretch and none
+    elsewhere, agents move exactly as far as their one look in that stretch reached. Every distance 1 … stride
+    occurs about equally often; looking at every site would always move them 1;
+  - stride 1 leaves the golden runs byte-identical.
+  - A rescan seeing the same sites holds by construction: each offset is a pure function of the period's look seed,
+    direction and stretch, and the scan draws no offsets itself. No test can see it from outside the program, so the
+    review checks it instead.
 - **Replacement and initialisation**: every existing parity, invariant and metrics test passes unchanged. That
   proves the empty-site order, and therefore the random draws, are unchanged.
 - **500×500**: an xl run of each of II-4-gini and II-8 for a few periods with `--check`. Invariants hold, the map
-  loads at 500×500, and the 10–60 visions are drawn.
+  loads at 500×500, and the visions 10, 20, … 60 are drawn (and nothing between them).
 - **Timing**
   - The JSON has the new keys, with non-negative times and the right period and agent counts.
   - `timing.csv` and `machine.txt` are written with Python's columns.
