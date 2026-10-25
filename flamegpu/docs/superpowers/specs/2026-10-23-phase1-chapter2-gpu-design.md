@@ -107,6 +107,10 @@ culture, trade, credit, disease, combat), each with its own design.
 
 ### One period, in order
 
+*Superseded on 2026-10-25 for movement and neighbour counts* by
+[Python's agent order on the GPU](2026-10-25-gpu-sequential-semantics-design.md): movement is deferred acceptance over
+a 32-bit order key, and neighbours are counted in that order after metabolism. The steps below record this design.
+
 Python's step order is followed, except where marked **[parallel]**.
 
 1. **Start of period** (cells): reset `claim` to 0. Citizens draw a fresh random 20-bit priority and
