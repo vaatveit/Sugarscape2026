@@ -3,7 +3,8 @@
 import numpy as np
 import pytest
 
-from gpu import read_rows, run_gpu
+from conftest import run_exe
+from gpu import read_rows, run_gpu, write_cfg
 
 # Everyone dies every period (max_age 1, founders aged 0), so each end-of-period dump holds only newcomers.
 EVERYONE_DIES = {"initial_population": "250", "max_age": "1,1", "replacement": "true", "founder_ages": "zero"}
@@ -25,6 +26,29 @@ def test_newcomers_land_uniformly(exe, tmp_path):
     expected = counts.sum() / 25
     chi2 = ((counts - expected) ** 2 / expected).sum()
     assert chi2 < 60  # 24 degrees of freedom: p ~ 1e-4 at 60; a half-world bias gives chi2 in the thousands
+
+
+def _float_draw_counts(cells: int) -> np.ndarray:
+    """How many of FLAME GPU's 2^24 float draws land on each site with uniform<unsigned int>(0, cells - 1): it
+    computes (unsigned)(float(cells) * u), u = (curand() & 0xFFFFFF) / 2^24 (AgentRandom.cuh, uniform(min, max))."""
+    u = np.arange(2 ** 24, dtype=np.float32) * np.float32(2.0 ** -24)
+    return np.bincount((np.float32(cells) * u).astype(np.int64), minlength=cells)
+
+
+def test_newcomer_sites_drawn_exactly_in_a_large_world(exe, tmp_path):
+    # 2500x2500 (--tile 50): a site draw through a 24-bit float reaches each site 2 or 3 times in 2^24, so newcomers
+    # would favour the 3-draw sites. An exact draw lands on sites with mean weight 2^24 / cells (2.684); the float
+    # draw gives E[w^2] / E[w] (2.764). 10,000 newcomers on an empty world: standard error about 0.005.
+    cells = 2500 * 2500
+    weight = _float_draw_counts(cells)
+    cfg = write_cfg(tmp_path, **{**EVERYONE_DIES, "initial_population": "4", "steps": "3"})
+    result = run_exe(exe, "--config", cfg, "--tile", "50", "--dump-agents", tmp_path / "agents.csv", "--dump-at", "3")
+    assert result.returncode == 0, result.stderr
+    agents = read_rows(tmp_path / "agents.csv")
+    assert len(agents) == 10_000
+    landed = np.array([weight[a["x"] + a["y"] * 2500] for a in agents], dtype=float)
+    uniform_mean = 2 ** 24 / cells
+    assert abs(landed.mean() - uniform_mean) < 4 * landed.std() / np.sqrt(len(landed)), landed.mean()
 
 
 @pytest.mark.parametrize("population", [2490, 2500])

@@ -114,7 +114,9 @@ FLAMEGPU_AGENT_FUNCTION(place_newcomer, flamegpu::MessageNone, flamegpu::Message
     unsigned int site = 0;
     bool placed = false;
     for (unsigned int k = 0; k < PLACE_TRIES && !placed; ++k) {
-        site = FLAMEGPU->random.uniform<unsigned int>(0u, cells - 1u);
+        // The 64-bit draw goes through a double; uniform<unsigned int> uses a 24-bit float, which reaches sites
+        // unevenly in large worlds and never reaches some beyond 2^24 sites.
+        site = static_cast<unsigned int>(FLAMEGPU->random.uniform<uint64_t>(0ull, cells - 1ull));
         placed = occupied[site].CAS(0u, 1u) == 0u;
     }
     while (!placed) {
