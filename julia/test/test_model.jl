@@ -145,3 +145,13 @@ end
     @test all(a.alive && agent_at(m, a.x, a.y) === a for a in m.agents)
     @test count(!isnothing, m.grid) == n
 end
+
+@testset "old-age deaths are processed in creation order" begin
+    m = tiny_model(zeros(Int, 9, 9))
+    agents = [put_agent(m, x, 0; max_age=1) for x in 0:6]
+    kill!(m, agents[2])  # swap-removal reorders m.agents
+    kill!(m, agents[4])
+    empty!(m.dead_this_step)
+    step!(m)
+    @test [a.id for a in m.dead_this_step] == [0, 2, 4, 5, 6]
+end

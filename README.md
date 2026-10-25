@@ -921,5 +921,8 @@ seconds rather than milliseconds (about 2.4 s for II-4's rules, 6.5 s for VI-1's
 sugarscape experiment of the registry at regular and xl size and writes results in this runner's layout. Its
 comparison report (`python -m bridge.report`, from `julia/`) tests agreement with this model's saved results metric
 by metric, scores both against the book's targets, and puts their timings side by side. Across all 134 experiments
-Julia agrees with Python (no flagged difference in 8,165 tested windows), and II-4 at xl agrees too, about 84× faster
-per period. The method and every follow-up are in [julia/docs/validation.md](julia/docs/validation.md).
+it finds no flagged difference in 8,165 tested windows. 38 book-target statuses differ, so the report's own
+verdict reads "does not agree"; each change is followed up in [julia/docs/validation.md](julia/docs/validation.md),
+and all of them came out as sampling noise. II-4 at xl agrees too (0 flags), and stepped about 84× faster per period
+in development timings on a shared machine (Python with 10 jobs, Julia with 5); quiet-machine numbers are still to
+come.

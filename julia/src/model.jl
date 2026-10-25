@@ -246,7 +246,8 @@ function step!(m::Model)
     for a in m.agents
         a.age += 1
     end
-    dying = [a for a in m.agents if a.age >= a.max_age]
+    # In creation order, as Python's agent list keeps them (design, "Free to differ"): m.agents is not.
+    dying = sort!([a for a in m.agents if a.age >= a.max_age]; by=a -> a.id)
     if !isempty(dying)
         batch = Set{Agent}(dying)  # identity: Agent is mutable
         for a in dying

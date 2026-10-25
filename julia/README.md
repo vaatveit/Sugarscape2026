@@ -104,9 +104,11 @@ None of these changes a distribution; the lockstep tests show the rules match pe
 
 ## Results
 
-### Regular size: Julia agrees with Python
+### Regular size
 
-All 134 sugarscape experiments of the registry, registered seeds (2026-10-24):
+All 134 sugarscape experiments of the registry, registered seeds (2026-10-24). The report's verdict rule asks for no
+flags *and* no book-target status changes, so `REPORT.md` reads "does not agree" while the 38 changes below stand;
+the evidence that each is sampling noise is in [docs/validation.md](docs/validation.md), for you to accept or not.
 
 - **0 flags among 8,165 tested windows and 134 extinction tests**, under one correction.
 - **Book targets:** Python 139 pass, 56 near, 120 fail; Julia 138 pass, 60 near, 117 fail. 38 statuses changed,
