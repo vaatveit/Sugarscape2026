@@ -901,11 +901,11 @@ suite runs them too when Node is installed.
 
 ## xl
 
-xl is the sugarscape at 10× the resolution: 500 × 500 sites, 100× the agents, and vision, starting blocks and
-pollution diffusion scaled to match, so a run looks like a regular one, only more detailed. It is the shared
-workload for comparing this model with the FLAME GPU port and a planned Julia version. [docs/xl.md](docs/xl.md) is
-the contract for other implementations: the map file and its checksum, the configuration table, and the timing
-measures.
+xl is the sugarscape at 10× the resolution: 500 × 500 sites, 100× the agents, vision, starting blocks and pollution
+diffusion scaled to match, and agents looking at one random site in every 10 along their lines of sight, so a run
+looks like a regular one, only more detailed. It is the shared workload for comparing this model with the FLAME GPU
+port and a planned Julia version. [docs/xl.md](docs/xl.md) is the contract for other implementations: the map file
+and its checksum, the configuration table, and the timing measures.
 
 ```bash
 python -m experiments.run II-4 --xl --seeds 1
@@ -913,4 +913,4 @@ python -m experiments.run II-4 --xl --seeds 1
 
 This writes the xl run to `results-xl/`. Every run, regular or xl, also writes `timing.csv` (setup, stepping and
 metrics seconds per seed) and `machine.txt`. In the viewer, tick **xl** before Start. In Python an xl period takes
-seconds rather than milliseconds (about 4–6 s for II-4's rules).
+seconds rather than milliseconds (about 2.4 s for II-4's rules, 6.5 s for VI-1's).

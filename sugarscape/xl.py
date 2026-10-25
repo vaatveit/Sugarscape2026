@@ -26,9 +26,10 @@ def to_xl(cfg: Config) -> Config:
         height=cfg.height * FACTOR,
         sugar_map=XL_MAP,
         initial_population=cfg.initial_population * FACTOR * FACTOR,
-        vision=(lo * FACTOR, hi * FACTOR),  # drawn uniformly over every whole number in the range (user decision)
+        vision=(lo * FACTOR, hi * FACTOR),  # drawn in whole look strides: 10, 20, ... (user decision 2026-10-24)
         block=tuple(v * FACTOR for v in cfg.block),
         initial_blocks=tuple((tribe, x0 * FACTOR, y0 * FACTOR, w * FACTOR, h * FACTOR, n * FACTOR * FACTOR)
                              for tribe, x0, y0, w, h, n in cfg.initial_blocks),
         diffusion_passes=cfg.diffusion_passes * DIFFUSION_PASSES,
+        look_stride=cfg.look_stride * FACTOR,  # as many cells per look as a regular agent, over the same distance
     )

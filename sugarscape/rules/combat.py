@@ -1,5 +1,7 @@
 """Agent combat rule C_alpha (pp.82-83, App. B p.183-184). Replaces movement M when active."""
 
+from sugarscape.rules.movement import look_distances
+
 VON_NEUMANN = ((1, 0), (-1, 0), (0, 1), (0, -1))
 
 
@@ -15,7 +17,7 @@ def combat_candidates(model, agent) -> list[tuple[int, int, int, float, object]]
     sites = [(agent.x, agent.y, 0, float(ls.sugar[agent.x, agent.y]), None)]
     for d in model.rng.permutation(4):
         dx, dy = VON_NEUMANN[d]
-        for dist in range(1, agent.vision + 1):
+        for dist in look_distances(model, agent.vision):
             x, y = ls.wrap(agent.x + dx * dist, agent.y + dy * dist)
             occupant = model.agent_at(x, y)
             if occupant is None:
@@ -32,7 +34,7 @@ def vulnerable(model, agent, x: int, y: int, reward: float, victim) -> bool:
     """
     after = agent.sugar + reward
     for dx, dy in VON_NEUMANN:
-        for dist in range(1, agent.vision + 1):
+        for dist in look_distances(model, agent.vision):
             other = model.agent_at(x + dx * dist, y + dy * dist)
             if (
                 other is not None
