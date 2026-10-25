@@ -15,6 +15,10 @@ void landscape_macros(flamegpu::EnvironmentDescription env, bool all) {
     env.newMacroProperty<float, MAX_CELLS>("sugar_next");
     env.newMacroProperty<float, MAX_CELLS>("pollution_next");
     env.newMacroProperty<unsigned int>("deaths");
+    // The period's order key of the agent that started at a site and of the one that ended there and has not starved,
+    // for count_neighbors (spec 2026-10-25-gpu-sequential-semantics, section 3); cleared in cell_commit.
+    env.newMacroProperty<uint64_t, MAX_CELLS>("left");
+    env.newMacroProperty<uint64_t, MAX_CELLS>("arrived");
 }
 
 // The movement sub-model: propose and bid until a round places no bid (spec 2026-10-25-gpu-sequential-semantics,
@@ -129,8 +133,9 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
     model.newLayer().addAgentFunction(citizen.newFunction("start_period", start_period));
     model.newLayer().addSubModel(movement_sub);
     model.newLayer().addAgentFunction(citizen.newFunction("commit_move", commit_move));
-    model.newLayer().addAgentFunction(citizen.newFunction("count_neighbors", count_neighbors));
     model.newLayer().addAgentFunction(metabolize);
+    // After metabolism, as Python counts each agent's neighbours after its own move and metabolism.
+    model.newLayer().addAgentFunction(citizen.newFunction("count_neighbors", count_neighbors));
     if (cfg.replacement) model.newLayer().addAgentFunction(citizen.newFunction("place_newcomer", place_newcomer));
     model.newLayer().addAgentFunction(cell.newFunction("cell_grow", cell_grow));
     model.newLayer().addAgentFunction(cell.newFunction("cell_commit", cell_commit));

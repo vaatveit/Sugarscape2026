@@ -50,16 +50,23 @@ FLAMEGPU_AGENT_FUNCTION(start_period, flamegpu::MessageNone, flamegpu::MessageNo
     return flamegpu::ALIVE;
 }
 
-// Occupied von Neumann sites around the agent after everyone has moved (reads occupied).
+// The occupied von Neumann sites around the agent as they stand at its turn in the period's order, as Python counts
+// right after the agent's own move and metabolism (reads left, arrived): an earlier agent at the site it ended on,
+// unless it starved; a later agent at the site it started from, since it has not moved yet. Run after metabolism.
 FLAMEGPU_AGENT_FUNCTION(count_neighbors, flamegpu::MessageNone, flamegpu::MessageNone) {
     const int w = static_cast<int>(FLAMEGPU->environment.getProperty<unsigned int>("width"));
     const int h = static_cast<int>(FLAMEGPU->environment.getProperty<unsigned int>("height"));
     const int x = FLAMEGPU->getVariable<int>("x");
     const int y = FLAMEGPU->getVariable<int>("y");
-    auto occupied = FLAMEGPU->environment.getMacroProperty<unsigned int, MAX_CELLS>("occupied");
+    const uint64_t key = order_key(FLAMEGPU->getVariable<unsigned int>("priority"), FLAMEGPU->getID());
+    auto left = FLAMEGPU->environment.getMacroProperty<uint64_t, MAX_CELLS>("left");
+    auto arrived = FLAMEGPU->environment.getMacroProperty<uint64_t, MAX_CELLS>("arrived");
     unsigned int n = 0;
     for (int d = 0; d < 4; ++d) {
-        n += static_cast<unsigned int>(occupied[wrap(x + MOVE_DX[d], w) + wrap(y + MOVE_DY[d], h) * w]);
+        const unsigned int s = static_cast<unsigned int>(wrap(x + MOVE_DX[d], w) + wrap(y + MOVE_DY[d], h) * w);
+        const uint64_t a = arrived[s];
+        const uint64_t l = left[s];
+        n += (a > key || (l != 0u && l < key)) ? 1u : 0u;
     }
     FLAMEGPU->setVariable<unsigned int>("neighbors", n);
     return flamegpu::ALIVE;
@@ -105,6 +112,12 @@ FLAMEGPU_AGENT_FUNCTION(metabolize_and_age, flamegpu::MessageNone, flamegpu::Mes
         auto deaths = FLAMEGPU->environment.getMacroProperty<unsigned int>("deaths");
         occupied[site].exchange(0u);
         ++deaths;
+        // Python removes a starved agent at its turn, so later agents don't count it; an agent dying of old age is
+        // removed only at the end of the period, so everyone still counts it (count_neighbors).
+        if (sugar <= 0.0f) {
+            auto arrived = FLAMEGPU->environment.getMacroProperty<uint64_t, MAX_CELLS>("arrived");
+            arrived[site].exchange(uint64_t{0});
+        }
         if (FLAMEGPU->environment.getProperty<unsigned int>("replacement")) output_newcomer(FLAMEGPU);
         return flamegpu::DEAD;
     }
@@ -181,7 +194,8 @@ FLAMEGPU_AGENT_FUNCTION(cell_grow, flamegpu::MessageNone, flamegpu::MessageNone)
     return flamegpu::ALIVE;
 }
 
-// Cell layer B (reads sugar_next, pollution_next; writes sugar, pollution, claim): copy back, clear claims.
+// Cell layer B (reads sugar_next, pollution_next; writes sugar, pollution, claim, left, arrived): copy back, and
+// clear the period's order keys so the next period starts empty.
 FLAMEGPU_AGENT_FUNCTION(cell_commit, flamegpu::MessageNone, flamegpu::MessageNone) {
     const unsigned int i = FLAMEGPU->getIndex();  // the site index (make_cells)
     auto sugar = FLAMEGPU->environment.getMacroProperty<float, MAX_CELLS>("sugar");
@@ -189,9 +203,13 @@ FLAMEGPU_AGENT_FUNCTION(cell_commit, flamegpu::MessageNone, flamegpu::MessageNon
     auto sugar_next = FLAMEGPU->environment.getMacroProperty<float, MAX_CELLS>("sugar_next");
     auto pollution_next = FLAMEGPU->environment.getMacroProperty<float, MAX_CELLS>("pollution_next");
     auto claim = FLAMEGPU->environment.getMacroProperty<uint64_t, MAX_CELLS>("claim");
+    auto left = FLAMEGPU->environment.getMacroProperty<uint64_t, MAX_CELLS>("left");
+    auto arrived = FLAMEGPU->environment.getMacroProperty<uint64_t, MAX_CELLS>("arrived");
     sugar[i].exchange(static_cast<float>(sugar_next[i]));
     pollution[i].exchange(static_cast<float>(pollution_next[i]));
     claim[i].min(uint64_t{0});
+    left[i].min(uint64_t{0});
+    arrived[i].min(uint64_t{0});
     return flamegpu::ALIVE;
 }
 

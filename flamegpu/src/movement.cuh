@@ -125,14 +125,20 @@ FLAMEGPU_EXIT_CONDITION(movement_settled) {
     return flamegpu::CONTINUE;
 }
 
-// Commit (writes occupied, sugar, pollution), after the sub-model: holders move to their targets and harvest them;
-// stayers harvest their own sites. Targets were free at the start and are distinct, so no two agents write a site.
+// Commit (writes occupied, sugar, pollution, left, arrived), after the sub-model: holders move to their targets and
+// harvest them; stayers harvest their own sites. Everyone records its order key where it started (left) and where it
+// ends (arrived), for count_neighbors. Targets were free at the start and are distinct, so no two agents write a site.
 FLAMEGPU_AGENT_FUNCTION(commit_move, flamegpu::MessageNone, flamegpu::MessageNone) {
     const unsigned int w = FLAMEGPU->environment.getProperty<unsigned int>("width");
     const unsigned int own = static_cast<unsigned int>(FLAMEGPU->getVariable<int>("x")) +
                              static_cast<unsigned int>(FLAMEGPU->getVariable<int>("y")) * w;
     const bool moving = FLAMEGPU->getVariable<unsigned int>("settled") == MOVE_HOLD;
     const unsigned int site = moving ? FLAMEGPU->getVariable<unsigned int>("target") : own;
+    const uint64_t key = order_key(FLAMEGPU->getVariable<unsigned int>("priority"), FLAMEGPU->getID());
+    auto left = FLAMEGPU->environment.getMacroProperty<uint64_t, MAX_CELLS>("left");
+    auto arrived = FLAMEGPU->environment.getMacroProperty<uint64_t, MAX_CELLS>("arrived");
+    left[own].exchange(key);
+    arrived[site].exchange(key);
     if (moving) {
         auto occupied = FLAMEGPU->environment.getMacroProperty<unsigned int, MAX_CELLS>("occupied");
         occupied[own].exchange(0u);
