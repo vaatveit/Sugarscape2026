@@ -142,3 +142,27 @@ VI-1 is worth a note before Python's arrive. Per 50 × 50 tile, the xl run follo
 in 3 of 5 seeds; xl, with 100× the agents, holds about 36 per tile, never goes extinct, and grows to about 845 per
 tile (84,500 agents) by t = 500. That is near the regular runs that survive (two seeds, about 744 at t = 500), so it
 looks like a property of the larger world rather than of the port, but only Python's xl VI-1 can say.
+
+## Final review fixes, timing refresh, and the full xl registry (2026-10-25)
+
+**Regular results re-run** on the commit with the review fixes, to replace setup times that had included ~35 ms of
+compilation. One fix changes trajectories (not distributions): the old-age death batch is now processed in creation
+order, as Python's list keeps it. That changes the order of `m.agents`, so every experiment with old-age deaths or
+replacement follows a different, equally valid random path. The report on the new results:
+
+- **0 flags among 8,146 tested windows and 134 extinction tests** (eligibility moved slightly with the new paths).
+- **Book targets:** Python 139 pass, 56 near, 120 fail; Julia 136 pass, 65 near, 114 fail; 37 statuses changed.
+  One new change had a seed-level p below 0.05: **VI-1 Gini of total wealth** (Python pass, Julia near, p = 0.032).
+  With 50 seeds each, Python 0.313 against Julia 0.322, p = 0.22, and every VI-1 target has p ≥ 0.10 (extinction
+  29/50 against 22/50, p = 0.23). **Sampling noise**, as expected about 2 times in 37 by chance.
+
+**The full registry at xl, in Julia:** all 135 experiments ran at their registered seeds without a failure (51 hours
+of stepping summed over seeds; median experiment 72 ms per period). Python has xl results for II-4 only, which
+agrees (0 flags).
+
+**Speed, as of today's timed Python results** (II-4 only so far, all on a shared machine):
+
+| Workload | Python s/period | Julia s/period | Speedup |
+|---|---|---|---|
+| II-4 regular (400 → 236 agents) | 0.0131 (4 jobs) | 0.000091 (10 jobs) | about 144× |
+| II-4 xl (40,000 → about 23,230) | 1.89 (10 jobs) | 0.022 (5 jobs) | about 86× |

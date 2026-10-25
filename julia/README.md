@@ -107,13 +107,13 @@ None of these changes a distribution; the lockstep tests show the rules match pe
 ### Regular size
 
 All 134 sugarscape experiments of the registry, registered seeds (2026-10-24). The report's verdict rule asks for no
-flags *and* no book-target status changes, so `REPORT.md` reads "does not agree" while the 38 changes below stand;
+flags *and* no book-target status changes, so `REPORT.md` reads "does not agree" while the 37 changes below stand;
 the evidence that each is sampling noise is in [docs/validation.md](docs/validation.md), for you to accept or not.
 
-- **0 flags among 8,165 tested windows and 134 extinction tests**, under one correction.
-- **Book targets:** Python 139 pass, 56 near, 120 fail; Julia 138 pass, 60 near, 117 fail. 38 statuses changed,
-  all with a seed-level p above 0.05 (one could not be computed). The ones that pointed one way (III-8, III-9,
-  IV-6, IV-18) were followed up with 50 to 200 seeds on each side, lockstep replays, and decision parity on a
+- **0 flags among 8,146 tested windows and 134 extinction tests**, under one correction.
+- **Book targets:** Python 139 pass, 56 near, 120 fail; Julia 136 pass, 65 near, 114 fail. 37 statuses changed.
+  All but one have a seed-level p above 0.05, and one could not be computed. The ones below 0.05 or pointing one
+  way (III-8, III-9, IV-6, IV-18, VI-1) were followed up with 50 to 200 seeds on each side, lockstep replays, and decision parity on a
   mid-run state; each turned out to be sampling noise, typically Python's registered seeds sitting on one side of
   its own long-run mean. Details: [docs/validation.md](docs/validation.md).
 
@@ -123,6 +123,7 @@ xl follows main's current definition, including the look stride of docs/xl.md ("
 the port (commit 0b6b937).
 
 - **II-4 (10 seeds each): Julia agrees with Python, 0 flags.**
+- **The whole registry** ran in Julia at xl: all 135 experiments at their registered seeds, without a failure.
 - **IV-A3 and VI-1:** Julia has run them; Python's xl runs are still to come, and the report shows them as missing
   until then. Julia's VI-1 at xl does not go extinct, unlike 3 of 5 regular seeds, and grows to about 84,500 agents
   (845 per 50 × 50 tile), close to the regular runs that survive. Python's xl VI-1 will show whether that is the
@@ -132,14 +133,31 @@ the port (commit 0b6b937).
 
 | Workload | Python s/period | Julia s/period | Speedup |
 |---|---|---|---|
-| II-4 at xl (40,000 → about 23,250 agents) | 1.85 (10 jobs) | 0.022 (5 jobs) | about 84× |
-| IV-A3 at xl (20,000 → about 2,850) | — | 0.025 | — |
-| VI-1 at xl (20,000 → about 84,500) | — | 1.04 | — |
+| II-4 regular (400 → 236 agents) | 0.0131 (4 jobs) | 0.000091 (10 jobs) | about 144× |
+| II-4 xl (40,000 → about 23,230 agents) | 1.89 (10 jobs) | 0.022 (5 jobs) | about 86× |
 
-Seconds of stepping per period, averaged over seeds and periods. Python's saved regular results predate the runner's
-timing, so there is no Python side for regular speed yet. Julia, regular size: the median experiment steps in 0.46
-ms per period; the slowest is VI-3 at 2.9 ms (500 → 915 agents). For scale, flamegpu/README.md measured Python at
-5.1 ms per period for II-4's 400 agents; Julia's II-4 is 0.34 ms.
+Seconds of stepping per period, averaged over seeds and periods. Python's timed results are arriving from the
+user's re-run; the report adds a row for each experiment timed on both sides.
+
+Julia alone, a selection of the xl registry (seconds of stepping per period; agents at start and end, mean over
+seeds). The median xl experiment takes 72 ms per period; the whole registry took 51 hours of stepping, summed over
+seeds.
+
+| Experiment | Agents | Periods | Julia s/period |
+|---|---|---|---|
+| II-4 | 40,000 → 23,238 | 500 | 0.022 |
+| II-8 | 40,000 → 18,606 | 200 | 0.032 |
+| III-1 | 40,000 → 64,377 | 2,500 | 0.159 |
+| III-9 | 54,000 → 21,290 | 1,000 | 0.079 |
+| III-15 | 10,000 → 67,695 | 6,000 | 0.307 |
+| IV-3 | 20,000 → 4,732 | 1,000 | 0.012 |
+| IV-A3 | 20,000 → 2,844 | 300 | 0.025 |
+| IV-A5 | 40,000 → 72,532 | 500 | 0.579 |
+| V-2 | 40,000 → 22,401 | 500 | 0.029 |
+| VI-1 | 20,000 → 84,523 | 500 | 1.036 |
+| VI-3 | 50,000 → 93,710 | 1,000 | 0.369 |
+
+At regular size the median Julia experiment steps in about 0.1–0.5 ms per period.
 
 All timings so far are development timings on a shared i7-13700K (8 performance and 8 efficiency cores): other
 sessions were running, so they can be off by up to about 2× either way. The headline numbers will come from
