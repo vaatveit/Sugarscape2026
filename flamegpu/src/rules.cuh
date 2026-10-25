@@ -24,10 +24,21 @@ FLAMEGPU_AGENT_FUNCTION(occupy_site, flamegpu::MessageNone, flamegpu::MessageNon
     return flamegpu::ALIVE;
 }
 
-// Start of period: a fresh random priority stands in for the period's random order.
+// Start of period: the period's order, drawn once (spec 2026-10-25-gpu-sequential-semantics, section 1). A 32-bit
+// priority (through the 64-bit draw, so every value is reachable) stands in for Python's random order, and dir_order
+// fixes the scan's direction order for the period, as Python's candidate_sites draws it once.
 FLAMEGPU_AGENT_FUNCTION(start_period, flamegpu::MessageNone, flamegpu::MessageNone) {
-    const unsigned int priority = static_cast<unsigned int>(FLAMEGPU->random.uniform<float>() * 1048576.0f);
-    FLAMEGPU->setVariable<unsigned int>("priority", min(priority, 0xFFFFFu));
+    FLAMEGPU->setVariable<unsigned int>(
+        "priority", static_cast<unsigned int>(FLAMEGPU->random.uniform<uint64_t>(0, 0xFFFFFFFFull)));
+    int order[4] = {0, 1, 2, 3};
+    for (int i = 3; i > 0; --i) {  // Fisher-Yates; uniform(0, i) can return i + 1 at the float endpoint
+        const int j = min(FLAMEGPU->random.uniform<int>(0, i), i);
+        const int tmp = order[i];
+        order[i] = order[j];
+        order[j] = tmp;
+    }
+    FLAMEGPU->setVariable<unsigned int>("dir_order", static_cast<unsigned int>(order[0] | order[1] << 2 |
+                                                                                order[2] << 4 | order[3] << 6));
     // One look per period (xl design, section 2a): the strided scan's offsets all derive from this seed, so a rescan
     // in a later movement round sees the same sites. Drawn only above stride 1, so regular random streams stay.
     if (FLAMEGPU->environment.getProperty<unsigned int>("look_stride") > 1u) {

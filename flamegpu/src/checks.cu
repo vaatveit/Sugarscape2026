@@ -14,6 +14,7 @@ struct CitizenRow {
     int x, y, vision, metabolism, age, max_age;
     float sugar;
     unsigned int moved, neighbors;
+    unsigned int id, priority, dir_order, look_seed;  // the period's order and looks (spec 2026-10-25, section 4)
 };
 
 std::vector<CitizenRow> citizens(flamegpu::HostAPI* api) {
@@ -25,7 +26,8 @@ std::vector<CitizenRow> citizens(flamegpu::HostAPI* api) {
         rows.push_back({a.getVariable<int>("x"), a.getVariable<int>("y"), a.getVariable<int>("vision"),
                         a.getVariable<int>("metabolism"), a.getVariable<int>("age"), a.getVariable<int>("max_age"),
                         a.getVariable<float>("sugar"), a.getVariable<unsigned int>("moved"),
-                        a.getVariable<unsigned int>("neighbors")});
+                        a.getVariable<unsigned int>("neighbors"), a.getID(), a.getVariable<unsigned int>("priority"),
+                        a.getVariable<unsigned int>("dir_order"), a.getVariable<unsigned int>("look_seed")});
     }
     std::sort(rows.begin(), rows.end(), [](const CitizenRow& a, const CitizenRow& b) {
         return std::tie(a.x, a.y) < std::tie(b.x, b.y);
@@ -46,11 +48,11 @@ void write_dumps(flamegpu::HostAPI* api, unsigned int t) {
     if (!s.dump_at || *s.dump_at != t) return;
     if (!s.dump_agents.empty()) {
         FILE* f = open_or_throw(s.dump_agents);
-        std::fprintf(f, "x,y,vision,metabolism,sugar,age,max_age,moved,neighbors\n");
+        std::fprintf(f, "x,y,vision,metabolism,sugar,age,max_age,moved,neighbors,id,priority,dir_order,look_seed\n");
         for (const CitizenRow& a : citizens(api)) {
             std::fprintf(f, "%d,%d,%d,%d,%.17g,%d,", a.x, a.y, a.vision, a.metabolism, static_cast<double>(a.sugar), a.age);
             if (a.max_age != IMMORTAL) std::fprintf(f, "%d", a.max_age);
-            std::fprintf(f, ",%u,%u\n", a.moved, a.neighbors);
+            std::fprintf(f, ",%u,%u,%u,%u,%u,%u\n", a.moved, a.neighbors, a.id, a.priority, a.dir_order, a.look_seed);
         }
         std::fclose(f);
     }

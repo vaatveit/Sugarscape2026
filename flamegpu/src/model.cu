@@ -29,6 +29,7 @@ void describe_movement(flamegpu::ModelDescription& sub, const RunConfig& cfg) {
     landscape_macros(env, false);
     flamegpu::AgentDescription citizen = sub.newAgent("citizen");
     citizen.newVariable<unsigned int>("look_seed");
+    citizen.newVariable<unsigned int>("dir_order");
     citizen.newVariable<int>("x");
     citizen.newVariable<int>("y");
     citizen.newVariable<int>("vision");
@@ -94,6 +95,7 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
     citizen.newVariable<float>("sugar");
     for (const char* name : {"moved", "neighbors", "settled", "priority", "target"}) citizen.newVariable<unsigned int>(name);
     citizen.newVariable<unsigned int>("look_seed");  // this period's looks, when look_stride > 1 (start_period)
+    citizen.newVariable<unsigned int>("dir_order");  // this period's scan direction order, 2 bits each (start_period)
     flamegpu::AgentDescription cell = model.newAgent("cell");
     cell.newVariable<unsigned int>("capacity");  // the site's sugar capacity (make_cells)
 

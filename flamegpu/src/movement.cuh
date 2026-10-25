@@ -10,12 +10,12 @@
 __device__ __constant__ int MOVE_DX[4] = {1, -1, 0, 0};
 __device__ __constant__ int MOVE_DY[4] = {0, 0, 1, -1};
 
-constexpr unsigned int MAX_ROUNDS = 4095;  // 12 bits of the claim key
+constexpr unsigned int MAX_ROUNDS = 4095;
 
-// round (12 bits) | priority (20 bits) | agent id (32 bits): the largest key at a site wins it.
-__device__ __forceinline__ uint64_t claim_key(unsigned int round, unsigned int priority, flamegpu::id_t id) {
-    return (static_cast<uint64_t>(round & 0xFFFu) << 52) | (static_cast<uint64_t>(priority & 0xFFFFFu) << 32) |
-           static_cast<uint64_t>(id);
+// The period's order: priority (32 bits) | agent id (32 bits). Larger is earlier in the order, and the largest key
+// at a site wins it. Never 0, since ids start at 1.
+__device__ __forceinline__ uint64_t order_key(unsigned int priority, flamegpu::id_t id) {
+    return (static_cast<uint64_t>(priority) << 32) | static_cast<uint64_t>(id);
 }
 
 __device__ __forceinline__ int wrap(int v, int n) { return ((v % n) + n) % n; }
@@ -58,17 +58,11 @@ FLAMEGPU_AGENT_FUNCTION(scan, flamegpu::MessageNone, flamegpu::MessageNone) {
     int best_dist = 0;
     float best_score = static_cast<float>(sugar[own]) / (1.0f + static_cast<float>(pollution[own]));
 
-    int order[4] = {0, 1, 2, 3};
-    for (int i = 3; i > 0; --i) {  // Fisher-Yates; uniform(0, i) can return i + 1 at the float endpoint
-        const int j = min(FLAMEGPU->random.uniform<int>(0, i), i);
-        const int tmp = order[i];
-        order[i] = order[j];
-        order[j] = tmp;
-    }
+    const unsigned int dir_order = FLAMEGPU->getVariable<unsigned int>("dir_order");  // the period's (start_period)
     const int stride = static_cast<int>(FLAMEGPU->environment.getProperty<unsigned int>("look_stride"));
     const unsigned int look_seed = stride > 1 ? FLAMEGPU->getVariable<unsigned int>("look_seed") : 0u;
     for (int k = 0; k < 4; ++k) {
-        const int d = order[k];
+        const int d = static_cast<int>((dir_order >> (2 * k)) & 3u);
         const int looks = vision / stride;  // validate(): vision is in whole strides
         for (int i = 0; i < looks; ++i) {
             const int dist = stride == 1 ? i + 1 : look_distance(look_seed, d, i, stride);
@@ -86,8 +80,7 @@ FLAMEGPU_AGENT_FUNCTION(scan, flamegpu::MessageNone, flamegpu::MessageNone) {
     FLAMEGPU->setVariable<unsigned int>("target", best);
     if (best != own) {
         auto claim = FLAMEGPU->environment.getMacroProperty<uint64_t, MAX_CELLS>("claim");
-        const unsigned int round = FLAMEGPU->environment.getProperty<unsigned int>("round");
-        claim[best].max(claim_key(round, FLAMEGPU->getVariable<unsigned int>("priority"), FLAMEGPU->getID()));
+        claim[best].max(order_key(FLAMEGPU->getVariable<unsigned int>("priority"), FLAMEGPU->getID()));
     }
     return flamegpu::ALIVE;
 }
@@ -102,8 +95,7 @@ FLAMEGPU_AGENT_FUNCTION(resolve, flamegpu::MessageNone, flamegpu::MessageNone) {
     const unsigned int target = FLAMEGPU->getVariable<unsigned int>("target");
     if (target != own) {
         auto claim = FLAMEGPU->environment.getMacroProperty<uint64_t, MAX_CELLS>("claim");
-        const unsigned int round = FLAMEGPU->environment.getProperty<unsigned int>("round");
-        const uint64_t key = claim_key(round, FLAMEGPU->getVariable<unsigned int>("priority"), FLAMEGPU->getID());
+        const uint64_t key = order_key(FLAMEGPU->getVariable<unsigned int>("priority"), FLAMEGPU->getID());
         if (static_cast<uint64_t>(claim[target]) != key) return flamegpu::ALIVE;  // lost: scan again next round
     }
     auto occupied = FLAMEGPU->environment.getMacroProperty<unsigned int, MAX_CELLS>("occupied");
