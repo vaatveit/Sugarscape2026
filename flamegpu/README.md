@@ -99,6 +99,7 @@ The one-off check of the GPU's xl results against Python's, which writes `docs\v
 ```
 
 It needs Python's xl results first, about 2–3 hours on the CPU; if they are missing it prints the commands to run.
+The results of 2026-10-25 are in [docs/validation/xl-chapter2.md](docs/validation/xl-chapter2.md).
 
 ## How the GPU version differs from the Python model
 

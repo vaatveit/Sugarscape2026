@@ -32,6 +32,8 @@ CASES = {
     "pollution_diffusion": ({"pollution": "1.0,1.0", "diffusion_period": "2", "diffusion_start": "1"}, _agents(), 6),
     "diffusion_passes": ({"pollution": "1.0,1.0", "diffusion_period": "2", "diffusion_start": "1",
                           "diffusion_passes": "3"}, _agents(), 5),  # 6 steps let two agents meet
+    "diffusion_passes_xl": ({"pollution": "1.0,1.0", "diffusion_period": "2", "diffusion_start": "1",
+                             "diffusion_passes": "100"}, _agents(), 5),  # xl's count (docs/xl.md)
     # Extra passes must do nothing when diffusion is off (Review Focus 2).
     "passes_without_diffusion": ({"pollution": "1.0,1.0", "diffusion_passes": "3"}, _agents(), 5),
 }
