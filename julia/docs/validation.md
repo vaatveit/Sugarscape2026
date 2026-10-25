@@ -206,3 +206,27 @@ to 613 ms.
 **Stale xl results:** `results-julia-xl/` VI-1 and III-5 predate the old-age ordering fix (479b911) and diverge
 from today's code at the first old-age deaths; other experiments with finite lives may too. They are statistically
 the same model; a re-run would make them reproducible from the code.
+
+## Python re-run with timings: the full comparison (2026-10-25)
+
+The user re-ran every Python experiment with timings: all 135 regular ones (including TEST-tiny, compared for the
+first time) and, at xl, II-4, II-4-gini, II-6, II-7 and II-8.
+
+**Regular: 2 flags among 8,185 tested windows and 135 extinction tests, both in TEST-tiny**, the runner's 5-period
+smoke test (20 agents, 2 seeds). Both Python seeds kept all 20 agents through t = 3, so Python's side had no
+variance and any Julia death counts as `constant-differs`. With 400 seeds each, population agrees at every t
+(p ≥ 0.22; at t = 3, 230/400 Python seeds still at 20 against 226/400 Julia). An artefact of 2 seeds; the 134 book
+experiments have 0 flags. Book targets: 37 status changes, as before.
+
+**xl: Julia agrees with Python on all five experiments, 0 flags.**
+
+**Speed** (shared machine; not the quiet-machine numbers):
+
+- Regular, 135 experiments, both sides with `--jobs 1` (Julia re-run on e838979, after the single-thread
+  speed-ups; all 1,047 seed files byte-identical to the earlier run): median speedup 36× (quartiles 27× and 47×;
+  10× to 135×). Summed over experiments, Python takes 1.52 s per period against Julia's 0.044 s, 34×. The lowest
+  ratios are the full societies (VI-1 10×, IV-17 12×); II-4 is 46×. The first timing, before the re-run, with Julia
+  sharing the processor (`--jobs 10`) and without the speed-ups, gave a median of 28×.
+- xl, five Chapter II experiments: 53× (II-8) to 86× (II-4), and 666× for II-4-gini. Python's xl runs predate its
+  replacement speed-up (77ffcb6), so II-4-gini's 22.6 s per period is the old scan of every site; `docs/xl.md`
+  gives about 1.13 s after it. Python's streams didn't change, so agreement stands; that timing doesn't.
