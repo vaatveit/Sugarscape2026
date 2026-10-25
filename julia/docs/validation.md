@@ -123,3 +123,22 @@ What changed for speed, none of it changing a result:
 
 The hot paths stay type-stable (`test_hot_paths.jl`: `@inferred` on `step!`, `move!`, `collect_metrics`; diffusion
 and growback allocate nothing).
+
+## xl comparison (2026-10-24)
+
+**The workload changed mid-port.** Commit 0b6b937 on main (user decision, 2026-10-24) made xl agents look at one
+random site in each stretch of 10 along each lattice line (`Config.look_stride`, docs/xl.md "Looking"), and draw
+vision as 10, 20, … 60. The first Julia xl runs used the earlier definition and differed from Python's II-4 xl from
+t = 1 (Julia moved 18,919 agents in the first period against Python's 16,318). `main` was merged into `feat/julia`
+and `look_stride` ported to movement, combat (target search and retaliation) and partners in sight, with Python's
+`tests/test_look_stride.py` as the checklist. Stride 1 draws nothing, so regular results stay current.
+
+**II-4 at xl (10 seeds each): Julia agrees with Python, 0 flags.** Julia ends with 23,238 agents on average,
+Python 23,262.
+
+**IV-A3 and VI-1 at xl:** Julia's runs are done; Python's are not yet, so the report lists them as missing.
+VI-1 is worth a note before Python's arrive. Per 50 × 50 tile, the xl run follows the regular run until about t = 50
+(Julia xl 33 agents per tile, Python regular 37). At t = 100 the regular society is down to about 13 and goes extinct
+in 3 of 5 seeds; xl, with 100× the agents, holds about 36 per tile, never goes extinct, and grows to about 845 per
+tile (84,500 agents) by t = 500. That is near the regular runs that survive (two seeds, about 744 at t = 500), so it
+looks like a property of the larger world rather than of the port, but only Python's xl VI-1 can say.

@@ -1,0 +1,144 @@
+# Sugarscape in Julia
+
+A Julia port of the Python sugarscape model in this repository, every rule of Chapters II–VI of Epstein and
+Axtell's *Growing Artificial Societies*. It runs every sugarscape experiment of the registry, at regular size and at
+the 500 × 500 xl size of [docs/xl.md](../docs/xl.md), and writes results in the Python runner's layout. The point is
+to compare implementations of one model, for fidelity and for speed. The design is in
+[docs/superpowers/specs/2026-10-24-julia-design.md](../docs/superpowers/specs/2026-10-24-julia-design.md), and the
+running record of every comparison is [docs/validation.md](docs/validation.md).
+
+The Python model is the specification. "The same model" means the same statistics across seeds, not identical runs:
+Julia uses its own random number generator.
+
+## Prerequisites
+
+- Julia 1.13 (tested with 1.13.2, installed with juliaup). The model uses the standard library only. JuliaFormatter
+  lives in its own environment, `tools/`, and is needed only to format.
+- For the tests that compare with Python, and for the comparison report: the repository's Python environment
+  (`.venv`, Python 3.14 with numpy).
+
+## Tests
+
+From the repository root:
+
+```bat
+julia --project=julia -e "using Pkg; Pkg.test()"
+```
+
+`Pkg.test(test_args=["trade"])` runs only the test files whose names contain `trade`. The Python side, from
+`julia/`:
+
+```bat
+..\.venv\Scripts\python -m pytest -q
+```
+
+What the tests check, besides each rule's own cases (one Julia test set per deterministic test in `tests/`):
+
+- **Cross-language scenarios** (`test/fixtures/scenarios.toml`): 21 small states whose outcome cannot depend on the
+  agents' order or on random draws (Python refuses any that does), with the end state the Python model reached:
+  movement, growback, seasons, pollution and diffusion, starvation, old age, combat, inheritance, credit, and rule T
+  applied directly to 45 fixed pairs. Julia must match to 1e-12.
+- **Lockstep** (`test/fixtures/lockstep.toml`): Python runs with every random choice recorded (the acting order,
+  each agent's direction order, and the order it trades with its neighbours), and Julia, fed those choices through
+  a scripted RNG, must reproduce the trajectory exactly, period by period. Nine cases cover rules M, C (both α), T,
+  growback, seasons, pollution and diffusion, and spice movement with foresight.
+- `registry.toml` and both fixture files are generated from Python, and a Python test fails when any of them is out
+  of date: `python -m bridge.export_registry`, `python -m bridge.scenarios`, `python -m bridge.lockstep`.
+
+## Running
+
+```bat
+julia --project=julia julia/run.jl II-4 --jobs 8
+julia --project=julia julia/run.jl II-4 --xl --jobs 5
+```
+
+The arguments are those of `python -m experiments.run`: an id or a sweep prefix (`II-5` runs every `II-5/...`),
+`--seeds N`, `--jobs J`, `--out DIR`, `--xl`, and `--note TEXT`, which is copied into `machine.txt` (for example
+"quiet machine"). Results go to `results-julia/` or `results-julia-xl/`: one folder per experiment, with
+`seed{k}.csv` (the Python runner's 46 columns, readable by `experiments.run._read_csv`), `timing.csv`
+(docs/xl.md, "Timing"), `machine.txt`, and `fingerprint.txt` (`julia` plus the Python fingerprint).
+
+Each seed runs single-threaded. `--jobs J` runs seeds in J worker processes, one seed at a time each. Julia compiles
+on first use, so each worker first runs the experiment's own path for 2 untimed periods, and `machine.txt` records
+how long that took (`warm_up_s`). The timed setup then covers building the model, as docs/xl.md defines it.
+
+## Comparing with Python
+
+```bat
+cd julia
+..\.venv\Scripts\python -m bridge.report
+..\.venv\Scripts\python -m bridge.report --xl
+```
+
+The report reads the Python results in the main checkout (`results/`, `results-xl/`; `SUGARSCAPE_RESULTS_ROOT`
+overrides where) and Julia's, runs nothing, and writes `REPORT.md` into the Julia results folder:
+
+- **Agreement.** For every experiment, every metric and each quarter of the run, each seed's mean over the window;
+  a Welch t-test between the two sides' seed values; and extinction (seeds with no agents at the end) by Fisher's
+  exact test. All p-values of one report are corrected together (Benjamini–Hochberg, q = 0.01), and a test that
+  survives is a flag. A window with fewer than two values on a side is listed as untestable.
+- **Book targets** (regular size): both sides scored against `replication/targets.py`, every status that differs,
+  and each change's seed-level p (the target's per-seed values, Julia against Python).
+- **Speed**: setup, seconds per period, metrics time and agents, the Python ÷ Julia speedup, and each side's
+  `machine.txt` jobs and note.
+- **Inputs**: which results are missing, stale by fingerprint, incomplete or untimed on either side.
+
+## How the Julia version differs from Python
+
+None of these changes a distribution; the lockstep tests show the rules match period by period.
+
+- **Random numbers.** `Random.Xoshiro`, seeded with the registered seed plus k, so no run matches Python's run of
+  the same seed.
+- **Uniform choices made differently.** Placement samples sites by a partial Fisher–Yates shuffle; a direction order
+  is one of the 24 orders drawn uniformly; an empty site for a newcomer is found by rejection sampling (falling back
+  to a scan when the lattice is nearly full).
+- **Storage.** Living agents are kept in no particular order (each period draws a fresh one). Cultural tags and
+  immune systems are bit fields, so `tag_length` above 63 or `immune_length` above 64 is refused; the registry
+  uses 11 and 50. Diseases are interned by their bit string and length, so equal strings are one disease, as
+  Python's equal tuples are.
+- **Work skipped without changing a result.** Combat checks a site for retaliation only when it would replace the
+  best safe site so far (Python checks every candidate, then picks the same one). Welfare scoring computes the
+  agent's part once per move, bit-identical to scoring each site afresh (tested).
+- **Sums.** Python's `sum()` of floats is compensated (Neumaier); Julia's is not. It matters only for bit-identity,
+  in the credit rule's sum of a borrower's debts.
+
+## Results
+
+### Regular size: Julia agrees with Python
+
+All 134 sugarscape experiments of the registry, registered seeds (2026-10-24):
+
+- **0 flags among 8,165 tested windows and 134 extinction tests**, under one correction.
+- **Book targets:** Python 139 pass, 56 near, 120 fail; Julia 138 pass, 60 near, 117 fail. 38 statuses changed,
+  all with a seed-level p above 0.05 (one could not be computed). The ones that pointed one way (III-8, III-9,
+  IV-6, IV-18) were followed up with 50 to 200 seeds on each side, lockstep replays, and decision parity on a
+  mid-run state; each turned out to be sampling noise, typically Python's registered seeds sitting on one side of
+  its own long-run mean. Details: [docs/validation.md](docs/validation.md).
+
+### xl
+
+xl follows main's current definition, including the look stride of docs/xl.md ("Looking"), which changed during
+the port (commit 0b6b937).
+
+- **II-4 (10 seeds each): Julia agrees with Python, 0 flags.**
+- **IV-A3 and VI-1:** Julia has run them; Python's xl runs are still to come, and the report shows them as missing
+  until then. Julia's VI-1 at xl does not go extinct, unlike 3 of 5 regular seeds, and grows to about 84,500 agents
+  (845 per 50 × 50 tile), close to the regular runs that survive. Python's xl VI-1 will show whether that is the
+  model's behaviour at this scale; [docs/validation.md](docs/validation.md) has the numbers.
+
+### Speed
+
+| Workload | Python s/period | Julia s/period | Speedup |
+|---|---|---|---|
+| II-4 at xl (40,000 → about 23,250 agents) | 1.85 (10 jobs) | 0.022 (5 jobs) | about 84× |
+| IV-A3 at xl (20,000 → about 2,850) | — | 0.025 | — |
+| VI-1 at xl (20,000 → about 84,500) | — | 1.04 | — |
+
+Seconds of stepping per period, averaged over seeds and periods. Python's saved regular results predate the runner's
+timing, so there is no Python side for regular speed yet. Julia, regular size: the median experiment steps in 0.46
+ms per period; the slowest is VI-3 at 2.9 ms (500 → 915 agents). For scale, flamegpu/README.md measured Python at
+5.1 ms per period for II-4's 400 agents; Julia's II-4 is 0.34 ms.
+
+All timings so far are development timings on a shared i7-13700K (8 performance and 8 efficiency cores): other
+sessions were running, so they can be off by up to about 2× either way. The headline numbers will come from
+quiet-machine runs.
