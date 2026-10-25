@@ -58,6 +58,10 @@ FLAMEGPU_AGENT_FUNCTION(count_neighbors, flamegpu::MessageNone, flamegpu::Messag
     const int h = static_cast<int>(FLAMEGPU->environment.getProperty<unsigned int>("height"));
     const int x = FLAMEGPU->getVariable<int>("x");
     const int y = FLAMEGPU->getVariable<int>("y");
+    if (x < 0) {  // a newcomer born this period, not yet placed: Python spawns it after every turn, so it counts 0
+        FLAMEGPU->setVariable<unsigned int>("neighbors", 0u);
+        return flamegpu::ALIVE;
+    }
     const uint64_t key = order_key(FLAMEGPU->getVariable<unsigned int>("priority"), FLAMEGPU->getID());
     auto left = FLAMEGPU->environment.getMacroProperty<uint64_t, MAX_CELLS>("left");
     auto arrived = FLAMEGPU->environment.getMacroProperty<uint64_t, MAX_CELLS>("arrived");

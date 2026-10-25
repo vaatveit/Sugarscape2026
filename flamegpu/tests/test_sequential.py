@@ -141,6 +141,18 @@ def test_old_age_neighbour_still_counted(exe, tmp_path):
         assert [(a["x"], a["y"], a["neighbors"]) for a in dump.agents] == [(6, 5, 1)], seed
 
 
+def test_newcomer_counts_no_neighbours(exe, tmp_path):
+    # Newcomers are born in the metabolism layer, still unplaced (x = y = -1), before count_neighbors runs. Python's
+    # newcomers count 0 (spawned after every turn); a count at (-1, -1) would read the far corner's real sites, so an
+    # immortal agent sits on one of them, (0, 9), and the agent at (5, 5) dies of old age and is replaced.
+    agents = [{"x": 0, "y": 9, "vision": 1, "metabolism": 1, "sugar": 10.0, "age": 0, "max_age": None},
+              {"x": 5, "y": 5, "vision": 1, "metabolism": 1, "sugar": 10.0, "age": 0, "max_age": 1}]
+    dump = run_gpu(exe, tmp_path, {"vision": "1,1", "replacement": "true", "max_age": "5,10"}, FLAT, agents, steps=1)
+    assert dump.returncode == 0, dump.stderr
+    (newcomer,) = [a for a in dump.agents if a["age"] == 0]
+    assert newcomer["neighbors"] == 0
+
+
 def test_starved_neighbour_counted_half_the_time(exe, tmp_path):
     # A starves at its own turn (0.5 + 3 harvested - 4 < 0): B counts it only when A comes later in the order.
     counted = 0
