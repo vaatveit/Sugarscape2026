@@ -99,12 +99,13 @@ def test_xl_config_reaches_run_cfg():
 
     text = config_to_cfg(experiment_config("II-8", xl=True), steps=5, seed=0)
     assert "width = 500\n" in text and "vision = 10,60\n" in text
-    assert "diffusion_passes = 100\n" in text
+    assert "diffusion_passes = 100\n" in text and "look_stride = 10\n" in text
     assert [line for line in text.splitlines() if line.startswith("map = ")][0].endswith("sugar-map-xl.txt")
 
 
 def test_regular_cfg_has_one_pass():
-    assert "diffusion_passes = 1\n" in config_to_cfg(EXPERIMENTS["II-4"].config, steps=5, seed=0)
+    text = config_to_cfg(EXPERIMENTS["II-4"].config, steps=5, seed=0)
+    assert "diffusion_passes = 1\n" in text and "look_stride = 1\n" in text
 
 
 def test_xl_chapter_ii_is_supported():

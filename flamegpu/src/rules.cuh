@@ -28,6 +28,12 @@ FLAMEGPU_AGENT_FUNCTION(occupy_site, flamegpu::MessageNone, flamegpu::MessageNon
 FLAMEGPU_AGENT_FUNCTION(start_period, flamegpu::MessageNone, flamegpu::MessageNone) {
     const unsigned int priority = static_cast<unsigned int>(FLAMEGPU->random.uniform<float>() * 1048576.0f);
     FLAMEGPU->setVariable<unsigned int>("priority", min(priority, 0xFFFFFu));
+    // One look per period (xl design, section 2a): the strided scan's offsets all derive from this seed, so a rescan
+    // in a later movement round sees the same sites. Drawn only above stride 1, so regular random streams stay.
+    if (FLAMEGPU->environment.getProperty<unsigned int>("look_stride") > 1u) {
+        FLAMEGPU->setVariable<unsigned int>(
+            "look_seed", static_cast<unsigned int>(FLAMEGPU->random.uniform<uint64_t>(0, 0xFFFFFFFFull)));
+    }
     FLAMEGPU->setVariable<unsigned int>("settled", 0u);
     FLAMEGPU->setVariable<unsigned int>("moved", 0u);
     return flamegpu::ALIVE;

@@ -195,3 +195,31 @@ def test_diffusion_passes_below_one_is_rejected(exe, tmp_path):
     assert result.returncode == 2
     # The validation message, not the unknown-key one that also names the key.
     assert "diffusion_passes" in _error(result) and ">= 1" in _error(result)
+
+
+# --- xl: look_stride -----------------------------------------------------------------------------
+
+
+def test_look_stride_defaults_to_one(exe, tmp_path):
+    result = run_exe(exe, "--config", write_cfg(tmp_path), "--print-config")
+    assert result.returncode == 0, result.stderr
+    assert parse_printed(result.stdout)["look_stride"] == "1"
+
+
+def test_look_stride_is_read(exe, tmp_path):
+    result = run_exe(exe, "--config", write_cfg(tmp_path, look_stride="2", vision="2,6"), "--print-config")
+    assert result.returncode == 0, result.stderr
+    assert parse_printed(result.stdout)["look_stride"] == "2"
+
+
+def test_look_stride_below_one_is_rejected(exe, tmp_path):
+    result = run_exe(exe, "--config", write_cfg(tmp_path, look_stride="0"), "--print-config")
+    assert result.returncode == 2
+    assert "look_stride" in _error(result) and ">= 1" in _error(result)
+
+
+def test_vision_not_in_whole_strides_is_rejected(exe, tmp_path):
+    result = run_exe(exe, "--config", write_cfg(tmp_path, look_stride="2", vision="1,6"), "--print-config")
+    assert result.returncode == 2
+    # The validation message, not the unknown-key one.
+    assert "look_stride" in _error(result) and "whole look strides" in _error(result)

@@ -25,8 +25,10 @@ void describe_movement(flamegpu::ModelDescription& sub, const RunConfig& cfg) {
     env.newProperty<unsigned int>("round", 1u);
     env.newProperty<unsigned int>("pollution_active", 0u);
     env.newProperty<float>("pollution_alpha", 0.0f);
+    env.newProperty<unsigned int>("look_stride", 1u);
     landscape_macros(env, false);
     flamegpu::AgentDescription citizen = sub.newAgent("citizen");
+    citizen.newVariable<unsigned int>("look_seed");
     citizen.newVariable<int>("x");
     citizen.newVariable<int>("y");
     citizen.newVariable<int>("vision");
@@ -69,6 +71,7 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
     env.newProperty<unsigned int>("extra_passes", 0u);    // D's passes after the first this period
     env.newProperty<unsigned int>("diffusion_pass", 0u);  // extra passes done so far this period
     env.newProperty<unsigned int>("initialising", 0u);    // 1 in the first period only: cell_initialise runs
+    env.newProperty<unsigned int>("look_stride", static_cast<unsigned int>(cfg.look_stride));
     env.newProperty<unsigned int>("t", 0u);
     env.newProperty<unsigned int>("round", 1u);
     env.newProperty<unsigned int>("seasons_beta", cfg.seasons ? static_cast<unsigned int>(cfg.seasons->first) : 0u);
@@ -80,6 +83,7 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
     for (const char* name : {"x", "y", "vision", "metabolism", "age", "max_age"}) citizen.newVariable<int>(name);
     citizen.newVariable<float>("sugar");
     for (const char* name : {"moved", "neighbors", "settled", "priority", "target"}) citizen.newVariable<unsigned int>(name);
+    citizen.newVariable<unsigned int>("look_seed");  // this period's looks, when look_stride > 1 (start_period)
     flamegpu::AgentDescription cell = model.newAgent("cell");
     cell.newVariable<unsigned int>("capacity");  // the site's sugar capacity (make_cells)
 

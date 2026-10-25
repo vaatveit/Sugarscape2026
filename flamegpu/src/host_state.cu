@@ -14,6 +14,13 @@ namespace {
 
 int draw(std::mt19937_64& rng, const IntRange& r) { return std::uniform_int_distribution<int>(r.lo, r.hi)(rng); }
 
+// Vision in whole look strides, stride * U[lo / stride, hi / stride] (Python Model._spawn_at). Stride 1 is the plain
+// draw, so regular runs keep their random stream.
+int draw_vision(std::mt19937_64& rng, const RunConfig& cfg) {
+    const int s = cfg.look_stride;
+    return s * draw(rng, IntRange{cfg.vision.lo / s, cfg.vision.hi / s});
+}
+
 // Candidate starting sites: every site, or with block placement the block (wrapped as Python wraps it) in
 // every tile.
 std::vector<uint32_t> placement_sites(const RunConfig& cfg) {
@@ -72,7 +79,7 @@ flamegpu::AgentVector make_citizens(flamegpu::ModelDescription& model, const std
     flamegpu::AgentVector pop(model.Agent("citizen"), static_cast<unsigned int>(n));
     std::vector<int> max_ages(n);
     for (size_t i = 0; i < n; ++i) {
-        const int vision = draw(s.rng, cfg.vision);
+        const int vision = draw_vision(s.rng, cfg);
         const int metabolism = draw(s.rng, cfg.metabolism);
         const int sugar = draw(s.rng, cfg.endowment);
         max_ages[i] = cfg.max_age ? draw(s.rng, *cfg.max_age) : IMMORTAL;
@@ -193,7 +200,7 @@ FLAMEGPU_HOST_FUNCTION(replace_dead) {
         flamegpu::HostNewAgentAPI a = citizens.newAgent();
         a.setVariable<int>("x", static_cast<int>(site % cfg.width));
         a.setVariable<int>("y", static_cast<int>(site / cfg.width));
-        a.setVariable<int>("vision", draw(s.rng, cfg.vision));
+        a.setVariable<int>("vision", draw_vision(s.rng, cfg));
         a.setVariable<int>("metabolism", draw(s.rng, cfg.metabolism));
         a.setVariable<float>("sugar", static_cast<float>(draw(s.rng, cfg.endowment)));
         a.setVariable<int>("max_age", draw(s.rng, *cfg.max_age));  // validate(): replacement needs max_age

@@ -45,6 +45,7 @@ struct RunConfig {
     std::optional<int> diffusion_period;
     int diffusion_start = 0;
     int diffusion_passes = 1;  // passes of D per diffusion period (100 at xl, docs/xl.md)
+    int look_stride = 1;       // one random look per stretch of this many sites; vision in whole strides (10 at xl)
     // Run.
     int steps = 0;
     uint64_t seed = 0;

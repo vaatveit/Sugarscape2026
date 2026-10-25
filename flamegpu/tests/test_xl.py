@@ -39,4 +39,4 @@ def test_xl_runs_clean(exe, tmp_path, exp_id):
     rows = read_rows(agents)
     assert len(rows) == founders
     visions = {a["vision"] for a in rows}
-    assert min(visions) == 10 and max(visions) == 60  # every whole number in [10, 60] (docs/xl.md)
+    assert visions == {10, 20, 30, 40, 50, 60}  # in steps of 10, the look stride (docs/xl.md)

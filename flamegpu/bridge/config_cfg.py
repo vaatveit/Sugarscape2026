@@ -9,7 +9,8 @@ from sugarscape.config import Config
 # The Config fields the GPU program reads, in run.cfg order.
 FIELDS = ("width", "height", "initial_population", "placement", "block", "vision", "metabolism", "endowment",
           "max_age", "founder_ages", "replacement", "growback_rate", "seasons", "winter_growback", "pollution",
-          "pollution_start", "pollution_stop", "diffusion_period", "diffusion_start", "diffusion_passes")
+          "pollution_start", "pollution_stop", "diffusion_period", "diffusion_start", "diffusion_passes",
+          "look_stride")
 # Read too, but written as run.cfg's map path rather than as its own line.
 READ_AS_MAP = "sugar_map"
 
