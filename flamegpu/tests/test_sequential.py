@@ -131,10 +131,14 @@ def _pair(a_sugar, a_metabolism, a_max_age):
 
 
 def test_old_age_neighbour_still_counted(exe, tmp_path):
-    # Python removes old-age deaths at the end of the period, so B counts A whatever the order.
-    dump = run_gpu(exe, tmp_path, {"vision": "1,1"}, FLAT, _pair(10.0, 1, 1), steps=1)
-    assert dump.returncode == 0, dump.stderr
-    assert [(a["x"], a["y"], a["neighbors"]) for a in dump.agents] == [(6, 5, 1)]
+    # Python removes old-age deaths at the end of the period, so B counts A whatever the order: 10 seeds, so both
+    # orders occur (dropping A at its turn would fail whenever A comes first).
+    for seed in range(10):
+        d = tmp_path / str(seed)
+        d.mkdir()
+        dump = run_gpu(exe, d, {"vision": "1,1", "seed": str(seed)}, FLAT, _pair(10.0, 1, 1), steps=1)
+        assert dump.returncode == 0, dump.stderr
+        assert [(a["x"], a["y"], a["neighbors"]) for a in dump.agents] == [(6, 5, 1)], seed
 
 
 def test_starved_neighbour_counted_half_the_time(exe, tmp_path):
