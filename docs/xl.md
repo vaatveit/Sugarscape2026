@@ -57,7 +57,8 @@ per site or per period is unchanged.
 | World | 50 × 50 torus | 500 × 500 torus |
 | Capacity map | `sugar-map.txt` | `sugar-map-xl.txt` |
 | Initial agents | N | 100 · N |
-| Vision range [lo, hi] | e.g. [1, 6] | [10 · lo, 10 · hi]. Each agent draws uniformly from every whole number in the range, e.g. 10, 11, … 60. |
+| Vision range [lo, hi] | e.g. [1, 6] | [10 · lo, 10 · hi], in steps of 10: each agent draws 10 · v, with v uniform on lo … hi, e.g. 10, 20, … 60. |
+| Look stride k: along each lattice line, agents look at one random site in each stretch of k sites | 1 | 10 |
 | Starting block (x0, y0, w, h), for block placement | e.g. (0, 0, 20, 20) | (10 · x0, 10 · y0, 10 · w, 10 · h) |
 | Tribal starting blocks (tribe, x0, y0, w, h, n) | e.g. (blue, 0, 0, 20, 20, 270) | (tribe, 10 · x0, 10 · y0, 10 · w, 10 · h, 100 · n) |
 | Diffusion passes per diffusion period (rule D) | 1 | 100 |
@@ -70,11 +71,28 @@ Notes:
 - **Diffusion.** One pass of rule D replaces each site's pollution with the mean of its four neighbours, which
   spreads pollution about 0.7 sites (standard deviation). Spread grows as the square root of the number of passes,
   so 100 passes reach 10× as many sites: the same share of the world.
-- **What vision reaches.** Everything that looks as far as vision now reaches 10× as far, as movement does. That
-  includes mate search within vision (the reference model's default rule S contact) and combat (rule C replaces
-  movement and looks along the lattice out to vision). Trade, culture and disease still act between the four
-  adjacent agents. Crowding is the same, and agents travel as far in world terms, so each meets about as many
-  others per period.
+- **Looking.** Every rule that looks along the lattice out to vision looks, in each of the four directions, at one
+  site drawn uniformly from each stretch of 10: one of the sites 1–10 away, one of 11–20, and so on out to vision.
+  Each stretch, direction and look gets its own draw. These rules are movement (rule M), combat (rule C: its target
+  search, and its check for retaliation from the site it would take) and mate search within vision (the reference
+  model's default rule S contact). So an agent reaches as far in world terms as in the regular run, checks as many
+  sites, and can land on any site. Everything else about the rules is unchanged: the nearest of the best sites
+  wins, by its actual distance.
+- **Why the stride.** Looking at every site gave each agent 10× as many sites to choose from, with crowding
+  unchanged, so an agent almost always found a site that had regrown enough. In II-4, agents with metabolism 3 and
+  low vision then broke even instead of running at a loss, nobody starved after t ≈ 80, and the regular run's slow
+  die-off (about 4% of the population between t = 100 and 500, all of them metabolism 3 and vision 1–4)
+  disappeared. With the stride, II-4's population at each of t = 60, 100, 200, 300 and 500 is within 1.2% of 100 ×
+  the regular run's, and its mean sugar, mean metabolism, Gini and share of agents on capacity-3 or -4 sites are
+  within 1.5% (10 seeds; t = 401–500 for the last four).
+- **Why one random site per stretch, not every 10th site.** Looking exactly 10, 20, … sites away matched II-4 as
+  well, but an agent moving in steps of 10 never changes its x mod 10 or y mod 10. The world split into 100
+  interleaved 50 × 50 worlds that never competed for food: 100 regular runs side by side, not one finer world.
+- **Neighbours.** Agents have more adjacent neighbours than in the regular run: 0.99 per agent against 0.79 in II-4
+  (t = 401–500; 1.03 with the every-10th-site look). The cause isn't known. Finer peak edges account for only a
+  little of it: a capacity-3 or -4 site has 0.994 of its four neighbours on such sites on the xl map, against 0.944
+  on the regular map. II-4 doesn't use neighbours, but trade, culture, disease and rule S with the four-neighbour
+  contact do.
 - **Seasons** split the world into northern and southern halves at y = 250.
 - **The largest registered vision** is [5, 24], which becomes [50, 240]. That is still less than half of 500, so
   opposite lattice scans never reach the same site.
@@ -95,8 +113,9 @@ With them, report the number of periods and the agent count at the start and at 
 (language and library versions, platform, processor) and whether runs shared the processor.
 
 The Python runner writes these to `timing.csv` (one row per seed) and `machine.txt` in each result folder. The
-first seed's setup includes one-off warm-up in a fresh process: in a regular run of `TEST-tiny`, 0.056 s for
-seed 0 against 0.001 s for seed 1.
+first seed each process runs includes one-off warm-up in its setup: in a regular run of `TEST-tiny`, 0.056 s for
+seed 0 against 0.001 s for seed 1. With `--jobs J`, each of the J worker processes pays it on its first seed (with
+`--jobs 2`, seeds 0 and 1 both took about 0.06 s and the rest about 0.001 s).
 
 *Not defined here:* which metrics must agree between implementations, over how many seeds, and to what tolerance.
 That belongs to the comparison work.
@@ -110,8 +129,8 @@ That belongs to the comparison work.
 - `python -m viewer`: tick **xl** before Start to watch an xl run. Each site is drawn as one solid colour, with no
   smoothing. The landscape is paler and agents fill their site in colours that stand out against every site (3:1
   contrast or better). Agent size is off, and the newest 100 periods are kept.
-- **Speed**, measured on the design prototype: about 4–6 s per period for II-4's rules (40,000 agents), and 6–10 s
-  per period early in VI-1. The viewer took 6.6 s to step and draw II-4's first xl period. The Python model is the
-  baseline being measured, so it hasn't been tuned for xl.
-- The rule that diffuses pollution 100 times is `Config.diffusion_passes`. It defaults to 1 and is left out of
-  regular fingerprints.
+- **Speed**, one process: about 2.4 s per period for II-4's rules early on (40,000 agents), and 6.5 s per period
+  early in VI-1. Ten II-4 seeds sharing the processor (`--jobs 10`) averaged 1.8 s per period over 500 periods.
+  The Python model is the baseline being measured, so it hasn't been tuned for xl.
+- The rule that diffuses pollution 100 times is `Config.diffusion_passes`, and the look stride is
+  `Config.look_stride`. Both default to 1 and are left out of regular fingerprints.

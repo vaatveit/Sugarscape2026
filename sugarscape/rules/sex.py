@@ -3,6 +3,7 @@
 import math
 
 from sugarscape.rules.culture import cross_tags
+from sugarscape.rules.movement import look_distances
 
 VON_NEUMANN = ((1, 0), (-1, 0), (0, 1), (0, -1))
 GIFT_CAP = 5.0  # Ascape's most a parent gives a child (child_gift="capped")
@@ -35,10 +36,11 @@ def _empty_sites(model, agent) -> list[tuple[int, int]]:
 def in_sight(model, agent) -> list:
     """Agents within the agent's vision along the four lattice directions (rule M's lookout), nearest first:
     the partners of mate_contact="vision" (README candidate C1)."""
+    lines = [(dx, dy, look_distances(model, agent.vision)) for dx, dy in VON_NEUMANN]
     found = []
-    for k in range(1, agent.vision + 1):
-        for dx, dy in VON_NEUMANN:
-            other = model.agent_at(agent.x + dx * k, agent.y + dy * k)
+    for k in range(len(lines[0][2])):  # stretch by stretch, so nearest first
+        for dx, dy, dists in lines:
+            other = model.agent_at(agent.x + dx * dists[k], agent.y + dy * dists[k])
             if other is not None:
                 found.append(other)
     return found

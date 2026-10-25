@@ -249,7 +249,8 @@ class Model:
 
     def _spawn_at(self, x: int, y: int, tribe: str | None = None) -> Agent:
         cfg = self.config
-        vision = self._draw(cfg.vision)
+        stride = cfg.look_stride  # 1 except in xl; dividing by 1 leaves the draw, and so the random stream, unchanged
+        vision = stride * self._draw((cfg.vision[0] // stride, cfg.vision[1] // stride))
         metabolism = self._draw(cfg.metabolism)
         sugar = self._draw(cfg.endowment)
         max_age = self._draw(cfg.max_age) if cfg.max_age is not None else math.inf

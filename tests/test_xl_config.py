@@ -43,9 +43,9 @@ def test_xl_follows_the_spec_table():
     xl = to_xl(cfg)
     assert (xl.width, xl.height, xl.sugar_map) == (500, 500, "sugar-map-xl.txt")
     assert xl.initial_population == 40_000 and xl.vision == (10, 60)
-    assert xl.block == (0, 0, 200, 190) and xl.diffusion_passes == 100
+    assert xl.block == (0, 0, 200, 190) and xl.diffusion_passes == 100 and xl.look_stride == 10
     assert replace(xl, width=50, height=50, sugar_map="sugar-map.txt", initial_population=400, vision=(1, 6),
-                   block=(0, 0, 20, 19), diffusion_passes=1) == cfg  # nothing else changed
+                   block=(0, 0, 20, 19), diffusion_passes=1, look_stride=1) == cfg  # nothing else changed
 
 
 def test_tribal_blocks_scale_coordinates_by_10_and_counts_by_100():
@@ -58,16 +58,20 @@ def test_xl_refuses_a_world_that_is_not_the_50x50_map():
         to_xl(to_xl(Config()))
 
 
+def test_xl_refuses_a_50x50_world_on_another_map():
+    with pytest.raises(ValueError, match="other-map.txt"):
+        to_xl(Config(sugar_map="other-map.txt"))  # the xl map is the upscale of sugar-map.txt only
+
+
 def test_every_registered_sugarscape_experiment_has_an_xl_config():
     for exp in EXPERIMENTS.values():
         if isinstance(exp.config, Config):
             to_xl(exp.config)  # Config validates itself (vision < half the grid, blocks inside it)
 
 
-def test_xl_vision_draws_every_whole_number_in_range():
+def test_xl_vision_draws_the_regular_visions_times_10():  # user decision 2026-10-24, with look_stride 10
     m = Model(to_xl(Config(initial_population=20)))  # 2,000 founders
-    visions = {a.vision for a in m.agents}
-    assert min(visions) >= 10 and max(visions) <= 60 and any(v % 10 for v in visions)
+    assert {a.vision for a in m.agents} == {10, 20, 30, 40, 50, 60}
 
 
 @pytest.mark.parametrize("exp_id", ["II-4", "II-6", "III-12", "IV-A3"])

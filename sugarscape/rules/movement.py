@@ -11,6 +11,16 @@ from sugarscape.rules.welfare import welfare
 VON_NEUMANN = ((1, 0), (-1, 0), (0, 1), (0, -1))
 
 
+def look_distances(model, vision: int):
+    """The distances an agent looks at along one lattice line: every site out to vision, or with a look stride s > 1
+    (xl), one site drawn uniformly from each stretch 1..s, s+1..2s, ... out to vision (docs/xl.md). A stride of 1
+    draws nothing, so regular random streams are unchanged."""
+    s = model.config.look_stride
+    if s == 1:
+        return range(1, vision + 1)
+    return [s * k + int(off) for k, off in enumerate(model.rng.integers(1, s, size=vision // s, endpoint=True))]
+
+
 def site_score(model, x: int, y: int) -> float:
     """Sugar-to-pollution ratio s/(1+p) (p.47 fn 37); equals plain sugar while p = 0."""
     ls = model.landscape
@@ -27,7 +37,7 @@ def candidate_sites(model, agent) -> list[tuple[int, int, int]]:
     sites = [(agent.x, agent.y, 0)]
     for d in model.rng.permutation(4):
         dx, dy = VON_NEUMANN[d]
-        for dist in range(1, agent.vision + 1):
+        for dist in look_distances(model, agent.vision):
             x, y = ls.wrap(agent.x + dx * dist, agent.y + dy * dist)
             if model.agent_at(x, y) is None:
                 sites.append((x, y, dist))

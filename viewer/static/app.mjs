@@ -1,6 +1,7 @@
 // The viewer page: fetches periods from the local server and draws them. Every color, size and legend entry
 // comes from encoding.mjs; this file defines no encoding of its own.
 import { boardPixels, cellAt, paintCells } from "./board.mjs";
+import { FrameCache } from "./cache.mjs";
 import {
   COLOR_MODES, OUTLINE, OUTLINE_WIDTH, PALETTES, SIZE_MODES, cellColor, formatWealth, legendCells, wealth,
 } from "./encoding.mjs";
@@ -8,7 +9,6 @@ import { pause } from "./pace.mjs";
 import { PopulationSeries } from "./series.mjs";
 
 const PREFETCH = 4; // periods requested ahead of the next one while playing (at most 5 in flight)
-const CACHE_LIMIT = 300;
 const DEFAULT_EXPERIMENT = "VI-1"; // selected when the page opens: all rules on
 
 const $ = (id) => document.getElementById(id);
@@ -30,7 +30,7 @@ const state = {
   earliest: 0, // oldest period the server still keeps (it keeps the newest info.keep)
   populations: new PopulationSeries(),
   popRequest: null,
-  cache: new Map(), // t -> decoded frame
+  cache: new FrameCache(false), // replaced per run, sized for its world
   inflight: new Map(), // t -> promise
   playing: false,
   playGen: 0, // bumped on every play/pause, so only the newest playback loop may draw
@@ -76,7 +76,6 @@ function fetchFrame(t) {
     if (runId !== state.runId) throw new Error("stale run");
     const frame = decode(json);
     state.cache.set(t, frame);
-    if (state.cache.size > CACHE_LIMIT) state.cache.delete(state.cache.keys().next().value);
     setLatest(json.latest, json.earliest);
     return frame;
   }).finally(() => {
@@ -90,7 +89,7 @@ function setLatest(latest, earliest) {
   if (earliest > state.earliest) {
     state.earliest = earliest;
     els.slider.min = String(earliest);
-    for (const t of state.cache.keys()) if (t < earliest) state.cache.delete(t);
+    state.cache.dropBefore(earliest);
   }
   if (latest <= state.latest) return;
   state.latest = latest;
@@ -476,7 +475,7 @@ async function startRun(experiment, seed, xl) {
       info, frame: null, target: 0, latest: 0, earliest: 0, populations: new PopulationSeries(),
       popRequest: null, hoverCell: null, boardPx: null, xlImage: null,
     });
-    state.cache.clear();
+    state.cache = new FrameCache(info.xl);
     state.inflight.clear();
     els.slider.max = "0";
     els.slider.min = "0";
