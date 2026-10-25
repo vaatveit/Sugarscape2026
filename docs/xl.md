@@ -131,6 +131,9 @@ That belongs to the comparison work.
   contrast or better). Agent size is off, and the newest 100 periods are kept.
 - **Speed**, one process: about 2.4 s per period for II-4's rules early on (40,000 agents), and 6.5 s per period
   early in VI-1. Ten II-4 seeds sharing the processor (`--jobs 10`) averaged 1.8 s per period over 500 periods.
+  Replacement (rule R) costs little: II-4-gini, which adds it to II-4's rules and replaces about 900 agents a
+  period, took 1.13 s per period against II-4's 1.17 s, timed together over t = 3–7. Scanning all 250,000 sites
+  for each newcomer's site had taken 12.95 s.
   The Python model is the baseline being measured, so it hasn't been tuned for xl.
 - The rule that diffuses pollution 100 times is `Config.diffusion_passes`, and the look stride is
   `Config.look_stride`. Both default to 1 and are left out of regular fingerprints.

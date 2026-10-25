@@ -26,6 +26,7 @@ class Model:
         # Fig IV-1: spice mountains NW and SE, i.e. the sugar map mirrored east-west.
         self.landscape = Landscape(capacity, capacity[::-1, :] if config.spice else None)
         self._grid: list[list[Agent | None]] = [[None] * config.height for _ in range(config.width)]
+        self._empty = np.ones((config.width, config.height), dtype=bool)  # mirrors _grid, for random_empty_site
         self.agents: list[Agent] = []
         self.t = 0
         self.dead_this_step: list[Agent] = []
@@ -61,15 +62,12 @@ class Model:
         return [a for a in found if a is not None]
 
     def random_empty_site(self) -> tuple[int, int] | None:
-        empty = [
-            (x, y)
-            for x in range(self.config.width)
-            for y in range(self.config.height)
-            if self._grid[x][y] is None
-        ]
-        if not empty:
+        # Empty sites in x-then-y order (C order of the (width, height) array), one picked uniformly.
+        empty = np.flatnonzero(self._empty)
+        if not len(empty):
             return None
-        return empty[int(self.rng.integers(len(empty)))]
+        x, y = divmod(int(empty[int(self.rng.integers(len(empty)))]), self.config.height)
+        return x, y
 
     def new_agent(
         self, x: int, y: int, vision: int, metabolism: int, sugar: float, max_age: float = math.inf
@@ -89,6 +87,7 @@ class Model:
         )
         self._next_id += 1
         self._grid[x][y] = agent
+        self._empty[x, y] = False
         self.agents.append(agent)
         return agent
 
@@ -110,6 +109,7 @@ class Model:
             raise ValueError(f"site ({x}, {y}) is occupied")
         self._grid[agent.x][agent.y] = None
         self._grid[x][y] = agent
+        self._empty[agent.x, agent.y], self._empty[x, y] = True, False
         w, h = self.config.width, self.config.height
         agent.disp_x += (x - agent.x + w // 2) % w - w // 2  # shortest way round the torus
         agent.disp_y += (y - agent.y + h // 2) % h - h // 2
@@ -118,6 +118,7 @@ class Model:
     def kill(self, agent: Agent) -> None:
         agent.alive = False
         self._grid[agent.x][agent.y] = None
+        self._empty[agent.x, agent.y] = True
         self.agents.remove(agent)
         self.dead_this_step.append(agent)
 
