@@ -15,9 +15,14 @@ void landscape_macros(flamegpu::EnvironmentDescription env, bool all) {
     env.newMacroProperty<float, MAX_CELLS>("sugar_next");
     env.newMacroProperty<float, MAX_CELLS>("pollution_next");
     env.newMacroProperty<unsigned int>("deaths");
+    // The period's order key of the agent that started at a site and of the one that ended there and has not starved,
+    // for count_neighbors (spec 2026-10-25-gpu-sequential-semantics, section 3); cleared in cell_commit.
+    env.newMacroProperty<uint64_t, MAX_CELLS>("left");
+    env.newMacroProperty<uint64_t, MAX_CELLS>("arrived");
 }
 
-// The movement sub-model: scan and resolve until every citizen has settled (design: One period, step 2).
+// The movement sub-model: propose and bid until a round places no bid (spec 2026-10-25-gpu-sequential-semantics,
+// section 2); commit_move then moves everyone at once.
 void describe_movement(flamegpu::ModelDescription& sub, const RunConfig& cfg) {
     flamegpu::EnvironmentDescription env = sub.Environment();
     env.newProperty<unsigned int>("width", cfg.width);
@@ -29,6 +34,7 @@ void describe_movement(flamegpu::ModelDescription& sub, const RunConfig& cfg) {
     landscape_macros(env, false);
     flamegpu::AgentDescription citizen = sub.newAgent("citizen");
     citizen.newVariable<unsigned int>("look_seed");
+    citizen.newVariable<unsigned int>("dir_order");
     citizen.newVariable<int>("x");
     citizen.newVariable<int>("y");
     citizen.newVariable<int>("vision");
@@ -37,8 +43,9 @@ void describe_movement(flamegpu::ModelDescription& sub, const RunConfig& cfg) {
     citizen.newVariable<unsigned int>("settled");
     citizen.newVariable<unsigned int>("priority");
     citizen.newVariable<unsigned int>("target");
-    sub.newLayer().addAgentFunction(citizen.newFunction("scan", scan));
-    sub.newLayer().addAgentFunction(citizen.newFunction("resolve", resolve));
+    env.newMacroProperty<unsigned int>("bids");  // bids placed this round (bid; movement_settled)
+    sub.newLayer().addAgentFunction(citizen.newFunction("propose", propose));
+    sub.newLayer().addAgentFunction(citizen.newFunction("bid", bid));
     sub.addExitCondition(movement_settled);
 }
 
@@ -94,6 +101,7 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
     citizen.newVariable<float>("sugar");
     for (const char* name : {"moved", "neighbors", "settled", "priority", "target"}) citizen.newVariable<unsigned int>(name);
     citizen.newVariable<unsigned int>("look_seed");  // this period's looks, when look_stride > 1 (start_period)
+    citizen.newVariable<unsigned int>("dir_order");  // this period's scan direction order, 2 bits each (start_period)
     flamegpu::AgentDescription cell = model.newAgent("cell");
     cell.newVariable<unsigned int>("capacity");  // the site's sugar capacity (make_cells)
 
@@ -124,8 +132,10 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
     model.newLayer().addHostFunction(finish_init);
     model.newLayer().addAgentFunction(citizen.newFunction("start_period", start_period));
     model.newLayer().addSubModel(movement_sub);
-    model.newLayer().addAgentFunction(citizen.newFunction("count_neighbors", count_neighbors));
+    model.newLayer().addAgentFunction(citizen.newFunction("commit_move", commit_move));
     model.newLayer().addAgentFunction(metabolize);
+    // After metabolism, as Python counts each agent's neighbours after its own move and metabolism.
+    model.newLayer().addAgentFunction(citizen.newFunction("count_neighbors", count_neighbors));
     if (cfg.replacement) model.newLayer().addAgentFunction(citizen.newFunction("place_newcomer", place_newcomer));
     model.newLayer().addAgentFunction(cell.newFunction("cell_grow", cell_grow));
     model.newLayer().addAgentFunction(cell.newFunction("cell_commit", cell_commit));

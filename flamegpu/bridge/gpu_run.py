@@ -17,7 +17,7 @@ from bridge.timing import machine_note, timing_row, write_timing_csv
 from experiments.registry import EXPERIMENTS
 from experiments.run import experiment_config, fingerprint, result_dir
 
-GPU_FINGERPRINT = "gpu-phase1\n"
+GPU_FINGERPRINT = "gpu-phase2\n"  # 2026-10-25: movement and neighbour counts in Python's order
 # Replacement moved to the device (spec 2026-10-25): its random stream changed, so results made before are stale.
 REPLACEMENT_FINGERPRINT = "replacement: device\n"
 

@@ -5,8 +5,12 @@ regenerate them to make a test pass: a difference means behaviour changed.
 
 One deliberate regeneration, approved by the user: on 2026-10-25 replacement moved to the device (spec
 2026-10-25-gpu-replacement-metrics), which changed its random stream by design. Only the files replacement reaches
-were rewritten: gini_t0/metrics.csv (from t = 1) and gini_t30/*. The other cases, and gini_t0's t = 0 dumps, are
-still the pre-xl bytes.
+were rewritten: gini_t0/metrics.csv (from t = 1) and gini_t30/*.
+
+A second deliberate regeneration of every case, approved by the user with the design: on 2026-10-25 movement and
+neighbour counts moved to Python's one-agent-at-a-time order (spec 2026-10-25-gpu-sequential-semantics), which changed
+every run, and the agent dumps gained id, priority, dir_order and look_seed. gini_t0's landscape (t = 0, before any
+move) is unchanged.
 """
 
 from pathlib import Path
@@ -40,8 +44,19 @@ def run_case(exe: Path, tmp: Path, name: str) -> dict[str, bytes]:
     return {f: (tmp / f).read_bytes() for f in FILES}
 
 
+def comparable(f: str, data: bytes) -> bytes:
+    """The bytes compared: agents.csv without its id column. FLAME GPU numbers agents born on the device (replacement
+    newcomers) in thread order, so their ids vary between runs; the founders' ids and every other byte do not."""
+    if f != "agents.csv":
+        return data
+    lines = data.decode().splitlines()
+    drop = lines[0].split(",").index("id")
+    return "\n".join(",".join(v for i, v in enumerate(line.split(",")) if i != drop) for line in lines).encode()
+
+
 @pytest.mark.parametrize("name", GOLDEN_CASES)
 def test_matches_golden(exe, tmp_path, name):
     got = run_case(exe, tmp_path, name)
     for f in FILES:
-        assert got[f] == (GOLDEN / name / f).read_bytes(), f"{name}/{f} differs from the golden run"
+        assert comparable(f, got[f]) == comparable(f, (GOLDEN / name / f).read_bytes()), \
+            f"{name}/{f} differs from the golden run"

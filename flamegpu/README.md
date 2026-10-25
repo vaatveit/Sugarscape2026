@@ -104,15 +104,20 @@ The results of 2026-10-25 are in [docs/validation/xl-chapter2.md](docs/validatio
 ## How the GPU version differs from the Python model
 
 The Python model is sequential: in each period, agents act one at a time in a fresh random order. The
-GPU version moves everyone at once. A random priority per agent stands in for the order, and rounds
-of atomic claims settle agents that want the same site. The full list of differences is in the
-design document. The ones that show in results:
+GPU version moves everyone at once, but reaches the same outcome
+([design](docs/superpowers/specs/2026-10-25-gpu-sequential-semantics-design.md)).
 
-- An agent sees only the positions at the start of the period in the first round. In Python, an agent
-  late in the order already sees where earlier agents went.
-- A site freed by a death becomes available in the next period.
-- Neighbors are counted after everyone has moved. Python counts each agent's neighbors right after
-  its own move.
+- **Movement.** A random 32-bit priority per agent stands in for the order. Rounds of claims that hold across
+  rounds (deferred acceptance) leave each agent on the best site it sees among those free at the start of the
+  period and not taken by an agent earlier in the order: Python's rule, one agent at a time. Tests replay periods
+  from the dumps and match every agent's site.
+- **Neighbours** are counted in the period's order, as Python counts each agent right after its own move and
+  metabolism.
+- **The differences that remain:**
+  - A site that an earlier agent leaves during the period, or that a death frees, becomes available only in the
+    next period. Python offers it to agents later in the order.
+  - In a Python harness this changed about 1 move in 180 in the first period of a random start and under 1% after,
+    and none in II-6.
 
 ## Results (Phase 1, 2026-10-23)
 
