@@ -15,6 +15,7 @@ void landscape_macros(flamegpu::EnvironmentDescription env, bool all) {
     env.newMacroProperty<float, MAX_CELLS>("sugar_next");
     env.newMacroProperty<float, MAX_CELLS>("pollution_next");
     env.newMacroProperty<unsigned int>("deaths");
+    env.newMacroProperty<unsigned int>("next_uid");  // the next uid in Python's creation order (spec section 3)
     // The period's order key of the agent that started at a site and of the one that ended there and has not starved,
     // for count_neighbors (spec 2026-10-25-gpu-sequential-semantics, section 3); cleared in cell_commit.
     env.newMacroProperty<uint64_t, MAX_CELLS>("left");
@@ -38,7 +39,7 @@ void describe_movement(flamegpu::ModelDescription& sub, const RunConfig& cfg) {
     citizen.newVariable<int>("x");
     citizen.newVariable<int>("y");
     citizen.newVariable<int>("vision");
-    citizen.newVariable<float>("sugar");
+    citizen.newVariable<double>("sugar");
     citizen.newVariable<unsigned int>("moved");
     citizen.newVariable<unsigned int>("settled");
     citizen.newVariable<unsigned int>("priority");
@@ -89,6 +90,15 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
     env.newProperty<int>("endowment_hi", cfg.endowment.hi);
     env.newProperty<int>("max_age_lo", cfg.max_age ? cfg.max_age->lo : 0);
     env.newProperty<int>("max_age_hi", cfg.max_age ? cfg.max_age->hi : 0);
+    // Chapter III draws for newcomers (rules.cuh, output_newcomer).
+    env.newProperty<unsigned int>("tag_length", static_cast<unsigned int>(cfg.tag_length));
+    env.newProperty<unsigned int>("sex", cfg.sex ? 1u : 0u);
+    env.newProperty<int>("fertility_start_lo", cfg.fertility_start.lo);
+    env.newProperty<int>("fertility_start_hi", cfg.fertility_start.hi);
+    env.newProperty<int>("female_fertility_end_lo", cfg.female_fertility_end.lo);
+    env.newProperty<int>("female_fertility_end_hi", cfg.female_fertility_end.hi);
+    env.newProperty<int>("male_fertility_end_lo", cfg.male_fertility_end.lo);
+    env.newProperty<int>("male_fertility_end_hi", cfg.male_fertility_end.hi);
     env.newProperty<unsigned int>("t", 0u);
     env.newProperty<unsigned int>("round", 1u);
     env.newProperty<unsigned int>("seasons_beta", cfg.seasons ? static_cast<unsigned int>(cfg.seasons->first) : 0u);
@@ -98,7 +108,22 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
 
     flamegpu::AgentDescription citizen = model.newAgent("citizen");
     for (const char* name : {"x", "y", "vision", "metabolism", "age", "max_age"}) citizen.newVariable<int>(name);
-    citizen.newVariable<float>("sugar");
+    citizen.newVariable<double>("sugar");  // holdings are double (spec 2026-10-25-gpu-full-parity, section 4)
+    // Chapter III state (spec section 3). Without sex, fertility_start/end are NO_FERTILITY_START/END, Python's inf/-inf.
+    citizen.newVariable<unsigned int>("uid");
+    citizen.newVariable<unsigned int>("sex", SEX_NONE);
+    citizen.newVariable<int>("fertility_start", NO_FERTILITY_START);
+    citizen.newVariable<int>("fertility_end", NO_FERTILITY_END);
+    citizen.newVariable<double>("initial_sugar");
+    citizen.newVariable<uint64_t>("tags");  // bit i is tag i
+    citizen.newVariable<unsigned int>("n_children");
+    citizen.newVariable<unsigned int>("parent_a", NO_UID);
+    citizen.newVariable<unsigned int>("parent_b", NO_UID);
+    citizen.newVariable<unsigned int, MAX_FRIENDS>("friend_uid");
+    citizen.newVariable<unsigned int, MAX_FRIENDS>("friend_dist");
+    citizen.newVariable<unsigned int>("n_friends");
+    citizen.newVariable<int>("disp_x");  // net displacement since birth, unwrapped across the torus edges
+    citizen.newVariable<int>("disp_y");
     for (const char* name : {"moved", "neighbors", "settled", "priority", "target"}) citizen.newVariable<unsigned int>(name);
     citizen.newVariable<unsigned int>("look_seed");  // this period's looks, when look_stride > 1 (start_period)
     citizen.newVariable<unsigned int>("dir_order");  // this period's scan direction order, 2 bits each (start_period)

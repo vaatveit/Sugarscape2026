@@ -29,6 +29,7 @@ struct RunState {
     std::vector<uint32_t> capacity;  // indexed x + y * width
     std::mt19937_64 rng;             // host-side draws: the founders (replacement draws on the device)
     unsigned int population = 0;     // citizens at the end of the last completed period
+    unsigned int next_uid = 0;       // the founders' count: the first uid the device hands out (agents_ever)
     // Output options.
     std::string dump_agents, dump_landscape;
     std::optional<unsigned int> dump_at;

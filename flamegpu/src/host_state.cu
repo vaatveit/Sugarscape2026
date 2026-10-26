@@ -1,7 +1,10 @@
 #include "host_state.h"
 
 #include <algorithm>
+#include <bitset>
 #include <numeric>
+#include <string>
+#include <utility>
 
 #include "model.h"
 
@@ -45,15 +48,72 @@ std::vector<uint32_t> placement_sites(const RunConfig& cfg) {
     return sites;
 }
 
-void set_citizen(flamegpu::AgentVector::Agent a, int x, int y, int vision, int metabolism, float sugar, int age,
-                 int max_age) {
+void set_citizen(flamegpu::AgentVector::Agent a, unsigned int uid, int x, int y, int vision, int metabolism,
+                 double sugar, int age, int max_age) {
+    a.setVariable<unsigned int>("uid", uid);
     a.setVariable<int>("x", x);
     a.setVariable<int>("y", y);
     a.setVariable<int>("vision", vision);
     a.setVariable<int>("metabolism", metabolism);
-    a.setVariable<float>("sugar", sugar);
+    a.setVariable<double>("sugar", sugar);
+    a.setVariable<double>("initial_sugar", sugar);
     a.setVariable<int>("age", age);
     a.setVariable<int>("max_age", max_age);
+}
+
+// Python's culture.tribe: Blue when 0s outnumber 1s, Red otherwise.
+bool is_blue(uint64_t tags, int length) { return 2 * static_cast<int>(std::bitset<64>(tags).count()) < length; }
+
+// Python's random_tags: uniform bits, resampled until the majority matches the tribe ("" for any).
+uint64_t random_tags(std::mt19937_64& rng, int length, const std::string& tribe) {
+    while (true) {
+        uint64_t tags = 0;
+        for (int i = 0; i < length; ++i) tags |= static_cast<uint64_t>(std::uniform_int_distribution<int>(0, 1)(rng)) << i;
+        if (tribe.empty() || (tribe == "blue") == is_blue(tags, length)) return tags;
+    }
+}
+
+// Python's _assign_sex: sex, then childbearing ages drawn for that sex (p.57 fn 4).
+void assign_sex(flamegpu::AgentVector::Agent a, std::mt19937_64& rng, const RunConfig& cfg, unsigned int sex) {
+    a.setVariable<unsigned int>("sex", sex);
+    a.setVariable<int>("fertility_start", draw(rng, cfg.fertility_start));
+    a.setVariable<int>("fertility_end", draw(rng, sex == SEX_F ? cfg.female_fertility_end : cfg.male_fertility_end));
+}
+
+// Each founder's site and, for a tribal block, its tribe: blocks in order, each block's free sites (x-major, as
+// Python lists them) chosen without replacement; otherwise Python's placement sites.
+std::vector<std::pair<uint32_t, std::string>> founder_sites(std::mt19937_64& rng, const RunConfig& cfg) {
+    std::vector<std::pair<uint32_t, std::string>> out;
+    if (!cfg.initial_blocks.empty()) {
+        std::vector<char> taken(static_cast<size_t>(cfg.cells()), 0);
+        for (const TribeBlock& b : cfg.initial_blocks) {
+            std::vector<uint32_t> sites;
+            for (int i = 0; i < b.w; ++i) {
+                for (int j = 0; j < b.h; ++j) {
+                    const uint32_t site = static_cast<uint32_t>((b.x0 + i) + (b.y0 + j) * cfg.width);
+                    if (!taken[site]) sites.push_back(site);
+                }
+            }
+            if (static_cast<size_t>(b.n) > sites.size()) {
+                throw ConfigError(std::to_string(b.n) + " " + b.tribe + " agents do not fit in " +
+                                  std::to_string(sites.size()) + " empty block sites");
+            }
+            for (size_t k = 0; k < static_cast<size_t>(b.n); ++k) {
+                std::swap(sites[k], sites[std::uniform_int_distribution<size_t>(k, sites.size() - 1)(rng)]);
+                taken[sites[k]] = 1;
+                out.emplace_back(sites[k], b.tribe);
+            }
+        }
+        return out;
+    }
+    // Sites chosen without replacement (partial Fisher-Yates).
+    std::vector<uint32_t> sites = placement_sites(cfg);
+    const size_t n = static_cast<size_t>(cfg.initial_population);
+    for (size_t i = 0; i < n; ++i) {
+        std::swap(sites[i], sites[std::uniform_int_distribution<size_t>(i, sites.size() - 1)(rng)]);
+        out.emplace_back(sites[i], std::string());
+    }
+    return out;
 }
 
 }  // namespace
@@ -65,27 +125,39 @@ flamegpu::AgentVector make_citizens(flamegpu::ModelDescription& model, const std
         flamegpu::AgentVector pop(model.Agent("citizen"), static_cast<unsigned int>(init->size()));
         for (size_t i = 0; i < init->size(); ++i) {
             const InitAgent& a = (*init)[i];
-            set_citizen(pop[static_cast<unsigned int>(i)], a.x, a.y, a.vision, a.metabolism, a.sugar, a.age,
+            auto agent = pop[static_cast<unsigned int>(i)];
+            set_citizen(agent, static_cast<unsigned int>(i), a.x, a.y, a.vision, a.metabolism, a.sugar, a.age,
                         a.max_age.value_or(IMMORTAL));
+            agent.setVariable<double>("initial_sugar", a.initial_sugar.value_or(a.sugar));
+            agent.setVariable<uint64_t>("tags", a.tags);
+            if (a.sex != SEX_NONE) {
+                agent.setVariable<unsigned int>("sex", a.sex);
+                agent.setVariable<int>("fertility_start", a.fertility_start.value_or(NO_FERTILITY_START));
+                agent.setVariable<int>("fertility_end", a.fertility_end.value_or(NO_FERTILITY_END));
+            }
         }
+        s.next_uid = static_cast<unsigned int>(init->size());
         return pop;
     }
-    // Sites chosen without replacement (partial Fisher-Yates), then each agent's draws in Python's _spawn_at order.
-    std::vector<uint32_t> sites = placement_sites(cfg);
-    const size_t n = static_cast<size_t>(cfg.initial_population);
-    for (size_t i = 0; i < n; ++i) {
-        std::swap(sites[i], sites[std::uniform_int_distribution<size_t>(i, sites.size() - 1)(s.rng)]);
-    }
+    const auto sites = founder_sites(s.rng, cfg);
+    const size_t n = sites.size();
     flamegpu::AgentVector pop(model.Agent("citizen"), static_cast<unsigned int>(n));
     std::vector<int> max_ages(n);
+    // Each founder's draws in Python's _spawn_at order: Chapter II's, then tags, then sex, each only when on, so
+    // Chapter II runs keep their random stream.
     for (size_t i = 0; i < n; ++i) {
         const int vision = draw_vision(s.rng, cfg);
         const int metabolism = draw(s.rng, cfg.metabolism);
         const int sugar = draw(s.rng, cfg.endowment);
         max_ages[i] = cfg.max_age ? draw(s.rng, *cfg.max_age) : IMMORTAL;
-        set_citizen(pop[static_cast<unsigned int>(i)], static_cast<int>(sites[i] % cfg.width),
-                    static_cast<int>(sites[i] / cfg.width), vision, metabolism, static_cast<float>(sugar), 0, max_ages[i]);
+        auto agent = pop[static_cast<unsigned int>(i)];
+        set_citizen(agent, static_cast<unsigned int>(i), static_cast<int>(sites[i].first % cfg.width),
+                    static_cast<int>(sites[i].first / cfg.width), vision, metabolism, static_cast<double>(sugar), 0,
+                    max_ages[i]);
+        if (cfg.tag_length) agent.setVariable<uint64_t>("tags", random_tags(s.rng, cfg.tag_length, sites[i].second));
+        if (cfg.sex) assign_sex(agent, s.rng, cfg, std::uniform_int_distribution<int>(0, 1)(s.rng) == 0 ? SEX_F : SEX_M);
     }
+    s.next_uid = static_cast<unsigned int>(n);
     // Founders of a society with finite lives start at ages U[0, max age) (Python Config.founder_ages).
     if (cfg.max_age && cfg.founder_ages == "uniform") {
         for (size_t i = 0; i < n; ++i) {
@@ -128,7 +200,7 @@ void write_metrics(flamegpu::CUDASimulation* simulation, flamegpu::AgentVector& 
     c.y = column<int>(pop, "y");
     c.vision = column<int>(pop, "vision");
     c.metabolism = column<int>(pop, "metabolism");
-    c.sugar = column<float>(pop, "sugar");
+    c.sugar = column<double>(pop, "sugar");
     c.moved = column<uint32_t>(pop, "moved");
     c.neighbors = column<uint32_t>(pop, "neighbors");
     const auto row = compute_metrics(c, s.cfg, s.capacity, t);
@@ -168,6 +240,7 @@ FLAMEGPU_HOST_FUNCTION(finish_init) {
         s.setup_end = std::chrono::steady_clock::now();
     }
     s.population = FLAMEGPU->agent("citizen").count();
+    FLAMEGPU->environment.getMacroProperty<unsigned int>("next_uid") = s.next_uid;  // newcomers' uids follow the founders'
     write_dumps(FLAMEGPU, 0);
     check_invariants(FLAMEGPU, 0, 0, 0);
     // The first period starts now: initialisation is setup's. main made the t = 0 metrics row from the founders.

@@ -11,7 +11,7 @@
 
 struct AgentColumns {
     std::vector<int> x, y, vision, metabolism;
-    std::vector<float> sugar;
+    std::vector<double> sugar;
     std::vector<uint32_t> moved, neighbors;
 };
 

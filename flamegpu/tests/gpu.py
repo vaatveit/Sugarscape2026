@@ -98,13 +98,21 @@ def capacity_rows(capacity: np.ndarray) -> list[list[int]]:
     return [[int(capacity[x, y]) for x in range(width)] for y in range(height - 1, -1, -1)]
 
 
+# --init's optional columns (spec 2026-10-25-gpu-full-parity, Task 2), written only when some agent sets them.
+INIT_OPTIONAL = ("sex", "fertility_start", "fertility_end", "initial_sugar", "tags")
+# Dump columns read as text, not numbers: tags is a 0/1 string, tag 0 first.
+TEXT_COLUMNS = ("sex", "tags")
+
+
 def write_init(path: Path, agents: list[dict]) -> Path:
+    optional = [k for k in INIT_OPTIONAL if any(k in a for a in agents)]
     with Path(path).open("w", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(AGENT_FIELDS)
+        writer.writerow([*AGENT_FIELDS, *optional])
         for a in agents:
             writer.writerow([a["x"], a["y"], a["vision"], a["metabolism"], a["sugar"], a.get("age", 0),
-                             "" if a.get("max_age") is None else a["max_age"]])
+                             "" if a.get("max_age") is None else a["max_age"],
+                             *("" if a.get(k) is None else a[k] for k in optional)])
     return Path(path)
 
 
@@ -118,7 +126,7 @@ def _number(text: str):
 
 def read_rows(path: Path) -> list[dict]:
     with Path(path).open(newline="") as f:
-        return [{k: _number(v) for k, v in row.items()} for row in csv.DictReader(f)]
+        return [{k: v if k in TEXT_COLUMNS else _number(v) for k, v in row.items()} for row in csv.DictReader(f)]
 
 
 def run_gpu(exe: Path, tmp: Path, cfg: dict | None = None, capacity: np.ndarray | None = None,

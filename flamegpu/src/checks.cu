@@ -12,9 +12,16 @@ namespace {
 
 struct CitizenRow {
     int x, y, vision, metabolism, age, max_age;
-    float sugar;
+    double sugar;
     unsigned int moved, neighbors;
     unsigned int id, priority, dir_order, look_seed;  // the period's order and looks (spec 2026-10-25, section 4)
+    // Chapter III (spec 2026-10-25-gpu-full-parity, Task 2).
+    unsigned int uid, sex;
+    int fertility_start, fertility_end;
+    double initial_sugar;
+    uint64_t tags;
+    unsigned int n_children, parent_a, parent_b, n_friends;
+    int disp_x, disp_y;
 };
 
 std::vector<CitizenRow> citizens(flamegpu::HostAPI* api) {
@@ -25,9 +32,15 @@ std::vector<CitizenRow> citizens(flamegpu::HostAPI* api) {
         const auto a = pop[i];
         rows.push_back({a.getVariable<int>("x"), a.getVariable<int>("y"), a.getVariable<int>("vision"),
                         a.getVariable<int>("metabolism"), a.getVariable<int>("age"), a.getVariable<int>("max_age"),
-                        a.getVariable<float>("sugar"), a.getVariable<unsigned int>("moved"),
+                        a.getVariable<double>("sugar"), a.getVariable<unsigned int>("moved"),
                         a.getVariable<unsigned int>("neighbors"), a.getID(), a.getVariable<unsigned int>("priority"),
-                        a.getVariable<unsigned int>("dir_order"), a.getVariable<unsigned int>("look_seed")});
+                        a.getVariable<unsigned int>("dir_order"), a.getVariable<unsigned int>("look_seed"),
+                        a.getVariable<unsigned int>("uid"), a.getVariable<unsigned int>("sex"),
+                        a.getVariable<int>("fertility_start"), a.getVariable<int>("fertility_end"),
+                        a.getVariable<double>("initial_sugar"), a.getVariable<uint64_t>("tags"),
+                        a.getVariable<unsigned int>("n_children"), a.getVariable<unsigned int>("parent_a"),
+                        a.getVariable<unsigned int>("parent_b"), a.getVariable<unsigned int>("n_friends"),
+                        a.getVariable<int>("disp_x"), a.getVariable<int>("disp_y")});
     }
     std::sort(rows.begin(), rows.end(), [](const CitizenRow& a, const CitizenRow& b) {
         return std::tie(a.x, a.y) < std::tie(b.x, b.y);
@@ -48,11 +61,25 @@ void write_dumps(flamegpu::HostAPI* api, unsigned int t) {
     if (!s.dump_at || *s.dump_at != t) return;
     if (!s.dump_agents.empty()) {
         FILE* f = open_or_throw(s.dump_agents);
-        std::fprintf(f, "x,y,vision,metabolism,sugar,age,max_age,moved,neighbors,id,priority,dir_order,look_seed\n");
+        std::fprintf(f, "x,y,vision,metabolism,sugar,age,max_age,moved,neighbors,id,priority,dir_order,look_seed,"
+                        "sex,fertility_start,fertility_end,initial_sugar,tags,uid,n_children,parent_a,parent_b,"
+                        "n_friends,disp_x,disp_y\n");
         for (const CitizenRow& a : citizens(api)) {
-            std::fprintf(f, "%d,%d,%d,%d,%.17g,%d,", a.x, a.y, a.vision, a.metabolism, static_cast<double>(a.sugar), a.age);
+            std::fprintf(f, "%d,%d,%d,%d,%.17g,%d,", a.x, a.y, a.vision, a.metabolism, a.sugar, a.age);
             if (a.max_age != IMMORTAL) std::fprintf(f, "%d", a.max_age);
-            std::fprintf(f, ",%u,%u,%u,%u,%u,%u\n", a.moved, a.neighbors, a.id, a.priority, a.dir_order, a.look_seed);
+            std::fprintf(f, ",%u,%u,%u,%u,%u,%u,", a.moved, a.neighbors, a.id, a.priority, a.dir_order, a.look_seed);
+            // Blank for no sex, as --init reads it, and Python's inf / -inf childbearing ages without sex.
+            std::fprintf(f, "%s,", a.sex == SEX_F ? "F" : a.sex == SEX_M ? "M" : "");
+            if (a.fertility_start != NO_FERTILITY_START) std::fprintf(f, "%d", a.fertility_start);
+            std::fputc(',', f);
+            if (a.fertility_end != NO_FERTILITY_END) std::fprintf(f, "%d", a.fertility_end);
+            std::fprintf(f, ",%.17g,", a.initial_sugar);
+            for (int i = 0; i < s.cfg.tag_length; ++i) std::fputc((a.tags >> i) & 1u ? '1' : '0', f);
+            std::fprintf(f, ",%u,%u,", a.uid, a.n_children);
+            if (a.parent_a != NO_UID) std::fprintf(f, "%u", a.parent_a);
+            std::fputc(',', f);
+            if (a.parent_b != NO_UID) std::fprintf(f, "%u", a.parent_b);
+            std::fprintf(f, ",%u,%d,%d\n", a.n_friends, a.disp_x, a.disp_y);
         }
         std::fclose(f);
     }
