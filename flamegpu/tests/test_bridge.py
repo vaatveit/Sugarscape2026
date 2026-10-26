@@ -37,10 +37,35 @@ def test_cfg_steps_and_seed():
 
 
 def test_unsupported_lists_features():
-    cfg = Config(sex=True, max_age=(60, 100))
-    assert unsupported_features(cfg) == ["sex"]
-    with pytest.raises(UnsupportedFeature, match="sex"):
+    cfg = Config(tag_length=11, combat_alpha=2.0)
+    assert unsupported_features(cfg) == ["combat_alpha"]
+    with pytest.raises(UnsupportedFeature, match="combat_alpha"):
         config_to_cfg(cfg, steps=10, seed=0)
+
+
+PART_A = ("III-1", "III-3", "III-4", "III-5", "III-7", "III-8", "III-12", "III-15")
+
+
+def _part_a_ids():
+    variants = [i for i in EXPERIMENTS if i.startswith("VAR-") and i.split("/")[1] in ("III-1", "III-3", "III-4", "III-5")]
+    assert len(variants) == 24
+    return [*PART_A, *variants]
+
+
+def test_chapter3_part_a_configs_convert(exe, tmp_path):
+    for exp_id in _part_a_ids():
+        exp = EXPERIMENTS[exp_id]
+        assert unsupported_features(exp.config) == [], exp_id
+        cfg = tmp_path / f"{exp_id.replace('/', '_')}.cfg"
+        cfg.write_text(config_to_cfg(exp.config, steps=exp.steps, seed=exp.config.seed), encoding="utf-8")
+        result = run_exe(exe, "--config", cfg, "--print-config")
+        assert result.returncode == 0, (exp_id, result.stderr)
+
+
+def test_cfg_initial_blocks_spelling():
+    lines = _lines(config_to_cfg(EXPERIMENTS["III-12"].config, steps=200, seed=0))
+    assert "initial_blocks = blue,0,0,20,20,370;red,30,30,20,20,370" in lines
+    assert "initial_blocks =" in _lines(config_to_cfg(EXPERIMENTS["II-4"].config, steps=5, seed=0))
 
 
 def test_chapter_ii_configs_are_supported():
@@ -79,9 +104,9 @@ def test_any_other_field_off_default_is_refused():
     base = EXPERIMENTS["II-4"].config
     # Fields the GPU program doesn't read, including ones left out of repr, are refused unless at their default.
     assert unsupported_features(replace(base, trade_rounding="down")) == ["trade_rounding"]
-    assert unsupported_features(replace(base, mate_contact="neighbors")) == ["mate_contact"]
-    with pytest.raises(UnsupportedFeature, match="fertility_threshold"):
-        config_to_cfg(replace(base, fertility_threshold=0.5), steps=10, seed=0)
+    assert unsupported_features(replace(base, spice=True)) == ["spice"]
+    with pytest.raises(UnsupportedFeature, match="disease_fee"):
+        config_to_cfg(replace(base, disease_fee=2.0), steps=10, seed=0)
 
 
 def test_seed_and_chapter_ii_fields_are_free():

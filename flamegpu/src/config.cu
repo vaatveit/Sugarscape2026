@@ -3,7 +3,9 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <fstream>
+#include <initializer_list>
 #include <map>
 #include <set>
 #include <sstream>
@@ -11,12 +13,11 @@
 
 namespace {
 
-// Python Config fields that Phase 1 does not implement (design: Non-goals).
+// Python Config fields the GPU does not implement yet (spec 2026-10-25-gpu-full-parity, Parts B to D). sugar_map is
+// run.cfg's map path.
 const std::set<std::string> UNSUPPORTED = {
-    "sugar_map", "sex", "fertility_start", "female_fertility_end", "male_fertility_end", "inheritance", "tag_length",
-    "culture", "combat_alpha", "initial_blocks", "replacement_same_tribe", "fertility_threshold", "child_share",
-    "mate_contact", "child_gift", "child_threshold", "gift_rounding", "spice", "spice_metabolism", "spice_endowment",
-    "foresight", "cultural_preferences", "trade", "credit", "disease_list",
+    "sugar_map", "combat_alpha", "replacement_same_tribe", "spice", "spice_metabolism", "spice_endowment",
+    "foresight", "cultural_preferences", "trade", "trade_rounding", "credit", "disease_list",
     "diseases_per_agent", "disease_length", "immune_length", "disease_fee"};
 
 std::string trim(const std::string& s) {
@@ -132,6 +133,22 @@ class Reader {
         if (parts.size() != 2) fail(key, "expected 2 comma-separated numbers");
         out = std::make_pair(real(key, parts[0]), real(key, parts[1]));
     }
+    void get(const std::string& key, double& out) const {
+        if (has(key)) out = real(key, raw(key));
+    }
+    // initial_blocks: "tribe,x0,y0,w,h,n" per block, blocks separated by ';'.
+    void get(const std::string& key, std::vector<TribeBlock>& out) const {
+        if (!has(key)) return;
+        out.clear();
+        for (const auto& block : split(raw(key), ';')) {
+            const auto parts = split(block, ',');
+            if (parts.size() != 6) fail(key, "expected tribe,x0,y0,w,h,n for each block, got '" + block + "'");
+            TribeBlock b{parts[0], 0, 0, 0, 0, 0};
+            int* fields[5] = {&b.x0, &b.y0, &b.w, &b.h, &b.n};
+            for (int i = 0; i < 5; ++i) *fields[i] = static_cast<int>(integer(key, parts[i + 1]));
+            out.push_back(b);
+        }
+    }
 
  private:
     std::string path_;
@@ -142,7 +159,9 @@ const std::set<std::string> KNOWN = {
     "width", "height", "map", "initial_population", "placement", "block", "vision", "metabolism", "endowment",
     "max_age", "founder_ages", "replacement", "growback_rate", "seasons", "winter_growback", "pollution",
     "pollution_start", "pollution_stop", "diffusion_period", "diffusion_start", "diffusion_passes", "look_stride", "steps",
-    "seed"};
+    "seed", "sex", "fertility_start", "female_fertility_end", "male_fertility_end", "inheritance", "tag_length",
+    "culture", "initial_blocks", "fertility_threshold", "child_share", "mate_contact", "child_gift", "child_threshold",
+    "gift_rounding"};
 
 [[noreturn]] void invalid(const std::string& message) { throw ConfigError("invalid configuration: " + message); }
 
@@ -151,11 +170,24 @@ void check_range(const char* name, const IntRange& r) {
                              " has low > high");
 }
 
+// The shortest text that reads back as v, as Python's repr writes it (0.74, not 0.73999999999999999).
 std::string fmt(double v) {
     if (std::isinf(v)) return v > 0 ? "inf" : "-inf";
     char buf[64];
-    std::snprintf(buf, sizeof(buf), "%.17g", v);
+    for (int digits = 1; digits <= 17; ++digits) {
+        std::snprintf(buf, sizeof(buf), "%.*g", digits, v);
+        if (std::strtod(buf, nullptr) == v) break;
+    }
     return buf;
+}
+
+void check_option(const char* name, const std::string& value, std::initializer_list<const char*> allowed) {
+    std::string list;
+    for (const char* a : allowed) {
+        if (value == a) return;
+        list += (list.empty() ? "" : ", ") + std::string(a);
+    }
+    invalid(std::string(name) + " must be one of " + list + ", not '" + value + "'");
 }
 
 std::string fmt(const IntRange& r) { return std::to_string(r.lo) + "," + std::to_string(r.hi); }
@@ -176,7 +208,7 @@ RunConfig parse_config(const std::string& path) {
         const std::string where = path + " line " + std::to_string(number);
         if (eq == std::string::npos) throw ConfigError(where + ": expected 'key = value', got '" + text + "'");
         const std::string key = trim(text.substr(0, eq));
-        if (UNSUPPORTED.count(key)) throw ConfigError(where + ": " + key + ": not supported in Phase 1 (Chapter II rules only)");
+        if (UNSUPPORTED.count(key)) throw ConfigError(where + ": " + key + ": not on the GPU yet");
         if (!KNOWN.count(key)) throw ConfigError(where + ": " + key + ": unknown key");
         if (entries.count(key)) throw ConfigError(where + ": " + key + ": given twice");
         entries[key] = {trim(text.substr(eq + 1)), number};
@@ -213,6 +245,20 @@ RunConfig parse_config(const std::string& path) {
     r.get("diffusion_start", cfg.diffusion_start);
     r.get("diffusion_passes", cfg.diffusion_passes);
     r.get("look_stride", cfg.look_stride);
+    r.get("sex", cfg.sex);
+    r.get("fertility_start", cfg.fertility_start);
+    r.get("female_fertility_end", cfg.female_fertility_end);
+    r.get("male_fertility_end", cfg.male_fertility_end);
+    r.get("inheritance", cfg.inheritance);
+    r.get("tag_length", cfg.tag_length);
+    r.get("culture", cfg.culture);
+    r.get("initial_blocks", cfg.initial_blocks);
+    r.get("fertility_threshold", cfg.fertility_threshold);
+    r.get("child_share", cfg.child_share);
+    r.get("mate_contact", cfg.mate_contact);
+    r.get("child_gift", cfg.child_gift);
+    r.get("child_threshold", cfg.child_threshold);
+    r.get("gift_rounding", cfg.gift_rounding);
     r.get("steps", cfg.steps);
     r.get("seed", cfg.seed);
     return cfg;
@@ -283,6 +329,37 @@ void validate(const RunConfig& cfg) {
         invalid(std::to_string(cfg.initial_population) + " agents do not fit in " + std::to_string(sites) + " " +
                 cfg.placement + " sites");
     }
+    // Chapter III (Python Config.__post_init__).
+    check_range("fertility_start", cfg.fertility_start);
+    check_range("female_fertility_end", cfg.female_fertility_end);
+    check_range("male_fertility_end", cfg.male_fertility_end);
+    if (cfg.tag_length < 0 || (cfg.tag_length && cfg.tag_length % 2 == 0)) {
+        invalid("tag_length must be 0 or odd (so groups have a majority), not " + std::to_string(cfg.tag_length));
+    }
+    if (cfg.tag_length > MAX_TAG_BITS) {
+        invalid("tag_length " + std::to_string(cfg.tag_length) + " exceeds the GPU's limit of " +
+                std::to_string(MAX_TAG_BITS) + " tag bits");
+    }
+    if (cfg.tag_length == 0 && (cfg.culture || !cfg.initial_blocks.empty())) {
+        invalid("culture and tribal blocks need cultural tags (tag_length > 0)");
+    }
+    if (!cfg.initial_blocks.empty() && cfg.tile > 1) invalid("initial_blocks cannot be tiled (--tile)");
+    for (const TribeBlock& b : cfg.initial_blocks) {
+        const std::string text = b.tribe + "," + std::to_string(b.x0) + "," + std::to_string(b.y0) + "," +
+                                 std::to_string(b.w) + "," + std::to_string(b.h) + "," + std::to_string(b.n);
+        if (b.tribe != "blue" && b.tribe != "red") invalid("block tribe must be one of blue, red, not '" + b.tribe + "'");
+        if (!(0 <= b.x0 && 0 <= b.y0 && b.x0 + b.w <= cfg.width && b.y0 + b.h <= cfg.height && b.w >= 1 && b.h >= 1)) {
+            invalid("block " + text + " must lie inside the " + std::to_string(cfg.width) + "x" +
+                    std::to_string(cfg.height) + " grid");
+        }
+        if (!(0 <= b.n && b.n <= b.w * b.h)) invalid("block " + text + " cannot hold " + std::to_string(b.n) + " agents");
+    }
+    if (!(cfg.fertility_threshold > 0)) invalid("fertility_threshold must be > 0, not " + fmt(cfg.fertility_threshold));
+    if (!(cfg.child_share > 0 && cfg.child_share <= 1)) invalid("child_share must lie in (0, 1], not " + fmt(cfg.child_share));
+    check_option("mate_contact", cfg.mate_contact, {"neighbors", "vision"});
+    check_option("child_gift", cfg.child_gift, {"endowment", "capped"});
+    check_option("child_threshold", cfg.child_threshold, {"endowment", "redraw"});
+    check_option("gift_rounding", cfg.gift_rounding, {"exact", "down"});
 }
 
 void print_config(std::ostream& out, const RunConfig& cfg) {
@@ -310,6 +387,25 @@ void print_config(std::ostream& out, const RunConfig& cfg) {
         << "diffusion_start = " << cfg.diffusion_start << "\n"
         << "diffusion_passes = " << cfg.diffusion_passes << "\n"
         << "look_stride = " << cfg.look_stride << "\n"
+        << "sex = " << (cfg.sex ? "true" : "false") << "\n"
+        << "fertility_start = " << fmt(cfg.fertility_start) << "\n"
+        << "female_fertility_end = " << fmt(cfg.female_fertility_end) << "\n"
+        << "male_fertility_end = " << fmt(cfg.male_fertility_end) << "\n"
+        << "inheritance = " << (cfg.inheritance ? "true" : "false") << "\n"
+        << "tag_length = " << cfg.tag_length << "\n"
+        << "culture = " << (cfg.culture ? "true" : "false") << "\n";
+    out << "initial_blocks = ";
+    for (size_t i = 0; i < cfg.initial_blocks.size(); ++i) {
+        const TribeBlock& b = cfg.initial_blocks[i];
+        out << (i ? ";" : "") << b.tribe << "," << b.x0 << "," << b.y0 << "," << b.w << "," << b.h << "," << b.n;
+    }
+    out << "\n"
+        << "fertility_threshold = " << fmt(cfg.fertility_threshold) << "\n"
+        << "child_share = " << fmt(cfg.child_share) << "\n"
+        << "mate_contact = " << cfg.mate_contact << "\n"
+        << "child_gift = " << cfg.child_gift << "\n"
+        << "child_threshold = " << cfg.child_threshold << "\n"
+        << "gift_rounding = " << cfg.gift_rounding << "\n"
         << "steps = " << cfg.steps << "\n"
         << "seed = " << cfg.seed << "\n";
 }

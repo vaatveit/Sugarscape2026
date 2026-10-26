@@ -1,4 +1,5 @@
-"""A registered Config as a run.cfg for the GPU program (Phase 1: Chapter II rules only)."""
+"""A registered Config as a run.cfg for the GPU program: Chapter II, and Chapter III without combat (spec
+2026-10-25-gpu-full-parity, Part A)."""
 
 import math
 from dataclasses import MISSING, Field, fields
@@ -10,7 +11,11 @@ from sugarscape.config import Config
 FIELDS = ("width", "height", "initial_population", "placement", "block", "vision", "metabolism", "endowment",
           "max_age", "founder_ages", "replacement", "growback_rate", "seasons", "winter_growback", "pollution",
           "pollution_start", "pollution_stop", "diffusion_period", "diffusion_start", "diffusion_passes",
-          "look_stride")
+          "look_stride",
+          # Chapter III without combat (Part A).
+          "sex", "fertility_start", "female_fertility_end", "male_fertility_end", "inheritance", "tag_length",
+          "culture", "initial_blocks", "fertility_threshold", "child_share", "mate_contact", "child_gift",
+          "child_threshold", "gift_rounding")
 # Read too, but written as run.cfg's map path rather than as its own line.
 READ_AS_MAP = "sugar_map"
 
@@ -40,16 +45,18 @@ def _value(v) -> str:
         return "true" if v else "false"
     if isinstance(v, float) and math.isinf(v):
         return "inf"
+    if isinstance(v, tuple) and v and isinstance(v[0], tuple):  # initial_blocks: one tribe,x0,y0,w,h,n per block
+        return ";".join(_value(x) for x in v)
     if isinstance(v, tuple):
         return ",".join(_value(x) for x in v)
     return repr(v) if isinstance(v, float) else str(v)
 
 
 def config_to_cfg(cfg: Config, steps: int, seed: int) -> str:
-    """run.cfg text for this Config; raises UnsupportedFeature naming the rules Phase 1 lacks."""
+    """run.cfg text for this Config; raises UnsupportedFeature naming the rules not on the GPU yet."""
     missing = unsupported_features(cfg)
     if missing:
-        raise UnsupportedFeature(f"not supported on the GPU in Phase 1: {', '.join(missing)}")
+        raise UnsupportedFeature(f"not on the GPU yet: {', '.join(missing)}")
     lines = [f"{name} = {_value(getattr(cfg, name))}" for name in FIELDS]
     lines += [f"map = {SUGARSCAPE_ROOT / 'sugarscape' / 'maps' / cfg.sugar_map}", f"steps = {steps}", f"seed = {seed}"]
     return "\n".join(lines) + "\n"

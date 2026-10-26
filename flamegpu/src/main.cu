@@ -62,9 +62,9 @@ void print_version() {
 #else
     const char* seatbelts = "off";
 #endif
-    std::printf("flamegpu = %s\ncuda_runtime = %d.%d\ngpu = %s\nseatbelts = %s\nmax_cells = %u\n", flamegpu::VERSION_FULL,
-                runtime / 1000, runtime % 1000 / 10, have_device ? device.name : "none", seatbelts,
-                static_cast<unsigned int>(SUGARSCAPE_MAX_CELLS));
+    std::printf("flamegpu = %s\ncuda_runtime = %d.%d\ngpu = %s\nseatbelts = %s\nmax_cells = %u\nmax_tag_bits = %d\n",
+                flamegpu::VERSION_FULL, runtime / 1000, runtime % 1000 / 10, have_device ? device.name : "none",
+                seatbelts, static_cast<unsigned int>(SUGARSCAPE_MAX_CELLS), MAX_TAG_BITS);
     // Flush now: CUDA, started above, can end the process at exit before stdout is flushed (the output was lost
     // in about 1 run in 4, with exit code 0).
     std::fflush(stdout);
