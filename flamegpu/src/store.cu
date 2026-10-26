@@ -237,7 +237,7 @@ void StoreHost::schedule(unsigned int n, const RunConfig& cfg) {
     cub::DeviceRadixSort::SortPairs(temp_, bytes, rank_keys_, rank_keys_sorted_, rank_rows_, h_.rank_row, n);
     k_ranks<<<blocks(n), BLOCK>>>(n, h_.rank_row, h_);
     // Footprints: count, offsets, fill.
-    const FootprintEnv env{cfg.width, cfg.height, cfg.look_stride, cfg.sex, cfg.mate_contact == "vision"};
+    const FootprintEnv env{cfg.width, cfg.height, cfg.look_stride, cfg.sex, cfg.mate_contact == "vision", cfg.culture};
     k_fp_count<<<blocks(n), BLOCK>>>(n, h_, env);
     bytes = 0;
     cub::DeviceScan::ExclusiveSum(nullptr, bytes, h_.fp_count, h_.fp_offset, n);
@@ -320,6 +320,16 @@ __global__ void k_newborn_uids(unsigned int n, const unsigned int* sorted_rows, 
     if (uid < s.uid_capacity) s.uid_row[uid] = static_cast<int>(row);
 }
 
+// Friends made of this period's newborns name their rows (culture.cuh, PROVISIONAL_FRIEND) until their uids exist.
+__global__ void k_fix_friends(unsigned int n, Store s) {
+    const unsigned int r = blockIdx.x * blockDim.x + threadIdx.x;
+    if (r >= n) return;
+    for (unsigned int f = 0; f < s.n_friends[r]; ++f) {
+        unsigned int& ref = s.friend_uid[r * MAX_FRIENDS + f];
+        if (ref & 0x80000000u) ref = s.uid[ref & 0x7FFFFFFFu];
+    }
+}
+
 }  // namespace
 
 unsigned int StoreHost::birth_uids(unsigned int next_uid) {
@@ -336,6 +346,7 @@ unsigned int StoreHost::birth_uids(unsigned int next_uid) {
     }
     cub::DeviceRadixSort::SortPairs(temp_, bytes, rank_keys_, rank_keys_sorted_, rank_rows_, h_.rank_row, n);
     k_newborn_uids<<<blocks(n), BLOCK>>>(n, h_.rank_row, h_, next_uid);
+    if (h_.n_rows) k_fix_friends<<<blocks(h_.n_rows), BLOCK>>>(h_.n_rows, h_);
     check(cudaDeviceSynchronize(), "assigning newborn uids");
     return n;
 }

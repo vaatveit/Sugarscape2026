@@ -22,6 +22,7 @@ struct CitizenRow {
     uint64_t tags;
     unsigned int n_children, parent_a, parent_b, n_friends;
     int disp_x, disp_y;
+    unsigned int friend_uid[MAX_FRIENDS], friend_dist[MAX_FRIENDS];
 };
 
 std::vector<CitizenRow> citizens(flamegpu::HostAPI* api) {
@@ -40,7 +41,11 @@ std::vector<CitizenRow> citizens(flamegpu::HostAPI* api) {
                         a.getVariable<double>("initial_sugar"), a.getVariable<uint64_t>("tags"),
                         a.getVariable<unsigned int>("n_children"), a.getVariable<unsigned int>("parent_a"),
                         a.getVariable<unsigned int>("parent_b"), a.getVariable<unsigned int>("n_friends"),
-                        a.getVariable<int>("disp_x"), a.getVariable<int>("disp_y")});
+                        a.getVariable<int>("disp_x"), a.getVariable<int>("disp_y"), {}, {}});
+        for (unsigned int f = 0; f < MAX_FRIENDS; ++f) {
+            rows.back().friend_uid[f] = a.getVariable<unsigned int, MAX_FRIENDS>("friend_uid", f);
+            rows.back().friend_dist[f] = a.getVariable<unsigned int, MAX_FRIENDS>("friend_dist", f);
+        }
     }
     std::sort(rows.begin(), rows.end(), [](const CitizenRow& a, const CitizenRow& b) {
         return std::tie(a.x, a.y) < std::tie(b.x, b.y);
@@ -63,7 +68,7 @@ void write_dumps(flamegpu::HostAPI* api, unsigned int t) {
         FILE* f = open_or_throw(s.dump_agents);
         std::fprintf(f, "x,y,vision,metabolism,sugar,age,max_age,moved,neighbors,id,priority,dir_order,look_seed,"
                         "sex,fertility_start,fertility_end,initial_sugar,tags,uid,n_children,parent_a,parent_b,"
-                        "n_friends,disp_x,disp_y\n");
+                        "n_friends,disp_x,disp_y,friends\n");
         for (const CitizenRow& a : citizens(api)) {
             std::fprintf(f, "%d,%d,%d,%d,%.17g,%d,", a.x, a.y, a.vision, a.metabolism, a.sugar, a.age);
             if (a.max_age != IMMORTAL) std::fprintf(f, "%d", a.max_age);
@@ -79,7 +84,9 @@ void write_dumps(flamegpu::HostAPI* api, unsigned int t) {
             if (a.parent_a != NO_UID) std::fprintf(f, "%u", a.parent_a);
             std::fputc(',', f);
             if (a.parent_b != NO_UID) std::fprintf(f, "%u", a.parent_b);
-            std::fprintf(f, ",%u,%d,%d\n", a.n_friends, a.disp_x, a.disp_y);
+            std::fprintf(f, ",%u,%d,%d,", a.n_friends, a.disp_x, a.disp_y);
+            for (unsigned int k = 0; k < a.n_friends; ++k) std::fprintf(f, "%s%u:%u", k ? "|" : "", a.friend_uid[k], a.friend_dist[k]);
+            std::fputc('\n', f);
         }
         std::fclose(f);
     }

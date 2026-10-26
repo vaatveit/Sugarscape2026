@@ -70,6 +70,10 @@ def build_python(cfg: dict, capacity: np.ndarray, agents: list[dict]) -> Model:
         for key in ("parent_a", "parent_b"):
             if a.get(key) is not None:
                 model.agents[a[key]].children.append(agent)
+        # Friends as "uid:distance|...", uids being --init indices.
+        for item in filter(None, a.get("friends", "").split("|")):
+            uid, dist = item.split(":")
+            agent.friends.append((model.agents[int(uid)], int(dist)))
     return model
 
 
@@ -96,7 +100,8 @@ def run_python(cfg: dict, capacity: np.ndarray, agents: list[dict], steps: int) 
                             # Chapter III, in the GPU dump's spelling.
                             "uid": a.id, "sex": a.sex or "", "initial_sugar": a.initial_sugar,
                             "n_children": len(a.children),
-                            "tags": "" if a.tags is None else "".join(str(t) for t in a.tags)})
+                            "tags": "" if a.tags is None else "".join(str(t) for t in a.tags),
+                            "friends": "|".join(f"{f.id}:{d}" for f, d in a.friends)})
     ls = model.landscape
     width, height = capacity.shape
     for x in range(width):

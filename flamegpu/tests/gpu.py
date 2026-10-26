@@ -99,9 +99,10 @@ def capacity_rows(capacity: np.ndarray) -> list[list[int]]:
 
 
 # --init's optional columns (spec 2026-10-25-gpu-full-parity, Task 2), written only when some agent sets them.
-INIT_OPTIONAL = ("sex", "fertility_start", "fertility_end", "initial_sugar", "tags", "n_children", "parent_a", "parent_b")
-# Dump columns read as text, not numbers: tags is a 0/1 string, tag 0 first.
-TEXT_COLUMNS = ("sex", "tags")
+INIT_OPTIONAL = ("sex", "fertility_start", "fertility_end", "initial_sugar", "tags", "n_children", "parent_a", "parent_b",
+                 "friends")
+# Dump columns read as text, not numbers: tags is a 0/1 string, tag 0 first; friends is "uid:distance|...".
+TEXT_COLUMNS = ("sex", "tags", "friends")
 
 
 def write_init(path: Path, agents: list[dict]) -> Path:

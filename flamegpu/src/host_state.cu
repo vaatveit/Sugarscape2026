@@ -133,6 +133,11 @@ flamegpu::AgentVector make_citizens(flamegpu::ModelDescription& model, const std
             agent.setVariable<unsigned int>("n_children", a.n_children);
             agent.setVariable<unsigned int>("parent_a", a.parent_a.value_or(NO_UID));
             agent.setVariable<unsigned int>("parent_b", a.parent_b.value_or(NO_UID));
+            agent.setVariable<unsigned int>("n_friends", static_cast<unsigned int>(a.friends.size()));
+            for (unsigned int f = 0; f < a.friends.size(); ++f) {
+                agent.setVariable<unsigned int, MAX_FRIENDS>("friend_uid", f, a.friends[f].first);
+                agent.setVariable<unsigned int, MAX_FRIENDS>("friend_dist", f, a.friends[f].second);
+            }
             if (a.sex != SEX_NONE) {
                 agent.setVariable<unsigned int>("sex", a.sex);
                 agent.setVariable<int>("fertility_start", a.fertility_start.value_or(NO_FERTILITY_START));

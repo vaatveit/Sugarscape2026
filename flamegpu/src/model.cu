@@ -81,6 +81,7 @@ void describe_turns(flamegpu::ModelDescription& sub, const RunConfig& cfg) {
     env.newProperty<unsigned int>("look_stride", 1u);
     // Rule S (sex.cuh); the parent model's values reach these through the sub-environment.
     env.newProperty<unsigned int>("sex", 0u);
+    env.newProperty<unsigned int>("culture", 0u);
     env.newProperty<unsigned int>("tag_length", 0u);
     for (const char* name : {"mate_vision", "child_capped", "child_redraw", "gift_down"}) env.newProperty<unsigned int>(name, 0u);
     env.newProperty<double>("fertility_threshold", 1.0);
@@ -134,6 +135,7 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
     env.newProperty<int>("female_fertility_end_hi", cfg.female_fertility_end.hi);
     env.newProperty<int>("male_fertility_end_lo", cfg.male_fertility_end.lo);
     env.newProperty<int>("male_fertility_end_hi", cfg.male_fertility_end.hi);
+    env.newProperty<unsigned int>("culture", cfg.culture ? 1u : 0u);  // rule K and friends (culture.cuh)
     // Rule S's options (sex.cuh).
     env.newProperty<unsigned int>("mate_vision", cfg.mate_contact == "vision" ? 1u : 0u);
     env.newProperty<unsigned int>("child_capped", cfg.child_gift == "capped" ? 1u : 0u);

@@ -71,7 +71,8 @@ std::vector<InitAgent> load_init_agents(const std::string& path, int width, int 
     }
     for (size_t c = 7; c < header.size(); ++c) {
         static const std::set<std::string> optional = {"sex",        "fertility_start", "fertility_end", "initial_sugar",
-                                                       "tags",       "n_children",      "parent_a",      "parent_b"};
+                                                       "tags",       "n_children",      "parent_a",      "parent_b",
+                                                       "friends"};
         if (!optional.count(header[c])) throw MapError(path + " line 1: unknown column '" + header[c] + "'");
     }
     std::vector<InitAgent> agents;
@@ -103,6 +104,16 @@ std::vector<InitAgent> load_init_agents(const std::string& path, int width, int 
                     a.fertility_end = std::stoi(v);
                 } else if (header[c] == "n_children") {
                     a.n_children = static_cast<unsigned int>(std::stoul(v));
+                } else if (header[c] == "friends") {
+                    std::stringstream fs(v);
+                    std::string item;
+                    while (std::getline(fs, item, '|')) {
+                        const auto colon = item.find(':');
+                        if (colon == std::string::npos) throw MapError(where + ": friends must be uid:distance|...");
+                        a.friends.emplace_back(static_cast<unsigned int>(std::stoul(item.substr(0, colon))),
+                                               static_cast<unsigned int>(std::stoul(item.substr(colon + 1))));
+                    }
+                    if (a.friends.size() > 5) throw MapError(where + ": at most 5 friends");
                 } else if (header[c] == "parent_a") {
                     a.parent_a = static_cast<unsigned int>(std::stoul(v));
                 } else if (header[c] == "parent_b") {

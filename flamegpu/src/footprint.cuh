@@ -9,6 +9,7 @@
 struct FootprintEnv {
     int width, height, stride;
     bool sex, mate_vision;  // rule S on; partners in sight (mate_contact = "vision") rather than the four neighbours
+    bool culture;           // rule K and friends
 };
 
 __device__ __forceinline__ int fp_wrap(int v, int n) { return ((v % n) + n) % n; }
@@ -37,6 +38,17 @@ __device__ void footprint(const Store& s, unsigned int row, const FootprintEnv& 
     const int tx = static_cast<int>(target % static_cast<unsigned int>(e.width));
     const int ty = static_cast<int>(target / static_cast<unsigned int>(e.width));
     around(tx, ty, e, emit);
+    // Friends anywhere in the world (K reads whether each is alive): read where the friend stands at this turn, its
+    // start if it comes later in the order, else its target; the friend's own turn writes both (spec section 2).
+    if (e.culture) {
+        for (unsigned int f = 0; f < s.n_friends[row]; ++f) {
+            const unsigned int uid = s.friend_uid[row * MAX_FRIENDS + f];
+            if (uid >= s.uid_capacity) continue;
+            const int r = s.uid_row[uid];
+            if (r < 0 || static_cast<unsigned int>(r) >= s.n_rows || s.uid[r] != uid) continue;  // died before
+            emit(s.key[r] < s.key[row] ? s.start[r] : s.target[r], false);
+        }
+    }
     const bool childbearing = e.sex && s.sex[row] != 0u && s.fertility_start[row] <= s.age[row] &&
                               s.age[row] < s.fertility_end[row];
     if (!childbearing) return;

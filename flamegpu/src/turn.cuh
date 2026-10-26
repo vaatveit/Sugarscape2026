@@ -4,6 +4,7 @@
 #ifndef SRC_TURN_CUH_
 #define SRC_TURN_CUH_
 
+#include "culture.cuh"
 #include "movement.cuh"
 #include "sex.cuh"
 #include "store.h"
@@ -50,16 +51,21 @@ __device__ void take_turn(API* FLAMEGPU, const Store& s, unsigned int row) {
         occupied[target].exchange(0u);
         return;
     }
-    // Neighbours: the four von Neumann sites as they stand now (p.39).
+    // Neighbours: the four von Neumann sites as they stand now (p.39), kept for update_friends (Python agent.neighbors).
     const int x = s.x[row], y = s.y[row];
-    unsigned int n = 0;
+    int met[4];
+    int n = 0;
     for (int d = 0; d < 4; ++d) {
         const unsigned int site = static_cast<unsigned int>(wrap(x + MOVE_DX[d], w) + wrap(y + MOVE_DY[d], h) * w);
         touch(s, site, rank, 2);
-        n += s.site_row[site] >= 0 ? 1u : 0u;
+        if (s.site_row[site] >= 0) met[n++] = s.site_row[site];
     }
-    s.neighbors[row] = n;
+    s.neighbors[row] = static_cast<unsigned int>(n);
     if (env.template getProperty<unsigned int>("sex")) mate(FLAMEGPU, s, row);
+    if (env.template getProperty<unsigned int>("culture")) {
+        transmit(FLAMEGPU, s, row);
+        update_friends(s, row, met, n);
+    }
 }
 
 #endif  // SRC_TURN_CUH_
