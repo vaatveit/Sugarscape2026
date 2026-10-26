@@ -35,6 +35,7 @@ struct RunState {
     // The turns (spec 2026-10-25-gpu-full-parity, section 2) and R's newcomers' uids.
     std::unique_ptr<StoreHost> store;
     std::unique_ptr<NewcomerUids> newcomers;
+    std::unique_ptr<DyingTable> dying;
     unsigned int turn_rows = 0;          // citizens taking turns this period
     unsigned int waves_this_period = 0;
     unsigned int newborns_this_period = 0;  // rule S's children, for --check's population count

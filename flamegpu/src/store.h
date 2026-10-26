@@ -147,6 +147,47 @@ class NewcomerUids {
     size_t temp_bytes_ = 0;
 };
 
+// Rule I at old age (spec section 4): the period's dying post (uid, sugar); sorted by uid, each heir finds its parents
+// by binary search, counts itself, then takes its shares.
+struct Dying {
+    unsigned int* uid;    // posted, then sorted
+    double* sugar;        // posted, then sorted with the uids
+    unsigned int* heirs;  // living, non-dying children per sorted entry
+    unsigned int* count;  // posted entries
+    unsigned int n;       // sorted entries (after DyingTable::sort)
+};
+
+// The sorted entry of a dying uid, or -1.
+__device__ __forceinline__ int find_dying(const Dying& d, unsigned int uid) {
+    unsigned int lo = 0, hi = d.n;
+    while (lo < hi) {
+        const unsigned int mid = (lo + hi) / 2;
+        if (d.uid[mid] < uid) lo = mid + 1;
+        else hi = mid;
+    }
+    return lo < d.n && d.uid[lo] == uid ? static_cast<int>(lo) : -1;
+}
+
+class DyingTable {
+ public:
+    explicit DyingTable(unsigned int cells);
+    ~DyingTable();
+    DyingTable(const DyingTable&) = delete;
+    DyingTable& operator=(const DyingTable&) = delete;
+    uint64_t device_address() const { return reinterpret_cast<uint64_t>(d_); }
+    // Before the dying post: the device table names the posting arrays.
+    void posting();
+    // After the dying have posted: sort by uid, clear the heir counts, and reset the posting count.
+    void sort();
+
+ private:
+    Dying h_{}, *d_ = nullptr;
+    unsigned int *posted_uid_ = nullptr, *order_ = nullptr, *sorted_order_ = nullptr;
+    double* posted_sugar_ = nullptr;
+    void* temp_ = nullptr;
+    size_t temp_bytes_ = 0;
+};
+
 // The death key of a citizen that starves (rank: its place in the period's order) or dies of old age (its uid).
 __host__ __device__ inline uint64_t starved_key(uint64_t rank) { return rank; }
 __host__ __device__ inline uint64_t old_age_key(unsigned int uid) { return (1ull << 63) | uid; }

@@ -255,6 +255,7 @@ int main(int argc, const char** argv) {
     }
     s.store.reset();  // the device buffers go before the device is reset
     s.newcomers.reset();
+    s.dying.reset();
     flamegpu::util::cleanup();
     return EXIT_SUCCESS;
 }

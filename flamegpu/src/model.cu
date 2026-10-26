@@ -149,6 +149,7 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
     // The turns (turns.cuh): the device store's and the newcomer slots' addresses, serial mode, the wave number.
     env.newProperty<uint64_t>("store", 0);
     env.newProperty<uint64_t>("newcomers", 0);
+    env.newProperty<uint64_t>("dying", 0);  // rule I's table of the period's dying (store.h, DyingTable)
     env.newProperty<unsigned int>("serial_turns", cfg.serial_turns ? 1u : 0u);
     env.newProperty<unsigned int>("wave", 0u);
     landscape_macros(env, true);
@@ -177,6 +178,7 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
     citizen.newVariable<unsigned int>("row");        // the citizen's row in the store this period (publish)
     citizen.newVariable<uint64_t>("death_key");      // a newcomer's place among this period's deaths (store.h)
     citizen.newVariable<unsigned int>("nc_slot");    // a newcomer's slot while it takes its uid
+    citizen.newVariable<unsigned int>("dying");      // reached its maximum age this period (rule I's layers)
     flamegpu::AgentDescription cell = model.newAgent("cell");
     cell.newVariable<unsigned int>("capacity");  // the site's sugar capacity (make_cells)
 
@@ -225,10 +227,25 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
         flamegpu::AgentFunctionDescription spawn_fn = cell.newFunction("spawn_newborns", spawn_newborns);
         spawn_fn.setAgentOutput(citizen);
         model.newLayer().addAgentFunction(spawn_fn);
-        flamegpu::AgentFunctionDescription age_fn = citizen.newFunction("age_and_die", age_and_die);
-        age_fn.setAllowAgentDeath(true);
-        if (cfg.replacement) age_fn.setAgentOutput(citizen);
-        model.newLayer().addAgentFunction(age_fn);
+        if (cfg.inheritance) {
+            // Rule I at old age: age and post the dying, count and pay the heirs, then the dying die (turns.cuh).
+            s.dying = std::make_unique<DyingTable>(static_cast<unsigned int>(cfg.cells()));
+            env.setProperty<uint64_t>("dying", s.dying->device_address());
+            model.newLayer().addHostFunction(dying_posting);
+            model.newLayer().addAgentFunction(citizen.newFunction("age_mark", age_mark));
+            model.newLayer().addHostFunction(dying_sort);
+            model.newLayer().addAgentFunction(citizen.newFunction("heirs_count", heirs_count));
+            model.newLayer().addAgentFunction(citizen.newFunction("heirs_take", heirs_take));
+            flamegpu::AgentFunctionDescription die_fn = citizen.newFunction("die_old", die_old);
+            die_fn.setAllowAgentDeath(true);
+            if (cfg.replacement) die_fn.setAgentOutput(citizen);
+            model.newLayer().addAgentFunction(die_fn);
+        } else {
+            flamegpu::AgentFunctionDescription age_fn = citizen.newFunction("age_and_die", age_and_die);
+            age_fn.setAllowAgentDeath(true);
+            if (cfg.replacement) age_fn.setAgentOutput(citizen);
+            model.newLayer().addAgentFunction(age_fn);
+        }
     } else {
         flamegpu::AgentFunctionDescription metabolize = citizen.newFunction("metabolize_and_age", metabolize_and_age);
         metabolize.setAllowAgentDeath(true);

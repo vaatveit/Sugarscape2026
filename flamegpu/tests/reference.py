@@ -65,6 +65,11 @@ def build_python(cfg: dict, capacity: np.ndarray, agents: list[dict]) -> Model:
             agent.tags = [int(c) for c in a["tags"]]
         # Children that died before the run: they count in mean_children (len(children)) and nowhere else.
         agent.children = [Agent(-1, -1, -1, 1, 1, 0.0, 0.0, 0, alive=False) for _ in range(a.get("n_children", 0))]
+    # Parents given as the index (= uid) of another --init agent: the child joins their children (rule I's heirs).
+    for a, agent in zip(agents, model.agents):
+        for key in ("parent_a", "parent_b"):
+            if a.get(key) is not None:
+                model.agents[a[key]].children.append(agent)
     return model
 
 

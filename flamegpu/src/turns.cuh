@@ -177,6 +177,72 @@ FLAMEGPU_AGENT_FUNCTION(age_and_die, flamegpu::MessageNone, flamegpu::MessageNon
     return flamegpu::DEAD;
 }
 
+// Rule I at old age (spec section 4; store.h, DyingTable), end of the period with inheritance on, in place of
+// age_and_die: everyone ages and the dying post themselves; heirs count themselves, then take their parents' shares in
+// the parents' creation order (Python processes the dying batch in agents-list order); then the dying die.
+template <typename API>
+__device__ __forceinline__ const Dying& the_dying(API* FLAMEGPU) {
+    return *reinterpret_cast<const Dying*>(FLAMEGPU->environment.template getProperty<uint64_t>("dying"));
+}
+
+FLAMEGPU_AGENT_FUNCTION(age_mark, flamegpu::MessageNone, flamegpu::MessageNone) {
+    FLAMEGPU->setVariable<unsigned int>("dying", 0u);
+    if (FLAMEGPU->getVariable<int>("x") < 0) return flamegpu::ALIVE;  // this period's newcomers
+    const int age = FLAMEGPU->getVariable<int>("age") + 1;
+    FLAMEGPU->setVariable<int>("age", age);
+    if (age < FLAMEGPU->getVariable<int>("max_age")) return flamegpu::ALIVE;
+    FLAMEGPU->setVariable<unsigned int>("dying", 1u);
+    const Dying& d = the_dying(FLAMEGPU);
+    const unsigned int slot = atomicAdd(d.count, 1u);
+    d.uid[slot] = FLAMEGPU->getVariable<unsigned int>("uid");
+    d.sugar[slot] = FLAMEGPU->getVariable<double>("sugar");
+    return flamegpu::ALIVE;
+}
+
+FLAMEGPU_AGENT_FUNCTION(heirs_count, flamegpu::MessageNone, flamegpu::MessageNone) {
+    if (FLAMEGPU->getVariable<int>("x") < 0 || FLAMEGPU->getVariable<unsigned int>("dying")) return flamegpu::ALIVE;
+    const Dying& d = the_dying(FLAMEGPU);
+    const unsigned int parents[2] = {FLAMEGPU->getVariable<unsigned int>("parent_a"),
+                                     FLAMEGPU->getVariable<unsigned int>("parent_b")};
+    for (const unsigned int p : parents) {
+        const int e = p == NO_UID ? -1 : find_dying(d, p);
+        if (e >= 0) atomicAdd(&d.heirs[e], 1u);
+    }
+    return flamegpu::ALIVE;
+}
+
+FLAMEGPU_AGENT_FUNCTION(heirs_take, flamegpu::MessageNone, flamegpu::MessageNone) {
+    if (FLAMEGPU->getVariable<int>("x") < 0 || FLAMEGPU->getVariable<unsigned int>("dying")) return flamegpu::ALIVE;
+    const Dying& d = the_dying(FLAMEGPU);
+    const unsigned int a = FLAMEGPU->getVariable<unsigned int>("parent_a");
+    const unsigned int b = FLAMEGPU->getVariable<unsigned int>("parent_b");
+    const unsigned int first = a < b ? a : b, second = a < b ? b : a;  // NO_UID is the largest, so last
+    double sugar = FLAMEGPU->getVariable<double>("sugar");
+    for (const unsigned int p : {first, second}) {
+        const int e = p == NO_UID ? -1 : find_dying(d, p);
+        if (e >= 0 && d.sugar[e] > 0.0) sugar += d.sugar[e] / static_cast<double>(d.heirs[e]);
+    }
+    FLAMEGPU->setVariable<double>("sugar", sugar);
+    return flamegpu::ALIVE;
+}
+
+FLAMEGPU_AGENT_FUNCTION(die_old, flamegpu::MessageNone, flamegpu::MessageNone) {
+    if (!FLAMEGPU->getVariable<unsigned int>("dying")) return flamegpu::ALIVE;
+    const unsigned int w = FLAMEGPU->environment.getProperty<unsigned int>("width");
+    auto occupied = FLAMEGPU->environment.getMacroProperty<unsigned int, MAX_CELLS>("occupied");
+    occupied[static_cast<unsigned int>(FLAMEGPU->getVariable<int>("x")) +
+             static_cast<unsigned int>(FLAMEGPU->getVariable<int>("y")) * w].exchange(0u);
+    auto deaths = FLAMEGPU->environment.getMacroProperty<unsigned int>("deaths");
+    ++deaths;
+    if (FLAMEGPU->environment.getProperty<unsigned int>("replacement")) {
+        output_newcomer(FLAMEGPU, old_age_key(FLAMEGPU->getVariable<unsigned int>("uid")));
+    }
+    return flamegpu::DEAD;
+}
+
+FLAMEGPU_HOST_FUNCTION(dying_posting) { state().dying->posting(); }
+FLAMEGPU_HOST_FUNCTION(dying_sort) { state().dying->sort(); }
+
 // Newcomers' uids in Python's creation order (store.h, NewcomerUids): post the death key, then take the uid.
 FLAMEGPU_AGENT_FUNCTION(newcomer_post, flamegpu::MessageNone, flamegpu::MessageNone) {
     if (FLAMEGPU->getVariable<int>("x") >= 0) return flamegpu::ALIVE;

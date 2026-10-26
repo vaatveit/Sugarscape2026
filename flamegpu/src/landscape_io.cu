@@ -70,8 +70,8 @@ std::vector<InitAgent> load_init_agents(const std::string& path, int width, int 
         while (std::getline(hs, name, ',')) header.push_back(name);
     }
     for (size_t c = 7; c < header.size(); ++c) {
-        static const std::set<std::string> optional = {"sex",           "fertility_start", "fertility_end",
-                                                       "initial_sugar", "tags",            "n_children"};
+        static const std::set<std::string> optional = {"sex",        "fertility_start", "fertility_end", "initial_sugar",
+                                                       "tags",       "n_children",      "parent_a",      "parent_b"};
         if (!optional.count(header[c])) throw MapError(path + " line 1: unknown column '" + header[c] + "'");
     }
     std::vector<InitAgent> agents;
@@ -103,6 +103,10 @@ std::vector<InitAgent> load_init_agents(const std::string& path, int width, int 
                     a.fertility_end = std::stoi(v);
                 } else if (header[c] == "n_children") {
                     a.n_children = static_cast<unsigned int>(std::stoul(v));
+                } else if (header[c] == "parent_a") {
+                    a.parent_a = static_cast<unsigned int>(std::stoul(v));
+                } else if (header[c] == "parent_b") {
+                    a.parent_b = static_cast<unsigned int>(std::stoul(v));
                 } else if (header[c] == "initial_sugar") {
                     a.initial_sugar = std::stod(v);
                 } else if (header[c] == "tags") {

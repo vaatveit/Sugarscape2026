@@ -358,6 +358,82 @@ __global__ void k_newcomer_uids(unsigned int n, const unsigned int* sorted_slot,
 
 }  // namespace
 
+namespace {
+
+__global__ void k_dying_order(unsigned int n, unsigned int* order) {
+    const unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < n) order[i] = i;
+}
+
+__global__ void k_dying_gather(unsigned int n, const unsigned int* sorted_order, const double* posted, Dying d) {
+    const unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i >= n) return;
+    d.sugar[i] = posted[sorted_order[i]];
+    d.heirs[i] = 0u;
+}
+
+}  // namespace
+
+DyingTable::DyingTable(unsigned int cells) {
+    auto alloc = [](auto*& p, size_t n) {
+        check(cudaMalloc(reinterpret_cast<void**>(&p), sizeof(*p) * (n ? n : 1)), "allocating the dying table");
+    };
+    alloc(h_.uid, cells);
+    alloc(h_.sugar, cells);
+    alloc(h_.heirs, cells);
+    alloc(h_.count, 1);
+    alloc(posted_uid_, cells);
+    alloc(posted_sugar_, cells);
+    alloc(order_, cells);
+    alloc(sorted_order_, cells);
+    check(cudaMemset(h_.count, 0, sizeof(unsigned int)), "clearing the dying table");
+    check(cudaMalloc(reinterpret_cast<void**>(&d_), sizeof(Dying)), "allocating the dying table");
+    // Posting goes to the posted_* arrays: the device copy names them until sort() swaps in the sorted ones.
+    Dying posting = h_;
+    posting.uid = posted_uid_;
+    posting.sugar = posted_sugar_;
+    check(cudaMemcpy(d_, &posting, sizeof(Dying), cudaMemcpyHostToDevice), "uploading the dying table");
+}
+
+DyingTable::~DyingTable() {
+    for (void* p : {static_cast<void*>(h_.uid), static_cast<void*>(h_.sugar), static_cast<void*>(h_.heirs),
+                    static_cast<void*>(h_.count), static_cast<void*>(posted_uid_), static_cast<void*>(posted_sugar_),
+                    static_cast<void*>(order_), static_cast<void*>(sorted_order_), static_cast<void*>(d_), temp_}) {
+        cudaFree(p);
+    }
+}
+
+void DyingTable::sort() {
+    unsigned int n = 0;
+    check(cudaMemcpy(&n, h_.count, sizeof(unsigned int), cudaMemcpyDeviceToHost), "reading the dying count");
+    check(cudaMemset(h_.count, 0, sizeof(unsigned int)), "clearing the dying count");
+    if (n) {
+        k_dying_order<<<blocks(n), BLOCK>>>(n, order_);
+        size_t bytes = 0;
+        cub::DeviceRadixSort::SortPairs(nullptr, bytes, posted_uid_, h_.uid, order_, sorted_order_, n);
+        if (bytes > temp_bytes_) {
+            cudaFree(temp_);
+            check(cudaMalloc(&temp_, bytes), "allocating dying scratch");
+            temp_bytes_ = bytes;
+        }
+        cub::DeviceRadixSort::SortPairs(temp_, bytes, posted_uid_, h_.uid, order_, sorted_order_, n);
+        k_dying_gather<<<blocks(n), BLOCK>>>(n, sorted_order_, posted_sugar_, h_);
+    }
+    // The heirs read the sorted table; the next period's dying post to the posted_* arrays again (posting()).
+    Dying sorted = h_;
+    sorted.n = n;
+    check(cudaMemcpy(d_, &sorted, sizeof(Dying), cudaMemcpyHostToDevice), "uploading the dying table");
+    check(cudaDeviceSynchronize(), "sorting the dying");
+}
+
+void DyingTable::posting() {
+    Dying posting = h_;
+    posting.uid = posted_uid_;
+    posting.sugar = posted_sugar_;
+    posting.n = 0;
+    check(cudaMemcpy(d_, &posting, sizeof(Dying), cudaMemcpyHostToDevice), "uploading the dying table");
+}
+
 NewcomerUids::NewcomerUids(unsigned int cells) {
     auto alloc = [](auto*& p, size_t n) {
         check(cudaMalloc(reinterpret_cast<void**>(&p), sizeof(*p) * (n ? n : 1)), "allocating newcomer slots");
