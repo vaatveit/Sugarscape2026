@@ -52,6 +52,8 @@ SET(ALL_SRC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/footprint.cuh
     ${CMAKE_CURRENT_SOURCE_DIR}/src/turn.cuh
     ${CMAKE_CURRENT_SOURCE_DIR}/src/turns.cuh
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/looks.cuh
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/sex.cuh
 )
 
 # Add the executable and set required flags for the target

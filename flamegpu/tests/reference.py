@@ -87,7 +87,11 @@ def run_python(cfg: dict, capacity: np.ndarray, agents: list[dict], steps: int) 
     for a in model.agents:
         dump.agents.append({"x": a.x, "y": a.y, "vision": a.vision, "metabolism": a.metabolism, "sugar": a.sugar,
                             "age": a.age, "max_age": None if math.isinf(a.max_age) else int(a.max_age),
-                            "moved": int(a.moved), "neighbors": len(a.neighbors)})
+                            "moved": int(a.moved), "neighbors": len(a.neighbors),
+                            # Chapter III, in the GPU dump's spelling.
+                            "uid": a.id, "sex": a.sex or "", "initial_sugar": a.initial_sugar,
+                            "n_children": len(a.children),
+                            "tags": "" if a.tags is None else "".join(str(t) for t in a.tags)})
     ls = model.landscape
     width, height = capacity.shape
     for x in range(width):

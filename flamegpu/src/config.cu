@@ -357,6 +357,11 @@ void validate(const RunConfig& cfg) {
     if (!(cfg.fertility_threshold > 0)) invalid("fertility_threshold must be > 0, not " + fmt(cfg.fertility_threshold));
     if (!(cfg.child_share > 0 && cfg.child_share <= 1)) invalid("child_share must lie in (0, 1], not " + fmt(cfg.child_share));
     check_option("mate_contact", cfg.mate_contact, {"neighbors", "vision"});
+    if (cfg.sex && cfg.mate_contact == "vision" && cfg.vision.hi / cfg.look_stride > MAX_SIGHT_LOOKS) {
+        invalid("partners in sight look " + std::to_string(cfg.vision.hi / cfg.look_stride) +
+                " sites along each line, beyond the GPU's limit of " + std::to_string(MAX_SIGHT_LOOKS) +
+                " (vision / look_stride)");
+    }
     check_option("child_gift", cfg.child_gift, {"endowment", "capped"});
     check_option("child_threshold", cfg.child_threshold, {"endowment", "redraw"});
     check_option("gift_rounding", cfg.gift_rounding, {"exact", "down"});

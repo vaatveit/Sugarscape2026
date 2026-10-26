@@ -6,6 +6,7 @@
 #define SRC_MOVEMENT_CUH_
 
 #include "host_state.h"
+#include "looks.cuh"
 #include "model.h"
 
 // Directions in the Python project's VON_NEUMANN order: east, west, north, south.
@@ -31,24 +32,6 @@ __device__ __forceinline__ int wrap(int v, int n) { return ((v % n) + n) % n; }
 // A step of d along a ring of n sites, taken the shortest way: Python's (d + n // 2) % n - n // 2.
 __device__ __forceinline__ int torus_step(int d, int n) { return wrap(d + n / 2, n) - n / 2; }
 
-// A 32-bit integer hash (lowbias32: Wellons, "Prospecting for Hash Functions").
-__device__ __forceinline__ unsigned int mix32(unsigned int h) {
-    h ^= h >> 16;
-    h *= 0x7FEB352Du;
-    h ^= h >> 15;
-    h *= 0x846CA68Bu;
-    h ^= h >> 16;
-    return h;
-}
-
-// With look stride s > 1, the distance looked at in direction d (VON_NEUMANN index) and stretch k: s·k plus an offset
-// uniform on 1..s (Python look_distances). A pure function of the period's look seed, so every movement round of a
-// period sees the same sites (xl design, section 2a).
-__device__ __forceinline__ int look_distance(unsigned int look_seed, int d, int k, int stride) {
-    const unsigned int h = mix32(mix32(look_seed ^ (static_cast<unsigned int>(d) * 0x9E3779B9u)) ^
-                                 (static_cast<unsigned int>(k + 1) * 0x85EBCA6Bu));
-    return stride * k + 1 + static_cast<int>(h % static_cast<unsigned int>(stride));
-}
 
 // Propose (reads occupied, sugar, pollution, claim): the nearest best site in view that was free at the period's
 // start (occupied does not change during the sub-model) and that no earlier agent holds, scanned as candidate_sites

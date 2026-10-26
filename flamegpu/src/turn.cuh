@@ -5,6 +5,7 @@
 #define SRC_TURN_CUH_
 
 #include "movement.cuh"
+#include "sex.cuh"
 #include "store.h"
 
 template <typename API>
@@ -19,6 +20,9 @@ __device__ void take_turn(API* FLAMEGPU, const Store& s, unsigned int row) {
 
     // Move (Python movement.move after the choice, and Model.move_agent).
     const unsigned int start = s.start[row], target = s.target[row];
+    const unsigned int rank = s.rank[row];
+    touch(s, start, rank, 0);
+    touch(s, target, rank, 1);
     if (target != start) {
         s.site_row[start] = -1;
         s.site_row[target] = static_cast<int>(row);
@@ -50,9 +54,12 @@ __device__ void take_turn(API* FLAMEGPU, const Store& s, unsigned int row) {
     const int x = s.x[row], y = s.y[row];
     unsigned int n = 0;
     for (int d = 0; d < 4; ++d) {
-        n += s.site_row[wrap(x + MOVE_DX[d], w) + wrap(y + MOVE_DY[d], h) * w] >= 0 ? 1u : 0u;
+        const unsigned int site = static_cast<unsigned int>(wrap(x + MOVE_DX[d], w) + wrap(y + MOVE_DY[d], h) * w);
+        touch(s, site, rank, 2);
+        n += s.site_row[site] >= 0 ? 1u : 0u;
     }
     s.neighbors[row] = n;
+    if (env.template getProperty<unsigned int>("sex")) mate(FLAMEGPU, s, row);
 }
 
 #endif  // SRC_TURN_CUH_

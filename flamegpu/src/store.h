@@ -37,6 +37,10 @@ struct Store {
     uint64_t* tags;
     unsigned int *uid, *sex, *n_children, *parent_a, *parent_b, *friend_uid, *friend_dist, *n_friends;
     unsigned int *moved, *neighbors;
+    unsigned int* look_seed;      // the period's looks (start_period), for partners in sight
+    uint64_t* newborn_key;        // a newborn's place in creation order: its parent's rank << 32 | mating order
+    unsigned int n_rows;          // citizens this period; rows from n_rows on are newborns
+    unsigned int* newborn_count;
     // Rows: the turn's own state.
     unsigned int *start, *target;  // sites
     uint64_t* key;                 // order_key: larger is earlier
@@ -53,12 +57,35 @@ struct Store {
     unsigned int* rank_row;       // rank -> row
     // Counters (one each).
     unsigned int *errors, *ran_count, *done_count;
+    // --check: every site a turn touches must be in its footprint (touch()); the first miss is kept as
+    // {misses, site, rank, where}.
+    unsigned int check_footprints, n_unique;
+    unsigned int* footprint_miss;
 };
+
+// --check: whether (site, rank) is one of the sorted unique footprint entries; a miss is counted and the first kept.
+__device__ __forceinline__ void touch(const Store& s, unsigned int site, unsigned int rank, unsigned int where) {
+    if (!s.check_footprints) return;
+    const uint64_t want = (static_cast<uint64_t>(site) << 32) | rank;
+    unsigned int lo = 0, hi = s.n_unique;
+    while (lo < hi) {
+        const unsigned int mid = (lo + hi) / 2;
+        if (s.unique_key[mid] < want) lo = mid + 1;
+        else hi = mid;
+    }
+    if (lo < s.n_unique && s.unique_key[lo] == want) return;
+    if (atomicAdd(&s.footprint_miss[0], 1u) == 0u) {
+        s.footprint_miss[1] = site;
+        s.footprint_miss[2] = rank;
+        s.footprint_miss[3] = where;
+    }
+}
 
 // The host side of the store: allocation, the period's scheduling, and the error check.
 class StoreHost {
  public:
-    StoreHost(const RunConfig& cfg, unsigned int uid_capacity);
+    // check_footprints: --check's footprint test (touch()).
+    StoreHost(const RunConfig& cfg, unsigned int uid_capacity, bool check_footprints);
     ~StoreHost();
     StoreHost(const StoreHost&) = delete;
     StoreHost& operator=(const StoreHost&) = delete;
@@ -71,8 +98,12 @@ class StoreHost {
     void schedule(unsigned int n_rows, const RunConfig& cfg);
     // The turns that ran in the last wave, and all done so far; clears the wave's count.
     void wave_counts(unsigned int* ran, unsigned int* done);
+    // After the turns: the newborns get uids next_uid, next_uid + 1, ... in creation order; returns how many.
+    unsigned int birth_uids(unsigned int next_uid);
     // Throws CapacityError for any error bit a kernel raised.
     void check_errors();
+    // --check: the first site a turn touched outside its footprint, as {misses, site, rank, where}; clears it.
+    std::vector<unsigned int> footprint_misses();
 
  private:
     void grow_entries(size_t n);

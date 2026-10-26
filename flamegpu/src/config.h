@@ -26,6 +26,8 @@ struct IntRange {
 constexpr int MAX_TAG_BITS = 63;
 // Networks of friends (p.79): each citizen remembers at most this many.
 constexpr unsigned int MAX_FRIENDS = 5;
+// Rule S with partners in sight: the most looks along each line, vision / look_stride (24 registered).
+constexpr int MAX_SIGHT_LOOKS = 64;
 
 // One tribal starting block of Python's Config.initial_blocks: n agents of the tribe in the w x h block at x0, y0.
 struct TribeBlock {

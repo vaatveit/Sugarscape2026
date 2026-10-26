@@ -270,7 +270,8 @@ FLAMEGPU_STEP_FUNCTION(end_period) {
     s.agents_ever = s.next_uid;
     if (s.store) s.waves.push_back(s.waves_this_period);
     write_dumps(FLAMEGPU, t);
-    // R's newcomers were born on the device, one for each death (rules.cuh, output_newcomer).
-    check_invariants(FLAMEGPU, t, deaths, s.cfg.replacement ? deaths : 0u);
+    // R's newcomers were born on the device, one for each death (rules.cuh, output_newcomer), and rule S's children.
+    check_invariants(FLAMEGPU, t, deaths, (s.cfg.replacement ? deaths : 0u) + s.newborns_this_period);
+    s.newborns_this_period = 0;
     s.population = FLAMEGPU->agent("citizen").count();
 }

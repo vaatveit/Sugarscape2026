@@ -53,6 +53,7 @@ FLAMEGPU_AGENT_FUNCTION(publish, flamegpu::MessageNone, flamegpu::MessageNone) {
         s.friend_uid[row * MAX_FRIENDS + f] = FLAMEGPU->getVariable<unsigned int, MAX_FRIENDS>("friend_uid", f);
         s.friend_dist[row * MAX_FRIENDS + f] = FLAMEGPU->getVariable<unsigned int, MAX_FRIENDS>("friend_dist", f);
     }
+    s.look_seed[row] = FLAMEGPU->getVariable<unsigned int>("look_seed");
     s.moved[row] = 0u;
     s.neighbors[row] = 0u;
     s.dead[row] = 0u;
@@ -132,6 +133,30 @@ FLAMEGPU_AGENT_FUNCTION(absorb, flamegpu::MessageNone, flamegpu::MessageNone) {
     return flamegpu::ALIVE;
 }
 
+// Main model, after absorb (reads the store): each site's newborn becomes a citizen, created by the site's cell.
+FLAMEGPU_AGENT_FUNCTION(spawn_newborns, flamegpu::MessageNone, flamegpu::MessageNone) {
+    const Store& s = the_store(FLAMEGPU);
+    const int c = s.site_row[FLAMEGPU->getIndex()];  // the site index (make_cells)
+    if (c < static_cast<int>(s.n_rows)) return flamegpu::ALIVE;
+    auto& out = FLAMEGPU->agent_out;
+    out.setVariable<int>("x", s.x[c]);
+    out.setVariable<int>("y", s.y[c]);
+    out.setVariable<int>("vision", s.vision[c]);
+    out.setVariable<int>("metabolism", s.metabolism[c]);
+    out.setVariable<int>("age", s.age[c]);
+    out.setVariable<int>("max_age", s.max_age[c]);
+    out.setVariable<double>("sugar", s.sugar[c]);
+    out.setVariable<double>("initial_sugar", s.initial_sugar[c]);
+    out.setVariable<unsigned int>("uid", s.uid[c]);
+    out.setVariable<unsigned int>("sex", s.sex[c]);
+    out.setVariable<int>("fertility_start", s.fertility_start[c]);
+    out.setVariable<int>("fertility_end", s.fertility_end[c]);
+    out.setVariable<uint64_t>("tags", s.tags[c]);
+    out.setVariable<unsigned int>("parent_a", s.parent_a[c]);
+    out.setVariable<unsigned int>("parent_b", s.parent_b[c]);
+    return flamegpu::ALIVE;
+}
+
 // Main model, end of the period (writes occupied, deaths): every citizen ages; those at their maximum age die, each
 // making room for one newcomer with replacement. This period's newcomers (unplaced) are left for next period, as
 // Python spawns them after aging.
@@ -196,6 +221,26 @@ FLAMEGPU_EXIT_CONDITION(turns_done) {
     }
     FLAMEGPU->environment.setProperty<unsigned int>("wave", FLAMEGPU->environment.getProperty<unsigned int>("wave") + 1);
     return flamegpu::CONTINUE;
+}
+
+// After the turns: the period's newborns take uids in creation order (Python's new_agent ids).
+FLAMEGPU_HOST_FUNCTION(assign_births) {
+    RunState& s = state();
+    if (s.check) {  // every site a turn touched was in its footprint (store.h, touch())
+        const auto miss = s.store->footprint_misses();
+        if (miss[0]) {
+            throw InvariantError("t=" + std::to_string(FLAMEGPU->getStepCounter() + 1) + ": " + std::to_string(miss[0]) +
+                                 " sites touched outside a turn's footprint; the first: site " + std::to_string(miss[1]) +
+                                 " by the turn of rank " + std::to_string(miss[2]) + " at touch point " +
+                                 std::to_string(miss[3]));
+        }
+    }
+    s.newborns_this_period = s.store->birth_uids(s.next_uid);
+    s.next_uid += s.newborns_this_period;
+    if (s.next_uid > s.cfg.uid_capacity) {
+        throw CapacityError("uid capacity " + std::to_string(s.cfg.uid_capacity) +
+                            " exceeded: more agents created than --uid-capacity allows");
+    }
 }
 
 // R's newcomers take uids after the period's newborns, in the order of their deaths.

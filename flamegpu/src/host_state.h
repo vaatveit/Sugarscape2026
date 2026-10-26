@@ -37,6 +37,7 @@ struct RunState {
     std::unique_ptr<NewcomerUids> newcomers;
     unsigned int turn_rows = 0;          // citizens taking turns this period
     unsigned int waves_this_period = 0;
+    unsigned int newborns_this_period = 0;  // rule S's children, for --check's population count
     std::vector<unsigned int> waves;     // per completed period, for --timing's waves_mean
     // Output options.
     std::string dump_agents, dump_landscape;

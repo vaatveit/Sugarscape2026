@@ -119,8 +119,9 @@ __global__ void k_counters(unsigned int n, Store s) {
 
 }  // namespace
 
-StoreHost::StoreHost(const RunConfig& cfg, unsigned int uid_capacity) {
+StoreHost::StoreHost(const RunConfig& cfg, unsigned int uid_capacity, bool check_footprints) {
     const unsigned int cells = static_cast<unsigned int>(cfg.cells());
+    h_.check_footprints = check_footprints ? 1u : 0u;
     h_.rows_capacity = cells;  // every citizen, and every newborn, holds a site of its own
     h_.cells = cells;
     h_.uid_capacity = uid_capacity;
@@ -143,14 +144,18 @@ StoreHost::StoreHost(const RunConfig& cfg, unsigned int uid_capacity) {
     alloc(h_.key, rows);
     for (unsigned int** p : {&h_.uid, &h_.sex, &h_.n_children, &h_.parent_a, &h_.parent_b, &h_.n_friends, &h_.moved,
                              &h_.neighbors, &h_.start, &h_.target, &h_.rank, &h_.dead, &h_.done, &h_.ran,
-                             &h_.fp_count, &h_.fp_offset, &h_.rank_row}) {
+                             &h_.fp_count, &h_.fp_offset, &h_.rank_row, &h_.look_seed}) {
         alloc(*p, rows);
     }
+    alloc(h_.newborn_key, rows);
+    alloc(h_.newborn_count, 1);
     alloc(h_.friend_uid, rows * MAX_FRIENDS);
     alloc(h_.friend_dist, rows * MAX_FRIENDS);
     alloc(h_.errors, 1);
     alloc(h_.ran_count, 1);
     alloc(h_.done_count, 1);
+    alloc(h_.footprint_miss, 4);
+    check(cudaMemset(h_.footprint_miss, 0, 4 * sizeof(unsigned int)), "clearing the footprint check");
     check(cudaMemset(h_.errors, 0, sizeof(unsigned int)), "clearing the store's errors");
     alloc(rank_keys_, rows);
     alloc(rank_keys_sorted_, rows);
@@ -202,7 +207,8 @@ void StoreHost::grow_entries(size_t n) {
 }
 
 void StoreHost::prepare(unsigned int n_rows) {
-    (void)n_rows;
+    h_.n_rows = n_rows;
+    check(cudaMemset(h_.newborn_count, 0, sizeof(unsigned int)), "clearing newborn_count");
     check(cudaMemset(h_.site_row, 0xFF, sizeof(int) * h_.cells), "clearing site_row");
     check(cudaMemset(h_.target_row, 0xFF, sizeof(int) * h_.cells), "clearing target_row");
     check(cudaMemcpy(d_store_, &h_, sizeof(Store), cudaMemcpyHostToDevice), "uploading the store");
@@ -231,7 +237,7 @@ void StoreHost::schedule(unsigned int n, const RunConfig& cfg) {
     cub::DeviceRadixSort::SortPairs(temp_, bytes, rank_keys_, rank_keys_sorted_, rank_rows_, h_.rank_row, n);
     k_ranks<<<blocks(n), BLOCK>>>(n, h_.rank_row, h_);
     // Footprints: count, offsets, fill.
-    const FootprintEnv env{cfg.width, cfg.height};
+    const FootprintEnv env{cfg.width, cfg.height, cfg.look_stride, cfg.sex, cfg.mate_contact == "vision"};
     k_fp_count<<<blocks(n), BLOCK>>>(n, h_, env);
     bytes = 0;
     cub::DeviceScan::ExclusiveSum(nullptr, bytes, h_.fp_count, h_.fp_offset, n);
@@ -277,13 +283,61 @@ void StoreHost::schedule(unsigned int n, const RunConfig& cfg) {
     cub::DeviceScan::InclusiveSum(temp_, bytes, start_flag_, h_.entry_group, unique);
     k_groups<<<blocks(unique), BLOCK>>>(unique, start_flag_, h_);
     k_counters<<<blocks(unique), BLOCK>>>(unique, h_);
+    h_.n_unique = unique;
+    check(cudaMemcpy(d_store_, &h_, sizeof(Store), cudaMemcpyHostToDevice), "uploading the store");
     check(cudaDeviceSynchronize(), "scheduling the turns");
+}
+
+std::vector<unsigned int> StoreHost::footprint_misses() {
+    std::vector<unsigned int> miss(4);
+    check(cudaMemcpy(miss.data(), h_.footprint_miss, 4 * sizeof(unsigned int), cudaMemcpyDeviceToHost),
+          "reading the footprint check");
+    check(cudaMemset(h_.footprint_miss, 0, 4 * sizeof(unsigned int)), "clearing the footprint check");
+    return miss;
 }
 
 void StoreHost::wave_counts(unsigned int* ran, unsigned int* done) {
     check(cudaMemcpy(ran, h_.ran_count, sizeof(unsigned int), cudaMemcpyDeviceToHost), "reading ran_count");
     check(cudaMemcpy(done, h_.done_count, sizeof(unsigned int), cudaMemcpyDeviceToHost), "reading done_count");
     check(cudaMemset(h_.ran_count, 0, sizeof(unsigned int)), "clearing ran_count");
+}
+
+namespace {
+
+__global__ void k_newborn_keys(unsigned int n, unsigned int first, const uint64_t* key, uint64_t* keys, unsigned int* rows) {
+    const unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i >= n) return;
+    keys[i] = key[first + i];
+    rows[i] = first + i;
+}
+
+__global__ void k_newborn_uids(unsigned int n, const unsigned int* sorted_rows, Store s, unsigned int base) {
+    const unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i >= n) return;
+    const unsigned int uid = base + i;
+    const unsigned int row = sorted_rows[i];
+    s.uid[row] = uid;
+    if (uid < s.uid_capacity) s.uid_row[uid] = static_cast<int>(row);
+}
+
+}  // namespace
+
+unsigned int StoreHost::birth_uids(unsigned int next_uid) {
+    unsigned int n = 0;
+    check(cudaMemcpy(&n, h_.newborn_count, sizeof(unsigned int), cudaMemcpyDeviceToHost), "reading newborn_count");
+    if (n == 0) return 0;
+    k_newborn_keys<<<blocks(n), BLOCK>>>(n, h_.n_rows, h_.newborn_key, rank_keys_, rank_rows_);
+    size_t bytes = 0;
+    cub::DeviceRadixSort::SortPairs(nullptr, bytes, rank_keys_, rank_keys_sorted_, rank_rows_, h_.rank_row, n);
+    if (bytes > temp_bytes_) {
+        cudaFree(temp_);
+        check(cudaMalloc(&temp_, bytes), "allocating scheduler scratch");
+        temp_bytes_ = bytes;
+    }
+    cub::DeviceRadixSort::SortPairs(temp_, bytes, rank_keys_, rank_keys_sorted_, rank_rows_, h_.rank_row, n);
+    k_newborn_uids<<<blocks(n), BLOCK>>>(n, h_.rank_row, h_, next_uid);
+    check(cudaDeviceSynchronize(), "assigning newborn uids");
+    return n;
 }
 
 void StoreHost::check_errors() {

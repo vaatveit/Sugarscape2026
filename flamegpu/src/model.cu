@@ -78,6 +78,18 @@ void describe_turns(flamegpu::ModelDescription& sub, const RunConfig& cfg) {
     env.newProperty<uint64_t>("store", 0);
     env.newProperty<unsigned int>("serial_turns", 0u);
     env.newProperty<unsigned int>("wave", 0u);
+    env.newProperty<unsigned int>("look_stride", 1u);
+    // Rule S (sex.cuh); the parent model's values reach these through the sub-environment.
+    env.newProperty<unsigned int>("sex", 0u);
+    env.newProperty<unsigned int>("tag_length", 0u);
+    for (const char* name : {"mate_vision", "child_capped", "child_redraw", "gift_down"}) env.newProperty<unsigned int>(name, 0u);
+    env.newProperty<double>("fertility_threshold", 1.0);
+    env.newProperty<double>("child_share", 0.5);
+    for (const char* name : {"endowment_lo", "endowment_hi", "fertility_start_lo", "fertility_start_hi",
+                             "female_fertility_end_lo", "female_fertility_end_hi", "male_fertility_end_lo",
+                             "male_fertility_end_hi"}) {
+        env.newProperty<int>(name, 0);
+    }
     env.newMacroProperty<unsigned int, MAX_CELLS>("occupied");
     env.newMacroProperty<float, MAX_CELLS>("sugar");
     env.newMacroProperty<float, MAX_CELLS>("pollution");
@@ -122,6 +134,13 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
     env.newProperty<int>("female_fertility_end_hi", cfg.female_fertility_end.hi);
     env.newProperty<int>("male_fertility_end_lo", cfg.male_fertility_end.lo);
     env.newProperty<int>("male_fertility_end_hi", cfg.male_fertility_end.hi);
+    // Rule S's options (sex.cuh).
+    env.newProperty<unsigned int>("mate_vision", cfg.mate_contact == "vision" ? 1u : 0u);
+    env.newProperty<unsigned int>("child_capped", cfg.child_gift == "capped" ? 1u : 0u);
+    env.newProperty<unsigned int>("child_redraw", cfg.child_threshold == "redraw" ? 1u : 0u);
+    env.newProperty<unsigned int>("gift_down", cfg.gift_rounding == "down" ? 1u : 0u);
+    env.newProperty<double>("fertility_threshold", cfg.fertility_threshold);
+    env.newProperty<double>("child_share", cfg.child_share);
     env.newProperty<unsigned int>("t", 0u);
     env.newProperty<unsigned int>("round", 1u);
     env.newProperty<unsigned int>("seasons_beta", cfg.seasons ? static_cast<unsigned int>(cfg.seasons->first) : 0u);
@@ -187,7 +206,7 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
         // With an interaction rule, every turn after movement runs in the period's order (spec
         // 2026-10-25-gpu-full-parity, sections 1 and 2): publish, schedule, the turns, absorb, then old age.
         RunState& s = state();
-        s.store = std::make_unique<StoreHost>(cfg, cfg.uid_capacity);
+        s.store = std::make_unique<StoreHost>(cfg, cfg.uid_capacity, s.check);
         env.setProperty<uint64_t>("store", s.store->device_address());
         flamegpu::ModelDescription turns("turns");  // sorts after "movement": its random stream stays as it was
         describe_turns(turns, cfg);
@@ -198,10 +217,14 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
         model.newLayer().addAgentFunction(citizen.newFunction("publish", publish));
         model.newLayer().addHostFunction(schedule_turns);
         model.newLayer().addSubModel(turns_sub);
+        model.newLayer().addHostFunction(assign_births);
         flamegpu::AgentFunctionDescription absorb_fn = citizen.newFunction("absorb", absorb);
         absorb_fn.setAllowAgentDeath(true);
         if (cfg.replacement) absorb_fn.setAgentOutput(citizen);
         model.newLayer().addAgentFunction(absorb_fn);
+        flamegpu::AgentFunctionDescription spawn_fn = cell.newFunction("spawn_newborns", spawn_newborns);
+        spawn_fn.setAgentOutput(citizen);
+        model.newLayer().addAgentFunction(spawn_fn);
         flamegpu::AgentFunctionDescription age_fn = citizen.newFunction("age_and_die", age_and_die);
         age_fn.setAllowAgentDeath(true);
         if (cfg.replacement) age_fn.setAgentOutput(citizen);
