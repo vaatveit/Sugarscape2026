@@ -53,9 +53,10 @@ class Config:
     # Passes of the D rule per diffusion period. xl sets 100, so pollution spreads over the same share of a 10x finer
     # world (docs/xl.md). Left out of repr, like the rule S options, so no existing fingerprint changes.
     diffusion_passes: int = field(default=1, repr=False)
-    # Along each lattice line, agents look at one random site in each stretch of look_stride sites (rules M and C, and
-    # rule S's partners in sight), and vision is drawn in whole strides. xl sets 10, so an agent checks as many sites
-    # per look as in the regular run, over the same distance (docs/xl.md). Left out of repr, like diffusion_passes.
+    # Along each lattice line, agents look at one random site for each whole look_stride of vision, centred on it
+    # (rules M and C, and rule S's partners in sight), and vision is drawn in whole strides. xl sets 10, so an agent
+    # checks as many sites per look as in the regular run, as far away on average (docs/xl.md). Left out of repr,
+    # like diffusion_passes.
     look_stride: int = field(default=1, repr=False)
 
     # Chapter III. Every new random draw is gated by one of these, so Chapter II runs keep
@@ -114,13 +115,6 @@ class Config:
             rng = getattr(self, name)
             if rng is not None and rng[0] > rng[1]:
                 raise ValueError(f"{name} range {rng} has low > high")
-        # Agents see only along the four lattice directions; a vision of half the grid or
-        # more would let opposite scans reach the same sites (Kehoe: MAXVISION << M).
-        if self.vision[1] * 2 >= min(self.width, self.height):
-            raise ValueError(
-                f"max vision {self.vision[1]} must be less than half the grid "
-                f"({self.width}x{self.height})"
-            )
         if self.replacement and self.max_age is None:
             raise ValueError("replacement R[a,b] needs a max_age range [a, b]")
         for name, allowed in (("mate_contact", MATE_CONTACTS), ("child_gift", CHILD_GIFTS),
@@ -150,6 +144,15 @@ class Config:
             raise ValueError(f"look_stride must be a whole number >= 1, not {stride!r}")
         if self.vision[0] % stride or self.vision[1] % stride:
             raise ValueError(f"vision range {self.vision} must be in whole look strides of {stride}")
+        # Agents see only along the four lattice directions; a vision of half the grid or
+        # more would let opposite scans reach the same sites (Kehoe: MAXVISION << M). With a
+        # look stride s, the farthest look is s - 1 sites past vision.
+        reach = self.vision[1] + stride - 1
+        if reach * 2 >= min(self.width, self.height):
+            raise ValueError(
+                f"max vision {self.vision[1]} (looking up to {reach} sites away) must be less than half the grid "
+                f"({self.width}x{self.height})"
+            )
         if self.pollution is not None and min(self.pollution) < 0:
             raise ValueError(f"pollution coefficients must be >= 0, not {self.pollution}")
         _, _, w, h = self.block

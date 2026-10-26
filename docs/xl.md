@@ -58,7 +58,7 @@ per site or per period is unchanged.
 | Capacity map | `sugar-map.txt` | `sugar-map-xl.txt` |
 | Initial agents | N | 100 · N |
 | Vision range [lo, hi] | e.g. [1, 6] | [10 · lo, 10 · hi], in steps of 10: each agent draws 10 · v, with v uniform on lo … hi, e.g. 10, 20, … 60. |
-| Look stride k: along each lattice line, agents look at one random site in each stretch of k sites | 1 | 10 |
+| Look stride k: along each lattice line, agents look at one random site for each k of vision, centred k, 2k, … sites away | 1 | 10 |
 | Starting block (x0, y0, w, h), for block placement | e.g. (0, 0, 20, 20) | (10 · x0, 10 · y0, 10 · w, 10 · h) |
 | Tribal starting blocks (tribe, x0, y0, w, h, n) | e.g. (blue, 0, 0, 20, 20, 270) | (tribe, 10 · x0, 10 · y0, 10 · w, 10 · h, 100 · n) |
 | Diffusion passes per diffusion period (rule D) | 1 | 100 |
@@ -72,30 +72,55 @@ Notes:
   spreads pollution about 0.7 sites (standard deviation). Spread grows as the square root of the number of passes,
   so 100 passes reach 10× as many sites: the same share of the world.
 - **Looking.** Every rule that looks along the lattice out to vision looks, in each of the four directions, at one
-  site drawn uniformly from each stretch of 10: one of the sites 1–10 away, one of 11–20, and so on out to vision.
-  Each stretch, direction and look gets its own draw. These rules are movement (rule M), combat (rule C: its target
-  search, and its check for retaliation from the site it would take) and mate search within vision (the reference
-  model's default rule S contact). So an agent reaches as far in world terms as in the regular run, checks as many
-  sites, and can land on any site. Everything else about the rules is unchanged: the nearest of the best sites
-  wins, by its actual distance.
+  site for each 10 of vision. For k = 1, 2, … vision / 10, the k-th site is 10k + a − b sites away, with a and b
+  each drawn uniformly from 0 … 9: that is how far a random site of the regular cell k cells away lies from a random
+  site of one's own regular cell. The distance runs from 10k − 9 to 10k + 9, peaked at 10k (a triangular
+  distribution). Neighbouring sites' ranges overlap, so the same distance can come up twice. It is looked at once,
+  and the distances are taken nearest first. The farthest look is vision + 9 sites away. Each direction and look
+  gets its own draws.
+  These rules are movement (rule M), combat (rule C: its target search, and its check for retaliation from the site
+  it would take) and mate search within vision (the reference model's default rule S contact). Partners in sight
+  are taken nearest first across all four directions, east, west, north, south at equal distances. So an agent
+  checks as many sites as in the regular run, as far away on average, and can land on any site. Everything else
+  about the rules is unchanged: the nearest of the best sites wins, by its actual distance.
 - **Why the stride.** Looking at every site gave each agent 10× as many sites to choose from, with crowding
   unchanged, so an agent almost always found a site that had regrown enough. In II-4, agents with metabolism 3 and
   low vision then broke even instead of running at a loss, nobody starved after t ≈ 80, and the regular run's slow
   die-off (about 4% of the population between t = 100 and 500, all of them metabolism 3 and vision 1–4)
-  disappeared. With the stride, II-4's population at each of t = 60, 100, 200, 300 and 500 is within 1.2% of 100 ×
-  the regular run's, and its mean sugar, mean metabolism, Gini and share of agents on capacity-3 or -4 sites are
-  within 1.5% (10 seeds; t = 401–500 for the last four).
-- **Why one random site per stretch, not every 10th site.** Looking exactly 10, 20, … sites away matched II-4 as
+  disappeared. With the stride, II-4's population at each of t = 60, 100, 200, 300 and 500 is 2.5–3.4% above 100 ×
+  the regular run's. Its mean sugar, mean metabolism, Gini and share of agents on capacity-3 or -4 sites are within
+  1.1% (10 seeds; t = 401–500 for the last four).
+- **Why centred.** An earlier version drew each site uniformly from its stretch: one of the sites 1–10 away, one of
+  11–20, and so on. Those average 5.5, 15.5, … sites, 4.5 sites nearer than the 10, 20, … of the regular cells they
+  stand for, so xl agents saw about half a regular site less far. That cost little in II-4 (population within 1.2%
+  of regular), but IV-A3's population fell 13–23% below regular from t = 25 to 300. It fell 25% below at t = 100
+  with trade switched off at both scales too, so trade wasn't the cause. With centred sites, IV-A3's population is
+  within 6% of regular at every checkpoint from t = 10 to 300: 124.6, 87.1, 69.0, 42.3 and 32.1 against 126.0,
+  90.4, 73.2, 44.0 and 33.7 at t = 25, 50, 100, 200 and 300. Regular seeds differ from each other by a standard
+  deviation of 5.7–9.5 agents there (10 seeds each).
+- **Why random sites, not every 10th site.** Looking exactly 10, 20, … sites away matched II-4 as
   well, but an agent moving in steps of 10 never changes its x mod 10 or y mod 10. The world split into 100
   interleaved 50 × 50 worlds that never competed for food: 100 regular runs side by side, not one finer world.
-- **Neighbours.** Agents have more adjacent neighbours than in the regular run: 0.99 per agent against 0.79 in II-4
-  (t = 401–500; 1.03 with the every-10th-site look). The cause isn't known. Finer peak edges account for only a
-  little of it: a capacity-3 or -4 site has 0.994 of its four neighbours on such sites on the xl map, against 0.944
-  on the regular map. II-4 doesn't use neighbours, but trade, culture, disease and rule S with the four-neighbour
-  contact do.
+- **Neighbours.** Agents have more adjacent neighbours than in the regular run: 1.07 per agent against 0.79 in II-4
+  (t = 401–500), and 0.58 against 0.26 in IV-A3 (t = 201–300). The cause is adjacency itself, which is one site at
+  both scales even though one regular site stands for a 10 × 10 block of xl sites:
+  - In a regular run, 72% of moves are one site long, so the site an agent just left is usually next to it, eaten
+    and empty: 77% of agents have one of their own last two sites adjacent. In xl, moves are many sites long, and
+    only 15% of agents do.
+  - The terrain-corrected chance of finding another agent one site away, relative to chance, is 0.85 in regular II-4
+    against 0.99 in xl. Leaving each agent's own trail out, it is 1.06–1.09 against 1.02.
+  - These figures were measured with the earlier uniform look. Finer peak edges account for only a little of the
+    gap: a capacity-3 or -4 site has 0.994 of its four neighbours on such sites on the xl map, against 0.944 on the
+    regular map.
+
+  II-4 doesn't use neighbours, but trade, culture, disease and rule S with the four-neighbour contact do. In IV-A3,
+  xl agents trade twice as often each (37.9 trades a period, divided by 100, against 18.0, with about as many
+  agents), and prices spread more (standard deviation 0.56 against 0.36). Mean sugar is 14% lower, and the Gini
+  0.38 against 0.35. Making the neighbourhood scale with the map would be a change to the rules, not yet decided.
 - **Seasons** split the world into northern and southern halves at y = 250.
-- **The largest registered vision** is [5, 24], which becomes [50, 240]. That is still less than half of 500, so
-  opposite lattice scans never reach the same site.
+- **The largest registered vision** is [5, 24], which becomes [50, 240]. Its farthest look, 249 sites, is still
+  less than half of 500, so opposite lattice scans never reach the same site. `Config` refuses any vision whose
+  farthest look (vision + look stride − 1) reaches half the grid.
 - **Agreement is statistical.** An xl run's random stream differs from its regular run's, so implementations
   agree statistically, never site by site.
 
@@ -129,8 +154,11 @@ That belongs to the comparison work.
 - `python -m viewer`: tick **xl** before Start to watch an xl run. Each site is drawn as one solid colour, with no
   smoothing. The landscape is paler and agents fill their site in colours that stand out against every site (3:1
   contrast or better). Agent size is off, and the newest 100 periods are kept.
-- **Speed**, one process: about 2.4 s per period for II-4's rules early on (40,000 agents), and 6.5 s per period
-  early in VI-1. Ten II-4 seeds sharing the processor (`--jobs 10`) averaged 1.8 s per period over 500 periods.
+- **Speed**, one process: about 2.4 s per period for II-4's rules early on (40,000 agents). The centred look's
+  extra draws and sorting account for about a quarter of that: 2.43 s against 1.89 s with the earlier uniform look,
+  timed together over t = 3–10. Early in VI-1 it was 6.5 s per period with the uniform look. Ten II-4 seeds sharing
+  the processor (`--jobs 10`) averaged 3.2 s per period over 500 periods, with other programs also running (1.8 s
+  with the uniform look on a quieter machine). IV-A3 alone averaged 1.1 s per period over 300 periods.
   Replacement (rule R) costs little: II-4-gini, which adds it to II-4's rules and replaces about 900 agents a
   period, took 1.13 s per period against II-4's 1.17 s, timed together over t = 3–7. Scanning all 250,000 sites
   for each newcomer's site had taken 12.95 s.

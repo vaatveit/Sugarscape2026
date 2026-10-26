@@ -1,8 +1,8 @@
-"""Config.look_stride: agents look at one random site in each stretch of look_stride sites along each lattice line
-(docs/xl.md, "Looking").
+"""Config.look_stride: along each lattice line, agents look at one random site for each whole stride of vision,
+centred on that stride: stretch k is seen at distance s*k + (U{0..s-1} - U{0..s-1}) (docs/xl.md, "Looking").
 
-xl sets 10, so an agent checks as many sites per look as in the regular run, over the same distance, and can still
-land on any site.
+xl sets 10, so an agent checks as many sites per look as in the regular run, as far away on average as the regular
+sites they stand for, and can still land on any site.
 """
 
 from collections import Counter
@@ -33,6 +33,13 @@ def test_vision_bounds_must_be_multiples_of_the_stride():
     Config(width=100, height=100, vision=(10, 40), look_stride=10)
 
 
+def test_vision_plus_the_look_reach_must_stay_under_half_the_grid():
+    # The farthest look is vision + stride - 1 sites away; opposite scans must not reach the same site.
+    with pytest.raises(ValueError):
+        Config(width=21, height=21, vision=(2, 10), look_stride=2)  # reaches 11
+    Config(width=21, height=21, vision=(2, 8), look_stride=2)  # reaches 9
+
+
 def test_default_stride_leaves_repr_alone():
     assert "look_stride" not in repr(Config())
 
@@ -53,44 +60,68 @@ def test_stride_1_looks_at_every_site_without_drawing():
     assert m.rng.bit_generator.state == before  # regular random streams are unchanged
 
 
-def test_one_distance_from_each_stretch_each_uniform():
-    m = stride_model(stride=5, vision=15, size=40)
-    looks = [look_distances(m, 15) for _ in range(3000)]
-    assert all(len(d) == 3 and 1 <= d[0] <= 5 and 6 <= d[1] <= 10 and 11 <= d[2] <= 15 for d in looks)
-    counts = Counter(d[1] for d in looks)
-    assert set(counts) == {6, 7, 8, 9, 10} and min(counts.values()) > 3000 / 5 * 0.8
+def test_a_stretch_is_seen_at_a_triangular_distance_centred_on_its_stride():
+    # Where a random site of the regular cell one stride away lies from a random site of one's own cell.
+    s, n = 5, 10000
+    m = stride_model(stride=s, vision=s, size=40)
+    counts = Counter(d for _ in range(n) for d in look_distances(m, s))
+    assert set(counts) == set(range(1, 2 * s))
+    for d in range(1, 2 * s):
+        expected = n * (s - abs(d - s)) / s**2
+        assert abs(counts[d] - expected) < 5 * expected**0.5, d
 
 
-def test_movement_looks_at_one_site_per_stretch_in_each_direction():
+def test_distances_are_distinct_sorted_and_cover_every_stretch():
+    s, vision = 5, 15
+    m = stride_model(stride=s, vision=vision, size=40)
+    means = []
+    for _ in range(3000):
+        d = look_distances(m, vision)
+        assert d == sorted(set(d)) and 1 <= d[0] and d[-1] <= vision + s - 1 and len(d) <= vision // s
+        assert all(any(s * k - (s - 1) <= x <= s * k + (s - 1) for x in d) for k in (1, 2, 3))
+        if len(d) == 3:
+            means.append(d)
+    assert [round(sum(x[i] for x in means) / len(means)) for i in range(3)] == [5, 10, 15]
+
+
+def test_movement_looks_at_a_site_per_stretch_in_each_direction():
     m = stride_model()
     g = put_agent(m, 10, 10, vision=4)
     seen = Counter()
     for _ in range(LOOKS):
         sites = candidate_sites(m, g)
         dists = [d for _, _, d in sites]
-        assert len(sites) == 1 + 4 * 2 and dists.count(0) == 1
-        assert sum(d in (1, 2) for d in dists) == 4 and sum(d in (3, 4) for d in dists) == 4
+        assert 1 + 4 <= len(sites) <= 1 + 4 * 2 and dists.count(0) == 1
+        assert sum(d in (1, 2, 3) for d in dists) >= 4 and sum(d in (3, 4, 5) for d in dists) >= 4
         seen.update(dists)
-    assert set(seen) == {0, 1, 2, 3, 4}
+    assert set(seen) == {0, 1, 2, 3, 4, 5}
 
 
 def test_partners_in_sight_one_site_per_stretch():
+    m = stride_model(stride=2, vision=2)
+    g = put_agent(m, 10, 10, vision=2)
+    near, far = put_agent(m, 11, 10), put_agent(m, 12, 10)  # the one stretch of the line: seen at 1, 2 or 3
+    outcomes = Counter(tuple(a.id for a in in_sight(m, g)) for _ in range(LOOKS))
+    assert set(outcomes) == {(near.id,), (far.id,), ()}
+
+
+def test_partners_in_sight_come_nearest_first_across_directions():
     m = stride_model()
     g = put_agent(m, 10, 10, vision=4)
-    near, far = put_agent(m, 11, 10), put_agent(m, 12, 10)  # the same stretch of the same line
-    outcomes = Counter(tuple(a.id for a in in_sight(m, g)) for _ in range(LOOKS))
-    assert set(outcomes) == {(near.id,), (far.id,)}
+    east, north = put_agent(m, 13, 10), put_agent(m, 10, 12)  # east is listed first among equals; north is nearer
+    both = [found for found in (in_sight(m, g) for _ in range(LOOKS)) if len(found) == 2]
+    assert both and all(found == [north, east] for found in both)
 
 
-def test_combat_looks_at_one_site_per_stretch():
+def test_combat_looks_at_a_site_per_stretch():
     m = stride_model(combat_alpha=2.0, tag_length=3)
     g = put_agent(m, 10, 10, vision=4)
     seen = Counter()
     for _ in range(LOOKS):
         dists = [c[2] for c in combat_candidates(m, g)]
-        assert len(dists) == 1 + 4 * 2
+        assert 1 + 4 <= len(dists) <= 1 + 4 * 2
         seen.update(dists)
-    assert set(seen) == {0, 1, 2, 3, 4}
+    assert set(seen) == {0, 1, 2, 3, 4, 5}
 
 
 BLUE, RED = [0, 0, 0], [1, 1, 1]  # tribe by tag majority (p.73)
@@ -100,7 +131,7 @@ def test_retaliation_is_looked_for_one_site_per_stretch():
     m = stride_model(combat_alpha=2.0, tag_length=3)
     g = put_agent(m, 10, 10, vision=4, sugar=1.0)
     g.tags = BLUE
-    rival = put_agent(m, 13, 10, sugar=50.0)  # distance 1 from the site (12, 10): seen in about half the looks
+    rival = put_agent(m, 13, 10, sugar=50.0)  # distance 1 from the site (12, 10): seen in about a quarter of looks
     rival.tags = RED
     outcomes = Counter(vulnerable(m, g, 12, 10, 0.0, None) for _ in range(LOOKS))
     assert set(outcomes) == {True, False}

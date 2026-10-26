@@ -36,13 +36,13 @@ def _empty_sites(model, agent) -> list[tuple[int, int]]:
 def in_sight(model, agent) -> list:
     """Agents within the agent's vision along the four lattice directions (rule M's lookout), nearest first:
     the partners of mate_contact="vision" (README candidate C1)."""
-    lines = [(dx, dy, look_distances(model, agent.vision)) for dx, dy in VON_NEUMANN]
+    looks = [(dist, i) for i in range(4) for dist in look_distances(model, agent.vision)]
     found = []
-    for k in range(len(lines[0][2])):  # stretch by stretch, so nearest first
-        for dx, dy, dists in lines:
-            other = model.agent_at(agent.x + dx * dists[k], agent.y + dy * dists[k])
-            if other is not None:
-                found.append(other)
+    for dist, i in sorted(looks):  # nearest first; at equal distance, in VON_NEUMANN order
+        dx, dy = VON_NEUMANN[i]
+        other = model.agent_at(agent.x + dx * dist, agent.y + dy * dist)
+        if other is not None:
+            found.append(other)
     return found
 
 

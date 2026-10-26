@@ -902,8 +902,8 @@ suite runs them too when Node is installed.
 ## xl
 
 xl is the sugarscape at 10× the resolution: 500 × 500 sites, 100× the agents, vision, starting blocks and pollution
-diffusion scaled to match, and agents looking at one random site in every 10 along their lines of sight, so a run
-looks like a regular one, only more detailed. It is the shared workload for comparing this model with the FLAME GPU
+diffusion scaled to match, and agents looking along their lines of sight at one random site for every 10 of vision,
+centred where the regular site it stands for would be, so a run looks like a regular one, only more detailed. It is the shared workload for comparing this model with the FLAME GPU
 port and the Julia version in `julia/`. [docs/xl.md](docs/xl.md) is the contract for other implementations: the map file
 and its checksum, the configuration table, and the timing measures.
 
