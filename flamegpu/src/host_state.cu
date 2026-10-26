@@ -130,13 +130,14 @@ flamegpu::AgentVector make_citizens(flamegpu::ModelDescription& model, const std
                         a.max_age.value_or(IMMORTAL));
             agent.setVariable<double>("initial_sugar", a.initial_sugar.value_or(a.sugar));
             agent.setVariable<uint64_t>("tags", a.tags);
+            agent.setVariable<unsigned int>("n_children", a.n_children);
             if (a.sex != SEX_NONE) {
                 agent.setVariable<unsigned int>("sex", a.sex);
                 agent.setVariable<int>("fertility_start", a.fertility_start.value_or(NO_FERTILITY_START));
                 agent.setVariable<int>("fertility_end", a.fertility_end.value_or(NO_FERTILITY_END));
             }
         }
-        s.next_uid = static_cast<unsigned int>(init->size());
+        s.next_uid = s.agents_ever = static_cast<unsigned int>(init->size());
         return pop;
     }
     const auto sites = founder_sites(s.rng, cfg);
@@ -157,7 +158,7 @@ flamegpu::AgentVector make_citizens(flamegpu::ModelDescription& model, const std
         if (cfg.tag_length) agent.setVariable<uint64_t>("tags", random_tags(s.rng, cfg.tag_length, sites[i].second));
         if (cfg.sex) assign_sex(agent, s.rng, cfg, std::uniform_int_distribution<int>(0, 1)(s.rng) == 0 ? SEX_F : SEX_M);
     }
-    s.next_uid = static_cast<unsigned int>(n);
+    s.next_uid = s.agents_ever = static_cast<unsigned int>(n);
     // Founders of a society with finite lives start at ages U[0, max age) (Python Config.founder_ages).
     if (cfg.max_age && cfg.founder_ages == "uniform") {
         for (size_t i = 0; i < n; ++i) {
@@ -203,7 +204,17 @@ void write_metrics(flamegpu::CUDASimulation* simulation, flamegpu::AgentVector& 
     c.sugar = column<double>(pop, "sugar");
     c.moved = column<uint32_t>(pop, "moved");
     c.neighbors = column<uint32_t>(pop, "neighbors");
-    const auto row = compute_metrics(c, s.cfg, s.capacity, t);
+    c.tags = column<uint64_t>(pop, "tags");
+    c.uid = column<uint32_t>(pop, "uid");
+    c.n_children = column<uint32_t>(pop, "n_children");
+    c.n_friends = column<uint32_t>(pop, "n_friends");
+    c.disp_x = column<int>(pop, "disp_x");
+    c.disp_y = column<int>(pop, "disp_y");
+    {
+        const uint32_t* f = pop.size() ? pop.data<uint32_t>("friend_uid") : nullptr;
+        c.friend_uid = f ? std::vector<uint32_t>(f, f + pop.size() * MAX_FRIENDS) : std::vector<uint32_t>();
+    }
+    const auto row = compute_metrics(c, s.cfg, s.capacity, t, s.agents_ever);
     s.metrics_seconds += std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
     s.csv->write(row);
 }
@@ -257,6 +268,7 @@ FLAMEGPU_STEP_FUNCTION(end_period) {
     auto deaths_prop = FLAMEGPU->environment.getMacroProperty<unsigned int>("deaths");
     const unsigned int deaths = deaths_prop;
     deaths_prop = 0u;
+    s.agents_ever = FLAMEGPU->environment.getMacroProperty<unsigned int>("next_uid");
     write_dumps(FLAMEGPU, t);
     // R's newcomers were born on the device, one for each death (rules.cuh, output_newcomer).
     check_invariants(FLAMEGPU, t, deaths, s.cfg.replacement ? deaths : 0u);

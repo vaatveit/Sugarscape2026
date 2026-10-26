@@ -24,6 +24,8 @@ struct IntRange {
 
 // The most cultural tag bits a citizen holds (one uint64_t; spec 2026-10-25-gpu-full-parity, section 5).
 constexpr int MAX_TAG_BITS = 63;
+// Networks of friends (p.79): each citizen remembers at most this many.
+constexpr unsigned int MAX_FRIENDS = 5;
 
 // One tribal starting block of Python's Config.initial_blocks: n agents of the tribe in the w x h block at x0, y0.
 struct TribeBlock {

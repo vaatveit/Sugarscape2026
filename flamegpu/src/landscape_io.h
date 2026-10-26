@@ -21,7 +21,7 @@ std::vector<uint32_t> tile_map(const std::vector<uint32_t>& map, int w, int h, i
 
 // One starting agent from --init (header x,y,vision,metabolism,sugar,age,max_age; max_age blank = immortal), with
 // optional further columns by name: sex (F, M or blank), fertility_start, fertility_end, initial_sugar (default
-// sugar) and tags (a 0/1 string, tag 0 first).
+// sugar), tags (a 0/1 string, tag 0 first) and n_children.
 struct InitAgent {
     int x, y, vision, metabolism;
     double sugar;
@@ -31,6 +31,7 @@ struct InitAgent {
     std::optional<int> fertility_start, fertility_end;
     std::optional<double> initial_sugar;
     uint64_t tags = 0;
+    unsigned int n_children = 0;  // children had before the run (tests: mean_children)
 };
 
 // Throws MapError naming the file and line on a bad header, field, or site outside width x height, or two

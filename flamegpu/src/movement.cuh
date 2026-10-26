@@ -28,6 +28,9 @@ __device__ __forceinline__ uint64_t order_key(unsigned int priority, flamegpu::i
 
 __device__ __forceinline__ int wrap(int v, int n) { return ((v % n) + n) % n; }
 
+// A step of d along a ring of n sites, taken the shortest way: Python's (d + n // 2) % n - n // 2.
+__device__ __forceinline__ int torus_step(int d, int n) { return wrap(d + n / 2, n) - n / 2; }
+
 // A 32-bit integer hash (lowbias32: Wellons, "Prospecting for Hash Functions").
 __device__ __forceinline__ unsigned int mix32(unsigned int h) {
     h ^= h >> 16;
@@ -143,8 +146,15 @@ FLAMEGPU_AGENT_FUNCTION(commit_move, flamegpu::MessageNone, flamegpu::MessageNon
         auto occupied = FLAMEGPU->environment.getMacroProperty<unsigned int, MAX_CELLS>("occupied");
         occupied[own].exchange(0u);
         occupied[site].exchange(1u);
-        FLAMEGPU->setVariable<int>("x", static_cast<int>(site % w));
-        FLAMEGPU->setVariable<int>("y", static_cast<int>(site / w));
+        const int h = static_cast<int>(FLAMEGPU->environment.getProperty<unsigned int>("height"));
+        const int nx = static_cast<int>(site % w), ny = static_cast<int>(site / w);
+        // Net displacement, the shortest way round the torus (Python Model.move_agent).
+        FLAMEGPU->setVariable<int>("disp_x", FLAMEGPU->getVariable<int>("disp_x") +
+                                                 torus_step(nx - FLAMEGPU->getVariable<int>("x"), static_cast<int>(w)));
+        FLAMEGPU->setVariable<int>("disp_y", FLAMEGPU->getVariable<int>("disp_y") +
+                                                 torus_step(ny - FLAMEGPU->getVariable<int>("y"), h));
+        FLAMEGPU->setVariable<int>("x", nx);
+        FLAMEGPU->setVariable<int>("y", ny);
         FLAMEGPU->setVariable<unsigned int>("moved", 1u);
     }
     auto sugar = FLAMEGPU->environment.getMacroProperty<float, MAX_CELLS>("sugar");
