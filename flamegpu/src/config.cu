@@ -13,10 +13,10 @@
 
 namespace {
 
-// Python Config fields the GPU does not implement yet (spec 2026-10-25-gpu-full-parity, Parts B to D). sugar_map is
+// Python Config fields the GPU does not implement yet (spec 2026-10-25-gpu-full-parity, Parts C and D). sugar_map is
 // run.cfg's map path.
 const std::set<std::string> UNSUPPORTED = {
-    "sugar_map", "combat_alpha", "replacement_same_tribe", "spice", "spice_metabolism", "spice_endowment",
+    "sugar_map", "spice", "spice_metabolism", "spice_endowment",
     "foresight", "cultural_preferences", "trade", "trade_rounding", "credit", "disease_list",
     "diseases_per_agent", "disease_length", "immune_length", "disease_fee"};
 
@@ -161,7 +161,7 @@ const std::set<std::string> KNOWN = {
     "pollution_start", "pollution_stop", "diffusion_period", "diffusion_start", "diffusion_passes", "look_stride", "steps",
     "seed", "sex", "fertility_start", "female_fertility_end", "male_fertility_end", "inheritance", "tag_length",
     "culture", "initial_blocks", "fertility_threshold", "child_share", "mate_contact", "child_gift", "child_threshold",
-    "gift_rounding"};
+    "gift_rounding", "combat_alpha", "replacement_same_tribe"};
 
 [[noreturn]] void invalid(const std::string& message) { throw ConfigError("invalid configuration: " + message); }
 
@@ -259,6 +259,10 @@ RunConfig parse_config(const std::string& path) {
     r.get("child_gift", cfg.child_gift);
     r.get("child_threshold", cfg.child_threshold);
     r.get("gift_rounding", cfg.gift_rounding);
+    if (r.has("combat_alpha")) {
+        cfg.combat_alpha = r.raw("combat_alpha") == "inf" ? INFINITY : r.real("combat_alpha", r.raw("combat_alpha"));
+    }
+    r.get("replacement_same_tribe", cfg.replacement_same_tribe);
     r.get("steps", cfg.steps);
     r.get("seed", cfg.seed);
     return cfg;
@@ -340,9 +344,12 @@ void validate(const RunConfig& cfg) {
         invalid("tag_length " + std::to_string(cfg.tag_length) + " exceeds the GPU's limit of " +
                 std::to_string(MAX_TAG_BITS) + " tag bits");
     }
-    if (cfg.tag_length == 0 && (cfg.culture || !cfg.initial_blocks.empty())) {
-        invalid("culture and tribal blocks need cultural tags (tag_length > 0)");
+    if (cfg.tag_length == 0 && (cfg.culture || cfg.combat() || !cfg.initial_blocks.empty())) {
+        invalid("culture, combat, and tribal blocks need cultural tags (tag_length > 0)");
     }
+    if (cfg.combat() && !(*cfg.combat_alpha >= 0)) invalid("combat_alpha must be >= 0, not " + fmt(*cfg.combat_alpha));
+    if (cfg.replacement_same_tribe && !cfg.replacement) invalid("replacement_same_tribe needs replacement=True");
+    if (cfg.combat()) invalid("combat_alpha: not on the GPU yet");  // Part B, Task 2 removes this line
     if (!cfg.initial_blocks.empty() && cfg.tile > 1) invalid("initial_blocks cannot be tiled (--tile)");
     for (const TribeBlock& b : cfg.initial_blocks) {
         const std::string text = b.tribe + "," + std::to_string(b.x0) + "," + std::to_string(b.y0) + "," +
@@ -411,6 +418,8 @@ void print_config(std::ostream& out, const RunConfig& cfg) {
         << "child_gift = " << cfg.child_gift << "\n"
         << "child_threshold = " << cfg.child_threshold << "\n"
         << "gift_rounding = " << cfg.gift_rounding << "\n"
+        << "combat_alpha = " << (cfg.combat_alpha ? fmt(*cfg.combat_alpha) : "") << "\n"
+        << "replacement_same_tribe = " << (cfg.replacement_same_tribe ? "true" : "false") << "\n"
         << "steps = " << cfg.steps << "\n"
         << "seed = " << cfg.seed << "\n";
 }

@@ -113,7 +113,9 @@ FLAMEGPU_AGENT_FUNCTION(absorb, flamegpu::MessageNone, flamegpu::MessageNone) {
     if (s.dead[row]) {
         auto deaths = FLAMEGPU->environment.getMacroProperty<unsigned int>("deaths");
         ++deaths;
-        if (FLAMEGPU->environment.getProperty<unsigned int>("replacement")) output_newcomer(FLAMEGPU, starved_key(s.rank[row]));
+        if (FLAMEGPU->environment.getProperty<unsigned int>("replacement")) {
+            output_newcomer(FLAMEGPU, starved_key(s.rank[row]), s.tags[row]);
+        }
         return flamegpu::DEAD;
     }
     FLAMEGPU->setVariable<int>("x", s.x[row]);
@@ -173,7 +175,8 @@ FLAMEGPU_AGENT_FUNCTION(age_and_die, flamegpu::MessageNone, flamegpu::MessageNon
     auto deaths = FLAMEGPU->environment.getMacroProperty<unsigned int>("deaths");
     ++deaths;
     if (FLAMEGPU->environment.getProperty<unsigned int>("replacement")) {
-        output_newcomer(FLAMEGPU, old_age_key(FLAMEGPU->getVariable<unsigned int>("uid")));
+        output_newcomer(FLAMEGPU, old_age_key(FLAMEGPU->getVariable<unsigned int>("uid")),
+                        FLAMEGPU->getVariable<uint64_t>("tags"));
     }
     return flamegpu::DEAD;
 }
@@ -236,7 +239,8 @@ FLAMEGPU_AGENT_FUNCTION(die_old, flamegpu::MessageNone, flamegpu::MessageNone) {
     auto deaths = FLAMEGPU->environment.getMacroProperty<unsigned int>("deaths");
     ++deaths;
     if (FLAMEGPU->environment.getProperty<unsigned int>("replacement")) {
-        output_newcomer(FLAMEGPU, old_age_key(FLAMEGPU->getVariable<unsigned int>("uid")));
+        output_newcomer(FLAMEGPU, old_age_key(FLAMEGPU->getVariable<unsigned int>("uid")),
+                        FLAMEGPU->getVariable<uint64_t>("tags"));
     }
     return flamegpu::DEAD;
 }

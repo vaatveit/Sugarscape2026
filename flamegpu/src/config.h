@@ -73,6 +73,9 @@ struct RunConfig {
     std::string child_gift = "endowment";                   // "endowment" | "capped"
     std::string child_threshold = "endowment";              // "endowment" | "redraw"
     std::string gift_rounding = "down";                     // "down" | "exact"
+    // Combat and same-tribe replacement (spec 2026-10-25-gpu-full-parity, Part B).
+    std::optional<double> combat_alpha;                     // rule C_alpha (p.83); INFINITY = C_inf; none = movement M
+    bool replacement_same_tribe = false;                    // R with newcomers of the dead agent's tribe (p.86)
     // Run.
     int steps = 0;
     uint64_t seed = 0;
@@ -83,6 +86,7 @@ struct RunConfig {
 
     // Whether every turn after movement runs in the ordered turns (spec section 1).
     bool turns_on() const { return sex || culture || force_turns; }
+    bool combat() const { return combat_alpha.has_value(); }
 
     int base_width() const { return width / tile; }
     int base_height() const { return height / tile; }

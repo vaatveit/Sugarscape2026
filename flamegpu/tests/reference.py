@@ -44,6 +44,10 @@ def config_from_cfg(cfg: dict) -> Config:
         kwargs[key] = float(values[key])
     for key in ("mate_contact", "child_gift", "child_threshold", "gift_rounding"):
         kwargs[key] = values[key]
+    # Combat and same-tribe replacement (Part B).
+    alpha = values["combat_alpha"]
+    kwargs["combat_alpha"] = None if alpha == "" else math.inf if alpha == "inf" else float(alpha)
+    kwargs["replacement_same_tribe"] = values["replacement_same_tribe"] == "true"
     return Config(**kwargs)
 
 

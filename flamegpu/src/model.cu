@@ -118,6 +118,7 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
     env.newProperty<unsigned int>("look_stride", static_cast<unsigned int>(cfg.look_stride));
     // R's newcomers (rules.cuh, output_newcomer): their draws' inclusive ranges.
     env.newProperty<unsigned int>("replacement", cfg.replacement ? 1u : 0u);
+    env.newProperty<unsigned int>("same_tribe", cfg.replacement_same_tribe ? 1u : 0u);  // newcomers of the dead's tribe
     env.newProperty<int>("vision_lo", cfg.vision.lo);
     env.newProperty<int>("vision_hi", cfg.vision.hi);
     env.newProperty<int>("metabolism_lo", cfg.metabolism.lo);

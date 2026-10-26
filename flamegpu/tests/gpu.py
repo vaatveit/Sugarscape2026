@@ -49,6 +49,9 @@ DEFAULT_CFG = {
     "child_gift": "endowment",
     "child_threshold": "endowment",
     "gift_rounding": "down",
+    # Combat and same-tribe replacement (Part B).
+    "combat_alpha": "",
+    "replacement_same_tribe": "false",
     "steps": "10",
     "seed": "0",
 }

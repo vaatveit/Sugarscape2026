@@ -7,6 +7,7 @@
 #include <utility>
 
 #include "model.h"
+#include "tribe.h"
 
 RunState& state() {
     static RunState s;
@@ -60,9 +61,6 @@ void set_citizen(flamegpu::AgentVector::Agent a, unsigned int uid, int x, int y,
     a.setVariable<int>("age", age);
     a.setVariable<int>("max_age", max_age);
 }
-
-// Python's culture.tribe: Blue when 0s outnumber 1s, Red otherwise.
-bool is_blue(uint64_t tags, int length) { return 2 * static_cast<int>(std::bitset<64>(tags).count()) < length; }
 
 // Python's random_tags: uniform bits, resampled until the majority matches the tribe ("" for any).
 uint64_t random_tags(std::mt19937_64& rng, int length, const std::string& tribe) {

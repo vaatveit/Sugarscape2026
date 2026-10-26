@@ -6,6 +6,7 @@
 #include "model.h"
 #include "movement.cuh"
 #include "store.h"
+#include "tribe.h"
 
 // Initialisation, on the device so no host function copies a site-sized macro property (xl design, section 3).
 // Cell layer (writes sugar): in the first period only, every site starts at capacity (p.21).
@@ -97,9 +98,10 @@ __device__ __forceinline__ uint64_t random_bits(API* FLAMEGPU, int bits) {
 
 // R[a,b] (p.32), first half: the newcomer replacing a citizen that dies, drawn with the dying citizen's random
 // stream as Python's spawn_random_agent draws it (uniform on each inclusive range; vision in whole look strides).
-// It is unplaced (x = y = -1) until place_newcomer; age 0 and every other variable at its default, as before.
+// It is unplaced (x = y = -1) until place_newcomer; age 0 and every other variable at its default, as before. With
+// same-tribe replacement (p.86) its tags are redrawn until its tribe is the dead agent's, as Python's random_tags.
 __device__ __forceinline__ void output_newcomer(flamegpu::DeviceAPI<flamegpu::MessageNone, flamegpu::MessageNone>* FLAMEGPU,
-                                                uint64_t death_key) {
+                                                uint64_t death_key, uint64_t dead_tags) {
     const auto& env = FLAMEGPU->environment;
     const int stride = static_cast<int>(env.getProperty<unsigned int>("look_stride"));
     FLAMEGPU->agent_out.setVariable<int>("x", -1);
@@ -118,7 +120,13 @@ __device__ __forceinline__ void output_newcomer(flamegpu::DeviceAPI<flamegpu::Me
     FLAMEGPU->agent_out.setVariable<int>("age", 0);
     // Chapter III draws after Chapter II's, as Python's _spawn_at (spec 2026-10-25-gpu-full-parity, Task 2).
     const int tag_length = static_cast<int>(env.getProperty<unsigned int>("tag_length"));
-    if (tag_length) FLAMEGPU->agent_out.setVariable<uint64_t>("tags", random_bits(FLAMEGPU, tag_length));
+    if (tag_length) {
+        uint64_t tags = random_bits(FLAMEGPU, tag_length);
+        if (env.getProperty<unsigned int>("same_tribe")) {
+            while (is_blue(tags, tag_length) != is_blue(dead_tags, tag_length)) tags = random_bits(FLAMEGPU, tag_length);
+        }
+        FLAMEGPU->agent_out.setVariable<uint64_t>("tags", tags);
+    }
     if (env.getProperty<unsigned int>("sex")) {
         const bool female = draw_between(FLAMEGPU, 0, 1) == 0;
         FLAMEGPU->agent_out.setVariable<unsigned int>("sex", female ? SEX_F : SEX_M);
@@ -165,7 +173,8 @@ FLAMEGPU_AGENT_FUNCTION(metabolize_and_age, flamegpu::MessageNone, flamegpu::Mes
             // Python spawns newcomers for the starved first, in the period's order, then for old age by uid.
             const uint64_t key = order_key(FLAMEGPU->getVariable<unsigned int>("priority"), FLAMEGPU->getID());
             output_newcomer(FLAMEGPU, sugar <= 0.0 ? starved_key(~key >> 1)
-                                                    : old_age_key(FLAMEGPU->getVariable<unsigned int>("uid")));
+                                                    : old_age_key(FLAMEGPU->getVariable<unsigned int>("uid")),
+                            FLAMEGPU->getVariable<uint64_t>("tags"));
         }
         return flamegpu::DEAD;
     }
