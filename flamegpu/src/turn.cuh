@@ -1,9 +1,11 @@
 // One agent's turn, exactly as Python's Model.step runs it for one agent (spec 2026-10-25-gpu-full-parity, section
-// 2): move to the deferred-acceptance target, harvest, metabolise, count neighbours. The scheduler has given the turn
-// sole use of its footprint, so it reads and writes the store directly. Included only by model.cu (via turns.cuh).
+// 2): move to the deferred-acceptance target (or by combat), harvest, metabolise, count neighbours, then S and K. The
+// scheduler has given the turn sole use of its footprint, so it reads and writes the store directly. Included only by
+// model.cu (via turns.cuh).
 #ifndef SRC_TURN_CUH_
 #define SRC_TURN_CUH_
 
+#include "combat.cuh"
 #include "culture.cuh"
 #include "movement.cuh"
 #include "sex.cuh"
@@ -15,13 +17,23 @@ __device__ void take_turn(API* FLAMEGPU, const Store& s, unsigned int row) {
     const int w = static_cast<int>(env.template getProperty<unsigned int>("width"));
     const int h = static_cast<int>(env.template getProperty<unsigned int>("height"));
     auto occupied = env.template getMacroProperty<unsigned int, MAX_CELLS>("occupied");
-    auto sugar = env.template getMacroProperty<float, MAX_CELLS>("sugar");
     auto pollution = env.template getMacroProperty<float, MAX_CELLS>("pollution");
     const bool polluting = env.template getProperty<unsigned int>("pollution_active") != 0u;
+    const bool combat = env.template getProperty<unsigned int>("combat") != 0u;
 
-    // Move (Python movement.move after the choice, and Model.move_agent).
-    const unsigned int start = s.start[row], target = s.target[row];
+    // Move: to the deferred-acceptance target (Python movement.move after the choice), or with combat to the site
+    // combat_move chooses, killing its occupant; then Model.move_agent.
+    const unsigned int start = s.start[row];
+    unsigned int target = s.target[row];
     const unsigned int rank = s.rank[row];
+    if (combat) {
+        const CombatChoice choice = combat_choose(FLAMEGPU, s, row);
+        target = choice.site;
+        touch(s, target, rank, 9);
+        if (choice.victim >= 0) {
+            combat_kill(s, static_cast<unsigned int>(choice.victim), row, env.template getProperty<double>("combat_alpha"));
+        }
+    }
     touch(s, start, rank, 0);
     touch(s, target, rank, 1);
     if (target != start) {
@@ -37,16 +49,19 @@ __device__ void take_turn(API* FLAMEGPU, const Store& s, unsigned int row) {
         s.y[row] = ny;
         s.moved[row] = 1u;
     }
-    // Harvest, with production pollution (p.47).
-    const float harvest = sugar[target].exchange(0.0f);
+    // Harvest, with production pollution (p.47); combat_move harvests without it. The sites' sugar is the store's
+    // during the turns (stage_sites), so a combat scan can read it while other turns harvest.
+    const float harvest = s.site_sugar[target];
+    s.site_sugar[target] = 0.0f;
     s.sugar[row] += static_cast<double>(harvest);
-    if (polluting) pollution[target] += env.template getProperty<float>("pollution_alpha") * harvest;
+    if (polluting && !combat) pollution[target] += env.template getProperty<float>("pollution_alpha") * harvest;
     // Metabolism, with consumption pollution; death when sugar runs out (p.25).
     const int metabolism = s.metabolism[row];
     s.sugar[row] -= static_cast<double>(metabolism);
     if (polluting) pollution[target] += env.template getProperty<float>("pollution_beta") * static_cast<float>(metabolism);
     if (s.sugar[row] <= 0.0) {
         s.dead[row] = 1u;
+        s.death_key[row] = turn_death_key(rank, false);
         s.site_row[target] = -1;
         occupied[target].exchange(0u);
         return;

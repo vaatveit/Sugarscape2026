@@ -54,6 +54,7 @@ FLAMEGPU_AGENT_FUNCTION(publish, flamegpu::MessageNone, flamegpu::MessageNone) {
         s.friend_dist[row * MAX_FRIENDS + f] = FLAMEGPU->getVariable<unsigned int, MAX_FRIENDS>("friend_dist", f);
     }
     s.look_seed[row] = FLAMEGPU->getVariable<unsigned int>("look_seed");
+    s.dir_order[row] = FLAMEGPU->getVariable<unsigned int>("dir_order");
     s.moved[row] = 0u;
     s.neighbors[row] = 0u;
     s.dead[row] = 0u;
@@ -68,7 +69,7 @@ FLAMEGPU_AGENT_FUNCTION(publish, flamegpu::MessageNone, flamegpu::MessageNone) {
 }
 
 // Turns sub-model, layer A: a turn whose waits are over takes its turn (in serial mode, only the turn whose rank is
-// the wave's number).
+// the wave's number). A combat victim killed earlier in the period takes no turn, but still releases those after it.
 FLAMEGPU_AGENT_FUNCTION(run_turns, flamegpu::MessageNone, flamegpu::MessageNone) {
     const Store& s = the_store(FLAMEGPU);
     const unsigned int row = FLAMEGPU->getVariable<unsigned int>("row");
@@ -78,7 +79,7 @@ FLAMEGPU_AGENT_FUNCTION(run_turns, flamegpu::MessageNone, flamegpu::MessageNone)
     } else if (s.counter[row] != 0) {
         return flamegpu::ALIVE;
     }
-    take_turn(FLAMEGPU, s, row);
+    if (!s.dead[row]) take_turn(FLAMEGPU, s, row);
     s.done[row] = 1u;
     s.ran[row] = 1u;
     atomicAdd(s.ran_count, 1u);
@@ -105,8 +106,8 @@ FLAMEGPU_AGENT_FUNCTION(release_turns, flamegpu::MessageNone, flamegpu::MessageN
     return flamegpu::ALIVE;
 }
 
-// Main model, after the turns (reads the store): the living take their state back; the starved die, each making room
-// for one newcomer with replacement.
+// Main model, after the turns (reads the store): the living take their state back; the starved and combat's victims
+// die, each making room for one newcomer with replacement, in the order of their deaths (turn_death_key).
 FLAMEGPU_AGENT_FUNCTION(absorb, flamegpu::MessageNone, flamegpu::MessageNone) {
     const Store& s = the_store(FLAMEGPU);
     const unsigned int row = FLAMEGPU->getVariable<unsigned int>("row");
@@ -114,7 +115,7 @@ FLAMEGPU_AGENT_FUNCTION(absorb, flamegpu::MessageNone, flamegpu::MessageNone) {
         auto deaths = FLAMEGPU->environment.getMacroProperty<unsigned int>("deaths");
         ++deaths;
         if (FLAMEGPU->environment.getProperty<unsigned int>("replacement")) {
-            output_newcomer(FLAMEGPU, starved_key(s.rank[row]), s.tags[row]);
+            output_newcomer(FLAMEGPU, s.death_key[row], s.tags[row]);
         }
         return flamegpu::DEAD;
     }
@@ -132,6 +133,22 @@ FLAMEGPU_AGENT_FUNCTION(absorb, flamegpu::MessageNone, flamegpu::MessageNone) {
     }
     FLAMEGPU->setVariable<unsigned int>("moved", s.moved[row]);
     FLAMEGPU->setVariable<unsigned int>("neighbors", s.neighbors[row]);
+    return flamegpu::ALIVE;
+}
+
+// Main model, cell layers around the turns: during the turns the sites' sugar lives in the store, so a combat turn can
+// read a site's sugar while other turns harvest (a macro property may not be read and written in one layer).
+FLAMEGPU_AGENT_FUNCTION(stage_sites, flamegpu::MessageNone, flamegpu::MessageNone) {  // reads sugar
+    const unsigned int c = FLAMEGPU->getIndex();  // the site index (make_cells)
+    auto sugar = FLAMEGPU->environment.getMacroProperty<float, MAX_CELLS>("sugar");
+    the_store(FLAMEGPU).site_sugar[c] = sugar[c];
+    return flamegpu::ALIVE;
+}
+
+FLAMEGPU_AGENT_FUNCTION(unstage_sites, flamegpu::MessageNone, flamegpu::MessageNone) {  // writes sugar
+    const unsigned int c = FLAMEGPU->getIndex();
+    auto sugar = FLAMEGPU->environment.getMacroProperty<float, MAX_CELLS>("sugar");
+    sugar[c].exchange(the_store(FLAMEGPU).site_sugar[c]);
     return flamegpu::ALIVE;
 }
 

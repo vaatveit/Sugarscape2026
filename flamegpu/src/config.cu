@@ -348,9 +348,7 @@ void validate(const RunConfig& cfg) {
         invalid("culture, combat, and tribal blocks need cultural tags (tag_length > 0)");
     }
     if (cfg.combat() && !(*cfg.combat_alpha >= 0)) invalid("combat_alpha must be >= 0, not " + fmt(*cfg.combat_alpha));
-    if (cfg.replacement_same_tribe && !cfg.replacement) invalid("replacement_same_tribe needs replacement=True");
-    if (cfg.combat()) invalid("combat_alpha: not on the GPU yet");  // Part B, Task 2 removes this line
-    if (!cfg.initial_blocks.empty() && cfg.tile > 1) invalid("initial_blocks cannot be tiled (--tile)");
+    if (cfg.replacement_same_tribe && !cfg.replacement) invalid("replacement_same_tribe needs replacement=True");    if (!cfg.initial_blocks.empty() && cfg.tile > 1) invalid("initial_blocks cannot be tiled (--tile)");
     for (const TribeBlock& b : cfg.initial_blocks) {
         const std::string text = b.tribe + "," + std::to_string(b.x0) + "," + std::to_string(b.y0) + "," +
                                  std::to_string(b.w) + "," + std::to_string(b.h) + "," + std::to_string(b.n);

@@ -38,7 +38,10 @@ struct Store {
     uint64_t* tags;
     unsigned int *uid, *sex, *n_children, *parent_a, *parent_b, *friend_uid, *friend_dist, *n_friends;
     unsigned int *moved, *neighbors;
-    unsigned int* look_seed;      // the period's looks (start_period), for partners in sight
+    unsigned int* look_seed;      // the period's looks (start_period), for partners in sight and combat
+    unsigned int* dir_order;      // the period's scan order (start_period), 2 bits per direction, for combat
+    uint64_t* death_key;          // a row that dies in a turn: its place among the period's deaths (turn_death_key)
+    float* site_sugar;            // cells: the sites' sugar during the turns (stage_sites, unstage_sites)
     uint64_t* newborn_key;        // a newborn's place in creation order: its parent's rank << 32 | mating order
     unsigned int n_rows;          // citizens this period; rows from n_rows on are newborns
     unsigned int* newborn_count;
@@ -190,7 +193,13 @@ class DyingTable {
 };
 
 // The death key of a citizen that starves (rank: its place in the period's order) or dies of old age (its uid).
+// The turns path uses turn_death_key in place of starved_key.
 __host__ __device__ inline uint64_t starved_key(uint64_t rank) { return rank; }
+// A row that dies in the turn of rank `rank`: a combat victim first, then the turn's own agent if it starves, as
+// Python appends them to dead_this_step.
+__host__ __device__ inline uint64_t turn_death_key(unsigned int rank, bool victim) {
+    return (static_cast<uint64_t>(rank) << 1) | (victim ? 0u : 1u);
+}
 __host__ __device__ inline uint64_t old_age_key(unsigned int uid) { return (1ull << 63) | uid; }
 
 #endif  // SRC_STORE_H_

@@ -134,6 +134,7 @@ StoreHost::StoreHost(const RunConfig& cfg, unsigned int uid_capacity, bool check
     const size_t rows = h_.rows_capacity;
     alloc(h_.site_row, cells);
     alloc(h_.target_row, cells);
+    alloc(h_.site_sugar, cells);
     alloc(h_.uid_row, uid_capacity);
     check(cudaMemset(h_.uid_row, 0xFF, sizeof(int) * uid_capacity), "clearing the uid map");
     for (int** p : {&h_.x, &h_.y, &h_.vision, &h_.metabolism, &h_.age, &h_.max_age, &h_.fertility_start,
@@ -146,10 +147,11 @@ StoreHost::StoreHost(const RunConfig& cfg, unsigned int uid_capacity, bool check
     alloc(h_.key, rows);
     for (unsigned int** p : {&h_.uid, &h_.sex, &h_.n_children, &h_.parent_a, &h_.parent_b, &h_.n_friends, &h_.moved,
                              &h_.neighbors, &h_.start, &h_.target, &h_.rank, &h_.dead, &h_.done, &h_.ran,
-                             &h_.fp_count, &h_.fp_offset, &h_.rank_row, &h_.look_seed}) {
+                             &h_.fp_count, &h_.fp_offset, &h_.rank_row, &h_.look_seed, &h_.dir_order}) {
         alloc(*p, rows);
     }
     alloc(h_.newborn_key, rows);
+    alloc(h_.death_key, rows);
     alloc(h_.newborn_count, 1);
     alloc(h_.friend_uid, rows * MAX_FRIENDS);
     alloc(h_.friend_dist, rows * MAX_FRIENDS);
