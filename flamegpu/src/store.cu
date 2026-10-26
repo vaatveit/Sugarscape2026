@@ -1,0 +1,346 @@
+#include "store.h"
+
+#include <cub/cub.cuh>
+
+#include <string>
+
+#include "footprint.cuh"
+
+namespace {
+
+void check(cudaError_t e, const char* what) {
+    if (e != cudaSuccess) throw std::runtime_error(std::string(what) + ": " + cudaGetErrorString(e));
+}
+
+constexpr unsigned int BLOCK = 256;
+unsigned int blocks(size_t n) { return static_cast<unsigned int>((n + BLOCK - 1) / BLOCK); }
+
+int bits_for(unsigned int n) {
+    int b = 1;
+    while (b < 32 && (1ull << b) < n) ++b;
+    return b;
+}
+
+__global__ void k_rank_keys(unsigned int n, const uint64_t* key, uint64_t* rank_keys, unsigned int* rows) {
+    const unsigned int r = blockIdx.x * blockDim.x + threadIdx.x;
+    if (r >= n) return;
+    rank_keys[r] = ~key[r];  // ascending ~key is descending key: earliest first
+    rows[r] = r;
+}
+
+__global__ void k_ranks(unsigned int n, const unsigned int* sorted_rows, Store s) {
+    const unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i >= n) return;
+    s.rank_row[i] = sorted_rows[i];
+    s.rank[sorted_rows[i]] = i;
+}
+
+__global__ void k_fp_count(unsigned int n, Store s, FootprintEnv e) {
+    const unsigned int r = blockIdx.x * blockDim.x + threadIdx.x;
+    if (r >= n) return;
+    unsigned int k = 0;
+    footprint(s, r, e, [&](unsigned int, bool) { ++k; });
+    s.fp_count[r] = k;
+}
+
+__global__ void k_fp_fill(unsigned int n, Store s, FootprintEnv e, uint64_t* key, unsigned int* write, unsigned int* idx) {
+    const unsigned int r = blockIdx.x * blockDim.x + threadIdx.x;
+    if (r >= n) return;
+    unsigned int at = s.fp_offset[r];
+    const uint64_t rank = s.rank[r];
+    footprint(s, r, e, [&](unsigned int site, bool w) {
+        key[at] = (static_cast<uint64_t>(site) << 32) | rank;
+        write[at] = w ? 1u : 0u;
+        idx[at] = at;
+        ++at;
+    });
+}
+
+__global__ void k_gather(unsigned int n, const unsigned int* idx, const unsigned int* in, unsigned int* out) {
+    const unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < n) out[i] = in[idx[i]];
+}
+
+// The first of each run of equal (site, rank) keys stays; the run's write flags are or-ed into it.
+__global__ void k_keep(unsigned int n, const uint64_t* key, unsigned int* keep) {
+    const unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i >= n) return;
+    keep[i] = (i == 0 || key[i] != key[i - 1]) ? 1u : 0u;
+}
+
+__global__ void k_compact(unsigned int n, const uint64_t* key, const unsigned int* idx, const unsigned int* write,
+                          const unsigned int* keep, const unsigned int* keep_scan, Store s, unsigned int* unique_write) {
+    const unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i >= n) return;
+    if (!keep[i]) {
+        s.entry_pos[idx[i]] = -1;
+        return;
+    }
+    const unsigned int u = keep_scan[i];
+    unsigned int w = 0;
+    for (unsigned int j = i; j < n && key[j] == key[i]; ++j) w |= write[j];
+    s.unique_key[u] = key[i];
+    unique_write[u] = w;
+    s.entry_pos[idx[i]] = static_cast<int>(u);
+}
+
+// A group is a maximal run of readers at a site, or a single writer.
+__global__ void k_group_starts(unsigned int n, const uint64_t* key, const unsigned int* write, unsigned int* start) {
+    const unsigned int u = blockIdx.x * blockDim.x + threadIdx.x;
+    if (u >= n) return;
+    start[u] = (u == 0 || (key[u] >> 32) != (key[u - 1] >> 32) || write[u] || write[u - 1]) ? 1u : 0u;
+}
+
+__global__ void k_groups(unsigned int n, const unsigned int* start, Store s) {
+    const unsigned int u = blockIdx.x * blockDim.x + threadIdx.x;
+    if (u >= n) return;
+    const unsigned int g = s.entry_group[u] - 1u;  // the inclusive sum of starts counts from 1
+    s.entry_group[u] = g;
+    if (start[u]) {
+        s.group_first[g] = u;
+        s.group_site[g] = static_cast<unsigned int>(s.unique_key[u] >> 32);
+    }
+    if (u == n - 1) {
+        s.group_first[g + 1] = n;
+        s.group_site[g + 1] = NO_SITE;
+    }
+}
+
+// A turn waits for every member of the group before each of its entries at the same site.
+__global__ void k_counters(unsigned int n, Store s) {
+    const unsigned int u = blockIdx.x * blockDim.x + threadIdx.x;
+    if (u >= n) return;
+    const unsigned int g = s.entry_group[u];
+    const unsigned int site = static_cast<unsigned int>(s.unique_key[u] >> 32);
+    if (g == 0 || s.group_site[g - 1] != site) return;
+    const unsigned int row = s.rank_row[static_cast<unsigned int>(s.unique_key[u])];
+    atomicAdd(&s.counter[row], static_cast<int>(s.group_first[g] - s.group_first[g - 1]));
+}
+
+}  // namespace
+
+StoreHost::StoreHost(const RunConfig& cfg, unsigned int uid_capacity) {
+    const unsigned int cells = static_cast<unsigned int>(cfg.cells());
+    h_.rows_capacity = cells;  // every citizen, and every newborn, holds a site of its own
+    h_.cells = cells;
+    h_.uid_capacity = uid_capacity;
+    auto alloc = [this](auto*& p, size_t n) {
+        check(cudaMalloc(reinterpret_cast<void**>(&p), sizeof(*p) * (n ? n : 1)), "allocating the device store");
+        owned_.push_back(p);
+    };
+    const size_t rows = cells;
+    alloc(h_.site_row, cells);
+    alloc(h_.target_row, cells);
+    alloc(h_.uid_row, uid_capacity);
+    check(cudaMemset(h_.uid_row, 0xFF, sizeof(int) * uid_capacity), "clearing the uid map");
+    for (int** p : {&h_.x, &h_.y, &h_.vision, &h_.metabolism, &h_.age, &h_.max_age, &h_.fertility_start,
+                    &h_.fertility_end, &h_.disp_x, &h_.disp_y, &h_.counter}) {
+        alloc(*p, rows);
+    }
+    alloc(h_.sugar, rows);
+    alloc(h_.initial_sugar, rows);
+    alloc(h_.tags, rows);
+    alloc(h_.key, rows);
+    for (unsigned int** p : {&h_.uid, &h_.sex, &h_.n_children, &h_.parent_a, &h_.parent_b, &h_.n_friends, &h_.moved,
+                             &h_.neighbors, &h_.start, &h_.target, &h_.rank, &h_.dead, &h_.done, &h_.ran,
+                             &h_.fp_count, &h_.fp_offset, &h_.rank_row}) {
+        alloc(*p, rows);
+    }
+    alloc(h_.friend_uid, rows * MAX_FRIENDS);
+    alloc(h_.friend_dist, rows * MAX_FRIENDS);
+    alloc(h_.errors, 1);
+    alloc(h_.ran_count, 1);
+    alloc(h_.done_count, 1);
+    check(cudaMemset(h_.errors, 0, sizeof(unsigned int)), "clearing the store's errors");
+    alloc(rank_keys_, rows);
+    alloc(rank_keys_sorted_, rows);
+    alloc(rank_rows_, rows);
+    check(cudaMalloc(reinterpret_cast<void**>(&d_store_), sizeof(Store)), "allocating the device store");
+    owned_.push_back(d_store_);
+    grow_entries(16 * rows);
+}
+
+StoreHost::~StoreHost() {
+    for (void* p : owned_) cudaFree(p);
+    for (void* p : {static_cast<void*>(entry_key_), static_cast<void*>(entry_key_sorted_), static_cast<void*>(entry_write_),
+                    static_cast<void*>(entry_idx_), static_cast<void*>(entry_idx_sorted_), static_cast<void*>(unique_write_),
+                    static_cast<void*>(keep_), static_cast<void*>(keep_scan_), static_cast<void*>(start_flag_),
+                    static_cast<void*>(h_.entry_pos), static_cast<void*>(h_.unique_key), static_cast<void*>(h_.group_first),
+                    static_cast<void*>(h_.group_site), static_cast<void*>(h_.entry_group), temp_}) {
+        cudaFree(p);
+    }
+}
+
+void StoreHost::grow_entries(size_t n) {
+    if (n <= entries_capacity_) return;
+    n = n + n / 2;
+    for (void* p : {static_cast<void*>(entry_key_), static_cast<void*>(entry_key_sorted_), static_cast<void*>(entry_write_),
+                    static_cast<void*>(entry_idx_), static_cast<void*>(entry_idx_sorted_), static_cast<void*>(unique_write_),
+                    static_cast<void*>(keep_), static_cast<void*>(keep_scan_), static_cast<void*>(start_flag_),
+                    static_cast<void*>(h_.entry_pos), static_cast<void*>(h_.unique_key), static_cast<void*>(h_.group_first),
+                    static_cast<void*>(h_.group_site), static_cast<void*>(h_.entry_group)}) {
+        cudaFree(p);
+    }
+    auto alloc = [](auto*& p, size_t count) {
+        check(cudaMalloc(reinterpret_cast<void**>(&p), sizeof(*p) * count), "allocating footprint entries");
+    };
+    alloc(entry_key_, n);
+    alloc(entry_key_sorted_, n);
+    alloc(entry_write_, n);
+    alloc(entry_idx_, n);
+    alloc(entry_idx_sorted_, n);
+    alloc(unique_write_, n);
+    alloc(keep_, n);
+    alloc(keep_scan_, n);
+    alloc(start_flag_, n);
+    alloc(h_.entry_pos, n);
+    alloc(h_.unique_key, n);
+    alloc(h_.group_first, n + 2);
+    alloc(h_.group_site, n + 2);
+    alloc(h_.entry_group, n);
+    entries_capacity_ = n;
+}
+
+void StoreHost::prepare(unsigned int n_rows) {
+    (void)n_rows;
+    check(cudaMemset(h_.site_row, 0xFF, sizeof(int) * h_.cells), "clearing site_row");
+    check(cudaMemset(h_.target_row, 0xFF, sizeof(int) * h_.cells), "clearing target_row");
+    check(cudaMemcpy(d_store_, &h_, sizeof(Store), cudaMemcpyHostToDevice), "uploading the store");
+}
+
+void StoreHost::schedule(unsigned int n, const RunConfig& cfg) {
+    check_errors();
+    check(cudaMemset(h_.ran_count, 0, sizeof(unsigned int)), "clearing ran_count");
+    check(cudaMemset(h_.done_count, 0, sizeof(unsigned int)), "clearing done_count");
+    if (n == 0) return;
+    check(cudaMemset(h_.counter, 0, sizeof(int) * n), "clearing counters");
+    check(cudaMemset(h_.done, 0, sizeof(unsigned int) * n), "clearing done");
+    check(cudaMemset(h_.ran, 0, sizeof(unsigned int) * n), "clearing ran");
+    auto temp = [this](size_t bytes) {
+        if (bytes > temp_bytes_) {
+            cudaFree(temp_);
+            check(cudaMalloc(&temp_, bytes), "allocating scheduler scratch");
+            temp_bytes_ = bytes;
+        }
+    };
+    size_t bytes = 0;
+    // The period's order: rank 0 is the largest key.
+    k_rank_keys<<<blocks(n), BLOCK>>>(n, h_.key, rank_keys_, rank_rows_);
+    cub::DeviceRadixSort::SortPairs(nullptr, bytes, rank_keys_, rank_keys_sorted_, rank_rows_, h_.rank_row, n);
+    temp(bytes);
+    cub::DeviceRadixSort::SortPairs(temp_, bytes, rank_keys_, rank_keys_sorted_, rank_rows_, h_.rank_row, n);
+    k_ranks<<<blocks(n), BLOCK>>>(n, h_.rank_row, h_);
+    // Footprints: count, offsets, fill.
+    const FootprintEnv env{cfg.width, cfg.height};
+    k_fp_count<<<blocks(n), BLOCK>>>(n, h_, env);
+    bytes = 0;
+    cub::DeviceScan::ExclusiveSum(nullptr, bytes, h_.fp_count, h_.fp_offset, n);
+    temp(bytes);
+    cub::DeviceScan::ExclusiveSum(temp_, bytes, h_.fp_count, h_.fp_offset, n);
+    unsigned int last_count = 0, last_offset = 0;
+    check(cudaMemcpy(&last_count, h_.fp_count + n - 1, sizeof(unsigned int), cudaMemcpyDeviceToHost), "reading counts");
+    check(cudaMemcpy(&last_offset, h_.fp_offset + n - 1, sizeof(unsigned int), cudaMemcpyDeviceToHost), "reading offsets");
+    const unsigned int total = last_offset + last_count;
+    const size_t before = entries_capacity_;
+    grow_entries(total);
+    if (entries_capacity_ != before) {
+        check(cudaMemcpy(d_store_, &h_, sizeof(Store), cudaMemcpyHostToDevice), "uploading the store");
+    }
+    k_fp_fill<<<blocks(n), BLOCK>>>(n, h_, env, entry_key_, entry_write_, entry_idx_);
+    // Sort by (site, rank); remove duplicates.
+    const int end_bit = 32 + bits_for(h_.cells);
+    bytes = 0;
+    cub::DeviceRadixSort::SortPairs(nullptr, bytes, entry_key_, entry_key_sorted_, entry_idx_, entry_idx_sorted_, total,
+                                    0, end_bit);
+    temp(bytes);
+    cub::DeviceRadixSort::SortPairs(temp_, bytes, entry_key_, entry_key_sorted_, entry_idx_, entry_idx_sorted_, total,
+                                    0, end_bit);
+    // The writes, in sorted order: entry_write_ indexed by fill order, gathered through the sorted indices.
+    k_keep<<<blocks(total), BLOCK>>>(total, entry_key_sorted_, keep_);
+    bytes = 0;
+    cub::DeviceScan::ExclusiveSum(nullptr, bytes, keep_, keep_scan_, total);
+    temp(bytes);
+    cub::DeviceScan::ExclusiveSum(temp_, bytes, keep_, keep_scan_, total);
+    // The write flags in sorted order (start_flag_ as scratch until the groups need it).
+    k_gather<<<blocks(total), BLOCK>>>(total, entry_idx_sorted_, entry_write_, start_flag_);
+    k_compact<<<blocks(total), BLOCK>>>(total, entry_key_sorted_, entry_idx_sorted_, start_flag_, keep_, keep_scan_, h_,
+                                        unique_write_);
+    unsigned int last_keep = 0, last_scan = 0;
+    check(cudaMemcpy(&last_keep, keep_ + total - 1, sizeof(unsigned int), cudaMemcpyDeviceToHost), "reading keep");
+    check(cudaMemcpy(&last_scan, keep_scan_ + total - 1, sizeof(unsigned int), cudaMemcpyDeviceToHost), "reading scan");
+    const unsigned int unique = last_scan + last_keep;
+    // Groups and the wait counters.
+    k_group_starts<<<blocks(unique), BLOCK>>>(unique, h_.unique_key, unique_write_, start_flag_);
+    bytes = 0;
+    cub::DeviceScan::InclusiveSum(nullptr, bytes, start_flag_, h_.entry_group, unique);
+    temp(bytes);
+    cub::DeviceScan::InclusiveSum(temp_, bytes, start_flag_, h_.entry_group, unique);
+    k_groups<<<blocks(unique), BLOCK>>>(unique, start_flag_, h_);
+    k_counters<<<blocks(unique), BLOCK>>>(unique, h_);
+    check(cudaDeviceSynchronize(), "scheduling the turns");
+}
+
+void StoreHost::wave_counts(unsigned int* ran, unsigned int* done) {
+    check(cudaMemcpy(ran, h_.ran_count, sizeof(unsigned int), cudaMemcpyDeviceToHost), "reading ran_count");
+    check(cudaMemcpy(done, h_.done_count, sizeof(unsigned int), cudaMemcpyDeviceToHost), "reading done_count");
+    check(cudaMemset(h_.ran_count, 0, sizeof(unsigned int)), "clearing ran_count");
+}
+
+void StoreHost::check_errors() {
+    unsigned int errors = 0;
+    check(cudaMemcpy(&errors, h_.errors, sizeof(unsigned int), cudaMemcpyDeviceToHost), "reading the store's errors");
+    if (errors & STORE_UID_CAPACITY) {
+        throw CapacityError("uid capacity " + std::to_string(h_.uid_capacity) +
+                            " exceeded: more agents created than --uid-capacity allows");
+    }
+}
+
+namespace {
+
+__global__ void k_newcomer_uids(unsigned int n, const unsigned int* sorted_slot, unsigned int* uid, unsigned int base) {
+    const unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < n) uid[sorted_slot[i]] = base + i;
+}
+
+}  // namespace
+
+NewcomerUids::NewcomerUids(unsigned int cells) {
+    auto alloc = [](auto*& p, size_t n) {
+        check(cudaMalloc(reinterpret_cast<void**>(&p), sizeof(*p) * (n ? n : 1)), "allocating newcomer slots");
+    };
+    alloc(h_.key, cells);
+    alloc(h_.slot, cells);
+    alloc(h_.uid, cells);
+    alloc(h_.count, 1);
+    alloc(sorted_key_, cells);
+    alloc(sorted_slot_, cells);
+    check(cudaMemset(h_.count, 0, sizeof(unsigned int)), "clearing newcomer slots");
+    check(cudaMalloc(reinterpret_cast<void**>(&d_slots_), sizeof(NewcomerSlots)), "allocating newcomer slots");
+    check(cudaMemcpy(d_slots_, &h_, sizeof(NewcomerSlots), cudaMemcpyHostToDevice), "uploading newcomer slots");
+}
+
+NewcomerUids::~NewcomerUids() {
+    for (void* p : {static_cast<void*>(h_.key), static_cast<void*>(h_.slot), static_cast<void*>(h_.uid),
+                    static_cast<void*>(h_.count), static_cast<void*>(sorted_key_), static_cast<void*>(sorted_slot_),
+                    static_cast<void*>(d_slots_), temp_}) {
+        cudaFree(p);
+    }
+}
+
+unsigned int NewcomerUids::assign(unsigned int next_uid) {
+    unsigned int n = 0;
+    check(cudaMemcpy(&n, h_.count, sizeof(unsigned int), cudaMemcpyDeviceToHost), "reading newcomer count");
+    check(cudaMemset(h_.count, 0, sizeof(unsigned int)), "clearing newcomer count");
+    if (n == 0) return 0;
+    size_t bytes = 0;
+    cub::DeviceRadixSort::SortPairs(nullptr, bytes, h_.key, sorted_key_, h_.slot, sorted_slot_, n);
+    if (bytes > temp_bytes_) {
+        cudaFree(temp_);
+        check(cudaMalloc(&temp_, bytes), "allocating newcomer scratch");
+        temp_bytes_ = bytes;
+    }
+    cub::DeviceRadixSort::SortPairs(temp_, bytes, h_.key, sorted_key_, h_.slot, sorted_slot_, n);
+    k_newcomer_uids<<<blocks(n), BLOCK>>>(n, sorted_slot_, h_.uid, next_uid);
+    check(cudaDeviceSynchronize(), "assigning newcomer uids");
+    return n;
+}

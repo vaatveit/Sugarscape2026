@@ -16,6 +16,7 @@
 #include "config.h"
 #include "landscape_io.h"
 #include "metrics.h"
+#include "store.h"
 
 struct InvariantError : std::runtime_error {  // --check found a violation: exit 3
     using std::runtime_error::runtime_error;
@@ -31,6 +32,12 @@ struct RunState {
     unsigned int population = 0;     // citizens at the end of the last completed period
     unsigned int next_uid = 0;       // the founders' count: the first uid the device hands out
     unsigned int agents_ever = 0;    // every agent created so far (Python's Model.agents_ever), after each period
+    // The turns (spec 2026-10-25-gpu-full-parity, section 2) and R's newcomers' uids.
+    std::unique_ptr<StoreHost> store;
+    std::unique_ptr<NewcomerUids> newcomers;
+    unsigned int turn_rows = 0;          // citizens taking turns this period
+    unsigned int waves_this_period = 0;
+    std::vector<unsigned int> waves;     // per completed period, for --timing's waves_mean
     // Output options.
     std::string dump_agents, dump_landscape;
     std::optional<unsigned int> dump_at;

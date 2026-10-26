@@ -15,7 +15,9 @@ move) is unchanged.
 A third regeneration, columns added only, approved with the design (spec 2026-10-25-gpu-full-parity, Constraints):
 on 2026-10-25 metrics.csv gained Python's other 33 metric columns and agents.csv the Chapter III variables. Every
 column of the files before it was checked byte-identical in the files after it (Part A ledger, Task 3), and the
-comparison is now by column name, so a later run may add columns but never change one the goldens hold.
+comparison is now by column name, so a later run may add columns but never change one the goldens hold. With Task 4
+newcomers' uids follow Python's creation order instead of thread order, so gini_t30/agents.csv was rewritten once
+more, in its uid column only (checked the same way), and uid is compared from then on.
 """
 
 from pathlib import Path
@@ -50,9 +52,8 @@ def run_case(exe: Path, tmp: Path, name: str) -> dict[str, bytes]:
 
 
 # Never compared: FLAME GPU numbers agents born on the device (replacement newcomers) in thread order, so their ids
-# vary between runs; the founders' ids and every other byte do not. Newcomers' uids are also handed out in thread
-# order until the turns give them Python's creation order (Part A, Task 4).
-UNSTABLE = ("id", "uid")
+# vary between runs; the founders' ids and every other byte do not. uids follow Python's creation order and repeat.
+UNSTABLE = ("id",)
 
 
 def comparable(f: str, data: bytes, columns: list[str]) -> bytes:

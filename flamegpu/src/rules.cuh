@@ -5,6 +5,7 @@
 
 #include "model.h"
 #include "movement.cuh"
+#include "store.h"
 
 // Initialisation, on the device so no host function copies a site-sized macro property (xl design, section 3).
 // Cell layer (writes sugar): in the first period only, every site starts at capacity (p.21).
@@ -97,7 +98,8 @@ __device__ __forceinline__ uint64_t random_bits(API* FLAMEGPU, int bits) {
 // R[a,b] (p.32), first half: the newcomer replacing a citizen that dies, drawn with the dying citizen's random
 // stream as Python's spawn_random_agent draws it (uniform on each inclusive range; vision in whole look strides).
 // It is unplaced (x = y = -1) until place_newcomer; age 0 and every other variable at its default, as before.
-__device__ __forceinline__ void output_newcomer(flamegpu::DeviceAPI<flamegpu::MessageNone, flamegpu::MessageNone>* FLAMEGPU) {
+__device__ __forceinline__ void output_newcomer(flamegpu::DeviceAPI<flamegpu::MessageNone, flamegpu::MessageNone>* FLAMEGPU,
+                                                uint64_t death_key) {
     const auto& env = FLAMEGPU->environment;
     const int stride = static_cast<int>(env.getProperty<unsigned int>("look_stride"));
     FLAMEGPU->agent_out.setVariable<int>("x", -1);
@@ -129,9 +131,8 @@ __device__ __forceinline__ void output_newcomer(flamegpu::DeviceAPI<flamegpu::Me
                                     : draw_between(FLAMEGPU, env.getProperty<int>("male_fertility_end_lo"),
                                                    env.getProperty<int>("male_fertility_end_hi")));
     }
-    // Interim uids in thread order; Task 4 gives newcomers uids in the order of their deaths.
-    auto next_uid = FLAMEGPU->environment.getMacroProperty<unsigned int>("next_uid");
-    FLAMEGPU->agent_out.setVariable<unsigned int>("uid", next_uid++);
+    // Its uid comes after placement, in the order of the deaths (turns.cuh, newcomer_post / newcomer_take).
+    FLAMEGPU->agent_out.setVariable<uint64_t>("death_key", death_key);
 }
 
 // Metabolism (p.25) with consumption pollution (p.47), then aging; death frees the site and, with replacement,
@@ -160,7 +161,12 @@ FLAMEGPU_AGENT_FUNCTION(metabolize_and_age, flamegpu::MessageNone, flamegpu::Mes
             auto arrived = FLAMEGPU->environment.getMacroProperty<uint64_t, MAX_CELLS>("arrived");
             arrived[site].exchange(uint64_t{0});
         }
-        if (FLAMEGPU->environment.getProperty<unsigned int>("replacement")) output_newcomer(FLAMEGPU);
+        if (FLAMEGPU->environment.getProperty<unsigned int>("replacement")) {
+            // Python spawns newcomers for the starved first, in the period's order, then for old age by uid.
+            const uint64_t key = order_key(FLAMEGPU->getVariable<unsigned int>("priority"), FLAMEGPU->getID());
+            output_newcomer(FLAMEGPU, sugar <= 0.0 ? starved_key(~key >> 1)
+                                                    : old_age_key(FLAMEGPU->getVariable<unsigned int>("uid")));
+        }
         return flamegpu::DEAD;
     }
     return flamegpu::ALIVE;

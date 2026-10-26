@@ -251,7 +251,6 @@ FLAMEGPU_HOST_FUNCTION(finish_init) {
         s.setup_end = std::chrono::steady_clock::now();
     }
     s.population = FLAMEGPU->agent("citizen").count();
-    FLAMEGPU->environment.getMacroProperty<unsigned int>("next_uid") = s.next_uid;  // newcomers' uids follow the founders'
     write_dumps(FLAMEGPU, 0);
     check_invariants(FLAMEGPU, 0, 0, 0);
     // The first period starts now: initialisation is setup's. main made the t = 0 metrics row from the founders.
@@ -268,7 +267,8 @@ FLAMEGPU_STEP_FUNCTION(end_period) {
     auto deaths_prop = FLAMEGPU->environment.getMacroProperty<unsigned int>("deaths");
     const unsigned int deaths = deaths_prop;
     deaths_prop = 0u;
-    s.agents_ever = FLAMEGPU->environment.getMacroProperty<unsigned int>("next_uid");
+    s.agents_ever = s.next_uid;
+    if (s.store) s.waves.push_back(s.waves_this_period);
     write_dumps(FLAMEGPU, t);
     // R's newcomers were born on the device, one for each death (rules.cuh, output_newcomer).
     check_invariants(FLAMEGPU, t, deaths, s.cfg.replacement ? deaths : 0u);

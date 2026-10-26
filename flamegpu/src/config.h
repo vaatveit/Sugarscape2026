@@ -74,6 +74,13 @@ struct RunConfig {
     // Run.
     int steps = 0;
     uint64_t seed = 0;
+    // Command-line options, not run.cfg keys (spec 2026-10-25-gpu-full-parity, section 2).
+    bool force_turns = false;              // --force-turns: the turns even without an interaction rule (tests)
+    bool serial_turns = false;             // --serial-turns: one turn per wave, in the period's order
+    unsigned int uid_capacity = 1u << 24;  // --uid-capacity: the most agents a run may create
+
+    // Whether every turn after movement runs in the ordered turns (spec section 1).
+    bool turns_on() const { return sex || culture || force_turns; }
 
     int base_width() const { return width / tile; }
     int base_height() const { return height / tile; }
