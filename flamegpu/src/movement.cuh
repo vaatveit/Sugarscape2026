@@ -36,7 +36,8 @@ __device__ __forceinline__ int torus_step(int d, int n) { return wrap(d + n / 2,
 // Propose (reads occupied, sugar, pollution, claim): the nearest best site in view that was free at the period's
 // start (occupied does not change during the sub-model) and that no earlier agent holds, scanned as candidate_sites
 // does: own site at distance 0, then the four directions in the period's order out to vision, every site or with a
-// look stride one site per stretch. Agents that stay, or whose bid still stands, have nothing to do.
+// look stride one centred look per whole stride (looks.cuh; a repeated look changes no choice). Agents that stay, or
+// whose bid still stands, have nothing to do.
 FLAMEGPU_AGENT_FUNCTION(propose, flamegpu::MessageNone, flamegpu::MessageNone) {
     const unsigned int state = FLAMEGPU->getVariable<unsigned int>("settled");
     if (state == MOVE_STAY) return flamegpu::ALIVE;

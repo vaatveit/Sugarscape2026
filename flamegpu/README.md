@@ -146,8 +146,10 @@ GPU version moves everyone at once, but reaches the same outcome
     and takes no turn of its own; a child killed in its birth period counts as a death and is replaced, as in Python.
     III-9 needs about 144 waves a period, III-13 about 289. Combat with inheritance runs one turn per wave: a
     victim's heirs are found only at the kill.
-  - With a look stride above 1 (xl), each retaliation scan draws its own looks from the period's look seed, as Python
-    draws them afresh for each candidate site.
+  - With a look stride s above 1 (xl), an agent looks once for each whole stride of vision, at s·(k + 1) + a − b
+    with a and b uniform on 0 … s − 1, and at each distance once: Python's centred look ([docs/xl.md](../docs/xl.md)).
+    The looks are hashed from the period's look seed, so every movement round sees the same sites. Each retaliation
+    scan draws its own looks, as Python draws them afresh for each candidate site.
   - During the turns the citizens' state lives in device buffers the run owns, since FLAME GPU lets no agent write
     another's variables.
 - **The differences that remain** (design, section 8):
@@ -163,7 +165,8 @@ GPU version moves everyone at once, but reaches the same outcome
   0 of 2,835 windows flagged. Combat has none of them: its turns run whole in the period's order.
 - **Newcomers' sites.** With replacement, newcomers claim random empty sites at once; when two draw the same site in
   the same try, the GPU's timing decides which keeps it. With dozens of newcomers a period (combat with sex, xl runs)
-  a seed can then give different bytes from run to run. Distributions are unaffected.
+  a seed can then give different bytes from run to run. Distributions are unaffected, and this is accepted (2026-10-26):
+  a deterministic placement would move Chapter II's newcomers.
 - **Limits**, each checked with an error that names it: at most 63 tag bits; partners in sight at most 64 looks
   along a line (vision / look_stride); at most 16,777,216 agents created in a run (`--uid-capacity`; exit 5).
 - **Agent ids.** Each agent's `uid` follows Python's creation order (founders, then newborns in turn order, then

@@ -64,14 +64,15 @@ __device__ void mate(API* FLAMEGPU, const Store& s, unsigned int row) {
     // lines: return before looking. Python still draws the permutation here; the GPU's stream is its own.
     if (s.sex[a] == SEX_NONE || !(s.fertility_start[a] <= s.age[a] && s.age[a] < s.fertility_end[a])) return;
 
-    // Partners: in sight along the lattice, stretch by stretch so nearest first (Python in_sight), or the four
-    // neighbours in VON_NEUMANN order.
+    // Partners: in sight along the lattice (Python in_sight), each distance looked at once, or the four neighbours in
+    // VON_NEUMANN order. Python lists them nearest first; the permutation below makes the listing order irrelevant.
     int partners[MAX_PARTNERS];
     int n = 0;
     if (env.template getProperty<unsigned int>("mate_vision")) {
         const int looks = s.vision[a] / stride;
         for (int k = 0; k < looks; ++k) {
             for (int d = 0; d < 4; ++d) {
+                if (repeated_look(s.look_seed[a] ^ SIGHT_SALT, d, k, stride)) continue;  // one partner, seen once
                 const int dist = sight_distance(s.look_seed[a], d, k, stride);
                 const unsigned int site = site_of(s.x[a] + dir_dx(d) * dist, s.y[a] + dir_dy(d) * dist, w, h);
                 touch(s, site, s.rank[a], 3);

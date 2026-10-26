@@ -13,13 +13,23 @@ __host__ __device__ __forceinline__ unsigned int mix32(unsigned int h) {
     return h;
 }
 
-// With look stride s > 1, the distance looked at in direction d (VON_NEUMANN index) and stretch k: s·k plus an offset
-// uniform on 1..s (Python look_distances). A pure function of the period's look seed, so every movement round of a
-// period sees the same sites (xl design, section 2a).
+// With look stride s > 1, the distance of the k-th look in direction d (VON_NEUMANN index): s·(k + 1) + a - b with a
+// and b uniform on 0..s-1, where a random site of the regular cell k + 1 away lies from a random site of one's own
+// cell (Python look_distances, docs/xl.md). Looks k and k + 1 overlap; a scan that must see each distance once skips
+// repeated_look. A pure function of the period's look seed, so every movement round of a period sees the same sites
+// (xl design, section 2a).
 __host__ __device__ __forceinline__ int look_distance(unsigned int look_seed, int d, int k, int stride) {
     const unsigned int h = mix32(mix32(look_seed ^ (static_cast<unsigned int>(d) * 0x9E3779B9u)) ^
                                  (static_cast<unsigned int>(k + 1) * 0x85EBCA6Bu));
-    return stride * k + 1 + static_cast<int>(h % static_cast<unsigned int>(stride));
+    const unsigned int s = static_cast<unsigned int>(stride);
+    return stride * (k + 1) + static_cast<int>(h % s) - static_cast<int>(mix32(h ^ 0x68E31DA4u) % s);
+}
+
+// Whether look k in direction d repeats an earlier look's distance, which Python's look_distances (a set) looks at only
+// once. Only neighbouring looks can meet: look k spans s·k + 1 .. s·k + 2s - 1. `seed` is the rule's seed (the look
+// seed, or salted as sight_distance salts it).
+__host__ __device__ __forceinline__ bool repeated_look(unsigned int seed, int d, int k, int stride) {
+    return stride > 1 && k > 0 && look_distance(seed, d, k, stride) == look_distance(seed, d, k - 1, stride);
 }
 
 // Rule S's partners in sight look with the period's look seed salted, so they are drawn apart from movement's looks

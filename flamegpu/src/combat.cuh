@@ -70,6 +70,7 @@ __device__ CombatChoice combat_choose(API* FLAMEGPU, const Store& s, unsigned in
     for (int i = 0; i < 4; ++i) {
         const int d = static_cast<int>((dir_order >> (2 * i)) & 3u);
         for (int k = 0; k < looks; ++k) {
+            if (repeated_look(s.look_seed[a], d, k, stride)) continue;  // each site is one candidate, checked once
             const int dist = stride == 1 ? k + 1 : look_distance(s.look_seed[a], d, k, stride);
             const int cx = wrap(x + dir_dx(d) * dist, w), cy = wrap(y + dir_dy(d) * dist, h);
             const unsigned int site = static_cast<unsigned int>(cx + cy * w);

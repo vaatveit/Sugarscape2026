@@ -25,9 +25,9 @@ def _mix32(h):  # movement.cuh's mix32 (lowbias32), on 32-bit unsigned arithmeti
     return h
 
 
-def _look_distance(seed, d, k, stride):  # movement.cuh's look_distance
+def _look_distance(seed, d, k, stride):  # looks.cuh's look_distance: the centred look, stride * (k + 1) + a - b
     h = _mix32(_mix32(seed ^ ((d * 0x9E3779B9) & M32)) ^ (((k + 1) * 0x85EBCA6B) & M32))
-    return stride * k + 1 + h % stride
+    return stride * (k + 1) + h % stride - _mix32(h ^ 0x68E31DA4) % stride
 
 
 def _key(a):
@@ -108,7 +108,8 @@ def test_movement_is_serial_dictatorship(exe, tmp_path, t):
 
 @pytest.mark.parametrize("t", [2, 3, 4, 5])
 def test_movement_is_serial_dictatorship_with_stride(exe, tmp_path, t):
-    # Look stride 5: one hashed look per stretch, the same in every round (xl design 2a), replayed from look_seed.
+    # Look stride 5: one hashed, centred look per whole stride of vision, the same in every round (xl design 2a),
+    # replayed from look_seed.
     prev, cur = _dumps(exe, tmp_path, {**DEATHLESS, "look_stride": "5", "vision": "5,20"}, t)
     assert len(cur.agents) == len(prev.agents) == 400
     got = {a["id"]: (a["x"], a["y"]) for a in cur.agents}

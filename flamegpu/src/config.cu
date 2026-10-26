@@ -291,11 +291,6 @@ void validate(const RunConfig& cfg) {
         // Founder ages are drawn from U[0, max_age): an empty range for max_age 0 (Python's rng.integers raises).
         if (cfg.max_age->lo < 1) invalid("max_age range must start at >= 1, not " + std::to_string(cfg.max_age->lo));
     }
-    // Agents see only along the four lattice directions; opposite scans must not meet (Python Config).
-    if (cfg.vision.hi * 2 >= std::min(cfg.base_width(), cfg.base_height())) {
-        invalid("max vision " + std::to_string(cfg.vision.hi) + " must be less than half the grid (" +
-                std::to_string(cfg.base_width()) + "x" + std::to_string(cfg.base_height()) + ")");
-    }
     if (cfg.replacement && !cfg.max_age) invalid("replacement R[a,b] needs a max_age range [a, b]");
     if (cfg.founder_ages != "uniform" && cfg.founder_ages != "zero") {
         invalid("founder_ages must be uniform or zero, not '" + cfg.founder_ages + "'");
@@ -316,6 +311,14 @@ void validate(const RunConfig& cfg) {
     if (cfg.vision.lo % cfg.look_stride || cfg.vision.hi % cfg.look_stride) {
         invalid("vision range " + fmt(cfg.vision) + " must be in whole look strides of " +
                 std::to_string(cfg.look_stride) + " (look_stride)");
+    }
+    // Agents see only along the four lattice directions; opposite scans must not meet (Python Config). With a look
+    // stride s, the farthest look is s - 1 sites past vision (looks.cuh, look_distance).
+    const int reach = cfg.vision.hi + cfg.look_stride - 1;
+    if (reach * 2 >= std::min(cfg.base_width(), cfg.base_height())) {
+        invalid("max vision " + std::to_string(cfg.vision.hi) + " (looking up to " + std::to_string(reach) +
+                " sites away) must be less than half the grid (" + std::to_string(cfg.base_width()) + "x" +
+                std::to_string(cfg.base_height()) + ")");
     }
     if (cfg.pollution && (cfg.pollution->first < 0 || cfg.pollution->second < 0)) invalid("pollution coefficients must be >= 0");
     if (cfg.pollution_stop && *cfg.pollution_stop <= cfg.pollution_start) invalid("pollution_stop must come after pollution_start");

@@ -52,7 +52,8 @@ Stepping per period, with another application on the GPU:
 
 ## xl smoke run
 
-At xl (`to_xl`: 500 × 500, look stride 10), seed 0, 5 periods on `build\`:
+At xl (`to_xl`: 500 × 500, look stride 10), seed 0, 5 periods on `build\`, with the uniform look per stretch that
+came before Python's centred look (adopted the same day; README, "How the GPU version differs"):
 - **III-9:** 54,000 agents, exit 0, 7,480 waves and 5.9 s a period.
 - **III-13:** 74,000 agents, exit 0, 18,381 waves and 29 s a period.
 
@@ -74,5 +75,5 @@ is Part F's work.
   rare. With dozens (combat with sex and replacement, and xl runs with replacement), a seed's bytes can differ between
   runs, though distributions don't.
   - The race predates Part B.
-  - A deterministic placement would move Chapter II's newcomers, and so change the goldens the design protects. It is
-    left for a decision.
+  - A deterministic placement would move Chapter II's newcomers, and so change the goldens the design protects. The
+    user accepted the non-repeatable placement (2026-10-26).

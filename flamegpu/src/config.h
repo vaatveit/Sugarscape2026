@@ -59,7 +59,7 @@ struct RunConfig {
     std::optional<int> diffusion_period;
     int diffusion_start = 0;
     int diffusion_passes = 1;  // passes of D per diffusion period (100 at xl, docs/xl.md)
-    int look_stride = 1;       // one random look per stretch of this many sites; vision in whole strides (10 at xl)
+    int look_stride = 1;       // one random look per whole stride of vision, centred on it; vision in whole strides (10 at xl)
     // Chapter III without combat (spec 2026-10-25-gpu-full-parity, Part A), Python's defaults.
     bool sex = false;                                       // rule S (p.56)
     IntRange fertility_start{12, 15};                       // p.57, both sexes
