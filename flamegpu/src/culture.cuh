@@ -19,10 +19,11 @@ __device__ __forceinline__ unsigned int friend_ref(const Store& s, int r) {
     return s.uid[r] == NO_UID ? (PROVISIONAL_FRIEND | static_cast<unsigned int>(r)) : s.uid[r];
 }
 
-// Python's f.alive at this agent's turn: a newborn of this period is alive; otherwise the uid must name this period's
-// row (a stale map entry names a dead agent) and that row must not have died in a turn earlier in the order.
+// Python's f.alive at this agent's turn: a newborn of this period is alive unless combat killed it; otherwise the uid
+// must name this period's row (a stale map entry names a dead agent) and that row must not have died in a turn earlier
+// in the order.
 __device__ __forceinline__ bool friend_alive(const Store& s, unsigned int ref) {
-    if (ref & PROVISIONAL_FRIEND) return true;
+    if (ref & PROVISIONAL_FRIEND) return !s.dead[ref & ~PROVISIONAL_FRIEND];
     if (ref >= s.uid_capacity) return false;
     const int r = s.uid_row[ref];
     return r >= 0 && static_cast<unsigned int>(r) < s.n_rows && s.uid[r] == ref && !s.dead[r];

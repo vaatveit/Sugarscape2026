@@ -86,13 +86,16 @@ void describe_turns(flamegpu::ModelDescription& sub, const RunConfig& cfg) {
     for (const char* name : {"mate_vision", "child_capped", "child_redraw", "gift_down"}) env.newProperty<unsigned int>(name, 0u);
     env.newProperty<double>("fertility_threshold", 1.0);
     env.newProperty<double>("child_share", 0.5);
+    env.newProperty<unsigned int>("combat", 0u);  // combat C_alpha replaces the move (combat.cuh)
+    env.newProperty<double>("combat_alpha", 0.0);
+    env.newProperty<unsigned int>("inheritance", 0u);  // rule I for combat's victims (combat.cuh, pay_victim_heirs)
     for (const char* name : {"endowment_lo", "endowment_hi", "fertility_start_lo", "fertility_start_hi",
                              "female_fertility_end_lo", "female_fertility_end_hi", "male_fertility_end_lo",
                              "male_fertility_end_hi"}) {
         env.newProperty<int>(name, 0);
     }
+    // The sites' sugar is the store's during the turns (turns.cuh, stage_sites).
     env.newMacroProperty<unsigned int, MAX_CELLS>("occupied");
-    env.newMacroProperty<float, MAX_CELLS>("sugar");
     env.newMacroProperty<float, MAX_CELLS>("pollution");
     flamegpu::AgentDescription citizen = sub.newAgent("citizen");
     citizen.newVariable<unsigned int>("row");
@@ -118,6 +121,7 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
     env.newProperty<unsigned int>("look_stride", static_cast<unsigned int>(cfg.look_stride));
     // R's newcomers (rules.cuh, output_newcomer): their draws' inclusive ranges.
     env.newProperty<unsigned int>("replacement", cfg.replacement ? 1u : 0u);
+    env.newProperty<unsigned int>("same_tribe", cfg.replacement_same_tribe ? 1u : 0u);  // newcomers of the dead's tribe
     env.newProperty<int>("vision_lo", cfg.vision.lo);
     env.newProperty<int>("vision_hi", cfg.vision.hi);
     env.newProperty<int>("metabolism_lo", cfg.metabolism.lo);
@@ -143,6 +147,10 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
     env.newProperty<unsigned int>("gift_down", cfg.gift_rounding == "down" ? 1u : 0u);
     env.newProperty<double>("fertility_threshold", cfg.fertility_threshold);
     env.newProperty<double>("child_share", cfg.child_share);
+    // Combat C_alpha (combat.cuh); INFINITY is C_inf.
+    env.newProperty<unsigned int>("combat", cfg.combat() ? 1u : 0u);
+    env.newProperty<double>("combat_alpha", cfg.combat() ? *cfg.combat_alpha : 0.0);
+    env.newProperty<unsigned int>("inheritance", cfg.inheritance ? 1u : 0u);
     env.newProperty<unsigned int>("t", 0u);
     env.newProperty<unsigned int>("round", 1u);
     env.newProperty<unsigned int>("seasons_beta", cfg.seasons ? static_cast<unsigned int>(cfg.seasons->first) : 0u);
@@ -152,7 +160,7 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
     env.newProperty<uint64_t>("store", 0);
     env.newProperty<uint64_t>("newcomers", 0);
     env.newProperty<uint64_t>("dying", 0);  // rule I's table of the period's dying (store.h, DyingTable)
-    env.newProperty<unsigned int>("serial_turns", cfg.serial_turns ? 1u : 0u);
+    env.newProperty<unsigned int>("serial_turns", cfg.serial() ? 1u : 0u);  // one turn per wave
     env.newProperty<unsigned int>("wave", 0u);
     landscape_macros(env, true);
 
@@ -205,7 +213,8 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
     initialise.addAgentFunction(occupy);  // the founders' sites
     model.newLayer().addHostFunction(finish_init);
     model.newLayer().addAgentFunction(citizen.newFunction("start_period", start_period));
-    model.newLayer().addSubModel(movement_sub);
+    // With combat there is no movement M: each turn moves by combat_move (spec section 1).
+    if (!cfg.combat()) model.newLayer().addSubModel(movement_sub);
     if (cfg.turns_on()) {
         // With an interaction rule, every turn after movement runs in the period's order (spec
         // 2026-10-25-gpu-full-parity, sections 1 and 2): publish, schedule, the turns, absorb, then old age.
@@ -218,10 +227,13 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
         turns_sub.bindAgent("citizen", "citizen", true, true);
         turns_sub.SubEnvironment(true);
         model.newLayer().addHostFunction(prepare_turns);
+        model.newLayer().addAgentFunction(cell.newFunction("stage_sites", stage_sites));
         model.newLayer().addAgentFunction(citizen.newFunction("publish", publish));
         model.newLayer().addHostFunction(schedule_turns);
         model.newLayer().addSubModel(turns_sub);
+        model.newLayer().addAgentFunction(cell.newFunction("unstage_sites", unstage_sites));
         model.newLayer().addHostFunction(assign_births);
+        if (cfg.combat()) model.newLayer().addHostFunction(bury_newborns);  // combat's newborn victims (turns.cuh)
         flamegpu::AgentFunctionDescription absorb_fn = citizen.newFunction("absorb", absorb);
         absorb_fn.setAllowAgentDeath(true);
         if (cfg.replacement) absorb_fn.setAgentOutput(citizen);
@@ -229,6 +241,15 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
         flamegpu::AgentFunctionDescription spawn_fn = cell.newFunction("spawn_newborns", spawn_newborns);
         spawn_fn.setAgentOutput(citizen);
         model.newLayer().addAgentFunction(spawn_fn);
+        // Combat's newborn victims: counted, and with replacement each replaced by a cell (turns.cuh). Every later layer
+        // leaves unplaced newcomers alone.
+        if (cfg.combat()) {
+            if (cfg.replacement) {
+                flamegpu::AgentFunctionDescription replace_fn = cell.newFunction("replace_newborns", replace_newborns);
+                replace_fn.setAgentOutput(citizen);
+                model.newLayer().addAgentFunction(replace_fn);
+            }
+        }
         if (cfg.inheritance) {
             // Rule I at old age: age and post the dying, count and pay the heirs, then the dying die (turns.cuh).
             s.dying = std::make_unique<DyingTable>(static_cast<unsigned int>(cfg.cells()));

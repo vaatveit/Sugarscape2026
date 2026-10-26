@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <stdexcept>
+#include <utility>
 #include <vector>
 
 #include "flamegpu/flamegpu.h"
@@ -38,7 +39,13 @@ struct Store {
     uint64_t* tags;
     unsigned int *uid, *sex, *n_children, *parent_a, *parent_b, *friend_uid, *friend_dist, *n_friends;
     unsigned int *moved, *neighbors;
-    unsigned int* look_seed;      // the period's looks (start_period), for partners in sight
+    unsigned int* look_seed;      // the period's looks (start_period), for partners in sight and combat
+    unsigned int* dir_order;      // the period's scan order (start_period), 2 bits per direction, for combat
+    uint64_t* death_key;          // a row that dies in a turn: its place among the period's deaths (turn_death_key)
+    float* site_sugar;            // cells: the sites' sugar during the turns (stage_sites, unstage_sites)
+    // This period's newborns killed by combat, by death key (StoreHost::bury): one newcomer each, made by cell i.
+    uint64_t *buried_key, *buried_tags;  // cells
+    unsigned int n_buried;
     uint64_t* newborn_key;        // a newborn's place in creation order: its parent's rank << 32 | mating order
     unsigned int n_rows;          // citizens this period; rows from n_rows on are newborns
     unsigned int* newborn_count;
@@ -101,6 +108,10 @@ class StoreHost {
     void wave_counts(unsigned int* ran, unsigned int* done);
     // After the turns: the newborns get uids next_uid, next_uid + 1, ... in creation order; returns how many.
     unsigned int birth_uids(unsigned int next_uid);
+    // After the turns: lists this period's newborns that combat killed in the store's buried rows, in death-key order,
+    // and returns how many. They are never spawned; turns.cuh's bury_newborns counts their deaths and the cells
+    // replace them (replace_newborns). Throws CapacityError beyond one per cell.
+    unsigned int bury();
     // Throws CapacityError for any error bit a kernel raised.
     void check_errors();
     // --check: the first site a turn touched outside its footprint, as {misses, site, rank, where}; clears it.
@@ -190,7 +201,13 @@ class DyingTable {
 };
 
 // The death key of a citizen that starves (rank: its place in the period's order) or dies of old age (its uid).
+// The turns path uses turn_death_key in place of starved_key.
 __host__ __device__ inline uint64_t starved_key(uint64_t rank) { return rank; }
+// A row that dies in the turn of rank `rank`: a combat victim first, then the turn's own agent if it starves, as
+// Python appends them to dead_this_step.
+__host__ __device__ inline uint64_t turn_death_key(unsigned int rank, bool victim) {
+    return (static_cast<uint64_t>(rank) << 1) | (victim ? 0u : 1u);
+}
 __host__ __device__ inline uint64_t old_age_key(unsigned int uid) { return (1ull << 63) | uid; }
 
 #endif  // SRC_STORE_H_

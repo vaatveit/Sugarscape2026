@@ -2,7 +2,9 @@
 
 #include <cub/cub.cuh>
 
+#include <algorithm>
 #include <string>
+#include <tuple>
 
 #include "footprint.cuh"
 
@@ -134,6 +136,9 @@ StoreHost::StoreHost(const RunConfig& cfg, unsigned int uid_capacity, bool check
     const size_t rows = h_.rows_capacity;
     alloc(h_.site_row, cells);
     alloc(h_.target_row, cells);
+    alloc(h_.site_sugar, cells);
+    alloc(h_.buried_key, cells);
+    alloc(h_.buried_tags, cells);
     alloc(h_.uid_row, uid_capacity);
     check(cudaMemset(h_.uid_row, 0xFF, sizeof(int) * uid_capacity), "clearing the uid map");
     for (int** p : {&h_.x, &h_.y, &h_.vision, &h_.metabolism, &h_.age, &h_.max_age, &h_.fertility_start,
@@ -146,10 +151,11 @@ StoreHost::StoreHost(const RunConfig& cfg, unsigned int uid_capacity, bool check
     alloc(h_.key, rows);
     for (unsigned int** p : {&h_.uid, &h_.sex, &h_.n_children, &h_.parent_a, &h_.parent_b, &h_.n_friends, &h_.moved,
                              &h_.neighbors, &h_.start, &h_.target, &h_.rank, &h_.dead, &h_.done, &h_.ran,
-                             &h_.fp_count, &h_.fp_offset, &h_.rank_row, &h_.look_seed}) {
+                             &h_.fp_count, &h_.fp_offset, &h_.rank_row, &h_.look_seed, &h_.dir_order}) {
         alloc(*p, rows);
     }
     alloc(h_.newborn_key, rows);
+    alloc(h_.death_key, rows);
     alloc(h_.newborn_count, 1);
     alloc(h_.friend_uid, rows * MAX_FRIENDS);
     alloc(h_.friend_dist, rows * MAX_FRIENDS);
@@ -210,6 +216,7 @@ void StoreHost::grow_entries(size_t n) {
 
 void StoreHost::prepare(unsigned int n_rows) {
     h_.n_rows = n_rows;
+    h_.n_buried = 0;
     check(cudaMemset(h_.newborn_count, 0, sizeof(unsigned int)), "clearing newborn_count");
     check(cudaMemset(h_.site_row, 0xFF, sizeof(int) * h_.cells), "clearing site_row");
     check(cudaMemset(h_.target_row, 0xFF, sizeof(int) * h_.cells), "clearing target_row");
@@ -239,7 +246,8 @@ void StoreHost::schedule(unsigned int n, const RunConfig& cfg) {
     cub::DeviceRadixSort::SortPairs(temp_, bytes, rank_keys_, rank_keys_sorted_, rank_rows_, h_.rank_row, n);
     k_ranks<<<blocks(n), BLOCK>>>(n, h_.rank_row, h_);
     // Footprints: count, offsets, fill.
-    const FootprintEnv env{cfg.width, cfg.height, cfg.look_stride, cfg.sex, cfg.mate_contact == "vision", cfg.culture};
+    const FootprintEnv env{cfg.width, cfg.height, cfg.look_stride, cfg.sex, cfg.mate_contact == "vision", cfg.culture,
+                           cfg.combat()};
     k_fp_count<<<blocks(n), BLOCK>>>(n, h_, env);
     bytes = 0;
     cub::DeviceScan::ExclusiveSum(nullptr, bytes, h_.fp_count, h_.fp_offset, n);
@@ -362,6 +370,36 @@ unsigned int StoreHost::birth_uids(unsigned int next_uid) {
     if (h_.n_rows) k_fix_friends<<<blocks(h_.n_rows), BLOCK>>>(h_.n_rows, h_);
     check(cudaDeviceSynchronize(), "assigning newborn uids");
     return n;
+}
+
+unsigned int StoreHost::bury() {
+    unsigned int n = 0;
+    check(cudaMemcpy(&n, h_.newborn_count, sizeof(unsigned int), cudaMemcpyDeviceToHost), "reading newborn_count");
+    std::vector<std::pair<uint64_t, uint64_t>> buried;  // (death_key, tags)
+    if (n) {
+        std::vector<unsigned int> dead(n);
+        std::vector<uint64_t> key(n), tags(n);
+        check(cudaMemcpy(dead.data(), h_.dead + h_.n_rows, n * sizeof(unsigned int), cudaMemcpyDeviceToHost), "reading newborns");
+        check(cudaMemcpy(key.data(), h_.death_key + h_.n_rows, n * sizeof(uint64_t), cudaMemcpyDeviceToHost), "reading newborns");
+        check(cudaMemcpy(tags.data(), h_.tags + h_.n_rows, n * sizeof(uint64_t), cudaMemcpyDeviceToHost), "reading newborns");
+        for (unsigned int i = 0; i < n; ++i) {
+            if (dead[i]) buried.emplace_back(key[i], tags[i]);
+        }
+    }
+    if (buried.size() > h_.cells) {
+        throw CapacityError(std::to_string(buried.size()) + " newborns killed in one period, more than the " +
+                            std::to_string(h_.cells) + " cells that replace them");
+    }
+    std::sort(buried.begin(), buried.end());
+    std::vector<uint64_t> key(buried.size()), tags(buried.size());
+    for (size_t i = 0; i < buried.size(); ++i) std::tie(key[i], tags[i]) = buried[i];
+    if (!buried.empty()) {
+        check(cudaMemcpy(h_.buried_key, key.data(), key.size() * sizeof(uint64_t), cudaMemcpyHostToDevice), "burying newborns");
+        check(cudaMemcpy(h_.buried_tags, tags.data(), tags.size() * sizeof(uint64_t), cudaMemcpyHostToDevice), "burying newborns");
+    }
+    h_.n_buried = static_cast<unsigned int>(buried.size());
+    check(cudaMemcpy(d_store_, &h_, sizeof(Store), cudaMemcpyHostToDevice), "uploading the store");
+    return h_.n_buried;
 }
 
 void StoreHost::check_errors() {

@@ -54,6 +54,7 @@ FLAMEGPU_AGENT_FUNCTION(publish, flamegpu::MessageNone, flamegpu::MessageNone) {
         s.friend_dist[row * MAX_FRIENDS + f] = FLAMEGPU->getVariable<unsigned int, MAX_FRIENDS>("friend_dist", f);
     }
     s.look_seed[row] = FLAMEGPU->getVariable<unsigned int>("look_seed");
+    s.dir_order[row] = FLAMEGPU->getVariable<unsigned int>("dir_order");
     s.moved[row] = 0u;
     s.neighbors[row] = 0u;
     s.dead[row] = 0u;
@@ -68,7 +69,7 @@ FLAMEGPU_AGENT_FUNCTION(publish, flamegpu::MessageNone, flamegpu::MessageNone) {
 }
 
 // Turns sub-model, layer A: a turn whose waits are over takes its turn (in serial mode, only the turn whose rank is
-// the wave's number).
+// the wave's number). A combat victim killed earlier in the period takes no turn, but still releases those after it.
 FLAMEGPU_AGENT_FUNCTION(run_turns, flamegpu::MessageNone, flamegpu::MessageNone) {
     const Store& s = the_store(FLAMEGPU);
     const unsigned int row = FLAMEGPU->getVariable<unsigned int>("row");
@@ -78,7 +79,7 @@ FLAMEGPU_AGENT_FUNCTION(run_turns, flamegpu::MessageNone, flamegpu::MessageNone)
     } else if (s.counter[row] != 0) {
         return flamegpu::ALIVE;
     }
-    take_turn(FLAMEGPU, s, row);
+    if (!s.dead[row]) take_turn(FLAMEGPU, s, row);
     s.done[row] = 1u;
     s.ran[row] = 1u;
     atomicAdd(s.ran_count, 1u);
@@ -105,15 +106,17 @@ FLAMEGPU_AGENT_FUNCTION(release_turns, flamegpu::MessageNone, flamegpu::MessageN
     return flamegpu::ALIVE;
 }
 
-// Main model, after the turns (reads the store): the living take their state back; the starved die, each making room
-// for one newcomer with replacement.
+// Main model, after the turns (reads the store): the living take their state back; the starved and combat's victims
+// die, each making room for one newcomer with replacement, in the order of their deaths (turn_death_key).
 FLAMEGPU_AGENT_FUNCTION(absorb, flamegpu::MessageNone, flamegpu::MessageNone) {
     const Store& s = the_store(FLAMEGPU);
     const unsigned int row = FLAMEGPU->getVariable<unsigned int>("row");
     if (s.dead[row]) {
         auto deaths = FLAMEGPU->environment.getMacroProperty<unsigned int>("deaths");
         ++deaths;
-        if (FLAMEGPU->environment.getProperty<unsigned int>("replacement")) output_newcomer(FLAMEGPU, starved_key(s.rank[row]));
+        if (FLAMEGPU->environment.getProperty<unsigned int>("replacement")) {
+            output_newcomer(FLAMEGPU, s.death_key[row], s.tags[row]);
+        }
         return flamegpu::DEAD;
     }
     FLAMEGPU->setVariable<int>("x", s.x[row]);
@@ -133,11 +136,28 @@ FLAMEGPU_AGENT_FUNCTION(absorb, flamegpu::MessageNone, flamegpu::MessageNone) {
     return flamegpu::ALIVE;
 }
 
+// Main model, cell layers around the turns: during the turns the sites' sugar lives in the store, so a combat turn can
+// read a site's sugar while other turns harvest (a macro property may not be read and written in one layer).
+FLAMEGPU_AGENT_FUNCTION(stage_sites, flamegpu::MessageNone, flamegpu::MessageNone) {  // reads sugar
+    const unsigned int c = FLAMEGPU->getIndex();  // the site index (make_cells)
+    auto sugar = FLAMEGPU->environment.getMacroProperty<float, MAX_CELLS>("sugar");
+    the_store(FLAMEGPU).site_sugar[c] = sugar[c];
+    return flamegpu::ALIVE;
+}
+
+FLAMEGPU_AGENT_FUNCTION(unstage_sites, flamegpu::MessageNone, flamegpu::MessageNone) {  // writes sugar
+    const unsigned int c = FLAMEGPU->getIndex();
+    auto sugar = FLAMEGPU->environment.getMacroProperty<float, MAX_CELLS>("sugar");
+    sugar[c].exchange(the_store(FLAMEGPU).site_sugar[c]);
+    return flamegpu::ALIVE;
+}
+
 // Main model, after absorb (reads the store): each site's newborn becomes a citizen, created by the site's cell.
 FLAMEGPU_AGENT_FUNCTION(spawn_newborns, flamegpu::MessageNone, flamegpu::MessageNone) {
     const Store& s = the_store(FLAMEGPU);
     const int c = s.site_row[FLAMEGPU->getIndex()];  // the site index (make_cells)
     if (c < static_cast<int>(s.n_rows)) return flamegpu::ALIVE;
+    init_citizen_out(FLAMEGPU);
     auto& out = FLAMEGPU->agent_out;
     out.setVariable<int>("x", s.x[c]);
     out.setVariable<int>("y", s.y[c]);
@@ -173,7 +193,8 @@ FLAMEGPU_AGENT_FUNCTION(age_and_die, flamegpu::MessageNone, flamegpu::MessageNon
     auto deaths = FLAMEGPU->environment.getMacroProperty<unsigned int>("deaths");
     ++deaths;
     if (FLAMEGPU->environment.getProperty<unsigned int>("replacement")) {
-        output_newcomer(FLAMEGPU, old_age_key(FLAMEGPU->getVariable<unsigned int>("uid")));
+        output_newcomer(FLAMEGPU, old_age_key(FLAMEGPU->getVariable<unsigned int>("uid")),
+                        FLAMEGPU->getVariable<uint64_t>("tags"));
     }
     return flamegpu::DEAD;
 }
@@ -236,7 +257,8 @@ FLAMEGPU_AGENT_FUNCTION(die_old, flamegpu::MessageNone, flamegpu::MessageNone) {
     auto deaths = FLAMEGPU->environment.getMacroProperty<unsigned int>("deaths");
     ++deaths;
     if (FLAMEGPU->environment.getProperty<unsigned int>("replacement")) {
-        output_newcomer(FLAMEGPU, old_age_key(FLAMEGPU->getVariable<unsigned int>("uid")));
+        output_newcomer(FLAMEGPU, old_age_key(FLAMEGPU->getVariable<unsigned int>("uid")),
+                        FLAMEGPU->getVariable<uint64_t>("tags"));
     }
     return flamegpu::DEAD;
 }
@@ -308,6 +330,24 @@ FLAMEGPU_HOST_FUNCTION(assign_births) {
         throw CapacityError("uid capacity " + std::to_string(s.cfg.uid_capacity) +
                             " exceeded: more agents created than --uid-capacity allows");
     }
+}
+
+// After the turns: a newborn that combat killed in its birth period is a death, as Python's die() makes it (its uid
+// came with the others in assign_births). It is no citizen, so it is never spawned; the host lists and counts it, and
+// with replacement cell i makes the i-th one's newcomer (replace_newborns), unplaced and with the victim's death key so
+// newcomer_post orders it among the period's deaths.
+FLAMEGPU_HOST_FUNCTION(bury_newborns) {
+    const unsigned int buried = state().store->bury();
+    if (!buried) return;
+    auto deaths = FLAMEGPU->environment.getMacroProperty<unsigned int>("deaths");
+    deaths += buried;
+}
+
+FLAMEGPU_AGENT_FUNCTION(replace_newborns, flamegpu::MessageNone, flamegpu::MessageNone) {
+    const Store& s = the_store(FLAMEGPU);
+    const unsigned int i = FLAMEGPU->getIndex();
+    if (i < s.n_buried) output_newcomer(FLAMEGPU, s.buried_key[i], s.buried_tags[i]);
+    return flamegpu::ALIVE;
 }
 
 // R's newcomers take uids after the period's newborns, in the order of their deaths.

@@ -31,6 +31,23 @@ __host__ __device__ __forceinline__ int sight_distance(unsigned int look_seed, i
     return stride == 1 ? k + 1 : look_distance(look_seed ^ SIGHT_SALT, d, k, stride);
 }
 
+// Combat's retaliation scans (Python vulnerable) draw their looks afresh for each candidate site, as Python calls
+// look_distances once per scan: one hash per scan, salted apart from movement's and rule S's looks.
+constexpr unsigned int RETALIATION_SALT = 0xC0DEC0DEu;
+
+// A combat candidate's place in the full scan: 0 for the agent's own site, then 1 + d * looks + k for the k-th look in
+// direction d (whether or not the site turns out to be a candidate, so the footprint can name it in advance).
+__host__ __device__ __forceinline__ unsigned int combat_candidate_id(int d, int k, int looks) {
+    return 1u + static_cast<unsigned int>(d * looks + k);
+}
+
+// The distance of the k-th look in direction d of candidate cand's retaliation scan (1..vision at stride 1).
+__host__ __device__ __forceinline__ int retaliation_distance(unsigned int look_seed, unsigned int cand, int d, int k,
+                                                            int stride) {
+    return stride == 1 ? k + 1
+                       : look_distance(mix32(look_seed ^ RETALIATION_SALT ^ ((cand + 1u) * 0x9E3779B9u)), d, k, stride);
+}
+
 // Directions in the Python project's VON_NEUMANN order: east, west, north, south.
 __host__ __device__ __forceinline__ int dir_dx(int d) { return d == 0 ? 1 : d == 1 ? -1 : 0; }
 __host__ __device__ __forceinline__ int dir_dy(int d) { return d == 2 ? 1 : d == 3 ? -1 : 0; }

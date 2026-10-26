@@ -37,10 +37,18 @@ def test_cfg_steps_and_seed():
 
 
 def test_unsupported_lists_features():
-    cfg = Config(tag_length=11, combat_alpha=2.0)
-    assert unsupported_features(cfg) == ["combat_alpha"]
-    with pytest.raises(UnsupportedFeature, match="combat_alpha"):
+    cfg = Config(spice=True)
+    assert unsupported_features(cfg) == ["spice"]
+    with pytest.raises(UnsupportedFeature, match="spice"):
         config_to_cfg(cfg, steps=10, seed=0)
+
+
+def test_part_b_configs_convert():
+    assert "combat_alpha = inf" in _lines(config_to_cfg(EXPERIMENTS["III-9"].config, steps=10, seed=0))
+    assert {"combat_alpha = 2", "replacement_same_tribe = true"} <= _lines(
+        config_to_cfg(EXPERIMENTS["III-11"].config, steps=10, seed=0))
+    for exp_id in ("III-9", "III-11", "III-13", "III-14"):
+        assert unsupported_features(EXPERIMENTS[exp_id].config) == [], exp_id
 
 
 PART_A = ("III-1", "III-3", "III-4", "III-5", "III-7", "III-8", "III-12", "III-15")

@@ -8,9 +8,9 @@ Python version's functionality, all of it, so the two can be timed against each 
   - [every rule, Chapters III to VI](docs/superpowers/specs/2026-10-25-gpu-full-parity-design.md), built in parts.
 - **On the GPU now:**
   - all of Chapter II;
-  - Chapter III without combat: sex S with every option, inheritance I at old age, cultural tags, tribal blocks,
-    culture K and friends.
-- **Still to come** (Parts B–F of the design): combat, Chapter IV, disease, the Schelling and Ring World models.
+  - all of Chapter III: sex S with every option, inheritance I at old age, cultural tags, tribal blocks, culture K and
+    friends, combat C_α and C_∞, and same-tribe replacement.
+- **Still to come** (Parts C–F of the design): Chapter IV, disease, the Schelling and Ring World models.
   `bridge.gpu_run` skips experiments that need these and names them.
 
 ## Prerequisites
@@ -82,7 +82,9 @@ The Julia agreement rule, GPU seeds against Python's, with a speed table, into `
 ```
 
 The results of Chapter III without combat (2026-10-26) are in
-[docs/validation/chapter3-part-a.md](docs/validation/chapter3-part-a.md): 0 of 1,601 windows flagged.
+[docs/validation/chapter3-part-a.md](docs/validation/chapter3-part-a.md): 0 of 1,601 windows flagged. Combat's are in
+[docs/validation/chapter3-part-b.md](docs/validation/chapter3-part-b.md): 0 of 348 windows flagged. Python's saved
+results are read from the repository root's `results\` (`--python` for another folder).
 
 `gpu_report` scores the GPU results and the Python project's saved `results\` against the same book
 targets, and writes `results-gpu\REPORT.md` with both sides and every status that changed.
@@ -138,6 +140,14 @@ GPU version moves everyone at once, but reaches the same outcome
   - The result is the sequential result: `--serial-turns` (one turn per wave) gives byte-identical output, and
     `--check` verifies that every site a turn touches is in its footprint.
   - II-4 needs about 9 waves a period, and the packed II-6 block about 16.
+  - **Combat** has no movement M: each turn is Python's `combat_move` (the scan, the retaliation check, the kill, the
+    move and the harvest) followed by the rest of the turn, so its footprint covers every site on its sight lines,
+    the four sites around each, and, as reads, the retaliation lines from each. A victim dies in its attacker's turn
+    and takes no turn of its own; a child killed in its birth period counts as a death and is replaced, as in Python.
+    III-9 needs about 144 waves a period, III-13 about 289. Combat with inheritance runs one turn per wave: a
+    victim's heirs are found only at the kill.
+  - With a look stride above 1 (xl), each retaliation scan draws its own looks from the period's look seed, as Python
+    draws them afresh for each candidate site.
   - During the turns the citizens' state lives in device buffers the run owns, since FLAME GPU lets no agent write
     another's variables.
 - **The differences that remain** (design, section 8):
@@ -150,7 +160,10 @@ GPU version moves everyone at once, but reaches the same outcome
      earlier agents' trades and gifts. This matters only with spice, which arrives in Part C.
 
   Python's model with all three ([semantics harness](docs/validation/semantics-harness.md)) agrees with Python itself:
-  0 of 2,835 windows flagged.
+  0 of 2,835 windows flagged. Combat has none of them: its turns run whole in the period's order.
+- **Newcomers' sites.** With replacement, newcomers claim random empty sites at once; when two draw the same site in
+  the same try, the GPU's timing decides which keeps it. With dozens of newcomers a period (combat with sex, xl runs)
+  a seed can then give different bytes from run to run. Distributions are unaffected.
 - **Limits**, each checked with an error that names it: at most 63 tag bits; partners in sight at most 64 looks
   along a line (vision / look_stride); at most 16,777,216 agents created in a run (`--uid-capacity`; exit 5).
 - **Agent ids.** Each agent's `uid` follows Python's creation order (founders, then newborns in turn order, then

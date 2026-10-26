@@ -59,10 +59,10 @@ def test_unknown_key_is_rejected(exe, tmp_path):
 
 def test_unsupported_feature_key_is_rejected(exe, tmp_path):
     cfg = write_cfg(tmp_path)
-    cfg.write_text(cfg.read_text() + "combat_alpha = 2\n")
+    cfg.write_text(cfg.read_text() + "spice = true\n")
     result = run_exe(exe, "--config", cfg, "--print-config")
     assert result.returncode == 2
-    assert "combat_alpha" in _error(result)
+    assert "spice" in _error(result)
 
 
 def test_vision_too_large_is_rejected(exe, tmp_path):
@@ -273,8 +273,17 @@ def test_initial_blocks_with_tile_rejected(exe, tmp_path):
     assert "initial_blocks" in _error(result)
 
 
-@pytest.mark.parametrize("line", ["combat_alpha = 2", "spice = true", "disease_list = 10",
-                                  "replacement_same_tribe = true"])
+@pytest.mark.parametrize("overrides, named", [
+    ({"tag_length": "11", "combat_alpha": "-1"}, "combat_alpha must be >= 0"),
+    ({"combat_alpha": "2"}, "need cultural tags"),
+])
+def test_combat_alpha_validated(exe, tmp_path, overrides, named):
+    result = run_exe(exe, "--config", write_cfg(tmp_path, **overrides), "--print-config")
+    assert result.returncode == 2
+    assert named in _error(result)
+
+
+@pytest.mark.parametrize("line", ["spice = true", "disease_list = 10"])
 def test_later_parts_still_refused(exe, tmp_path, line):
     cfg = write_cfg(tmp_path)
     cfg.write_text(cfg.read_text() + line + "\n")
