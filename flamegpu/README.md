@@ -1,9 +1,17 @@
 # Sugarscape on FLAME GPU 2
 
-A GPU version of the Chapter II rules of Epstein and Axtell's Sugarscape, built with
-[FLAME GPU 2](https://flamegpu.com). It is scored against the book with the Python reference model
-[Sugarscape2026](https://github.com/vaatveit/Sugarscape2026). The design is in
-[docs/superpowers/specs/2026-10-23-phase1-chapter2-gpu-design.md](docs/superpowers/specs/2026-10-23-phase1-chapter2-gpu-design.md).
+A GPU version of Epstein and Axtell's Sugarscape, built with [FLAME GPU 2](https://flamegpu.com). It is scored against
+the book with the Python reference model [Sugarscape2026](https://github.com/vaatveit/Sugarscape2026). The aim is the
+Python version's functionality, all of it, so the two can be timed against each other.
+- **Designs:**
+  - [Chapter II](docs/superpowers/specs/2026-10-23-phase1-chapter2-gpu-design.md);
+  - [every rule, Chapters III to VI](docs/superpowers/specs/2026-10-25-gpu-full-parity-design.md), built in parts.
+- **On the GPU now:**
+  - all of Chapter II;
+  - Chapter III without combat: sex S with every option, inheritance I at old age, cultural tags, tribal blocks,
+    culture K and friends.
+- **Still to come** (Parts B–F of the design): combat, Chapter IV, disease, the Schelling and Ring World models.
+  `bridge.gpu_run` skips experiments that need these and names them.
 
 ## Prerequisites
 
@@ -59,13 +67,22 @@ One run, from a `run.cfg` of `key = value` lines (the Python `Config` field name
 build\bin\Release\sugarscape_gpu.exe --config run.cfg --out metrics.csv
 ```
 
-The registered Chapter II experiments, every seed, written where the Python project's tools can read
-them:
+A chapter's registered experiments, every seed, written where the Python project's tools can read them. Experiments
+that need rules not yet on the GPU are skipped and named:
 
 ```bat
 .venv\Scripts\python -m bridge.gpu_run II --jobs 4
 .venv\Scripts\python -m bridge.gpu_report --chapter II
 ```
+
+The Julia agreement rule, GPU seeds against Python's, with a speed table, into `results-gpu\AGREEMENT.md`:
+
+```bat
+.venv\Scripts\python -m bridge.agreement_report III VAR-book
+```
+
+The results of Chapter III without combat (2026-10-26) are in
+[docs/validation/chapter3-part-a.md](docs/validation/chapter3-part-a.md): 0 of 1,601 windows flagged.
 
 `gpu_report` scores the GPU results and the Python project's saved `results\` against the same book
 targets, and writes `results-gpu\REPORT.md` with both sides and every status that changed.
@@ -113,11 +130,32 @@ GPU version moves everyone at once, but reaches the same outcome
   from the dumps and match every agent's site.
 - **Neighbours** are counted in the period's order, as Python counts each agent right after its own move and
   metabolism.
-- **The differences that remain:**
-  - A site that an earlier agent leaves during the period, or that a death frees, becomes available only in the
-    next period. Python offers it to agents later in the order.
-  - In a Python harness this changed about 1 move in 180 in the first period of a random start and under 1% after,
-    and none in II-6.
+- **The turns** ([design](docs/superpowers/specs/2026-10-25-gpu-full-parity-design.md), sections 1–3).
+  - With an interaction rule (sex, culture), everything after the choice of target runs as Python's turn, agent by
+    agent in the period's order: the move, harvest, metabolism, neighbours, S, then K and friends.
+  - Each turn has a footprint: the sites it may read or write, fixed for the period. Turns whose footprints don't
+    conflict run in the same wave.
+  - The result is the sequential result: `--serial-turns` (one turn per wave) gives byte-identical output, and
+    `--check` verifies that every site a turn touches is in its footprint.
+  - II-4 needs about 9 waves a period, and the packed II-6 block about 16.
+  - During the turns the citizens' state lives in device buffers the run owns, since FLAME GPU lets no agent write
+    another's variables.
+- **The differences that remain** (design, section 8):
+  1. A site that an earlier agent leaves during the period, or that a death frees, becomes available only in the next
+     period. Python offers it to agents later in the order. In a Python harness this changed about 1 move in 180 in
+     the first period of a random start and under 1% after, and none in II-6.
+  2. A child is never born on a site that an agent later in the order moves to. In Python the child takes it and the
+     later agent goes elsewhere.
+  3. Movement scores sites with the holdings the agent had at the start of the period. Python uses them after
+     earlier agents' trades and gifts. This matters only with spice, which arrives in Part C.
+
+  Python's model with all three ([semantics harness](docs/validation/semantics-harness.md)) agrees with Python itself:
+  0 of 2,835 windows flagged.
+- **Limits**, each checked with an error that names it: at most 63 tag bits; partners in sight at most 64 looks
+  along a line (vision / look_stride); at most 16,777,216 agents created in a run (`--uid-capacity`; exit 5).
+- **Agent ids.** Each agent's `uid` follows Python's creation order (founders, then newborns in turn order, then
+  newcomers in the order of their deaths), so `agents_ever` and every order that depends on it are Python's.
+  FLAME GPU's own ids aren't.
 
 ## Results (Phase 1, 2026-10-23)
 
