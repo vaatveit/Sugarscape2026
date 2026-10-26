@@ -242,3 +242,27 @@ def test_births_carry_defaults(exe, tmp_path):
             assert (a["neighbors"], a["moved"], a["n_friends"], a["friends"], a["disp_x"], a["disp_y"]) == \
                 (0, 0, 0, "", 0, 0), (t, a)
             assert (a["parent_a"] is None) == (a["parent_b"] is None), (t, a)  # a newcomer has neither
+
+
+# --- Task 5: combat with inheritance -------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("alpha", ["2", "inf"])
+def test_victim_heirs_inherit(exe, tmp_path, alpha):
+    # A kills V (alpha 2 takes 2 of V's 10; C_inf takes all). Python's die() splits what V keeps between its living
+    # children, wherever they are: 8 / 2 each with alpha 2, nothing with C_inf.
+    agents = [_attacker(), _still(6, 5, BLUE, 10), _still(15, 2, BLUE, 1, parent_a=1), _still(15, 15, BLUE, 1, parent_a=1)]
+    gpu = _both(exe, tmp_path, alpha, _world(), agents, cfg={"inheritance": "true"})
+    children = sorted(a["sugar"] for a in gpu.agents if a["x"] == 15)
+    assert children == pytest.approx([5.0, 5.0] if alpha == "2" else [1.0, 1.0])
+    assert _at(gpu, 6, 5)  # A took V's site
+
+
+def test_combat_inheritance_serial(exe, tmp_path):
+    # A victim's heirs are found only at the kill, so combat with inheritance runs one turn per wave (spec section 2).
+    timing = tmp_path / "timing.json"
+    cfg = {**COMBAT_CASES["III-9"], "inheritance": "true", "steps": "1"}
+    result = run_exe(exe, "--config", write_cfg(tmp_path, **cfg), "--timing", timing)
+    assert result.returncode == 0, result.stderr
+    t = json.loads(timing.read_text())
+    assert t["waves_mean"] == t["agents_start"], t

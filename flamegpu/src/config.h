@@ -87,6 +87,9 @@ struct RunConfig {
     // Whether every turn after movement runs in the ordered turns (spec section 1).
     bool turns_on() const { return sex || culture || combat() || force_turns; }
     bool combat() const { return combat_alpha.has_value(); }
+    // One turn per wave: --serial-turns, or combat with inheritance, whose victims' heirs are found only at the kill and
+    // so cannot be in a footprint (spec section 2).
+    bool serial() const { return serial_turns || (combat() && inheritance); }
 
     int base_width() const { return width / tile; }
     int base_height() const { return height / tile; }

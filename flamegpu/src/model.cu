@@ -88,6 +88,7 @@ void describe_turns(flamegpu::ModelDescription& sub, const RunConfig& cfg) {
     env.newProperty<double>("child_share", 0.5);
     env.newProperty<unsigned int>("combat", 0u);  // combat C_alpha replaces the move (combat.cuh)
     env.newProperty<double>("combat_alpha", 0.0);
+    env.newProperty<unsigned int>("inheritance", 0u);  // rule I for combat's victims (combat.cuh, pay_victim_heirs)
     for (const char* name : {"endowment_lo", "endowment_hi", "fertility_start_lo", "fertility_start_hi",
                              "female_fertility_end_lo", "female_fertility_end_hi", "male_fertility_end_lo",
                              "male_fertility_end_hi"}) {
@@ -149,6 +150,7 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
     // Combat C_alpha (combat.cuh); INFINITY is C_inf.
     env.newProperty<unsigned int>("combat", cfg.combat() ? 1u : 0u);
     env.newProperty<double>("combat_alpha", cfg.combat() ? *cfg.combat_alpha : 0.0);
+    env.newProperty<unsigned int>("inheritance", cfg.inheritance ? 1u : 0u);
     env.newProperty<unsigned int>("t", 0u);
     env.newProperty<unsigned int>("round", 1u);
     env.newProperty<unsigned int>("seasons_beta", cfg.seasons ? static_cast<unsigned int>(cfg.seasons->first) : 0u);
@@ -158,7 +160,7 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
     env.newProperty<uint64_t>("store", 0);
     env.newProperty<uint64_t>("newcomers", 0);
     env.newProperty<uint64_t>("dying", 0);  // rule I's table of the period's dying (store.h, DyingTable)
-    env.newProperty<unsigned int>("serial_turns", cfg.serial_turns ? 1u : 0u);
+    env.newProperty<unsigned int>("serial_turns", cfg.serial() ? 1u : 0u);  // one turn per wave
     env.newProperty<unsigned int>("wave", 0u);
     landscape_macros(env, true);
 

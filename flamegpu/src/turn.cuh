@@ -31,7 +31,9 @@ __device__ void take_turn(API* FLAMEGPU, const Store& s, unsigned int row) {
         target = choice.site;
         touch(s, target, rank, 9);
         if (choice.victim >= 0) {
-            combat_kill(s, static_cast<unsigned int>(choice.victim), row, env.template getProperty<double>("combat_alpha"));
+            const unsigned int victim = static_cast<unsigned int>(choice.victim);
+            combat_kill(s, victim, row, env.template getProperty<double>("combat_alpha"));
+            if (env.template getProperty<unsigned int>("inheritance")) pay_victim_heirs(s, victim);
         }
     }
     touch(s, start, rank, 0);
