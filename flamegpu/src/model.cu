@@ -158,8 +158,7 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
     env.newProperty<uint64_t>("store", 0);
     env.newProperty<uint64_t>("newcomers", 0);
     env.newProperty<uint64_t>("dying", 0);  // rule I's table of the period's dying (store.h, DyingTable)
-    // Combat runs one turn per wave until its footprint exists (Part B, Task 3).
-    env.newProperty<unsigned int>("serial_turns", cfg.serial_turns || cfg.combat() ? 1u : 0u);
+    env.newProperty<unsigned int>("serial_turns", cfg.serial_turns ? 1u : 0u);
     env.newProperty<unsigned int>("wave", 0u);
     landscape_macros(env, true);
 

@@ -241,7 +241,8 @@ void StoreHost::schedule(unsigned int n, const RunConfig& cfg) {
     cub::DeviceRadixSort::SortPairs(temp_, bytes, rank_keys_, rank_keys_sorted_, rank_rows_, h_.rank_row, n);
     k_ranks<<<blocks(n), BLOCK>>>(n, h_.rank_row, h_);
     // Footprints: count, offsets, fill.
-    const FootprintEnv env{cfg.width, cfg.height, cfg.look_stride, cfg.sex, cfg.mate_contact == "vision", cfg.culture};
+    const FootprintEnv env{cfg.width, cfg.height, cfg.look_stride, cfg.sex, cfg.mate_contact == "vision", cfg.culture,
+                           cfg.combat()};
     k_fp_count<<<blocks(n), BLOCK>>>(n, h_, env);
     bytes = 0;
     cub::DeviceScan::ExclusiveSum(nullptr, bytes, h_.fp_count, h_.fp_offset, n);

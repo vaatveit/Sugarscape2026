@@ -4,11 +4,17 @@ Exact comparisons with Python use scenes the order and the draws cannot change: 
 vision 0 and metabolism 0 on a site of capacity 0, so its own turn changes nothing.
 """
 
+import json
+
 import numpy as np
 import pytest
 
-from gpu import compare_dumps, read_rows, run_gpu
+from bridge.config_cfg import config_to_cfg
+from conftest import run_exe
+from experiments.registry import EXPERIMENTS
+from gpu import compare_dumps, read_rows, run_gpu, write_cfg
 from reference import python_metric_rows, run_python
+from test_sex import _files
 
 BLUE, RED = "0", "1"
 COMBAT = {"tag_length": "1"}
@@ -96,10 +102,51 @@ def test_victim_counted_once(exe, tmp_path):
     agents = [_attacker(), _still(6, 5, BLUE, 5)]
     cfg = {**COMBAT, "combat_alpha": "inf"}
     out = tmp_path / "metrics.csv"
-    gpu = run_gpu(exe, tmp_path, cfg, ATTACK, agents, steps=1, extra_args=("--out", out))
+    gpu = run_gpu(exe, tmp_path, cfg, ATTACK, agents, steps=1, extra_args=("--out", out, "--check"))
     assert gpu.returncode == 0, gpu.stderr
     g = read_rows(out)[-1]
     p = python_metric_rows(cfg, ATTACK, agents, 1)[-1]
     for key in ("population", "agents_ever"):
         assert g[key] == p[key], (key, g[key], p[key])
     assert g["population"] == 1
+
+
+# --- Task 3: combat turns in waves ---------------------------------------------------------------------------
+
+
+def registry_cfg(exp_id: str, **overrides: str) -> dict:
+    """A registered experiment's run.cfg as write_cfg overrides (the map, steps and seed left to the test)."""
+    text = config_to_cfg(EXPERIMENTS[exp_id].config, steps=1, seed=0)
+    cfg = dict(line.split(" = ", 1) for line in text.splitlines())
+    for key in ("map", "steps", "seed"):
+        cfg.pop(key)
+    return {**cfg, **overrides}
+
+
+COMBAT_CASES = {
+    "III-9": registry_cfg("III-9"),
+    "III-11": registry_cfg("III-11"),
+    "III-13": registry_cfg("III-13"),
+    "stride5": registry_cfg("III-9", vision="5,10", look_stride="5"),
+}
+
+
+@pytest.mark.parametrize("name", COMBAT_CASES)
+def test_serial_equivalence_combat(exe, tmp_path, name):
+    waves = _files(exe, tmp_path / "waves", COMBAT_CASES[name], 20)
+    assert waves == _files(exe, tmp_path / "serial", COMBAT_CASES[name], 20, "--serial-turns")
+
+
+@pytest.mark.parametrize("name", ["III-9", "III-13", "stride5"])
+def test_combat_check(exe, tmp_path, name):
+    # --check looks up every site a turn touches in its own footprint (store.h, touch()): exit 3 on a miss.
+    result = run_exe(exe, "--config", write_cfg(tmp_path, **COMBAT_CASES[name], steps="20"), "--check")
+    assert result.returncode == 0, result.stderr
+
+
+def test_combat_waves_concurrent(exe, tmp_path):
+    timing = tmp_path / "timing.json"
+    result = run_exe(exe, "--config", write_cfg(tmp_path, **COMBAT_CASES["III-9"], steps="3"), "--timing", timing)
+    assert result.returncode == 0, result.stderr
+    t = json.loads(timing.read_text())
+    assert 1 < t["waves_mean"] < t["agents_start"] / 2, t

@@ -1,5 +1,6 @@
 // A turn's footprint: the sites it may read and the sites it may write, fixed for the period from the state at the
-// start of the turns (spec 2026-10-25-gpu-full-parity, section 2). Included by store.cu (the scheduler) only.
+// start of the turns (spec 2026-10-25-gpu-full-parity, section 2). Included by store.cu (the scheduler) only. The
+// --check touch points that test it: 0-2 the move and neighbours, 3-4 and 6 rules S and K, 7-9 combat.
 #ifndef SRC_FOOTPRINT_CUH_
 #define SRC_FOOTPRINT_CUH_
 
@@ -10,6 +11,7 @@ struct FootprintEnv {
     int width, height, stride;
     bool sex, mate_vision;  // rule S on; partners in sight (mate_contact = "vision") rather than the four neighbours
     bool culture;           // rule K and friends
+    bool combat;            // combat C_alpha: the whole turn, movement included, from the start site
 };
 
 __device__ __forceinline__ int fp_wrap(int v, int n) { return ((v % n) + n) % n; }
@@ -30,8 +32,48 @@ __device__ __forceinline__ void around(int x, int y, const FootprintEnv& e, Emit
 // - Rule S, for an agent of childbearing age (fixed for the period): with the four neighbours as partners, every site
 //   within distance 2 of the target (partners, and a child next to either parent); with partners in sight, every
 //   sight-line site from the target and the four sites around each (spec section 2).
+// Combat's candidate site P with id cand (combat.cuh): the turn may move to P or kill there, then metabolise there and
+// meet, mate and transmit around it (writes P and the four sites around it); it reads P's retaliation lines.
+template <typename Emit>
+__device__ void combat_candidate(const Store& s, unsigned int row, int px, int py, unsigned int cand,
+                                 const FootprintEnv& e, Emit& emit) {
+    emit(fp_site(px, py, e), true);
+    around(px, py, e, emit);
+    const int looks = s.vision[row] / e.stride;
+    for (int d = 0; d < 4; ++d) {
+        for (int k = 0; k < looks; ++k) {
+            const int dist = retaliation_distance(s.look_seed[row], cand, d, k, e.stride);
+            emit(fp_site(px + dir_dx(d) * dist, py + dir_dy(d) * dist, e), false);
+        }
+    }
+}
+
+// Calls f(px, py, cand) for every combat candidate site of the row's scan: the start (cand 0), then every sight-line
+// site whether or not it turns out to be a candidate.
+template <typename F>
+__device__ void for_each_combat_site(const Store& s, unsigned int row, const FootprintEnv& e, F f) {
+    const int sx = static_cast<int>(s.start[row] % static_cast<unsigned int>(e.width));
+    const int sy = static_cast<int>(s.start[row] / static_cast<unsigned int>(e.width));
+    f(sx, sy, 0u);
+    const int looks = s.vision[row] / e.stride;
+    for (int d = 0; d < 4; ++d) {
+        for (int k = 0; k < looks; ++k) {
+            const int dist = e.stride == 1 ? k + 1 : look_distance(s.look_seed[row], d, k, e.stride);
+            f(sx + dir_dx(d) * dist, sy + dir_dy(d) * dist, combat_candidate_id(d, k, looks));
+        }
+    }
+}
+
 template <typename Emit>
 __device__ void footprint(const Store& s, unsigned int row, const FootprintEnv& e, Emit emit) {
+    // Combat: the whole turn from the start site (spec section 2): writes the start, every site on its sight lines (a
+    // target or a victim) and the four sites around each; reads the retaliation lines from each of them.
+    if (e.combat) {
+        for_each_combat_site(s, row, e, [&](int px, int py, unsigned int cand) {
+            combat_candidate(s, row, px, py, cand, e, emit);
+        });
+        return;
+    }
     const unsigned int start = s.start[row], target = s.target[row];
     emit(start, true);
     emit(target, true);
