@@ -8,6 +8,7 @@
 #include <stdexcept>
 #include <string>
 #include <utility>
+#include <vector>
 
 #ifndef SUGARSCAPE_MAX_CELLS
 #define SUGARSCAPE_MAX_CELLS 6250000u
@@ -19,6 +20,19 @@ struct ConfigError : std::runtime_error {
 
 struct IntRange {
     int lo, hi;
+};
+
+// The most cultural tag bits a citizen holds (one uint64_t; spec 2026-10-25-gpu-full-parity, section 5).
+constexpr int MAX_TAG_BITS = 63;
+// Networks of friends (p.79): each citizen remembers at most this many.
+constexpr unsigned int MAX_FRIENDS = 5;
+// Rule S with partners in sight: the most looks along each line, vision / look_stride (24 registered).
+constexpr int MAX_SIGHT_LOOKS = 64;
+
+// One tribal starting block of Python's Config.initial_blocks: n agents of the tribe in the w x h block at x0, y0.
+struct TribeBlock {
+    std::string tribe;  // "blue" | "red"
+    int x0, y0, w, h, n;
 };
 
 struct RunConfig {
@@ -46,9 +60,29 @@ struct RunConfig {
     int diffusion_start = 0;
     int diffusion_passes = 1;  // passes of D per diffusion period (100 at xl, docs/xl.md)
     int look_stride = 1;       // one random look per stretch of this many sites; vision in whole strides (10 at xl)
+    // Chapter III without combat (spec 2026-10-25-gpu-full-parity, Part A), Python's defaults.
+    bool sex = false;                                       // rule S (p.56)
+    IntRange fertility_start{12, 15};                       // p.57, both sexes
+    IntRange female_fertility_end{40, 50}, male_fertility_end{50, 60};
+    bool inheritance = false;                               // rule I (p.67)
+    int tag_length = 0;                                     // 0 = no cultural tags
+    bool culture = false;                                   // rule K and friends (p.73)
+    std::vector<TribeBlock> initial_blocks;                 // non-empty replaces placement and initial_population
+    double fertility_threshold = 1.0, child_share = 0.5;    // p.55
+    std::string mate_contact = "vision";                    // "vision" | "neighbors"
+    std::string child_gift = "endowment";                   // "endowment" | "capped"
+    std::string child_threshold = "endowment";              // "endowment" | "redraw"
+    std::string gift_rounding = "down";                     // "down" | "exact"
     // Run.
     int steps = 0;
     uint64_t seed = 0;
+    // Command-line options, not run.cfg keys (spec 2026-10-25-gpu-full-parity, section 2).
+    bool force_turns = false;              // --force-turns: the turns even without an interaction rule (tests)
+    bool serial_turns = false;             // --serial-turns: one turn per wave, in the period's order
+    unsigned int uid_capacity = 1u << 24;  // --uid-capacity: the most agents a run may create
+
+    // Whether every turn after movement runs in the ordered turns (spec section 1).
+    bool turns_on() const { return sex || culture || force_turns; }
 
     int base_width() const { return width / tile; }
     int base_height() const { return height / tile; }

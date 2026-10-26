@@ -59,10 +59,10 @@ def test_unknown_key_is_rejected(exe, tmp_path):
 
 def test_unsupported_feature_key_is_rejected(exe, tmp_path):
     cfg = write_cfg(tmp_path)
-    cfg.write_text(cfg.read_text() + "sex = true\n")
+    cfg.write_text(cfg.read_text() + "combat_alpha = 2\n")
     result = run_exe(exe, "--config", cfg, "--print-config")
     assert result.returncode == 2
-    assert "sex" in _error(result)
+    assert "combat_alpha" in _error(result)
 
 
 def test_vision_too_large_is_rejected(exe, tmp_path):
@@ -158,6 +158,7 @@ def test_version(exe, build):
     assert info["flamegpu"].startswith("2.0.0-rc.5")
     assert info["seatbelts"] == ("on" if build == "build" else "off")
     assert info["max_cells"] == "6250000"
+    assert info["max_tag_bits"] == "63"  # spec 2026-10-25-gpu-full-parity, section 5
     assert info["gpu"] != "" and info["cuda_runtime"] != ""
 
 
@@ -223,3 +224,60 @@ def test_vision_not_in_whole_strides_is_rejected(exe, tmp_path):
     assert result.returncode == 2
     # The validation message, not the unknown-key one.
     assert "look_stride" in _error(result) and "whole look strides" in _error(result)
+
+
+# --- Part A (spec 2026-10-25-gpu-full-parity), Task 1: Chapter III fields ----------------------------------
+
+CH3_OFF_DEFAULT = {
+    "sex": "true", "fertility_start": "11,14", "female_fertility_end": "30,40", "male_fertility_end": "40,50",
+    "inheritance": "true", "tag_length": "11", "culture": "true",
+    "initial_blocks": "blue,0,0,20,20,270;red,30,30,20,20,270", "fertility_threshold": "0.74", "child_share": "0.4975",
+    "mate_contact": "neighbors", "child_gift": "capped", "child_threshold": "redraw", "gift_rounding": "exact",
+    "max_age": "60,100",
+}
+
+
+def test_chapter3_keys_round_trip(exe, tmp_path):
+    result = run_exe(exe, "--config", write_cfg(tmp_path, **CH3_OFF_DEFAULT), "--print-config")
+    assert result.returncode == 0, result.stderr
+    printed = parse_printed(result.stdout)
+    for key, value in CH3_OFF_DEFAULT.items():
+        assert printed[key] == value, key
+
+
+@pytest.mark.parametrize("overrides, named", [
+    ({"tag_length": "10"}, "tag_length"),
+    ({"tag_length": "65"}, "63"),
+    ({"culture": "true"}, "tag"),
+    ({"tag_length": "11", "initial_blocks": "blue,40,40,20,20,10"}, "block"),
+    ({"tag_length": "11", "initial_blocks": "blue,0,0,2,2,5"}, "block"),
+    ({"tag_length": "11", "initial_blocks": "green,0,0,20,20,10"}, "tribe"),
+    ({"fertility_threshold": "0"}, "fertility_threshold"),
+    ({"child_share": "1.5"}, "child_share"),
+    ({"mate_contact": "touch"}, "mate_contact"),
+    ({"child_gift": "all"}, "child_gift"),
+    ({"child_threshold": "none"}, "child_threshold"),
+    ({"gift_rounding": "up"}, "gift_rounding"),
+    ({"fertility_start": "15,12"}, "fertility_start"),
+])
+def test_chapter3_validation(exe, tmp_path, overrides, named):
+    result = run_exe(exe, "--config", write_cfg(tmp_path, **overrides), "--print-config")
+    assert result.returncode == 2
+    assert named in _error(result)
+
+
+def test_initial_blocks_with_tile_rejected(exe, tmp_path):
+    cfg = write_cfg(tmp_path, tag_length="11", initial_blocks="blue,0,0,20,20,10")
+    result = run_exe(exe, "--config", cfg, "--tile", "2", "--print-config")
+    assert result.returncode == 2
+    assert "initial_blocks" in _error(result)
+
+
+@pytest.mark.parametrize("line", ["combat_alpha = 2", "spice = true", "disease_list = 10",
+                                  "replacement_same_tribe = true"])
+def test_later_parts_still_refused(exe, tmp_path, line):
+    cfg = write_cfg(tmp_path)
+    cfg.write_text(cfg.read_text() + line + "\n")
+    result = run_exe(exe, "--config", cfg, "--print-config")
+    assert result.returncode == 2
+    assert line.split()[0] in _error(result) and "not on the GPU yet" in _error(result)

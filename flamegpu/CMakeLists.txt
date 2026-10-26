@@ -47,6 +47,14 @@ SET(ALL_SRC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/checks.cu
     ${CMAKE_CURRENT_SOURCE_DIR}/src/metrics.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/metrics.cu
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/store.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/store.cu
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/footprint.cuh
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/turn.cuh
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/turns.cuh
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/looks.cuh
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/sex.cuh
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/culture.cuh
 )
 
 # Add the executable and set required flags for the target

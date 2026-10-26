@@ -24,7 +24,9 @@ def _run(exe, tmp_path, cfg=None, steps=10, extra=(), **kwargs):
 
 def test_columns_and_rows(exe, tmp_path):
     _, out = _run(exe, tmp_path)
-    assert out.read_text().splitlines()[0].split(",") == HEADER
+    header = out.read_text().splitlines()[0].split(",")
+    # Python's standard_metrics first, then the society, economic and disease columns (spec 2026-10-25-gpu-full-parity).
+    assert header[:len(HEADER)] == HEADER and len(header) == 46
     assert [r["t"] for r in read_rows(out)] == list(range(11))
 
 

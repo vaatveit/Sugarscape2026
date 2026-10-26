@@ -11,6 +11,13 @@ A second deliberate regeneration of every case, approved by the user with the de
 neighbour counts moved to Python's one-agent-at-a-time order (spec 2026-10-25-gpu-sequential-semantics), which changed
 every run, and the agent dumps gained id, priority, dir_order and look_seed. gini_t0's landscape (t = 0, before any
 move) is unchanged.
+
+A third regeneration, columns added only, approved with the design (spec 2026-10-25-gpu-full-parity, Constraints):
+on 2026-10-25 metrics.csv gained Python's other 33 metric columns and agents.csv the Chapter III variables. Every
+column of the files before it was checked byte-identical in the files after it (Part A ledger, Task 3), and the
+comparison is now by column name, so a later run may add columns but never change one the goldens hold. With Task 4
+newcomers' uids follow Python's creation order instead of thread order, so gini_t30/agents.csv was rewritten once
+more, in its uid column only (checked the same way), and uid is compared from then on.
 """
 
 from pathlib import Path
@@ -44,19 +51,24 @@ def run_case(exe: Path, tmp: Path, name: str) -> dict[str, bytes]:
     return {f: (tmp / f).read_bytes() for f in FILES}
 
 
-def comparable(f: str, data: bytes) -> bytes:
-    """The bytes compared: agents.csv without its id column. FLAME GPU numbers agents born on the device (replacement
-    newcomers) in thread order, so their ids vary between runs; the founders' ids and every other byte do not."""
-    if f != "agents.csv":
-        return data
+# Never compared: FLAME GPU numbers agents born on the device (replacement newcomers) in thread order, so their ids
+# vary between runs; the founders' ids and every other byte do not. uids follow Python's creation order and repeat.
+UNSTABLE = ("id",)
+
+
+def comparable(f: str, data: bytes, columns: list[str]) -> bytes:
+    """The bytes compared: the named columns, in that order (the golden file's columns, so a run may add new ones)."""
     lines = data.decode().splitlines()
-    drop = lines[0].split(",").index("id")
-    return "\n".join(",".join(v for i, v in enumerate(line.split(",")) if i != drop) for line in lines).encode()
+    header = lines[0].split(",")
+    keep = [header.index(c) for c in columns if c not in UNSTABLE]
+    return "\n".join(",".join(line.split(",")[i] for i in keep) for line in lines).encode()
 
 
 @pytest.mark.parametrize("name", GOLDEN_CASES)
 def test_matches_golden(exe, tmp_path, name):
     got = run_case(exe, tmp_path, name)
     for f in FILES:
-        assert comparable(f, got[f]) == comparable(f, (GOLDEN / name / f).read_bytes()), \
-            f"{name}/{f} differs from the golden run"
+        golden = (GOLDEN / name / f).read_bytes()
+        columns = golden.decode().splitlines()[0].split(",")
+        assert all(c in got[f].decode().splitlines()[0].split(",") for c in columns), f"{name}/{f} lost a column"
+        assert comparable(f, got[f], columns) == comparable(f, golden, columns), f"{name}/{f} differs from the golden run"

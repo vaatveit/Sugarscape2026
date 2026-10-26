@@ -1,8 +1,11 @@
 #include "model.h"
 
+#include <memory>
+
 #include "host_state.h"
 #include "movement.cuh"
 #include "rules.cuh"
+#include "turns.cuh"
 
 namespace {
 
@@ -38,7 +41,7 @@ void describe_movement(flamegpu::ModelDescription& sub, const RunConfig& cfg) {
     citizen.newVariable<int>("x");
     citizen.newVariable<int>("y");
     citizen.newVariable<int>("vision");
-    citizen.newVariable<float>("sugar");
+    citizen.newVariable<double>("sugar");
     citizen.newVariable<unsigned int>("moved");
     citizen.newVariable<unsigned int>("settled");
     citizen.newVariable<unsigned int>("priority");
@@ -62,6 +65,40 @@ void describe_diffusion(flamegpu::ModelDescription& sub, const RunConfig& cfg) {
     sub.newLayer().addAgentFunction(cell.newFunction("diffuse", diffuse));
     sub.newLayer().addAgentFunction(cell.newFunction("diffuse_commit", diffuse_commit));
     sub.addExitCondition(diffusion_done);
+}
+
+// The turns sub-model: waves of run_turns and release_turns until every turn has run (turns.cuh, turns_done).
+void describe_turns(flamegpu::ModelDescription& sub, const RunConfig& cfg) {
+    flamegpu::EnvironmentDescription env = sub.Environment();
+    env.newProperty<unsigned int>("width", cfg.width);
+    env.newProperty<unsigned int>("height", cfg.height);
+    env.newProperty<unsigned int>("pollution_active", 0u);
+    env.newProperty<float>("pollution_alpha", 0.0f);
+    env.newProperty<float>("pollution_beta", 0.0f);
+    env.newProperty<uint64_t>("store", 0);
+    env.newProperty<unsigned int>("serial_turns", 0u);
+    env.newProperty<unsigned int>("wave", 0u);
+    env.newProperty<unsigned int>("look_stride", 1u);
+    // Rule S (sex.cuh); the parent model's values reach these through the sub-environment.
+    env.newProperty<unsigned int>("sex", 0u);
+    env.newProperty<unsigned int>("culture", 0u);
+    env.newProperty<unsigned int>("tag_length", 0u);
+    for (const char* name : {"mate_vision", "child_capped", "child_redraw", "gift_down"}) env.newProperty<unsigned int>(name, 0u);
+    env.newProperty<double>("fertility_threshold", 1.0);
+    env.newProperty<double>("child_share", 0.5);
+    for (const char* name : {"endowment_lo", "endowment_hi", "fertility_start_lo", "fertility_start_hi",
+                             "female_fertility_end_lo", "female_fertility_end_hi", "male_fertility_end_lo",
+                             "male_fertility_end_hi"}) {
+        env.newProperty<int>(name, 0);
+    }
+    env.newMacroProperty<unsigned int, MAX_CELLS>("occupied");
+    env.newMacroProperty<float, MAX_CELLS>("sugar");
+    env.newMacroProperty<float, MAX_CELLS>("pollution");
+    flamegpu::AgentDescription citizen = sub.newAgent("citizen");
+    citizen.newVariable<unsigned int>("row");
+    sub.newLayer().addAgentFunction(citizen.newFunction("run_turns", run_turns));
+    sub.newLayer().addAgentFunction(citizen.newFunction("release_turns", release_turns));
+    sub.addExitCondition(turns_done);
 }
 
 }  // namespace
@@ -89,19 +126,61 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
     env.newProperty<int>("endowment_hi", cfg.endowment.hi);
     env.newProperty<int>("max_age_lo", cfg.max_age ? cfg.max_age->lo : 0);
     env.newProperty<int>("max_age_hi", cfg.max_age ? cfg.max_age->hi : 0);
+    // Chapter III draws for newcomers (rules.cuh, output_newcomer).
+    env.newProperty<unsigned int>("tag_length", static_cast<unsigned int>(cfg.tag_length));
+    env.newProperty<unsigned int>("sex", cfg.sex ? 1u : 0u);
+    env.newProperty<int>("fertility_start_lo", cfg.fertility_start.lo);
+    env.newProperty<int>("fertility_start_hi", cfg.fertility_start.hi);
+    env.newProperty<int>("female_fertility_end_lo", cfg.female_fertility_end.lo);
+    env.newProperty<int>("female_fertility_end_hi", cfg.female_fertility_end.hi);
+    env.newProperty<int>("male_fertility_end_lo", cfg.male_fertility_end.lo);
+    env.newProperty<int>("male_fertility_end_hi", cfg.male_fertility_end.hi);
+    env.newProperty<unsigned int>("culture", cfg.culture ? 1u : 0u);  // rule K and friends (culture.cuh)
+    // Rule S's options (sex.cuh).
+    env.newProperty<unsigned int>("mate_vision", cfg.mate_contact == "vision" ? 1u : 0u);
+    env.newProperty<unsigned int>("child_capped", cfg.child_gift == "capped" ? 1u : 0u);
+    env.newProperty<unsigned int>("child_redraw", cfg.child_threshold == "redraw" ? 1u : 0u);
+    env.newProperty<unsigned int>("gift_down", cfg.gift_rounding == "down" ? 1u : 0u);
+    env.newProperty<double>("fertility_threshold", cfg.fertility_threshold);
+    env.newProperty<double>("child_share", cfg.child_share);
     env.newProperty<unsigned int>("t", 0u);
     env.newProperty<unsigned int>("round", 1u);
     env.newProperty<unsigned int>("seasons_beta", cfg.seasons ? static_cast<unsigned int>(cfg.seasons->first) : 0u);
     env.newProperty<unsigned int>("seasons_gamma", cfg.seasons ? static_cast<unsigned int>(cfg.seasons->second) : 0u);
     env.newProperty<unsigned int>("winter_pulse", cfg.winter_growback == "pulse" ? 1u : 0u);
+    // The turns (turns.cuh): the device store's and the newcomer slots' addresses, serial mode, the wave number.
+    env.newProperty<uint64_t>("store", 0);
+    env.newProperty<uint64_t>("newcomers", 0);
+    env.newProperty<uint64_t>("dying", 0);  // rule I's table of the period's dying (store.h, DyingTable)
+    env.newProperty<unsigned int>("serial_turns", cfg.serial_turns ? 1u : 0u);
+    env.newProperty<unsigned int>("wave", 0u);
     landscape_macros(env, true);
 
     flamegpu::AgentDescription citizen = model.newAgent("citizen");
     for (const char* name : {"x", "y", "vision", "metabolism", "age", "max_age"}) citizen.newVariable<int>(name);
-    citizen.newVariable<float>("sugar");
+    citizen.newVariable<double>("sugar");  // holdings are double (spec 2026-10-25-gpu-full-parity, section 4)
+    // Chapter III state (spec section 3). Without sex, fertility_start/end are NO_FERTILITY_START/END, Python's inf/-inf.
+    citizen.newVariable<unsigned int>("uid");
+    citizen.newVariable<unsigned int>("sex", SEX_NONE);
+    citizen.newVariable<int>("fertility_start", NO_FERTILITY_START);
+    citizen.newVariable<int>("fertility_end", NO_FERTILITY_END);
+    citizen.newVariable<double>("initial_sugar");
+    citizen.newVariable<uint64_t>("tags");  // bit i is tag i
+    citizen.newVariable<unsigned int>("n_children");
+    citizen.newVariable<unsigned int>("parent_a", NO_UID);
+    citizen.newVariable<unsigned int>("parent_b", NO_UID);
+    citizen.newVariable<unsigned int, MAX_FRIENDS>("friend_uid");
+    citizen.newVariable<unsigned int, MAX_FRIENDS>("friend_dist");
+    citizen.newVariable<unsigned int>("n_friends");
+    citizen.newVariable<int>("disp_x");  // net displacement since birth, unwrapped across the torus edges
+    citizen.newVariable<int>("disp_y");
     for (const char* name : {"moved", "neighbors", "settled", "priority", "target"}) citizen.newVariable<unsigned int>(name);
     citizen.newVariable<unsigned int>("look_seed");  // this period's looks, when look_stride > 1 (start_period)
     citizen.newVariable<unsigned int>("dir_order");  // this period's scan direction order, 2 bits each (start_period)
+    citizen.newVariable<unsigned int>("row");        // the citizen's row in the store this period (publish)
+    citizen.newVariable<uint64_t>("death_key");      // a newcomer's place among this period's deaths (store.h)
+    citizen.newVariable<unsigned int>("nc_slot");    // a newcomer's slot while it takes its uid
+    citizen.newVariable<unsigned int>("dying");      // reached its maximum age this period (rule I's layers)
     flamegpu::AgentDescription cell = model.newAgent("cell");
     cell.newVariable<unsigned int>("capacity");  // the site's sugar capacity (make_cells)
 
@@ -118,11 +197,6 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
     diffusion_sub.bindAgent("cell", "cell", true, true);
     diffusion_sub.SubEnvironment(true);
 
-    flamegpu::AgentFunctionDescription metabolize = citizen.newFunction("metabolize_and_age", metabolize_and_age);
-    metabolize.setAllowAgentDeath(true);
-    // Replacement on the device (spec 2026-10-25): only when it is on, so other runs execute today's kernels.
-    if (cfg.replacement) metabolize.setAgentOutput(citizen);
-
     flamegpu::AgentFunctionDescription occupy = citizen.newFunction("occupy_site", occupy_site);
 
     model.newLayer().addHostFunction(begin_period);
@@ -132,11 +206,68 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
     model.newLayer().addHostFunction(finish_init);
     model.newLayer().addAgentFunction(citizen.newFunction("start_period", start_period));
     model.newLayer().addSubModel(movement_sub);
-    model.newLayer().addAgentFunction(citizen.newFunction("commit_move", commit_move));
-    model.newLayer().addAgentFunction(metabolize);
-    // After metabolism, as Python counts each agent's neighbours after its own move and metabolism.
-    model.newLayer().addAgentFunction(citizen.newFunction("count_neighbors", count_neighbors));
-    if (cfg.replacement) model.newLayer().addAgentFunction(citizen.newFunction("place_newcomer", place_newcomer));
+    if (cfg.turns_on()) {
+        // With an interaction rule, every turn after movement runs in the period's order (spec
+        // 2026-10-25-gpu-full-parity, sections 1 and 2): publish, schedule, the turns, absorb, then old age.
+        RunState& s = state();
+        s.store = std::make_unique<StoreHost>(cfg, cfg.uid_capacity, s.check);
+        env.setProperty<uint64_t>("store", s.store->device_address());
+        flamegpu::ModelDescription turns("turns");  // sorts after "movement": its random stream stays as it was
+        describe_turns(turns, cfg);
+        flamegpu::SubModelDescription turns_sub = model.newSubModel("turns", turns);
+        turns_sub.bindAgent("citizen", "citizen", true, true);
+        turns_sub.SubEnvironment(true);
+        model.newLayer().addHostFunction(prepare_turns);
+        model.newLayer().addAgentFunction(citizen.newFunction("publish", publish));
+        model.newLayer().addHostFunction(schedule_turns);
+        model.newLayer().addSubModel(turns_sub);
+        model.newLayer().addHostFunction(assign_births);
+        flamegpu::AgentFunctionDescription absorb_fn = citizen.newFunction("absorb", absorb);
+        absorb_fn.setAllowAgentDeath(true);
+        if (cfg.replacement) absorb_fn.setAgentOutput(citizen);
+        model.newLayer().addAgentFunction(absorb_fn);
+        flamegpu::AgentFunctionDescription spawn_fn = cell.newFunction("spawn_newborns", spawn_newborns);
+        spawn_fn.setAgentOutput(citizen);
+        model.newLayer().addAgentFunction(spawn_fn);
+        if (cfg.inheritance) {
+            // Rule I at old age: age and post the dying, count and pay the heirs, then the dying die (turns.cuh).
+            s.dying = std::make_unique<DyingTable>(static_cast<unsigned int>(cfg.cells()));
+            env.setProperty<uint64_t>("dying", s.dying->device_address());
+            model.newLayer().addHostFunction(dying_posting);
+            model.newLayer().addAgentFunction(citizen.newFunction("age_mark", age_mark));
+            model.newLayer().addHostFunction(dying_sort);
+            model.newLayer().addAgentFunction(citizen.newFunction("heirs_count", heirs_count));
+            model.newLayer().addAgentFunction(citizen.newFunction("heirs_take", heirs_take));
+            flamegpu::AgentFunctionDescription die_fn = citizen.newFunction("die_old", die_old);
+            die_fn.setAllowAgentDeath(true);
+            if (cfg.replacement) die_fn.setAgentOutput(citizen);
+            model.newLayer().addAgentFunction(die_fn);
+        } else {
+            flamegpu::AgentFunctionDescription age_fn = citizen.newFunction("age_and_die", age_and_die);
+            age_fn.setAllowAgentDeath(true);
+            if (cfg.replacement) age_fn.setAgentOutput(citizen);
+            model.newLayer().addAgentFunction(age_fn);
+        }
+    } else {
+        flamegpu::AgentFunctionDescription metabolize = citizen.newFunction("metabolize_and_age", metabolize_and_age);
+        metabolize.setAllowAgentDeath(true);
+        // Replacement on the device (spec 2026-10-25): only when it is on, so other runs execute today's kernels.
+        if (cfg.replacement) metabolize.setAgentOutput(citizen);
+        model.newLayer().addAgentFunction(citizen.newFunction("commit_move", commit_move));
+        model.newLayer().addAgentFunction(metabolize);
+        // After metabolism, as Python counts each agent's neighbours after its own move and metabolism.
+        model.newLayer().addAgentFunction(citizen.newFunction("count_neighbors", count_neighbors));
+    }
+    if (cfg.replacement) {
+        // Newcomers' uids in the order of their deaths (store.h, NewcomerUids), then their sites.
+        RunState& s = state();
+        s.newcomers = std::make_unique<NewcomerUids>(static_cast<unsigned int>(cfg.cells()));
+        env.setProperty<uint64_t>("newcomers", s.newcomers->device_address());
+        model.newLayer().addAgentFunction(citizen.newFunction("newcomer_post", newcomer_post));
+        model.newLayer().addHostFunction(assign_newcomers);
+        model.newLayer().addAgentFunction(citizen.newFunction("newcomer_take", newcomer_take));
+        model.newLayer().addAgentFunction(citizen.newFunction("place_newcomer", place_newcomer));
+    }
     model.newLayer().addAgentFunction(cell.newFunction("cell_grow", cell_grow));
     model.newLayer().addAgentFunction(cell.newFunction("cell_commit", cell_commit));
     model.newLayer().addSubModel(diffusion_sub);

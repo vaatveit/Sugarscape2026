@@ -5,6 +5,7 @@
 
 #include "model.h"
 #include "movement.cuh"
+#include "store.h"
 
 // Initialisation, on the device so no host function copies a site-sized macro property (xl design, section 3).
 // Cell layer (writes sugar): in the first period only, every site starts at capacity (p.21).
@@ -76,10 +77,29 @@ FLAMEGPU_AGENT_FUNCTION(count_neighbors, flamegpu::MessageNone, flamegpu::Messag
     return flamegpu::ALIVE;
 }
 
+// A uniform integer on lo..hi inclusive through the 64-bit draw (uniform<int> goes through a float and can return
+// hi + 1 at the endpoint).
+template <typename API>
+__device__ __forceinline__ int draw_between(API* FLAMEGPU, int lo, int hi) {
+    return lo + static_cast<int>(FLAMEGPU->random.template uniform<uint64_t>(0ull, static_cast<uint64_t>(hi - lo)));
+}
+
+// `bits` uniform random bits (at most 63), bit 0 first, drawn 32 at a time.
+template <typename API>
+__device__ __forceinline__ uint64_t random_bits(API* FLAMEGPU, int bits) {
+    uint64_t out = 0;
+    for (int done = 0; done < bits; done += 32) {
+        const int k = min(32, bits - done);
+        out |= FLAMEGPU->random.template uniform<uint64_t>(0ull, (1ull << k) - 1ull) << done;
+    }
+    return out;
+}
+
 // R[a,b] (p.32), first half: the newcomer replacing a citizen that dies, drawn with the dying citizen's random
 // stream as Python's spawn_random_agent draws it (uniform on each inclusive range; vision in whole look strides).
 // It is unplaced (x = y = -1) until place_newcomer; age 0 and every other variable at its default, as before.
-__device__ __forceinline__ void output_newcomer(flamegpu::DeviceAPI<flamegpu::MessageNone, flamegpu::MessageNone>* FLAMEGPU) {
+__device__ __forceinline__ void output_newcomer(flamegpu::DeviceAPI<flamegpu::MessageNone, flamegpu::MessageNone>* FLAMEGPU,
+                                                uint64_t death_key) {
     const auto& env = FLAMEGPU->environment;
     const int stride = static_cast<int>(env.getProperty<unsigned int>("look_stride"));
     FLAMEGPU->agent_out.setVariable<int>("x", -1);
@@ -89,11 +109,30 @@ __device__ __forceinline__ void output_newcomer(flamegpu::DeviceAPI<flamegpu::Me
                                                          env.getProperty<int>("vision_hi") / stride));
     FLAMEGPU->agent_out.setVariable<int>(
         "metabolism", FLAMEGPU->random.uniform<int>(env.getProperty<int>("metabolism_lo"), env.getProperty<int>("metabolism_hi")));
-    FLAMEGPU->agent_out.setVariable<float>("sugar", static_cast<float>(FLAMEGPU->random.uniform<int>(
-        env.getProperty<int>("endowment_lo"), env.getProperty<int>("endowment_hi"))));
+    const double sugar = static_cast<double>(FLAMEGPU->random.uniform<int>(
+        env.getProperty<int>("endowment_lo"), env.getProperty<int>("endowment_hi")));
+    FLAMEGPU->agent_out.setVariable<double>("sugar", sugar);
+    FLAMEGPU->agent_out.setVariable<double>("initial_sugar", sugar);
     FLAMEGPU->agent_out.setVariable<int>(
         "max_age", FLAMEGPU->random.uniform<int>(env.getProperty<int>("max_age_lo"), env.getProperty<int>("max_age_hi")));
     FLAMEGPU->agent_out.setVariable<int>("age", 0);
+    // Chapter III draws after Chapter II's, as Python's _spawn_at (spec 2026-10-25-gpu-full-parity, Task 2).
+    const int tag_length = static_cast<int>(env.getProperty<unsigned int>("tag_length"));
+    if (tag_length) FLAMEGPU->agent_out.setVariable<uint64_t>("tags", random_bits(FLAMEGPU, tag_length));
+    if (env.getProperty<unsigned int>("sex")) {
+        const bool female = draw_between(FLAMEGPU, 0, 1) == 0;
+        FLAMEGPU->agent_out.setVariable<unsigned int>("sex", female ? SEX_F : SEX_M);
+        FLAMEGPU->agent_out.setVariable<int>(
+            "fertility_start", draw_between(FLAMEGPU, env.getProperty<int>("fertility_start_lo"),
+                                            env.getProperty<int>("fertility_start_hi")));
+        FLAMEGPU->agent_out.setVariable<int>(
+            "fertility_end", female ? draw_between(FLAMEGPU, env.getProperty<int>("female_fertility_end_lo"),
+                                                   env.getProperty<int>("female_fertility_end_hi"))
+                                    : draw_between(FLAMEGPU, env.getProperty<int>("male_fertility_end_lo"),
+                                                   env.getProperty<int>("male_fertility_end_hi")));
+    }
+    // Its uid comes after placement, in the order of the deaths (turns.cuh, newcomer_post / newcomer_take).
+    FLAMEGPU->agent_out.setVariable<uint64_t>("death_key", death_key);
 }
 
 // Metabolism (p.25) with consumption pollution (p.47), then aging; death frees the site and, with replacement,
@@ -103,8 +142,8 @@ FLAMEGPU_AGENT_FUNCTION(metabolize_and_age, flamegpu::MessageNone, flamegpu::Mes
     const unsigned int site = static_cast<unsigned int>(FLAMEGPU->getVariable<int>("x")) +
                               static_cast<unsigned int>(FLAMEGPU->getVariable<int>("y")) * w;
     const int metabolism = FLAMEGPU->getVariable<int>("metabolism");
-    const float sugar = FLAMEGPU->getVariable<float>("sugar") - static_cast<float>(metabolism);
-    FLAMEGPU->setVariable<float>("sugar", sugar);
+    const double sugar = FLAMEGPU->getVariable<double>("sugar") - static_cast<double>(metabolism);
+    FLAMEGPU->setVariable<double>("sugar", sugar);
     if (FLAMEGPU->environment.getProperty<unsigned int>("pollution_active")) {
         auto pollution = FLAMEGPU->environment.getMacroProperty<float, MAX_CELLS>("pollution");
         pollution[site] += FLAMEGPU->environment.getProperty<float>("pollution_beta") * static_cast<float>(metabolism);
@@ -122,7 +161,12 @@ FLAMEGPU_AGENT_FUNCTION(metabolize_and_age, flamegpu::MessageNone, flamegpu::Mes
             auto arrived = FLAMEGPU->environment.getMacroProperty<uint64_t, MAX_CELLS>("arrived");
             arrived[site].exchange(uint64_t{0});
         }
-        if (FLAMEGPU->environment.getProperty<unsigned int>("replacement")) output_newcomer(FLAMEGPU);
+        if (FLAMEGPU->environment.getProperty<unsigned int>("replacement")) {
+            // Python spawns newcomers for the starved first, in the period's order, then for old age by uid.
+            const uint64_t key = order_key(FLAMEGPU->getVariable<unsigned int>("priority"), FLAMEGPU->getID());
+            output_newcomer(FLAMEGPU, sugar <= 0.0 ? starved_key(~key >> 1)
+                                                    : old_age_key(FLAMEGPU->getVariable<unsigned int>("uid")));
+        }
         return flamegpu::DEAD;
     }
     return flamegpu::ALIVE;

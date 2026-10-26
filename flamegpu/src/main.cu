@@ -32,6 +32,9 @@ const char* const USAGE =
     "  --tile K               tile the map K x K (population x K^2)\n"
     "  --timing FILE          timing JSON\n"
     "  --check                check invariants every period (exit 3 on a violation)\n"
+    "  --force-turns          run every turn after movement in the ordered turns, even without an interaction rule\n"
+    "  --serial-turns         run the turns one per wave, strictly in the period's order\n"
+    "  --uid-capacity N       the most agents a run may create (default 16777216; exit 5 beyond it)\n"
     "  --print-config         print the effective configuration and exit\n"
     "  --version              print the FLAME GPU, CUDA and GPU versions and the build's settings, and exit\n"
     "  --help                 this text\n";
@@ -46,6 +49,8 @@ struct Options {
     std::optional<int> dump_at;
     int tile = 1;
     bool check = false;
+    bool force_turns = false, serial_turns = false;
+    std::optional<int> uid_capacity;
     bool print_config = false;
     bool help = false;
     bool version = false;
@@ -62,9 +67,9 @@ void print_version() {
 #else
     const char* seatbelts = "off";
 #endif
-    std::printf("flamegpu = %s\ncuda_runtime = %d.%d\ngpu = %s\nseatbelts = %s\nmax_cells = %u\n", flamegpu::VERSION_FULL,
-                runtime / 1000, runtime % 1000 / 10, have_device ? device.name : "none", seatbelts,
-                static_cast<unsigned int>(SUGARSCAPE_MAX_CELLS));
+    std::printf("flamegpu = %s\ncuda_runtime = %d.%d\ngpu = %s\nseatbelts = %s\nmax_cells = %u\nmax_tag_bits = %d\n",
+                flamegpu::VERSION_FULL, runtime / 1000, runtime % 1000 / 10, have_device ? device.name : "none",
+                seatbelts, static_cast<unsigned int>(SUGARSCAPE_MAX_CELLS), MAX_TAG_BITS);
     // Flush now: CUDA, started above, can end the process at exit before stdout is flushed (the output was lost
     // in about 1 run in 4, with exit code 0).
     std::fflush(stdout);
@@ -91,6 +96,9 @@ Options parse_args(int argc, const char** argv) {
         if (arg == "--help") o.help = true;
         else if (arg == "--version") o.version = true;
         else if (arg == "--check") o.check = true;
+        else if (arg == "--force-turns") o.force_turns = true;
+        else if (arg == "--serial-turns") o.serial_turns = true;
+        else if (arg == "--uid-capacity") o.uid_capacity = to_int(arg, value());
         else if (arg == "--print-config") o.print_config = true;
         else if (arg == "--config") o.config = value();
         else if (arg == "--out") o.out = value();
@@ -106,6 +114,7 @@ Options parse_args(int argc, const char** argv) {
     if (o.help || o.version) return o;
     if (o.config.empty()) throw UsageError("--config is required");
     if (o.metrics_every < 1) throw UsageError("--metrics-every must be >= 1");
+    if (o.uid_capacity && *o.uid_capacity < 1) throw UsageError("--uid-capacity must be >= 1");
     if ((!o.dump_agents.empty() || !o.dump_landscape.empty()) && !o.dump_at) {
         throw UsageError("--dump-agents/--dump-landscape need --dump-at");
     }
@@ -136,6 +145,9 @@ int main(int argc, const char** argv) {
     std::chrono::steady_clock::time_point setup_start;
     try {
         cfg = parse_config(opts.config);
+        cfg.force_turns = opts.force_turns;
+        cfg.serial_turns = opts.serial_turns;
+        if (opts.uid_capacity) cfg.uid_capacity = static_cast<unsigned int>(*opts.uid_capacity);
         apply_tile(cfg, opts.tile);
         validate(cfg);
         setup_start = std::chrono::steady_clock::now();
@@ -211,14 +223,18 @@ int main(int argc, const char** argv) {
             const double setup = std::chrono::duration<double>(s.setup_end - setup_start).count() - t0_metrics;
             FILE* f = std::fopen(opts.timing.c_str(), "w");
             if (!f) throw std::runtime_error("cannot write " + opts.timing);
-            // The first five keys are bridge.bench's; the rest are docs/xl.md's timing measures.
+            // The first five keys are bridge.bench's; the next six docs/xl.md's timing measures; waves_mean the turns'
+            // waves per period (0 without the turns; spec 2026-10-25-gpu-full-parity, section 2).
+            double waves = 0;
+            for (const unsigned int v : s.waves) waves += v;
             std::fprintf(f,
                          "{\"cells\": %lld, \"agents_initial\": %u, \"steps\": %d, \"simulate_seconds\": %.9g, "
                          "\"step_seconds_mean\": %.9g, \"setup_s\": %.9g, \"stepping_s\": %.9g, \"metrics_s\": %.9g, "
-                         "\"periods\": %zu, \"agents_start\": %u, \"agents_end\": %u}\n",
+                         "\"periods\": %zu, \"agents_start\": %u, \"agents_end\": %u, \"waves_mean\": %.9g}\n",
                          static_cast<long long>(cfg.cells()), citizens.size(), cfg.steps, seconds,
                          steps.empty() ? 0.0 : step_total / static_cast<double>(steps.size()), setup, step_total,
-                         s.metrics_seconds, steps.size(), citizens.size(), s.population);
+                         s.metrics_seconds, steps.size(), citizens.size(), s.population,
+                         s.waves.empty() ? 0.0 : waves / static_cast<double>(s.waves.size()));
             std::fclose(f);
         }
     } catch (const InvariantError& e) {
@@ -227,10 +243,19 @@ int main(int argc, const char** argv) {
     } catch (const RoundLimitError& e) {
         std::fprintf(stderr, "sugarscape_gpu: %s\n", e.what());
         return 4;
+    } catch (const SchedulerError& e) {
+        std::fprintf(stderr, "sugarscape_gpu: %s\n", e.what());
+        return 4;
+    } catch (const CapacityError& e) {
+        std::fprintf(stderr, "sugarscape_gpu: %s\n", e.what());
+        return 5;
     } catch (const std::exception& e) {
         std::fprintf(stderr, "sugarscape_gpu: %s\n", e.what());
         return 1;
     }
+    s.store.reset();  // the device buffers go before the device is reset
+    s.newcomers.reset();
+    s.dying.reset();
     flamegpu::util::cleanup();
     return EXIT_SUCCESS;
 }

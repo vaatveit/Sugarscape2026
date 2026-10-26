@@ -62,6 +62,19 @@ std::vector<InitAgent> load_init_agents(const std::string& path, int width, int 
     if (!std::getline(in, line) || line.find("x,y,vision,metabolism,sugar,age,max_age") != 0) {
         throw MapError(path + " line 1: expected the header x,y,vision,metabolism,sugar,age,max_age");
     }
+    if (!line.empty() && line.back() == '\r') line.pop_back();
+    std::vector<std::string> header;
+    {
+        std::stringstream hs(line);
+        std::string name;
+        while (std::getline(hs, name, ',')) header.push_back(name);
+    }
+    for (size_t c = 7; c < header.size(); ++c) {
+        static const std::set<std::string> optional = {"sex",        "fertility_start", "fertility_end", "initial_sugar",
+                                                       "tags",       "n_children",      "parent_a",      "parent_b",
+                                                       "friends"};
+        if (!optional.count(header[c])) throw MapError(path + " line 1: unknown column '" + header[c] + "'");
+    }
     std::vector<InitAgent> agents;
     std::set<long long> sites;
     int number = 1;
@@ -75,10 +88,45 @@ std::vector<InitAgent> load_init_agents(const std::string& path, int width, int 
         while (std::getline(ss, part, ',')) f.push_back(part);
         if (line.back() == ',') f.push_back("");
         const std::string where = path + " line " + std::to_string(number);
-        if (f.size() != 7) throw MapError(where + ": expected 7 fields");
+        if (f.size() != header.size()) throw MapError(where + ": expected " + std::to_string(header.size()) + " fields");
         try {
-            InitAgent a{std::stoi(f[0]), std::stoi(f[1]), std::stoi(f[2]), std::stoi(f[3]), std::stof(f[4]),
+            InitAgent a{std::stoi(f[0]), std::stoi(f[1]), std::stoi(f[2]), std::stoi(f[3]), std::stod(f[4]),
                         std::stoi(f[5]), f[6].empty() ? std::nullopt : std::optional<int>(std::stoi(f[6]))};
+            for (size_t c = 7; c < header.size(); ++c) {
+                const std::string& v = f[c];
+                if (v.empty()) continue;
+                if (header[c] == "sex") {
+                    if (v != "F" && v != "M") throw MapError(where + ": sex must be F, M or blank");
+                    a.sex = v == "F" ? 1u : 2u;
+                } else if (header[c] == "fertility_start") {
+                    a.fertility_start = std::stoi(v);
+                } else if (header[c] == "fertility_end") {
+                    a.fertility_end = std::stoi(v);
+                } else if (header[c] == "n_children") {
+                    a.n_children = static_cast<unsigned int>(std::stoul(v));
+                } else if (header[c] == "friends") {
+                    std::stringstream fs(v);
+                    std::string item;
+                    while (std::getline(fs, item, '|')) {
+                        const auto colon = item.find(':');
+                        if (colon == std::string::npos) throw MapError(where + ": friends must be uid:distance|...");
+                        a.friends.emplace_back(static_cast<unsigned int>(std::stoul(item.substr(0, colon))),
+                                               static_cast<unsigned int>(std::stoul(item.substr(colon + 1))));
+                    }
+                    if (a.friends.size() > 5) throw MapError(where + ": at most 5 friends");
+                } else if (header[c] == "parent_a") {
+                    a.parent_a = static_cast<unsigned int>(std::stoul(v));
+                } else if (header[c] == "parent_b") {
+                    a.parent_b = static_cast<unsigned int>(std::stoul(v));
+                } else if (header[c] == "initial_sugar") {
+                    a.initial_sugar = std::stod(v);
+                } else if (header[c] == "tags") {
+                    if (v.size() > 63 || v.find_first_not_of("01") != std::string::npos) {
+                        throw MapError(where + ": tags must be a 0/1 string of at most 63 bits");
+                    }
+                    for (size_t i = 0; i < v.size(); ++i) a.tags |= static_cast<uint64_t>(v[i] == '1') << i;
+                }
+            }
             if (a.x < 0 || a.x >= width || a.y < 0 || a.y >= height) throw MapError(where + ": site outside the world");
             if (!sites.insert(a.x + static_cast<long long>(a.y) * width).second) throw MapError(where + ": site already taken");
             agents.push_back(a);

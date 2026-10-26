@@ -505,6 +505,7 @@ MigrationBackup/
 results-gpu/
 results-gpu-xl/
 results-gpu-xl-fast/
+results-harness/
 .venv/
 build-fast/
 .superpowers/
