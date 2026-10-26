@@ -123,9 +123,12 @@ def registry_cfg(exp_id: str, **overrides: str) -> dict:
     return {**cfg, **overrides}
 
 
+# Byte-for-byte cases leave replacement out: when two newcomers draw the same site at once, place_newcomer's CAS race
+# is decided by the GPU's timing (a placement issue older than combat; see docs/validation/chapter3-part-b.md). III-11
+# keeps its combat, max ages and old-age deaths here; test_combat_check runs it whole.
 COMBAT_CASES = {
     "III-9": registry_cfg("III-9"),
-    "III-11": registry_cfg("III-11"),
+    "III-11": registry_cfg("III-11", replacement="false", replacement_same_tribe="false"),
     "III-13": registry_cfg("III-13"),
     "stride5": registry_cfg("III-9", vision="5,10", look_stride="5"),
 }
@@ -137,10 +140,12 @@ def test_serial_equivalence_combat(exe, tmp_path, name):
     assert waves == _files(exe, tmp_path / "serial", COMBAT_CASES[name], 20, "--serial-turns")
 
 
-@pytest.mark.parametrize("name", ["III-9", "III-13", "stride5"])
+@pytest.mark.parametrize("name", ["III-9", "III-11", "III-13", "stride5"])
 def test_combat_check(exe, tmp_path, name):
-    # --check looks up every site a turn touches in its own footprint (store.h, touch()): exit 3 on a miss.
-    result = run_exe(exe, "--config", write_cfg(tmp_path, **COMBAT_CASES[name], steps="20"), "--check")
+    # --check looks up every site a turn touches in its own footprint (store.h, touch()): exit 3 on a miss. III-11 runs
+    # as registered, same-tribe replacement included.
+    cfg = registry_cfg("III-11") if name == "III-11" else COMBAT_CASES[name]
+    result = run_exe(exe, "--config", write_cfg(tmp_path, **cfg, steps="20"), "--check")
     assert result.returncode == 0, result.stderr
 
 
