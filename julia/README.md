@@ -119,12 +119,16 @@ the evidence that each is sampling noise is in [docs/validation.md](docs/validat
 
 ### xl
 
-xl follows main's current definition, including the look stride of docs/xl.md ("Looking"), which changed during
-the port (commit 0b6b937).
+xl follows main's current definition, including the look of docs/xl.md ("Looking"), which changed twice during
+the port: the look stride (commit 0b6b937), then the centred look (80f4630, 2026-10-26).
 
-- **Seven experiments run on both sides (II-4, II-4-gini, II-6, II-7, II-8, IV-A3, VI-1): Julia agrees with
-  Python, 0 flags among 436 tested windows and 7 extinction tests.**
-- **The whole registry** ran in Julia at xl: all 135 experiments at their registered seeds, without a failure.
+- **Centred look, II-4 and IV-A3 (10 seeds each): Julia agrees with Python, 0 flags.** At the end, II-4 has 23,838
+  agents in Python and 23,828 in Julia; IV-A3 3,212 and 3,253.
+- **Earlier uniform look, seven experiments (II-4, II-4-gini, II-6, II-7, II-8, IV-A3, VI-1): Julia agreed with
+  Python, 0 flags among 436 tested windows and 7 extinction tests.** II-4-gini, II-6, II-7, II-8 and VI-1 still
+  have uniform-look results on both sides; the fingerprint doesn't record the look, so the report can't tell.
+- **The whole registry** ran in Julia at xl with the uniform look: all 135 experiments at their registered seeds,
+  without a failure.
 - **VI-1 at xl does not go extinct on either side**, unlike 3 of 5 regular seeds: at t = 500 Python has 83,623
   agents on average and Julia 86,415. The larger world sustains the society; [docs/validation.md](docs/validation.md)
   has the numbers.
@@ -134,9 +138,9 @@ the port (commit 0b6b937).
 | Workload | Python s/period | Julia s/period | Speedup |
 |---|---|---|---|
 | II-4 regular (400 → 236 agents) | 0.0131 (4 jobs) | 0.000091 (10 jobs) | about 144× |
-| II-4 xl (40,000 → about 23,230 agents) | 1.89 (10 jobs) | 0.022 (5 jobs) | about 86× |
-| IV-A3 xl (20,000 → about 2,840 agents) | 0.438 (1 job) | 0.0156 (1 job) | about 28× |
-| VI-1 xl (20,000 → about 85,000 agents) | 15.45 (1 job) | 0.230 (1 job) | about 67× |
+| II-4 xl (40,000 → about 23,830 agents) | 3.24 (10 jobs) | 0.043 (10 jobs) | about 75× |
+| IV-A3 xl (20,000 → about 3,230 agents) | 1.11 (1 job) | 0.028 (1 job) | about 40× |
+| VI-1 xl, uniform look (20,000 → about 85,000 agents) | 15.45 (1 job) | 0.230 (1 job) | about 67× |
 
 Seconds of stepping per period, averaged over seeds and periods. Each report adds a row for every experiment timed
 on both sides; over the 135 regular experiments, both with one job, the median speedup is 36×
@@ -144,18 +148,18 @@ on both sides; over the 135 regular experiments, both with one job, the median s
 
 Julia alone, a selection of the xl registry (seconds of stepping per period; agents at start and end, mean over
 seeds). The median xl experiment takes 72 ms per period; the whole registry took 51 hours of stepping, summed over
-seeds. IV-A3 and VI-1 were re-run with one job on 2026-10-26 (VI-1 after the single-thread speed-ups); the others
-ran with 5 to 10 jobs sharing the processor.
+seeds. II-4 and IV-A3 are centred-look runs (2026-10-26, 10 jobs and 1 job); the rest used the uniform look. VI-1 was
+re-run with one job after the single-thread speed-ups; the others ran with 5 to 10 jobs sharing the processor.
 
 | Experiment | Agents | Periods | Julia s/period |
 |---|---|---|---|
-| II-4 | 40,000 → 23,238 | 500 | 0.022 |
+| II-4 | 40,000 → 23,828 | 500 | 0.043 |
 | II-8 | 40,000 → 18,606 | 200 | 0.032 |
 | III-1 | 40,000 → 64,377 | 2,500 | 0.159 |
 | III-9 | 54,000 → 21,290 | 1,000 | 0.079 |
 | III-15 | 10,000 → 67,695 | 6,000 | 0.307 |
 | IV-3 | 20,000 → 4,732 | 1,000 | 0.012 |
-| IV-A3 | 20,000 → 2,845 | 300 | 0.016 |
+| IV-A3 | 20,000 → 3,253 | 300 | 0.028 |
 | IV-A5 | 40,000 → 72,532 | 500 | 0.579 |
 | V-2 | 40,000 → 22,401 | 500 | 0.029 |
 | VI-1 | 20,000 → 86,415 | 500 | 0.230 |

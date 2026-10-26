@@ -31,7 +31,9 @@ mutable struct Model{R<:AbstractRNG}
     disease_len::Vector{Int}
     disease_ids::Dict{Tuple{UInt64,Int},Int}
     order::Vector{Agent}  # scratch: this period's acting order
-    looks::Vector{Int}  # scratch: in_sight's look distances, line by line
+    line::Vector{Int}  # scratch: move! and combat_move!'s look distances along one line
+    threat::Vector{Int}  # scratch: vulnerable's look distances along one line
+    looks::Vector{Int}  # scratch: in_sight's looks across the four lines, nearest first
     sight::Vector{Agent}  # scratch: in_sight's agents, nearest first
     sites::Vector{Tuple{Int,Int}}  # scratch: mate!'s empty sites next to the parents
 end
@@ -72,6 +74,8 @@ function Model(
         Int[],
         Dict{Tuple{UInt64,Int},Int}(),
         Agent[],
+        Int[],
+        Int[],
         Int[],
         Agent[],
         Tuple{Int,Int}[],

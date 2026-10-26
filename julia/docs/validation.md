@@ -248,3 +248,32 @@ IV-A3 ends with 2,830 (Python) and 2,845 (Julia).
 **Speed, both sides `--jobs 1`** (shared machine): IV-A3 0.438 against 0.0156 s per period, 28×; VI-1 15.45
 against 0.230 s, 67× (Python's 5 seeds took about 10.7 hours of stepping, Julia's under 10 minutes). At regular size VI-1 is the
 lowest ratio (10×); at xl it is among the highest.
+
+## The centred look (2026-10-26)
+
+Python's commit 80f4630 changed how xl agents look (docs/xl.md, "Looking"). The k-th look along a line is now
+10k + a − b sites away, a and b uniform on 0 … 9: where a random site of the regular cell k away lies from a random
+site of one's own cell, so the looks average 10, 20, … like the regular sites they stand for, where the uniform
+draw from each stretch of 10 averaged 4.5 sites nearer. Neighbouring looks' ranges overlap, so a distance drawn
+twice is looked at once and the looks are taken nearest first; partners in sight are taken nearest first across all
+four lines (east, west, north, south at equal distances); and `Config` checks the farthest look, vision + stride − 1,
+against half the grid.
+
+**Ported** to movement, combat (target search and retaliation), partners in sight and `validate`, with Python's
+updated `tests/test_look_stride.py` as the checklist. Each line's distances go into a scratch buffer on the model,
+kept sorted as they are drawn; `in_sight` keeps one sorted list of 4 × distance + direction for the four lines.
+One test case was added that Python's don't need in Julia: two partners in the first stretch, the later line's one
+nearer, which the old stretch-by-stretch order listed the other way round.
+
+- **Regular results unchanged:** stride 1 draws nothing and keeps the old order; all 1,047 regular seed files are
+  byte-identical to `results-julia/`. Suite 7,974/7,974.
+- **xl, against Python's centred-look runs of II-4 and IV-A3** (the user re-ran them for the commit): Julia agrees,
+  0 flags. II-4 ends with 23,838 agents in Python and 23,828 in Julia (uniform look: 23,262 and 23,238); IV-A3 with
+  3,212 and 3,253 (uniform look: 2,830 and 2,845). Julia's uniform-look IV-A3 sits 11% below Python's centred one,
+  so the comparison does tell the two looks apart.
+- **Stale xl results:** II-4-gini, II-6, II-7, II-8 and VI-1 have uniform-look results on both sides, as does the
+  rest of `results-julia-xl/`. Both sides' fingerprints read `look_stride=10` either way, so the report can't flag
+  the change; comparing one look with the other would be invalid.
+- **Cost:** the centred look draws twice per look and sorts. Over t = 1–100 of seed 0, stepping took 0.0253 against
+  0.0208 s per period in IV-A3 and 0.0274 against 0.0232 in II-4, with 24% and 4% more agents at t = 100. Drawing a
+  and b with one draw over 0 … 99 saved about 3%, too little to depart from Python's draws.

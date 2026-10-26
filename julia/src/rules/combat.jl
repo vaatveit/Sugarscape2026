@@ -12,12 +12,14 @@ function vulnerable(
     after = a.sugar + reward
     mine = tribe(a)
     stride = m.config.look_stride
-    for (dx, dy) in VON_NEUMANN, k in 0:(a.vision ÷ stride - 1)
-        dist = look_distance(m.rng, stride, k)  # each direction and look draws its own (docs/xl.md)
-        other = agent_at(m, x + dx * dist, y + dy * dist)
-        other === nothing && continue
-        (other === a || other === victim) && continue
-        tribe(other) !== mine && other.sugar > after && return true
+    for (dx, dy) in VON_NEUMANN
+        # Each direction draws its own looks (docs/xl.md), into a buffer of its own: combat_move! is mid-line in m.line.
+        for dist in look_line!(m.threat, m.rng, stride, a.vision)
+            other = agent_at(m, x + dx * dist, y + dy * dist)
+            other === nothing && continue
+            (other === a || other === victim) && continue
+            tribe(other) !== mine && other.sugar > after && return true
+        end
     end
     return false
 end
@@ -44,8 +46,7 @@ function combat_move!(m::Model, a::Agent)
     stride = m.config.look_stride
     for d in random_directions(m.rng)
         dx, dy = @inbounds VON_NEUMANN[d]
-        for k in 0:(a.vision ÷ stride - 1)
-            dist = look_distance(m.rng, stride, k)
+        for dist in look_line!(m.line, m.rng, stride, a.vision)
             x, y = mod(a.x + dx * dist, w), mod(a.y + dy * dist, h)
             occupant = @inbounds m.grid[x + 1, y + 1]
             if occupant === nothing

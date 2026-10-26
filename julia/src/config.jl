@@ -139,11 +139,6 @@ function validate(c::Config)
     for name in (:vision, :metabolism, :endowment, :max_age)
         check_range(name, getfield(c, name))
     end
-    # Agents see only along the four lattice directions; a vision of half the grid or more would let opposite scans
-    # reach the same sites (Kehoe: MAXVISION << M).
-    c.vision[2] * 2 >= min(c.width, c.height) && bad(
-        "max vision $(c.vision[2]) must be less than half the grid ($(c.width)x$(c.height))",
-    )
     c.replacement &&
         c.max_age === nothing &&
         bad("replacement R[a,b] needs a max_age range [a, b]")
@@ -170,6 +165,13 @@ function validate(c::Config)
         bad("look_stride must be a whole number >= 1, not $(c.look_stride)")
     (c.vision[1] % c.look_stride != 0 || c.vision[2] % c.look_stride != 0) &&
         bad("vision range $(c.vision) must be in whole look strides of $(c.look_stride)")
+    # Agents see only along the four lattice directions; a vision of half the grid or more would let opposite scans
+    # reach the same sites (Kehoe: MAXVISION << M). With a look stride s, the farthest look is s - 1 sites past vision.
+    reach = c.vision[2] + c.look_stride - 1
+    reach * 2 >= min(c.width, c.height) && bad(
+        "max vision $(c.vision[2]) (looking up to $reach sites away) must be less than half the grid " *
+        "($(c.width)x$(c.height))",
+    )
     c.pollution !== nothing &&
         minimum(c.pollution) < 0 &&
         bad("pollution coefficients must be >= 0, not $(c.pollution)")

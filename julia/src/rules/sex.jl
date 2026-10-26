@@ -36,13 +36,17 @@ Agents within the agent's vision along the four lattice directions, nearest firs
 function in_sight(m::Model, a::Agent)
     stride = m.config.look_stride
     n = a.vision ÷ stride
+    # Each look as 4 dist + (d - 1), kept sorted: nearest first, and at equal distance in VON_NEUMANN order. A
+    # distance drawn twice on one line is the same key, so it is looked at once (look_distances).
     looks = resize!(m.looks, 4n)
-    for d in 1:4, k in 1:n  # each direction draws its own looks, line by line (look_distances)
-        @inbounds looks[(d - 1) * n + k] = look_distance(m.rng, stride, k - 1)
+    len = 0
+    for d in 1:4, k in 1:n  # each direction draws its own looks, line by line
+        len = insert_sorted!(looks, len, 4 * look_distance(m.rng, stride, k) + d - 1)
     end
     found = empty!(m.sight)
-    for k in 1:n, (d, (dx, dy)) in enumerate(VON_NEUMANN)  # stretch by stretch: nearest first
-        dist = @inbounds looks[(d - 1) * n + k]
+    for i in 1:len
+        dist, d = divrem(@inbounds(looks[i]), 4)
+        dx, dy = @inbounds VON_NEUMANN[d + 1]
         other = agent_at(m, a.x + dx * dist, a.y + dy * dist)
         other === nothing || push!(found, other)
     end

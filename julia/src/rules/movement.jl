@@ -13,18 +13,49 @@ end
 """
     look_distance(rng, stride, k)
 
-The distance of an agent's k-th look (k = 0, 1, ...) along one lattice line: k + 1 with a stride of 1, which draws
-nothing, or one site drawn uniformly from the stretch stride k + 1 .. stride (k + 1) (docs/xl.md, "Looking"). A
-line of vision v has v ÷ stride looks.
+The distance of an agent's k-th look (k = 1, 2, ...) along one lattice line: k with a stride of 1, which draws
+nothing, or with a stride s > 1 (xl), s k + a - b with a and b uniform on 0 … s - 1: where a random site of the
+regular cell k away lies from a random site of one's own cell (docs/xl.md, "Looking"). A line of vision v has
+v ÷ stride looks.
 """
 @inline function look_distance(rng::AbstractRNG, stride::Int, k::Int)
-    return stride == 1 ? k + 1 : stride * k + rand(rng, 1:stride)
+    stride == 1 && return k
+    return stride * k + rand(rng, 0:(stride - 1)) - rand(rng, 0:(stride - 1))
+end
+
+"""Inserts `x` into the sorted `v[1:len]` unless it is there already; returns the new length. `v` has room."""
+@inline function insert_sorted!(v::Vector{Int}, len::Int, x::Int)
+    i = len
+    @inbounds while i > 0 && v[i] > x
+        i -= 1
+    end
+    @inbounds i > 0 && v[i] == x && return len
+    @inbounds for j in len:-1:(i + 1)
+        v[j + 1] = v[j]
+    end
+    @inbounds v[i + 1] = x
+    return len + 1
+end
+
+"""
+    look_line!(v, rng, stride, vision) -> v
+
+The distances of one lattice line's looks, into `v`, nearest first (Python's `look_distances`). Looks overlap with
+a stride above 1, so a distance drawn twice is looked at once.
+"""
+function look_line!(v::Vector{Int}, rng::AbstractRNG, stride::Int, vision::Int)
+    n = vision ÷ stride
+    resize!(v, n)
+    len = 0
+    for k in 1:n
+        len = insert_sorted!(v, len, look_distance(rng, stride, k))
+    end
+    return resize!(v, len)
 end
 
 """The distances of every look along one lattice line, nearest first (Python's `look_distances`)."""
 function look_distances(m::Model, vision::Int)
-    s = m.config.look_stride
-    return [look_distance(m.rng, s, k) for k in 0:(vision ÷ s - 1)]
+    return look_line!(Int[], m.rng, m.config.look_stride, vision)
 end
 
 """Sugar-to-pollution ratio s/(1+p) (p.47 fn 37); equals plain sugar while p = 0."""
@@ -49,8 +80,7 @@ function move!(m::Model, a::Agent)
     stride = m.config.look_stride
     for d in random_directions(m.rng)
         dx, dy = @inbounds VON_NEUMANN[d]
-        for k in 0:(a.vision ÷ stride - 1)
-            dist = look_distance(m.rng, stride, k)
+        for dist in look_line!(m.line, m.rng, stride, a.vision)
             x = mod(a.x + dx * dist, w)
             y = mod(a.y + dy * dist, h)
             @inbounds m.grid[x + 1, y + 1] === nothing || continue
