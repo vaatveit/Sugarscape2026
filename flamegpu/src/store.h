@@ -22,6 +22,7 @@ struct CapacityError : std::runtime_error {  // a buffer limit was reached: exit
 
 // Error bits a kernel or agent function raises in Store::errors; the next host function throws CapacityError.
 constexpr unsigned int STORE_UID_CAPACITY = 1u;
+constexpr unsigned int STORE_ROW_CAPACITY = 2u;  // a newborn found no row (cannot happen with 2 x cells rows)
 constexpr unsigned int NO_SITE = 0xFFFFFFFFu;  // the group after a site's last
 
 // Device pointers. Rows are indexed by `row`, a citizen's index at publish (rows from n_rows on are newborns).

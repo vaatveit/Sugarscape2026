@@ -154,6 +154,46 @@ def test_turns_replacement_check(exe, tmp_path):
     assert result.returncode == 0, result.stderr
 
 
+def test_full_world_births_after_starvation(exe, tmp_path):
+    # Final review, Important 1: a full 10x10 world where half the agents starve while fertile pairs breed onto the
+    # sites they free. Rows in use reach citizens + newborns, beyond the world's cells; the store must hold them.
+    full = {"width": "10", "height": "10", "vision": "1,2", "sex": "true", "max_age": "60,100",
+            "initial_population": "100", "steps": "3"}
+    agents = []
+    for x in range(10):
+        for y in range(10):
+            if (x + y) % 2:  # starves in period 1
+                agents.append({"x": x, "y": y, "vision": 0, "metabolism": 500, "sugar": 1.0, "age": 20, "max_age": 90})
+            else:
+                # Vision 2: partners in sight two sites away along a line (nobody moves: every capacity is 0).
+                agents.append({"x": x, "y": y, "vision": 2, "metabolism": 1, "sugar": 100.0, "age": 20, "max_age": 90,
+                               "sex": "F" if x % 4 == 0 else "M", "fertility_start": 12, "fertility_end": 55,
+                               "initial_sugar": 10.0})
+    out = tmp_path / "metrics.csv"
+    dump = run_gpu(exe, tmp_path, full, np.zeros((10, 10), dtype=int), agents, steps=3,
+                   extra_args=("--out", out, "--check"))
+    assert dump.returncode == 0, dump.stderr
+    assert read_rows(out)[-1]["agents_ever"] > 100  # children were born on the freed sites
+
+
+def test_newborn_parents_keep_genealogy(exe, tmp_path):
+    # Final review, Minor 1 re-graded: with fertility from age 0 a newborn can be a partner in its birth period. Its
+    # child must still name both parents, and its own n_children must count that child.
+    cfg = {**III_1, **BLOCK, "fertility_start": "0,0"}
+    dump = run_gpu(exe, tmp_path, cfg, steps=6)
+    assert dump.returncode == 0, dump.stderr
+    born = [a for a in dump.agents if a["uid"] >= 400]
+    assert born, "the scenario must have births"
+    assert all(a["parent_a"] is not None and a["parent_b"] is not None for a in born)
+    living = {}
+    for a in dump.agents:
+        for p in (a["parent_a"], a["parent_b"]):
+            if p is not None:
+                living[p] = living.get(p, 0) + 1
+    by_uid = _by_uid(dump.agents)
+    assert all(by_uid[p]["n_children"] >= k for p, k in living.items() if p in by_uid)
+
+
 def test_uid_capacity_exceeded(exe, tmp_path):
     result = run_exe(exe, "--config", write_cfg(tmp_path, **III_1, steps="100"), "--uid-capacity", "450")
     assert result.returncode == 5, result.stderr

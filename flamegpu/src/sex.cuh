@@ -11,6 +11,7 @@
 // The most partners a turn considers: four lines of looks (validate() bounds vision / look_stride).
 constexpr int MAX_PARTNERS = 4 * MAX_SIGHT_LOOKS;
 constexpr double GIFT_CAP = 5.0;  // Ascape's most a parent gives a child (child_gift = "capped")
+constexpr unsigned int PROVISIONAL_PARENT = 0x80000000u;  // a newborn parent's row, until its uid exists
 
 // Of childbearing age and holding at least the share of its birth endowment the threshold asks (p.55).
 __device__ __forceinline__ bool is_fertile(const Store& s, int r, double threshold) {
@@ -115,7 +116,12 @@ __device__ void mate(API* FLAMEGPU, const Store& s, unsigned int row) {
         s.sugar[a] -= gifts[0];
         s.sugar[b] -= gifts[1];
         // The child: a newborn row, placed now so the rest of the period sees it.
-        const int c = static_cast<int>(s.n_rows + atomicAdd(s.newborn_count, 1u));
+        const unsigned int slot = s.n_rows + atomicAdd(s.newborn_count, 1u);
+        if (slot >= s.rows_capacity) {  // never with rows for 2 x cells (store.cu); a store fault, not a silent overwrite
+            atomicOr(s.errors, STORE_ROW_CAPACITY);
+            return;
+        }
+        const int c = static_cast<int>(slot);
         s.x[c] = static_cast<int>(site % static_cast<unsigned int>(w));
         s.y[c] = static_cast<int>(site / static_cast<unsigned int>(w));
         s.vision[c] = vision;
@@ -145,8 +151,10 @@ __device__ void mate(API* FLAMEGPU, const Store& s, unsigned int row) {
         s.tags[c] = tags;
         s.uid[c] = NO_UID;  // given in creation order after the turns (StoreHost::birth_uids)
         s.n_children[c] = 0u;
-        s.parent_a[c] = s.uid[a];
-        s.parent_b[c] = s.uid[b];
+        // A parent born this period (possible with fertility from age 0) has no uid yet: name it by its row, marked, until
+        // StoreHost::birth_uids writes the uid in (as culture.cuh does for friends).
+        s.parent_a[c] = s.uid[a] == NO_UID ? (PROVISIONAL_PARENT | static_cast<unsigned int>(a)) : s.uid[a];
+        s.parent_b[c] = s.uid[b] == NO_UID ? (PROVISIONAL_PARENT | static_cast<unsigned int>(b)) : s.uid[b];
         s.n_friends[c] = 0u;
         s.disp_x[c] = 0;
         s.disp_y[c] = 0;

@@ -154,6 +154,7 @@ FLAMEGPU_AGENT_FUNCTION(spawn_newborns, flamegpu::MessageNone, flamegpu::Message
     out.setVariable<uint64_t>("tags", s.tags[c]);
     out.setVariable<unsigned int>("parent_a", s.parent_a[c]);
     out.setVariable<unsigned int>("parent_b", s.parent_b[c]);
+    out.setVariable<unsigned int>("n_children", s.n_children[c]);  // a newborn may already be a parent (fertility from 0)
     return flamegpu::ALIVE;
 }
 

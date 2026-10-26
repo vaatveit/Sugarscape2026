@@ -122,14 +122,16 @@ __global__ void k_counters(unsigned int n, Store s) {
 StoreHost::StoreHost(const RunConfig& cfg, unsigned int uid_capacity, bool check_footprints) {
     const unsigned int cells = static_cast<unsigned int>(cfg.cells());
     h_.check_footprints = check_footprints ? 1u : 0u;
-    h_.rows_capacity = cells;  // every citizen, and every newborn, holds a site of its own
+    // Rows: the period's citizens (at most one per site) and its newborns (each on a site of its own; none dies in the
+    // turns). A starved citizen keeps its row while a child takes its site, so the bound is 2 x cells, not cells.
+    h_.rows_capacity = 2 * cells;
     h_.cells = cells;
     h_.uid_capacity = uid_capacity;
     auto alloc = [this](auto*& p, size_t n) {
         check(cudaMalloc(reinterpret_cast<void**>(&p), sizeof(*p) * (n ? n : 1)), "allocating the device store");
         owned_.push_back(p);
     };
-    const size_t rows = cells;
+    const size_t rows = h_.rows_capacity;
     alloc(h_.site_row, cells);
     alloc(h_.target_row, cells);
     alloc(h_.uid_row, uid_capacity);
@@ -320,6 +322,15 @@ __global__ void k_newborn_uids(unsigned int n, const unsigned int* sorted_rows, 
     if (uid < s.uid_capacity) s.uid_row[uid] = static_cast<int>(row);
 }
 
+// A newborn whose parent was itself born this period names that parent by its row (sex.cuh, PROVISIONAL_PARENT).
+__global__ void k_fix_parents(unsigned int n, unsigned int first, Store s) {
+    const unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i >= n) return;
+    for (unsigned int* parent : {s.parent_a + first + i, s.parent_b + first + i}) {
+        if (*parent != 0xFFFFFFFFu && (*parent & 0x80000000u)) *parent = s.uid[*parent & 0x7FFFFFFFu];
+    }
+}
+
 // Friends made of this period's newborns name their rows (culture.cuh, PROVISIONAL_FRIEND) until their uids exist.
 __global__ void k_fix_friends(unsigned int n, Store s) {
     const unsigned int r = blockIdx.x * blockDim.x + threadIdx.x;
@@ -333,6 +344,7 @@ __global__ void k_fix_friends(unsigned int n, Store s) {
 }  // namespace
 
 unsigned int StoreHost::birth_uids(unsigned int next_uid) {
+    check_errors();  // before anything reads a newborn row
     unsigned int n = 0;
     check(cudaMemcpy(&n, h_.newborn_count, sizeof(unsigned int), cudaMemcpyDeviceToHost), "reading newborn_count");
     if (n == 0) return 0;
@@ -346,6 +358,7 @@ unsigned int StoreHost::birth_uids(unsigned int next_uid) {
     }
     cub::DeviceRadixSort::SortPairs(temp_, bytes, rank_keys_, rank_keys_sorted_, rank_rows_, h_.rank_row, n);
     k_newborn_uids<<<blocks(n), BLOCK>>>(n, h_.rank_row, h_, next_uid);
+    k_fix_parents<<<blocks(n), BLOCK>>>(n, h_.n_rows, h_);
     if (h_.n_rows) k_fix_friends<<<blocks(h_.n_rows), BLOCK>>>(h_.n_rows, h_);
     check(cudaDeviceSynchronize(), "assigning newborn uids");
     return n;
@@ -354,6 +367,9 @@ unsigned int StoreHost::birth_uids(unsigned int next_uid) {
 void StoreHost::check_errors() {
     unsigned int errors = 0;
     check(cudaMemcpy(&errors, h_.errors, sizeof(unsigned int), cudaMemcpyDeviceToHost), "reading the store's errors");
+    if (errors & STORE_ROW_CAPACITY) {
+        throw CapacityError("the device store's " + std::to_string(h_.rows_capacity) + " rows are full");
+    }
     if (errors & STORE_UID_CAPACITY) {
         throw CapacityError("uid capacity " + std::to_string(h_.uid_capacity) +
                             " exceeded: more agents created than --uid-capacity allows");
