@@ -230,3 +230,21 @@ experiments have 0 flags. Book targets: 37 status changes, as before.
 - xl, five Chapter II experiments: 53× (II-8) to 86× (II-4), and 666× for II-4-gini. Python's xl runs predate its
   replacement speed-up (77ffcb6), so II-4-gini's 22.6 s per period is the old scan of every site; `docs/xl.md`
   gives about 1.13 s after it. Python's streams didn't change, so agreement stands; that timing doesn't.
+
+## xl IV-A3 and VI-1 against Python (2026-10-26)
+
+The user ran Python's xl IV-A3 (10 seeds) and VI-1 (5 seeds) with `--jobs 1`. Julia's were re-run the same way on
+the current code: IV-A3's 10 seed files are byte-identical to the 2026-10-24 run (it has no finite lives), and
+VI-1's 5 now include the old-age ordering fix (they match the after-speed-up runs above byte for byte), replacing the
+stale ones.
+
+**xl: Julia agrees with Python on all seven experiments, 0 flags among 436 tested windows and 7 extinction tests.**
+
+**VI-1 at xl does not go extinct in Python either.** No seed dies out on either side; at t = 500 Python ends with
+83,623 agents on average (70,496 to 94,167) and Julia with 86,415 (80,915 to 89,609). So the 2026-10-24 note holds:
+the larger world sustains the full society that the regular one often loses, and that is the model, not the port.
+IV-A3 ends with 2,830 (Python) and 2,845 (Julia).
+
+**Speed, both sides `--jobs 1`** (shared machine): IV-A3 0.438 against 0.0156 s per period, 28×; VI-1 15.45
+against 0.230 s, 67× (Python's 5 seeds took about 10.7 hours of stepping, Julia's under 10 minutes). At regular size VI-1 is the
+lowest ratio (10×); at xl it is among the highest.
