@@ -231,6 +231,7 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
         model.newLayer().addSubModel(turns_sub);
         model.newLayer().addAgentFunction(cell.newFunction("unstage_sites", unstage_sites));
         model.newLayer().addHostFunction(assign_births);
+        if (cfg.combat()) model.newLayer().addHostFunction(bury_newborns);  // combat's newborn victims (turns.cuh)
         flamegpu::AgentFunctionDescription absorb_fn = citizen.newFunction("absorb", absorb);
         absorb_fn.setAllowAgentDeath(true);
         if (cfg.replacement) absorb_fn.setAgentOutput(citizen);
@@ -238,6 +239,15 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
         flamegpu::AgentFunctionDescription spawn_fn = cell.newFunction("spawn_newborns", spawn_newborns);
         spawn_fn.setAgentOutput(citizen);
         model.newLayer().addAgentFunction(spawn_fn);
+        // Combat's newborn victims: counted, and with replacement each replaced by a cell (turns.cuh). Every later layer
+        // leaves unplaced newcomers alone.
+        if (cfg.combat()) {
+            if (cfg.replacement) {
+                flamegpu::AgentFunctionDescription replace_fn = cell.newFunction("replace_newborns", replace_newborns);
+                replace_fn.setAgentOutput(citizen);
+                model.newLayer().addAgentFunction(replace_fn);
+            }
+        }
         if (cfg.inheritance) {
             // Rule I at old age: age and post the dying, count and pay the heirs, then the dying die (turns.cuh).
             s.dying = std::make_unique<DyingTable>(static_cast<unsigned int>(cfg.cells()));

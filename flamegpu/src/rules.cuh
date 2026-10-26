@@ -96,6 +96,48 @@ __device__ __forceinline__ uint64_t random_bits(API* FLAMEGPU, int bits) {
     return out;
 }
 
+// Every citizen variable of a new agent set to the model's default (model.cu, describe_model). Each agent output calls
+// this first rather than leaving any variable to FLAME GPU: rc.5 lays the new agents' defaults out unaligned
+// (CUDAScatter::broadcastInit_async against CUDAAgent::mapNewRuntimeVariables_async's 8-byte alignment), so in an
+// odd-sized output the last agents got the next variable's default, or uninitialised memory.
+__device__ __forceinline__ void init_citizen_out(flamegpu::DeviceAPI<flamegpu::MessageNone, flamegpu::MessageNone>* FLAMEGPU) {
+    auto& out = FLAMEGPU->agent_out;  // device setVariable takes literal names only
+    out.setVariable<int>("x", 0);
+    out.setVariable<int>("y", 0);
+    out.setVariable<int>("vision", 0);
+    out.setVariable<int>("metabolism", 0);
+    out.setVariable<int>("age", 0);
+    out.setVariable<int>("max_age", 0);
+    out.setVariable<int>("disp_x", 0);
+    out.setVariable<int>("disp_y", 0);
+    out.setVariable<double>("sugar", 0.0);
+    out.setVariable<double>("initial_sugar", 0.0);
+    out.setVariable<uint64_t>("tags", 0ull);
+    out.setVariable<uint64_t>("death_key", 0ull);
+    out.setVariable<unsigned int>("sex", SEX_NONE);
+    out.setVariable<int>("fertility_start", NO_FERTILITY_START);
+    out.setVariable<int>("fertility_end", NO_FERTILITY_END);
+    out.setVariable<unsigned int>("parent_a", NO_UID);
+    out.setVariable<unsigned int>("parent_b", NO_UID);
+    out.setVariable<unsigned int>("uid", 0u);
+    out.setVariable<unsigned int>("n_children", 0u);
+    out.setVariable<unsigned int>("n_friends", 0u);
+    out.setVariable<unsigned int>("moved", 0u);
+    out.setVariable<unsigned int>("neighbors", 0u);
+    out.setVariable<unsigned int>("settled", 0u);
+    out.setVariable<unsigned int>("priority", 0u);
+    out.setVariable<unsigned int>("target", 0u);
+    out.setVariable<unsigned int>("look_seed", 0u);
+    out.setVariable<unsigned int>("dir_order", 0u);
+    out.setVariable<unsigned int>("row", 0u);
+    out.setVariable<unsigned int>("nc_slot", 0u);
+    out.setVariable<unsigned int>("dying", 0u);
+    for (unsigned int f = 0; f < MAX_FRIENDS; ++f) {
+        out.setVariable<unsigned int, MAX_FRIENDS>("friend_uid", f, 0u);
+        out.setVariable<unsigned int, MAX_FRIENDS>("friend_dist", f, 0u);
+    }
+}
+
 // R[a,b] (p.32), first half: the newcomer replacing a citizen that dies, drawn with the dying citizen's random
 // stream as Python's spawn_random_agent draws it (uniform on each inclusive range; vision in whole look strides).
 // It is unplaced (x = y = -1) until place_newcomer; age 0 and every other variable at its default, as before. With
@@ -104,6 +146,7 @@ __device__ __forceinline__ void output_newcomer(flamegpu::DeviceAPI<flamegpu::Me
                                                 uint64_t death_key, uint64_t dead_tags) {
     const auto& env = FLAMEGPU->environment;
     const int stride = static_cast<int>(env.getProperty<unsigned int>("look_stride"));
+    init_citizen_out(FLAMEGPU);
     FLAMEGPU->agent_out.setVariable<int>("x", -1);
     FLAMEGPU->agent_out.setVariable<int>("y", -1);
     FLAMEGPU->agent_out.setVariable<int>(

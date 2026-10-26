@@ -157,6 +157,7 @@ FLAMEGPU_AGENT_FUNCTION(spawn_newborns, flamegpu::MessageNone, flamegpu::Message
     const Store& s = the_store(FLAMEGPU);
     const int c = s.site_row[FLAMEGPU->getIndex()];  // the site index (make_cells)
     if (c < static_cast<int>(s.n_rows)) return flamegpu::ALIVE;
+    init_citizen_out(FLAMEGPU);
     auto& out = FLAMEGPU->agent_out;
     out.setVariable<int>("x", s.x[c]);
     out.setVariable<int>("y", s.y[c]);
@@ -329,6 +330,24 @@ FLAMEGPU_HOST_FUNCTION(assign_births) {
         throw CapacityError("uid capacity " + std::to_string(s.cfg.uid_capacity) +
                             " exceeded: more agents created than --uid-capacity allows");
     }
+}
+
+// After the turns: a newborn that combat killed in its birth period is a death, as Python's die() makes it (its uid
+// came with the others in assign_births). It is no citizen, so it is never spawned; the host lists and counts it, and
+// with replacement cell i makes the i-th one's newcomer (replace_newborns), unplaced and with the victim's death key so
+// newcomer_post orders it among the period's deaths.
+FLAMEGPU_HOST_FUNCTION(bury_newborns) {
+    const unsigned int buried = state().store->bury();
+    if (!buried) return;
+    auto deaths = FLAMEGPU->environment.getMacroProperty<unsigned int>("deaths");
+    deaths += buried;
+}
+
+FLAMEGPU_AGENT_FUNCTION(replace_newborns, flamegpu::MessageNone, flamegpu::MessageNone) {
+    const Store& s = the_store(FLAMEGPU);
+    const unsigned int i = FLAMEGPU->getIndex();
+    if (i < s.n_buried) output_newcomer(FLAMEGPU, s.buried_key[i], s.buried_tags[i]);
+    return flamegpu::ALIVE;
 }
 
 // R's newcomers take uids after the period's newborns, in the order of their deaths.

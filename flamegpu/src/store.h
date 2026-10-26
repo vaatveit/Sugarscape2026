@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <stdexcept>
+#include <utility>
 #include <vector>
 
 #include "flamegpu/flamegpu.h"
@@ -42,6 +43,9 @@ struct Store {
     unsigned int* dir_order;      // the period's scan order (start_period), 2 bits per direction, for combat
     uint64_t* death_key;          // a row that dies in a turn: its place among the period's deaths (turn_death_key)
     float* site_sugar;            // cells: the sites' sugar during the turns (stage_sites, unstage_sites)
+    // This period's newborns killed by combat, by death key (StoreHost::bury): one newcomer each, made by cell i.
+    uint64_t *buried_key, *buried_tags;  // cells
+    unsigned int n_buried;
     uint64_t* newborn_key;        // a newborn's place in creation order: its parent's rank << 32 | mating order
     unsigned int n_rows;          // citizens this period; rows from n_rows on are newborns
     unsigned int* newborn_count;
@@ -104,6 +108,10 @@ class StoreHost {
     void wave_counts(unsigned int* ran, unsigned int* done);
     // After the turns: the newborns get uids next_uid, next_uid + 1, ... in creation order; returns how many.
     unsigned int birth_uids(unsigned int next_uid);
+    // After the turns: lists this period's newborns that combat killed in the store's buried rows, in death-key order,
+    // and returns how many. They are never spawned; turns.cuh's bury_newborns counts their deaths and the cells
+    // replace them (replace_newborns). Throws CapacityError beyond one per cell.
+    unsigned int bury();
     // Throws CapacityError for any error bit a kernel raised.
     void check_errors();
     // --check: the first site a turn touched outside its footprint, as {misses, site, rank, where}; clears it.

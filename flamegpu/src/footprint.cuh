@@ -25,13 +25,15 @@ __device__ __forceinline__ void around(int x, int y, const FootprintEnv& e, Emit
     for (int d = 0; d < 4; ++d) emit(fp_site(x + dir_dx(d), y + dir_dy(d), e), true);
 }
 
-// Calls emit(site, write) for every site of the row's turn; a site may come more than once (the scheduler removes
-// duplicates, write winning).
+// footprint() (below) calls emit(site, write) for every site of the row's turn; a site may come more than once (the
+// scheduler removes duplicates, write winning).
 // - Chapter II's rules: the move writes the start and the target; metabolism and the neighbour count read and write
 //   the four sites around the target (the neighbour rules write there).
 // - Rule S, for an agent of childbearing age (fixed for the period): with the four neighbours as partners, every site
 //   within distance 2 of the target (partners, and a child next to either parent); with partners in sight, every
 //   sight-line site from the target and the four sites around each (spec section 2).
+// - Combat: the same around every site the turn may end on (combat_candidate), in place of a fixed target.
+
 // Combat's candidate site P with id cand (combat.cuh): the turn may move to P or kill there, then metabolise there and
 // meet, mate and transmit around it (writes P and the four sites around it); it reads P's retaliation lines.
 template <typename Emit>
@@ -64,36 +66,11 @@ __device__ void for_each_combat_site(const Store& s, unsigned int row, const Foo
     }
 }
 
+// Rule S from (tx, ty), for an agent of childbearing age (fixed for the period), beyond the four sites around it: with
+// the four neighbours as partners, the sites at distance 2 (a child next to a partner); with partners in sight, every
+// sight-line site and the four sites around each (spec section 2).
 template <typename Emit>
-__device__ void footprint(const Store& s, unsigned int row, const FootprintEnv& e, Emit emit) {
-    // Combat: the whole turn from the start site (spec section 2): writes the start, every site on its sight lines (a
-    // target or a victim) and the four sites around each; reads the retaliation lines from each of them.
-    if (e.combat) {
-        for_each_combat_site(s, row, e, [&](int px, int py, unsigned int cand) {
-            combat_candidate(s, row, px, py, cand, e, emit);
-        });
-        return;
-    }
-    const unsigned int start = s.start[row], target = s.target[row];
-    emit(start, true);
-    emit(target, true);
-    const int tx = static_cast<int>(target % static_cast<unsigned int>(e.width));
-    const int ty = static_cast<int>(target / static_cast<unsigned int>(e.width));
-    around(tx, ty, e, emit);
-    // Friends anywhere in the world (K reads whether each is alive): read where the friend stands at this turn, its
-    // start if it comes later in the order, else its target; the friend's own turn writes both (spec section 2).
-    if (e.culture) {
-        for (unsigned int f = 0; f < s.n_friends[row]; ++f) {
-            const unsigned int uid = s.friend_uid[row * MAX_FRIENDS + f];
-            if (uid >= s.uid_capacity) continue;
-            const int r = s.uid_row[uid];
-            if (r < 0 || static_cast<unsigned int>(r) >= s.n_rows || s.uid[r] != uid) continue;  // died before
-            emit(s.key[r] < s.key[row] ? s.start[r] : s.target[r], false);
-        }
-    }
-    const bool childbearing = e.sex && s.sex[row] != 0u && s.fertility_start[row] <= s.age[row] &&
-                              s.age[row] < s.fertility_end[row];
-    if (!childbearing) return;
+__device__ void sex_sites(const Store& s, unsigned int row, int tx, int ty, const FootprintEnv& e, Emit& emit) {
     if (!e.mate_vision) {
         for (int i = -2; i <= 2; ++i) {
             for (int j = -2; j <= 2; ++j) {
@@ -111,6 +88,51 @@ __device__ void footprint(const Store& s, unsigned int row, const FootprintEnv& 
             around(px, py, e, emit);
         }
     }
+}
+
+// Friends anywhere in the world (K reads whether each is alive): read where the friend stands at this turn, alive or
+// killed there. A friend later in the order is still at its start. One earlier in the order is at its target, or with
+// combat at its start or any site of its scan; the friend's own turn writes all of those (spec section 2).
+template <typename Emit>
+__device__ void friend_sites(const Store& s, unsigned int row, const FootprintEnv& e, Emit& emit) {
+    for (unsigned int f = 0; f < s.n_friends[row]; ++f) {
+        const unsigned int uid = s.friend_uid[row * MAX_FRIENDS + f];
+        if (uid >= s.uid_capacity) continue;
+        const int r = s.uid_row[uid];
+        if (r < 0 || static_cast<unsigned int>(r) >= s.n_rows || s.uid[r] != uid) continue;  // died before
+        if (s.key[r] < s.key[row]) {
+            emit(s.start[r], false);
+        } else if (e.combat) {
+            for_each_combat_site(s, static_cast<unsigned int>(r), e,
+                                 [&](int px, int py, unsigned int) { emit(fp_site(px, py, e), false); });
+        } else {
+            emit(s.target[r], false);
+        }
+    }
+}
+
+template <typename Emit>
+__device__ void footprint(const Store& s, unsigned int row, const FootprintEnv& e, Emit emit) {
+    const bool childbearing = e.sex && s.sex[row] != 0u && s.fertility_start[row] <= s.age[row] &&
+                              s.age[row] < s.fertility_end[row];
+    if (e.culture) friend_sites(s, row, e, emit);
+    // Combat: the whole turn from the start site (spec section 2): writes the start, every site on its sight lines (a
+    // target or a victim) and the four sites around each, with rule S's sites around each; reads the retaliation
+    // lines from each of them.
+    if (e.combat) {
+        for_each_combat_site(s, row, e, [&](int px, int py, unsigned int cand) {
+            combat_candidate(s, row, px, py, cand, e, emit);
+            if (childbearing) sex_sites(s, row, px, py, e, emit);
+        });
+        return;
+    }
+    const unsigned int start = s.start[row], target = s.target[row];
+    emit(start, true);
+    emit(target, true);
+    const int tx = static_cast<int>(target % static_cast<unsigned int>(e.width));
+    const int ty = static_cast<int>(target / static_cast<unsigned int>(e.width));
+    around(tx, ty, e, emit);
+    if (childbearing) sex_sites(s, row, tx, ty, e, emit);
 }
 
 #endif  // SRC_FOOTPRINT_CUH_
