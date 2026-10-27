@@ -2,6 +2,7 @@
 
 #include <string>
 
+#include "book.cuh"
 #include "store.h"
 
 namespace {
@@ -39,20 +40,6 @@ __global__ void k_loan_index(Store s) {
     }
 }
 
-__device__ __forceinline__ bool book_put(const Loans& b, unsigned int at, unsigned int lender, unsigned int borrower,
-                                         double principal, double due, int due_t) {
-    if (at >= b.capacity) {
-        atomicOr(b.errors, LOAN_CAPACITY_ERROR);
-        return false;
-    }
-    b.lender[at] = lender;
-    b.borrower[at] = borrower;
-    b.principal[at] = principal;
-    b.due[at] = due;
-    b.due_t[at] = due_t;
-    return true;
-}
-
 // One thread, after the turns (Python's list after them, without inheritance): the start-of-period loans whose lender
 // and borrower both live, in order (a death's on_death drops its loans either way), then the turns' new loans, turns
 // in rank order and each turn's in the order made, but those whose lender starved later in the period.
@@ -80,19 +67,33 @@ __global__ void k_rebuild_loans(Store s, int due_t) {
 }
 
 // One thread, the end of the period, as Python's Model.step runs it after aging:
-// 1. on_death for the dying of old age (without inheritance, each one's loans go, as lender or borrower);
+// 1. on_death for the dying of old age, in uid order: without inheritance each one's loans go, as lender or borrower;
+//    with it a lender's loans pass to its living children that aren't dying (DyingTable's pairs, in uid order);
 // 2. settle_loans: the loans due now, in list order, each removed and repaid in full if the borrower can, else half
 //    its positive sugar paid and the rest originated anew at the end of the list, on the same terms.
 // Sugar moves in ledger_sugar, indexed by uid_row (ledger_post).
-__global__ void k_ledger(Store s, Dying d, int t, int duration, double rate) {
+__global__ void k_ledger(Store s, Dying d, int t, int duration, double rate, bool inheritance) {
     const Loans& b = s.book;
     unsigned int n = *b.n, w = 0;
-    for (unsigned int e = 0; e < n; ++e) {
-        if (find_dying(d, b.lender[e]) >= 0 || find_dying(d, b.borrower[e]) >= 0) continue;
-        if (w != e) book_put(b, w, b.lender[e], b.borrower[e], b.principal[e], b.due[e], b.due_t[e]);
-        ++w;
+    if (inheritance) {
+        unsigned int first = 0;
+        for (unsigned int i = 0; i < d.n; ++i) {
+            const unsigned int uid = d.uid[i];
+            while (first < d.n_pairs && (d.pair_sorted[first] >> 32) < uid) ++first;
+            unsigned int end = first;
+            while (end < d.n_pairs && (d.pair_sorted[end] >> 32) == uid) ++end;
+            book_on_death(b, uid, d.pair_child + first, end - first);
+            first = end;
+        }
+        n = *b.n;
+    } else {
+        for (unsigned int e = 0; e < n; ++e) {
+            if (find_dying(d, b.lender[e]) >= 0 || find_dying(d, b.borrower[e]) >= 0) continue;
+            if (w != e) book_put(b, w, b.lender[e], b.borrower[e], b.principal[e], b.due[e], b.due_t[e]);
+            ++w;
+        }
+        n = w;
     }
-    n = w;
     // The re-originated loans wait past the book's end (at n + k, never below the read position), then join it.
     unsigned int reborn = 0;
     w = 0;
@@ -192,7 +193,7 @@ void rebuild_loans(const Store& s, int due_t) {
     check(cudaDeviceSynchronize(), "rebuilding the loan book");
 }
 
-void run_ledger(const Store& s, const Dying& d, int t, int duration, double rate) {
-    k_ledger<<<1, 1>>>(s, d, t, duration, rate);
+void run_ledger(const Store& s, const Dying& d, int t, int duration, double rate, bool inheritance) {
+    k_ledger<<<1, 1>>>(s, d, t, duration, rate, inheritance);
     check(cudaDeviceSynchronize(), "settling the loans");
 }

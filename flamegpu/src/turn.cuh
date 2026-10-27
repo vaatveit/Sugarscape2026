@@ -75,8 +75,13 @@ __device__ void take_turn(API* FLAMEGPU, const Store& s, unsigned int row) {
         s.death_key[row] = turn_death_key(rank, false);
         s.site_row[target] = -1;
         occupied[target].exchange(0u);
-        // Rule I (Python Model.die): with spice, the good not run out may be left to the heirs. Serial mode only (R1).
-        if (env.template getProperty<unsigned int>("inheritance")) pay_heirs(s, row);
+        // Python Model.die: credit's on_death, then rule I (with spice, the good not run out may be left to the heirs).
+        // Both find the heirs now, so they run in serial mode only (ruling R1). Without inheritance a starved agent's
+        // loans go after the turns (loans.cu, rebuild_loans).
+        if (env.template getProperty<unsigned int>("inheritance")) {
+            if (env.template getProperty<unsigned int>("credit")) credit_on_death(s, row);
+            pay_heirs(s, row);
+        }
         return;
     }
     // Neighbours: the four von Neumann sites as they stand now (p.39), kept for update_friends (Python agent.neighbors).

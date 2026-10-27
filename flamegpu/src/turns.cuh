@@ -246,7 +246,12 @@ FLAMEGPU_AGENT_FUNCTION(heirs_count, flamegpu::MessageNone, flamegpu::MessageNon
                                      FLAMEGPU->getVariable<unsigned int>("parent_b")};
     for (const unsigned int p : parents) {
         const int e = p == NO_UID ? -1 : find_dying(d, p);
-        if (e >= 0) atomicAdd(&d.heirs[e], 1u);
+        if (e < 0) continue;
+        atomicAdd(&d.heirs[e], 1u);
+        if (d.pair_key) {  // credit: the heirs a dying lender's loans pass to (loans.cu, k_ledger)
+            const unsigned int slot = atomicAdd(d.pair_count, 1u);
+            d.pair_key[slot] = (static_cast<uint64_t>(p) << 32) | FLAMEGPU->getVariable<unsigned int>("uid");
+        }
     }
     return flamegpu::ALIVE;
 }
@@ -285,6 +290,7 @@ FLAMEGPU_AGENT_FUNCTION(die_old, flamegpu::MessageNone, flamegpu::MessageNone) {
 
 FLAMEGPU_HOST_FUNCTION(dying_posting) { state().dying->posting(); }
 FLAMEGPU_HOST_FUNCTION(dying_sort) { state().dying->sort(); }
+FLAMEGPU_HOST_FUNCTION(dying_pairs_sort) { state().dying->sort_pairs(); }
 
 // Newcomers' uids in Python's creation order (store.h, NewcomerUids): post the death key, then take the uid.
 FLAMEGPU_AGENT_FUNCTION(newcomer_post, flamegpu::MessageNone, flamegpu::MessageNone) {
@@ -361,7 +367,8 @@ FLAMEGPU_HOST_FUNCTION(total_trades) { state().trades = state().store->trade_tot
 FLAMEGPU_HOST_FUNCTION(settle_turn_loans) {
     RunState& s = state();
     const int t = static_cast<int>(FLAMEGPU->getStepCounter());
-    rebuild_loans(s.store->host_view(), t + s.cfg.credit->first);
+    // With inheritance the turns kept the book as Python's live list (credit.cuh), so there is nothing to rebuild.
+    if (!s.cfg.inheritance) rebuild_loans(s.store->host_view(), t + s.cfg.credit->first);
     s.loans->check_errors();
 }
 
@@ -382,7 +389,7 @@ FLAMEGPU_AGENT_FUNCTION(ledger_post, flamegpu::MessageNone, flamegpu::MessageNon
 FLAMEGPU_HOST_FUNCTION(ledger) {
     RunState& s = state();
     run_ledger(s.store->host_view(), s.dying->table(), static_cast<int>(FLAMEGPU->getStepCounter()),
-               s.cfg.credit->first, s.cfg.credit->second);
+               s.cfg.credit->first, s.cfg.credit->second, s.cfg.inheritance);
     s.loans->check_errors();
 }
 

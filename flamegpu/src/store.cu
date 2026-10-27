@@ -383,6 +383,16 @@ __global__ void k_fix_friends(unsigned int n, Store s) {
     }
 }
 
+// With inheritance the turns keep the loan book live (credit.cuh): a newborn lender, or a newborn heir that took over a
+// loan, is named by its row (PROVISIONAL_PARENT) until now. One thread: the book holds hundreds of loans.
+__global__ void k_fix_loans(Store s) {
+    const Loans& b = s.book;
+    for (unsigned int e = 0; e < *b.n; ++e) {
+        if (b.lender[e] & 0x80000000u) b.lender[e] = s.uid[b.lender[e] & 0x7FFFFFFFu];
+        if (b.borrower[e] & 0x80000000u) b.borrower[e] = s.uid[b.borrower[e] & 0x7FFFFFFFu];
+    }
+}
+
 }  // namespace
 
 unsigned int StoreHost::birth_uids(unsigned int next_uid) {
@@ -404,6 +414,7 @@ unsigned int StoreHost::birth_uids(unsigned int next_uid) {
     k_newborn_uids<<<blocks(n), BLOCK>>>(n, h_.rank_row, h_, next_uid);
     k_fix_parents<<<blocks(n), BLOCK>>>(n, h_.n_rows, h_);
     if (h_.n_rows) k_fix_friends<<<blocks(h_.n_rows), BLOCK>>>(h_.n_rows, h_);
+    if (h_.book.n) k_fix_loans<<<1, 1>>>(h_);
     check(cudaDeviceSynchronize(), "assigning newborn uids");
     return n;
 }
@@ -476,6 +487,9 @@ void StoreHost::check_errors() {
     if (errors & STORE_ROW_CAPACITY) {
         throw CapacityError("the device store's " + std::to_string(h_.rows_capacity) + " rows are full");
     }
+    if (errors & STORE_HEIR_CAPACITY) {
+        throw CapacityError("a death in a turn had more than " + std::to_string(MAX_HEIRS) + " heirs (max_heirs)");
+    }
     if (errors & STORE_UID_CAPACITY) {
         throw CapacityError("uid capacity " + std::to_string(h_.uid_capacity) +
                             " exceeded: more agents created than --uid-capacity allows");
@@ -509,10 +523,17 @@ __global__ void k_dying_gather(unsigned int n, const unsigned int* sorted_order,
 
 }  // namespace
 
-DyingTable::DyingTable(unsigned int cells) {
+DyingTable::DyingTable(unsigned int cells, bool pairs) {
     auto alloc = [](auto*& p, size_t n) {
         check(cudaMalloc(reinterpret_cast<void**>(&p), sizeof(*p) * (n ? n : 1)), "allocating the dying table");
     };
+    if (pairs) {  // each citizen names at most two parents
+        alloc(h_.pair_key, 2 * static_cast<size_t>(cells));
+        alloc(h_.pair_sorted, 2 * static_cast<size_t>(cells));
+        alloc(h_.pair_child, 2 * static_cast<size_t>(cells));
+        alloc(h_.pair_count, 1);
+        check(cudaMemset(h_.pair_count, 0, sizeof(unsigned int)), "clearing the dying table");
+    }
     alloc(h_.uid, cells);
     alloc(h_.sugar, cells);
     alloc(h_.spice, cells);
@@ -537,6 +558,8 @@ DyingTable::~DyingTable() {
     for (void* p : {static_cast<void*>(h_.uid), static_cast<void*>(h_.sugar), static_cast<void*>(h_.spice),
                     static_cast<void*>(h_.heirs), static_cast<void*>(h_.count), static_cast<void*>(posted_uid_),
                     static_cast<void*>(posted_sugar_), static_cast<void*>(posted_spice_),
+                    static_cast<void*>(h_.pair_key), static_cast<void*>(h_.pair_sorted),
+                    static_cast<void*>(h_.pair_child), static_cast<void*>(h_.pair_count),
                     static_cast<void*>(order_), static_cast<void*>(sorted_order_), static_cast<void*>(d_), temp_}) {
         cudaFree(p);
     }
@@ -564,6 +587,34 @@ void DyingTable::sort() {
     h_.n = n;
     check(cudaMemcpy(d_, &h_, sizeof(Dying), cudaMemcpyHostToDevice), "uploading the dying table");
     check(cudaDeviceSynchronize(), "sorting the dying");
+}
+
+namespace {
+
+__global__ void k_pair_children(unsigned int n, const uint64_t* sorted, unsigned int* child) {
+    const unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < n) child[i] = static_cast<unsigned int>(sorted[i] & 0xFFFFFFFFull);
+}
+
+}  // namespace
+
+void DyingTable::sort_pairs() {
+    unsigned int n = 0;
+    check(cudaMemcpy(&n, h_.pair_count, sizeof(unsigned int), cudaMemcpyDeviceToHost), "reading the dying pairs");
+    check(cudaMemset(h_.pair_count, 0, sizeof(unsigned int)), "clearing the dying pairs");
+    if (n) {
+        size_t bytes = 0;
+        check(cub::DeviceRadixSort::SortKeys(nullptr, bytes, h_.pair_key, h_.pair_sorted, n), "sorting on the device");
+        if (bytes > temp_bytes_) {
+            cudaFree(temp_);
+            check(cudaMalloc(&temp_, bytes), "allocating dying scratch");
+            temp_bytes_ = bytes;
+        }
+        check(cub::DeviceRadixSort::SortKeys(temp_, bytes, h_.pair_key, h_.pair_sorted, n), "sorting on the device");
+        k_pair_children<<<blocks(n), BLOCK>>>(n, h_.pair_sorted, h_.pair_child);
+    }
+    h_.n_pairs = n;
+    check(cudaDeviceSynchronize(), "sorting the dying pairs");
 }
 
 void DyingTable::posting() {

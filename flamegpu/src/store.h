@@ -26,6 +26,8 @@ struct CapacityError : std::runtime_error {  // a buffer limit was reached: exit
 // Error bits a kernel or agent function raises in Store::errors; the next host function throws CapacityError.
 constexpr unsigned int STORE_UID_CAPACITY = 1u;
 constexpr unsigned int STORE_ROW_CAPACITY = 2u;  // a newborn found no row (cannot happen with 2 x cells rows)
+constexpr unsigned int STORE_HEIR_CAPACITY = 4u;  // a death in a turn with more than MAX_HEIRS heirs (heirs.cuh)
+constexpr unsigned int MAX_HEIRS = 32;           // spec 2026-10-25-gpu-full-parity, section 5
 constexpr unsigned int NO_SITE = 0xFFFFFFFFu;  // the group after a site's last
 
 // Device pointers. Rows are indexed by `row`, a citizen's index at publish (rows from n_rows on are newborns).
@@ -201,6 +203,12 @@ struct Dying {
     unsigned int* heirs;  // living, non-dying children per sorted entry
     unsigned int* count;  // posted entries
     unsigned int n;       // sorted entries (after DyingTable::sort)
+    // With credit and inheritance (plan 2026-10-26-gpu-parity-part-c, Task 7): each living, non-dying child of a dying
+    // parent posts parent uid << 32 | its uid (heirs_count); sorted, they give each dying lender's heirs in uid order.
+    uint64_t *pair_key, *pair_sorted;  // nullptr without credit and inheritance
+    unsigned int* pair_child;          // the child uid of each sorted pair
+    unsigned int* pair_count;
+    unsigned int n_pairs;
 };
 
 // The sorted entry of a dying uid, or -1.
@@ -216,7 +224,8 @@ __device__ __forceinline__ int find_dying(const Dying& d, unsigned int uid) {
 
 class DyingTable {
  public:
-    explicit DyingTable(unsigned int cells);
+    // pairs: the dying parents' children too (credit with inheritance).
+    DyingTable(unsigned int cells, bool pairs);
     ~DyingTable();
     DyingTable(const DyingTable&) = delete;
     DyingTable& operator=(const DyingTable&) = delete;
@@ -225,6 +234,8 @@ class DyingTable {
     void posting();
     // After the dying have posted: sort by uid, clear the heir counts, and reset the posting count.
     void sort();
+    // After the heirs have posted their pairs: sort them, and reset the posting count.
+    void sort_pairs();
     // The sorted table (after sort()), for the loan ledger (loans.h, run_ledger).
     const Dying& table() const { return h_; }
 

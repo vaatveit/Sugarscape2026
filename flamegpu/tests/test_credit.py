@@ -137,7 +137,7 @@ def test_serial_equivalence_credit(exe, tmp_path, name):
     assert len(waves["loans.csv"]) > 1, "the scenario must have loans"
 
 
-@pytest.mark.parametrize("mode", ["waves"])
+@pytest.mark.parametrize("mode", ["waves", "serial"])
 def test_newborn_lender_uids(exe, tmp_path, mode):
     # Fertile from age 0, a newborn can lend in its birth period, before it has a uid: every loan must name real uids.
     cfg = {**_registry("IV-A5", fertility_start="0,0"), **({"inheritance": "true"} if mode == "serial" else {})}
@@ -147,3 +147,61 @@ def test_newborn_lender_uids(exe, tmp_path, mode):
     ever = read_rows(out)[-1]["agents_ever"]
     assert dump.loans, "the scenario must have loans"
     assert all(loan["lender"] < ever and loan["borrower"] < ever for loan in dump.loans)
+
+
+# --- Credit with inheritance (Task 7): loans pass to the lender's heirs, and the turns run one per wave -----------------
+
+INHERIT = {**CREDIT, "inheritance": "true"}
+HEIR_CAPACITY = CAPACITY.copy()
+HEIR_CAPACITY[3, 2] = 10  # D's site: both borrowers have an income to borrow against
+
+
+def test_old_lender_heirs_take_loans(exe, tmp_path):
+    # L dies of old age at the end of period 1, after lending 10 to its child B and 10 to D. B's loan passes to C alone
+    # (B would owe itself); D's splits between B and C, half the principal and the due each, in its place.
+    agents = [_lender(max_age=51),
+              _borrower(sugar=40.0, parent_a=0),                 # B, L's child, at (3,4): 50 after its harvest
+              _borrower(y=2, sugar=40.0),                         # D at (3,2)
+              _borrower(x=0, y=0, sugar=10.0, parent_a=0)]        # C, L's other child, alone
+    for seed in range(5):
+        cfg = {**INHERIT, "seed": str(seed)}
+        orders = period_orders(exe, tmp_path / f"o{seed}", cfg, HEIR_CAPACITY, agents, 1)
+        (tmp_path / str(seed)).mkdir()
+        gpu = run_gpu(exe, tmp_path / str(seed), cfg, HEIR_CAPACITY, agents, steps=1)
+        assert gpu.returncode == 0, gpu.stderr
+        py = run_python_in_order(cfg, HEIR_CAPACITY, agents, orders)
+        assert _compare(gpu, py) == [], seed
+        assert sorted((l["lender"], l["borrower"]) for l in py.loans) == [(1, 2), (3, 1), (3, 2)]
+
+
+def test_starved_lender_heirs_take_loans(exe, tmp_path):
+    # L lends in period 1 and starves in period 2 whichever order the turns take; its two children, far apart, each take
+    # half of the loan.
+    agents = [_lender(sugar=12.0, metabolism=5), _borrower(),
+              _borrower(x=0, y=0, sugar=10.0, parent_a=0), _borrower(x=6, y=6, sugar=10.0, parent_a=0)]
+    for seed in range(5):
+        cfg = {**INHERIT, "seed": str(seed)}
+        orders = period_orders(exe, tmp_path / f"o{seed}", cfg, CAPACITY, agents, 2)
+        (tmp_path / str(seed)).mkdir()
+        gpu = run_gpu(exe, tmp_path / str(seed), cfg, CAPACITY, agents, steps=2)
+        assert gpu.returncode == 0, gpu.stderr
+        py = run_python_in_order(cfg, CAPACITY, agents, orders)
+        assert _compare(gpu, py) == [], seed
+        assert py.loans and {l["lender"] for l in py.loans} == {2, 3}
+
+
+def test_credit_inheritance_serial(exe, tmp_path):
+    import json
+
+    timing = tmp_path / "timing.json"
+    cfg = {**_registry("IV-A5", inheritance="true"), "steps": "1"}
+    result = run_exe(exe, "--config", write_cfg(tmp_path, **cfg), "--timing", timing)
+    assert result.returncode == 0, result.stderr
+    t = json.loads(timing.read_text())
+    assert t["waves_mean"] == t["agents_start"]
+
+
+def test_credit_inheritance_check(exe, tmp_path):
+    cfg = {**_registry("IV-A5", inheritance="true"), "steps": "20"}
+    result = run_exe(exe, "--config", write_cfg(tmp_path, **cfg), "--check")
+    assert result.returncode == 0, result.stderr

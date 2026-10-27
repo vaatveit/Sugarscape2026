@@ -54,7 +54,8 @@ void loan_index(const Store& s);
 // After the turns and birth_uids, without inheritance: loans with a dead party go, and each row's new loans are
 // appended, rows in rank order (Python appends them at the borrower's turn), due at due_t = t + d.
 void rebuild_loans(const Store& s, int due_t);
-// The end of the period: on_death for the dying (old age, uid order), then settle_loans(t), on ledger_sugar.
-void run_ledger(const Store& s, const Dying& d, int t, int duration, double rate);
+// The end of the period: on_death for the dying (old age, uid order; with inheritance their loans pass to their heirs),
+// then settle_loans(t), on ledger_sugar.
+void run_ledger(const Store& s, const Dying& d, int t, int duration, double rate, bool inheritance);
 
 #endif  // SRC_LOANS_H_

@@ -71,10 +71,10 @@ void print_version() {
 #endif
     // The build's limits (spec 2026-10-25-gpu-full-parity, section 5); uid_capacity is --uid-capacity's default.
     std::printf("flamegpu = %s\ncuda_runtime = %d.%d\ngpu = %s\nseatbelts = %s\nmax_cells = %u\nmax_tag_bits = %d\n"
-                "max_friends = %u\nmax_sight_looks = %d\nuid_capacity = %u\nloans_per_cell = %u\n",
+                "max_friends = %u\nmax_sight_looks = %d\nuid_capacity = %u\nloans_per_cell = %u\nmax_heirs = %u\n",
                 flamegpu::VERSION_FULL, runtime / 1000, runtime % 1000 / 10, have_device ? device.name : "none",
                 seatbelts, static_cast<unsigned int>(SUGARSCAPE_MAX_CELLS), MAX_TAG_BITS, MAX_FRIENDS, MAX_SIGHT_LOOKS,
-                RunConfig{}.uid_capacity, LOANS_PER_CELL);
+                RunConfig{}.uid_capacity, LOANS_PER_CELL, MAX_HEIRS);
     // Flush now: CUDA, started above, can end the process at exit before stdout is flushed (the output was lost
     // in about 1 run in 4, with exit code 0).
     std::fflush(stdout);

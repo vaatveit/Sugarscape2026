@@ -32,4 +32,36 @@ __device__ __forceinline__ void pay_heirs(const Store& s, unsigned int row) {
     }
 }
 
+// The living children of row, in Python's children order (birth order: by uid, then this period's newborns in creation
+// order), as loan references: the uid, or for a newborn its row marked PROVISIONAL_PARENT until StoreHost::birth_uids.
+// More than MAX_HEIRS raises STORE_HEIR_CAPACITY (exit 5). Returns how many.
+__device__ __forceinline__ unsigned int heirs_in_order(const Store& s, unsigned int row, unsigned int* out) {
+    uint64_t keys[MAX_HEIRS];
+    unsigned int rows[MAX_HEIRS];
+    unsigned int n = 0;
+    const unsigned int total = s.n_rows + *s.newborn_count;
+    for (unsigned int r = 0; r < total; ++r) {
+        if (r == row || s.dead[r] || !is_child_of(s, r, row)) continue;
+        if (n == MAX_HEIRS) {
+            atomicOr(s.errors, STORE_HEIR_CAPACITY);
+            break;
+        }
+        // uids sort before newborns (bit 63), newborns by their place in creation order (newborn_key's 63 bits).
+        keys[n] = s.uid[r] != NO_UID ? s.uid[r] : ((1ull << 63) | (s.newborn_key[r] & ~(1ull << 63)));
+        rows[n++] = r;
+    }
+    for (unsigned int i = 1; i < n; ++i) {  // insertion sort: a handful of children
+        for (unsigned int j = i; j > 0 && keys[j - 1] > keys[j]; --j) {
+            const uint64_t k = keys[j];
+            keys[j] = keys[j - 1];
+            keys[j - 1] = k;
+            const unsigned int r = rows[j];
+            rows[j] = rows[j - 1];
+            rows[j - 1] = r;
+        }
+    }
+    for (unsigned int i = 0; i < n; ++i) out[i] = s.uid[rows[i]] != NO_UID ? s.uid[rows[i]] : (PROVISIONAL_PARENT | rows[i]);
+    return n;
+}
+
 #endif  // SRC_HEIRS_CUH_

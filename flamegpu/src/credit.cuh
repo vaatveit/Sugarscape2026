@@ -3,6 +3,8 @@
 #ifndef SRC_CREDIT_CUH_
 #define SRC_CREDIT_CUH_
 
+#include "book.cuh"
+#include "heirs.cuh"
 #include "looks.cuh"
 #include "model.h"
 #include "rules.cuh"
@@ -54,6 +56,8 @@ __device__ void seek_credit(API* FLAMEGPU, const Store& s, unsigned int row, dou
         neighbours[i] = neighbours[j];
         neighbours[j] = t;
     }
+    // With inheritance the turns run one per wave and the book is Python's live list (credit_on_death below).
+    const bool live = env.template getProperty<unsigned int>("inheritance") != 0u;
     double owed = 0.0;
     bool owed_known = false;  // Python sums only when a lender offers something
     for (int i = 0; i < n; ++i) {
@@ -61,7 +65,10 @@ __device__ void seek_credit(API* FLAMEGPU, const Store& s, unsigned int row, dou
         const double offer = available_to_lend(s, lender, threshold);
         const double amount = offer < need ? offer : need;
         if (amount <= 0.0) continue;
-        if (!owed_known) {
+        if (!owed_known && live) {
+            for (unsigned int e = 0; e < *s.book.n; ++e) owed += s.book.borrower[e] == s.uid[a] ? s.book.due[e] : 0.0;
+            owed_known = true;
+        } else if (!owed_known) {
             const unsigned int first = s.loan_first[a], end = first + s.loan_count[a];
             for (unsigned int k = first; k < end; ++k) {
                 const unsigned int e = s.loan_entry[k];
@@ -76,14 +83,29 @@ __device__ void seek_credit(API* FLAMEGPU, const Store& s, unsigned int row, dou
         if (!(last_income * duration - owed >= amount_due)) continue;
         s.sugar[lender] -= amount;
         s.sugar[a] += amount;
-        const unsigned int slot = row * LOAN_SLOTS + s.n_new[a]++;
-        s.new_lender[slot] = lender;
-        s.new_amount[slot] = amount;
-        s.new_due[slot] = amount_due;
+        if (live) {
+            // A newborn lender (fertile from birth) is named by its row until its uid exists (StoreHost::birth_uids).
+            const unsigned int ref = s.uid[lender] != NO_UID ? s.uid[lender] : (PROVISIONAL_PARENT | static_cast<unsigned int>(lender));
+            const int t = static_cast<int>(env.template getProperty<unsigned int>("t"));
+            book_append(s.book, ref, s.uid[a], amount, amount_due, t + duration);
+        } else {
+            const unsigned int slot = row * LOAN_SLOTS + s.n_new[a]++;
+            s.new_lender[slot] = lender;
+            s.new_amount[slot] = amount;
+            s.new_due[slot] = amount_due;
+        }
         owed += amount_due;
         need -= amount;
         if (need <= 0.0) break;
     }
+}
+
+// Python credit.on_death for the row's agent starving in its turn, with inheritance (serial mode): its loans as
+// borrower go, and its loans as lender pass to its living children (heirs.cuh, heirs_in_order).
+__device__ __forceinline__ void credit_on_death(const Store& s, unsigned int row) {
+    unsigned int heirs[MAX_HEIRS];
+    const unsigned int n = heirs_in_order(s, row, heirs);
+    book_on_death(s.book, s.uid[row], heirs, n);
 }
 
 #endif  // SRC_CREDIT_CUH_

@@ -109,6 +109,7 @@ void describe_turns(flamegpu::ModelDescription& sub, const RunConfig& cfg) {
     env.newProperty<unsigned int>("credit", 0u);  // rule L (credit.cuh)
     env.newProperty<int>("credit_duration", 0);
     env.newProperty<double>("credit_rate", 0.0);
+    env.newProperty<unsigned int>("t", 0u);  // Python's Model.t: with inheritance, loans join the book in the turn
     env.newProperty<int>("spice_endowment_lo", 0);
     env.newProperty<int>("spice_endowment_hi", 0);
     for (const char* name : {"endowment_lo", "endowment_hi", "fertility_start_lo", "fertility_start_hi",
@@ -307,13 +308,15 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
             // Old age through the table of the period's dying (turns.cuh): age and post the dying; with rule I count
             // and pay the heirs; then the dying die. With rule L the ledger follows: on_death for the dying, then
             // settle_loans, on each citizen's sugar (Python's order after aging).
-            s.dying = std::make_unique<DyingTable>(static_cast<unsigned int>(cfg.cells()));
+            const bool pairs = cfg.inheritance && cfg.credit;  // a dying lender's heirs take its loans (loans.cu)
+            s.dying = std::make_unique<DyingTable>(static_cast<unsigned int>(cfg.cells()), pairs);
             env.setProperty<uint64_t>("dying", s.dying->device_address());
             model.newLayer().addHostFunction(dying_posting);
             model.newLayer().addAgentFunction(citizen.newFunction("age_mark", age_mark));
             model.newLayer().addHostFunction(dying_sort);
             if (cfg.inheritance) {
                 model.newLayer().addAgentFunction(citizen.newFunction("heirs_count", heirs_count));
+                if (pairs) model.newLayer().addHostFunction(dying_pairs_sort);
                 model.newLayer().addAgentFunction(citizen.newFunction("heirs_take", heirs_take));
             }
             flamegpu::AgentFunctionDescription die_fn = citizen.newFunction("die_old", die_old);
