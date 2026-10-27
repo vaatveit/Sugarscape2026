@@ -159,6 +159,7 @@ def test_version(exe, build):
     assert info["seatbelts"] == ("on" if build == "build" else "off")
     assert info["max_cells"] == "6250000"
     assert info["max_tag_bits"] == "63"  # spec 2026-10-25-gpu-full-parity, section 5
+    assert info["max_friends"] == "5" and info["max_sight_looks"] == "64" and info["uid_capacity"] == "16777216"
     assert info["gpu"] != "" and info["cuda_runtime"] != ""
 
 
@@ -290,3 +291,37 @@ def test_later_parts_still_refused(exe, tmp_path, line):
     result = run_exe(exe, "--config", cfg, "--print-config")
     assert result.returncode == 2
     assert line.split()[0] in _error(result) and "not on the GPU yet" in _error(result)
+
+
+# --- The deferred minors (Parts A and B) --------------------------------------------------------------------------
+
+def _still(**kw):
+    return {"x": 2, "y": 2, "vision": 1, "metabolism": 1, "sugar": 10.0, "age": 0, "max_age": None, **kw}
+
+
+@pytest.mark.parametrize("cfg, size, agents, named", [
+    # Partners in sight look vision / look_stride sites along each line: at most 64 (MAX_SIGHT_LOOKS).
+    ({"sex": "true", "mate_contact": "vision"}, 140, [_still(vision=65, sex="F", fertility_start=12, fertility_end=50)],
+     "partners in sight"),
+    ({"tag_length": "5"}, 50, [_still(tags="0000000")], "tags"),
+    ({}, 50, [_still(), _still(x=5, parent_a=5)], "parent"),
+    ({}, 50, [_still(), _still(x=5, friends="7:0")], "friend"),
+])
+def test_init_agents_within_limits(exe, tmp_path, cfg, size, agents, named):
+    # --init agents meet the same limits as drawn ones, with a message naming the line.
+    import numpy as np
+    from gpu import run_gpu
+
+    dump = run_gpu(exe, tmp_path, cfg, np.zeros((size, size), dtype=int), agents, steps=1)
+    assert dump.returncode == 2, dump.stderr
+    assert named in dump.stderr and "line" in dump.stderr, dump.stderr
+
+
+@pytest.mark.parametrize("value", ["0", "4294967296", "-5", "1e6"])
+def test_uid_capacity_out_of_range(exe, tmp_path, value):
+    # Uids are 32-bit: --uid-capacity takes 1 .. 2^32 - 1 (a usage error, exit 2, otherwise). A capacity the device
+    # cannot hold stops the run with exit 5 naming --uid-capacity (store.cu); Windows pages device memory, so no test
+    # here can force that.
+    result = run_exe(exe, "--config", write_cfg(tmp_path, steps="1"), "--uid-capacity", value)
+    assert result.returncode == 2, result.stderr
+    assert "--uid-capacity expects a whole number from 1 to 4294967295" in result.stderr

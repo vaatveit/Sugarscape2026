@@ -50,7 +50,7 @@ struct Options {
     int tile = 1;
     bool check = false;
     bool force_turns = false, serial_turns = false;
-    std::optional<int> uid_capacity;
+    std::optional<unsigned int> uid_capacity;
     bool print_config = false;
     bool help = false;
     bool version = false;
@@ -67,9 +67,12 @@ void print_version() {
 #else
     const char* seatbelts = "off";
 #endif
-    std::printf("flamegpu = %s\ncuda_runtime = %d.%d\ngpu = %s\nseatbelts = %s\nmax_cells = %u\nmax_tag_bits = %d\n",
+    // The build's limits (spec 2026-10-25-gpu-full-parity, section 5); uid_capacity is --uid-capacity's default.
+    std::printf("flamegpu = %s\ncuda_runtime = %d.%d\ngpu = %s\nseatbelts = %s\nmax_cells = %u\nmax_tag_bits = %d\n"
+                "max_friends = %u\nmax_sight_looks = %d\nuid_capacity = %u\n",
                 flamegpu::VERSION_FULL, runtime / 1000, runtime % 1000 / 10, have_device ? device.name : "none",
-                seatbelts, static_cast<unsigned int>(SUGARSCAPE_MAX_CELLS), MAX_TAG_BITS);
+                seatbelts, static_cast<unsigned int>(SUGARSCAPE_MAX_CELLS), MAX_TAG_BITS, MAX_FRIENDS, MAX_SIGHT_LOOKS,
+                RunConfig{}.uid_capacity);
     // Flush now: CUDA, started above, can end the process at exit before stdout is flushed (the output was lost
     // in about 1 run in 4, with exit code 0).
     std::fflush(stdout);
@@ -85,6 +88,17 @@ int to_int(const std::string& option, const std::string& text) {
     throw UsageError(option + " expects an integer, got '" + text + "'");
 }
 
+// A count from 1 to 2^32 - 1 (uids are 32-bit, and NO_UID, 2^32 - 1, is never given out).
+unsigned int to_count(const std::string& option, const std::string& text) {
+    try {
+        size_t used = 0;
+        const unsigned long long v = std::stoull(text, &used);
+        if (used == text.size() && text[0] != '-' && v >= 1 && v <= 0xFFFFFFFFull) return static_cast<unsigned int>(v);
+    } catch (const std::exception&) {
+    }
+    throw UsageError(option + " expects a whole number from 1 to 4294967295, got '" + text + "'");
+}
+
 Options parse_args(int argc, const char** argv) {
     Options o;
     for (int i = 1; i < argc; ++i) {
@@ -98,7 +112,7 @@ Options parse_args(int argc, const char** argv) {
         else if (arg == "--check") o.check = true;
         else if (arg == "--force-turns") o.force_turns = true;
         else if (arg == "--serial-turns") o.serial_turns = true;
-        else if (arg == "--uid-capacity") o.uid_capacity = to_int(arg, value());
+        else if (arg == "--uid-capacity") o.uid_capacity = to_count(arg, value());
         else if (arg == "--print-config") o.print_config = true;
         else if (arg == "--config") o.config = value();
         else if (arg == "--out") o.out = value();
@@ -114,7 +128,6 @@ Options parse_args(int argc, const char** argv) {
     if (o.help || o.version) return o;
     if (o.config.empty()) throw UsageError("--config is required");
     if (o.metrics_every < 1) throw UsageError("--metrics-every must be >= 1");
-    if (o.uid_capacity && *o.uid_capacity < 1) throw UsageError("--uid-capacity must be >= 1");
     if ((!o.dump_agents.empty() || !o.dump_landscape.empty()) && !o.dump_at) {
         throw UsageError("--dump-agents/--dump-landscape need --dump-at");
     }
@@ -147,7 +160,7 @@ int main(int argc, const char** argv) {
         cfg = parse_config(opts.config);
         cfg.force_turns = opts.force_turns;
         cfg.serial_turns = opts.serial_turns;
-        if (opts.uid_capacity) cfg.uid_capacity = static_cast<unsigned int>(*opts.uid_capacity);
+        if (opts.uid_capacity) cfg.uid_capacity = *opts.uid_capacity;
         apply_tile(cfg, opts.tile);
         validate(cfg);
         setup_start = std::chrono::steady_clock::now();
@@ -165,7 +178,10 @@ int main(int argc, const char** argv) {
     }
     std::vector<InitAgent> init;
     try {
-        if (!opts.init.empty()) init = load_init_agents(opts.init, cfg.width, cfg.height);
+        if (!opts.init.empty()) {
+            init = load_init_agents(opts.init, cfg.width, cfg.height);
+            check_init_agents(opts.init, init, cfg);
+        }
     } catch (const std::runtime_error& e) {
         std::fprintf(stderr, "sugarscape_gpu: %s\n", e.what());
         return 2;

@@ -85,7 +85,8 @@ struct RunConfig {
     unsigned int uid_capacity = 1u << 24;  // --uid-capacity: the most agents a run may create
 
     // Whether every turn after movement runs in the ordered turns (spec section 1).
-    bool turns_on() const { return sex || culture || combat() || force_turns; }
+    // Inheritance counts: its old-age layers live on the turns path, and a run may give children through --init.
+    bool turns_on() const { return sex || culture || combat() || inheritance || force_turns; }
     bool combat() const { return combat_alpha.has_value(); }
     // One turn per wave: --serial-turns, or combat with inheritance, whose victims' heirs are found only at the kill and
     // so cannot be in a footprint (spec section 2).

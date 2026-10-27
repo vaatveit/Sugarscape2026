@@ -124,8 +124,10 @@ __global__ void k_counters(unsigned int n, Store s) {
 StoreHost::StoreHost(const RunConfig& cfg, unsigned int uid_capacity, bool check_footprints) {
     const unsigned int cells = static_cast<unsigned int>(cfg.cells());
     h_.check_footprints = check_footprints ? 1u : 0u;
-    // Rows: the period's citizens (at most one per site) and its newborns (each on a site of its own; none dies in the
-    // turns). A starved citizen keeps its row while a child takes its site, so the bound is 2 x cells, not cells.
+    // Rows: the period's citizens (at most one per site) and its newborns, each born on a site free at that moment. A
+    // dead citizen keeps its row while a child takes its site, and with combat a killed newborn keeps its row while its
+    // site goes to the attacker, so rows can exceed cells. 2 x cells covers every case seen; beyond it a newborn finds
+    // no row and the run stops with STORE_ROW_CAPACITY (exit 5), never a silent overwrite.
     h_.rows_capacity = 2 * cells;
     h_.cells = cells;
     h_.uid_capacity = uid_capacity;
@@ -139,8 +141,16 @@ StoreHost::StoreHost(const RunConfig& cfg, unsigned int uid_capacity, bool check
     alloc(h_.site_sugar, cells);
     alloc(h_.buried_key, cells);
     alloc(h_.buried_tags, cells);
-    alloc(h_.uid_row, uid_capacity);
-    check(cudaMemset(h_.uid_row, 0xFF, sizeof(int) * uid_capacity), "clearing the uid map");
+    // The uid map is sized by --uid-capacity: a capacity the device cannot hold is a limit, named (exit 5).
+    const size_t uid_bytes = sizeof(int) * static_cast<size_t>(uid_capacity);
+    if (cudaMalloc(reinterpret_cast<void**>(&h_.uid_row), uid_bytes) != cudaSuccess) {
+        cudaGetLastError();  // clear the failed allocation's error
+        throw CapacityError("uid capacity " + std::to_string(uid_capacity) + " needs " +
+                            std::to_string(uid_bytes >> 20) + " MiB of device memory for the uid map, more than the "
+                            "GPU can give: lower --uid-capacity");
+    }
+    owned_.push_back(h_.uid_row);
+    check(cudaMemset(h_.uid_row, 0xFF, uid_bytes), "clearing the uid map");
     for (int** p : {&h_.x, &h_.y, &h_.vision, &h_.metabolism, &h_.age, &h_.max_age, &h_.fertility_start,
                     &h_.fertility_end, &h_.disp_x, &h_.disp_y, &h_.counter}) {
         alloc(*p, rows);
@@ -241,18 +251,20 @@ void StoreHost::schedule(unsigned int n, const RunConfig& cfg) {
     size_t bytes = 0;
     // The period's order: rank 0 is the largest key.
     k_rank_keys<<<blocks(n), BLOCK>>>(n, h_.key, rank_keys_, rank_rows_);
-    cub::DeviceRadixSort::SortPairs(nullptr, bytes, rank_keys_, rank_keys_sorted_, rank_rows_, h_.rank_row, n);
+    check(cub::DeviceRadixSort::SortPairs(nullptr, bytes, rank_keys_, rank_keys_sorted_, rank_rows_, h_.rank_row, n),
+          "sorting on the device");
     temp(bytes);
-    cub::DeviceRadixSort::SortPairs(temp_, bytes, rank_keys_, rank_keys_sorted_, rank_rows_, h_.rank_row, n);
+    check(cub::DeviceRadixSort::SortPairs(temp_, bytes, rank_keys_, rank_keys_sorted_, rank_rows_, h_.rank_row, n),
+          "sorting on the device");
     k_ranks<<<blocks(n), BLOCK>>>(n, h_.rank_row, h_);
     // Footprints: count, offsets, fill.
     const FootprintEnv env{cfg.width, cfg.height, cfg.look_stride, cfg.sex, cfg.mate_contact == "vision", cfg.culture,
                            cfg.combat()};
     k_fp_count<<<blocks(n), BLOCK>>>(n, h_, env);
     bytes = 0;
-    cub::DeviceScan::ExclusiveSum(nullptr, bytes, h_.fp_count, h_.fp_offset, n);
+    check(cub::DeviceScan::ExclusiveSum(nullptr, bytes, h_.fp_count, h_.fp_offset, n), "scanning on the device");
     temp(bytes);
-    cub::DeviceScan::ExclusiveSum(temp_, bytes, h_.fp_count, h_.fp_offset, n);
+    check(cub::DeviceScan::ExclusiveSum(temp_, bytes, h_.fp_count, h_.fp_offset, n), "scanning on the device");
     unsigned int last_count = 0, last_offset = 0;
     check(cudaMemcpy(&last_count, h_.fp_count + n - 1, sizeof(unsigned int), cudaMemcpyDeviceToHost), "reading counts");
     check(cudaMemcpy(&last_offset, h_.fp_offset + n - 1, sizeof(unsigned int), cudaMemcpyDeviceToHost), "reading offsets");
@@ -266,17 +278,19 @@ void StoreHost::schedule(unsigned int n, const RunConfig& cfg) {
     // Sort by (site, rank); remove duplicates.
     const int end_bit = 32 + bits_for(h_.cells);
     bytes = 0;
-    cub::DeviceRadixSort::SortPairs(nullptr, bytes, entry_key_, entry_key_sorted_, entry_idx_, entry_idx_sorted_, total,
-                                    0, end_bit);
+    check(cub::DeviceRadixSort::SortPairs(nullptr, bytes, entry_key_, entry_key_sorted_, entry_idx_, entry_idx_sorted_,
+                                          total, 0, end_bit),
+          "sorting on the device");
     temp(bytes);
-    cub::DeviceRadixSort::SortPairs(temp_, bytes, entry_key_, entry_key_sorted_, entry_idx_, entry_idx_sorted_, total,
-                                    0, end_bit);
+    check(cub::DeviceRadixSort::SortPairs(temp_, bytes, entry_key_, entry_key_sorted_, entry_idx_, entry_idx_sorted_,
+                                          total, 0, end_bit),
+          "sorting on the device");
     // The writes, in sorted order: entry_write_ indexed by fill order, gathered through the sorted indices.
     k_keep<<<blocks(total), BLOCK>>>(total, entry_key_sorted_, keep_);
     bytes = 0;
-    cub::DeviceScan::ExclusiveSum(nullptr, bytes, keep_, keep_scan_, total);
+    check(cub::DeviceScan::ExclusiveSum(nullptr, bytes, keep_, keep_scan_, total), "scanning on the device");
     temp(bytes);
-    cub::DeviceScan::ExclusiveSum(temp_, bytes, keep_, keep_scan_, total);
+    check(cub::DeviceScan::ExclusiveSum(temp_, bytes, keep_, keep_scan_, total), "scanning on the device");
     // The write flags in sorted order (start_flag_ as scratch until the groups need it).
     k_gather<<<blocks(total), BLOCK>>>(total, entry_idx_sorted_, entry_write_, start_flag_);
     k_compact<<<blocks(total), BLOCK>>>(total, entry_key_sorted_, entry_idx_sorted_, start_flag_, keep_, keep_scan_, h_,
@@ -288,9 +302,9 @@ void StoreHost::schedule(unsigned int n, const RunConfig& cfg) {
     // Groups and the wait counters.
     k_group_starts<<<blocks(unique), BLOCK>>>(unique, h_.unique_key, unique_write_, start_flag_);
     bytes = 0;
-    cub::DeviceScan::InclusiveSum(nullptr, bytes, start_flag_, h_.entry_group, unique);
+    check(cub::DeviceScan::InclusiveSum(nullptr, bytes, start_flag_, h_.entry_group, unique), "scanning on the device");
     temp(bytes);
-    cub::DeviceScan::InclusiveSum(temp_, bytes, start_flag_, h_.entry_group, unique);
+    check(cub::DeviceScan::InclusiveSum(temp_, bytes, start_flag_, h_.entry_group, unique), "scanning on the device");
     k_groups<<<blocks(unique), BLOCK>>>(unique, start_flag_, h_);
     k_counters<<<blocks(unique), BLOCK>>>(unique, h_);
     h_.n_unique = unique;
@@ -358,13 +372,15 @@ unsigned int StoreHost::birth_uids(unsigned int next_uid) {
     if (n == 0) return 0;
     k_newborn_keys<<<blocks(n), BLOCK>>>(n, h_.n_rows, h_.newborn_key, rank_keys_, rank_rows_);
     size_t bytes = 0;
-    cub::DeviceRadixSort::SortPairs(nullptr, bytes, rank_keys_, rank_keys_sorted_, rank_rows_, h_.rank_row, n);
+    check(cub::DeviceRadixSort::SortPairs(nullptr, bytes, rank_keys_, rank_keys_sorted_, rank_rows_, h_.rank_row, n),
+          "sorting on the device");
     if (bytes > temp_bytes_) {
         cudaFree(temp_);
         check(cudaMalloc(&temp_, bytes), "allocating scheduler scratch");
         temp_bytes_ = bytes;
     }
-    cub::DeviceRadixSort::SortPairs(temp_, bytes, rank_keys_, rank_keys_sorted_, rank_rows_, h_.rank_row, n);
+    check(cub::DeviceRadixSort::SortPairs(temp_, bytes, rank_keys_, rank_keys_sorted_, rank_rows_, h_.rank_row, n),
+          "sorting on the device");
     k_newborn_uids<<<blocks(n), BLOCK>>>(n, h_.rank_row, h_, next_uid);
     k_fix_parents<<<blocks(n), BLOCK>>>(n, h_.n_rows, h_);
     if (h_.n_rows) k_fix_friends<<<blocks(h_.n_rows), BLOCK>>>(h_.n_rows, h_);
@@ -475,13 +491,15 @@ void DyingTable::sort() {
     if (n) {
         k_dying_order<<<blocks(n), BLOCK>>>(n, order_);
         size_t bytes = 0;
-        cub::DeviceRadixSort::SortPairs(nullptr, bytes, posted_uid_, h_.uid, order_, sorted_order_, n);
+        check(cub::DeviceRadixSort::SortPairs(nullptr, bytes, posted_uid_, h_.uid, order_, sorted_order_, n),
+              "sorting on the device");
         if (bytes > temp_bytes_) {
             cudaFree(temp_);
             check(cudaMalloc(&temp_, bytes), "allocating dying scratch");
             temp_bytes_ = bytes;
         }
-        cub::DeviceRadixSort::SortPairs(temp_, bytes, posted_uid_, h_.uid, order_, sorted_order_, n);
+        check(cub::DeviceRadixSort::SortPairs(temp_, bytes, posted_uid_, h_.uid, order_, sorted_order_, n),
+              "sorting on the device");
         k_dying_gather<<<blocks(n), BLOCK>>>(n, sorted_order_, posted_sugar_, h_);
     }
     // The heirs read the sorted table; the next period's dying post to the posted_* arrays again (posting()).
@@ -503,6 +521,7 @@ NewcomerUids::NewcomerUids(unsigned int cells) {
     auto alloc = [](auto*& p, size_t n) {
         check(cudaMalloc(reinterpret_cast<void**>(&p), sizeof(*p) * (n ? n : 1)), "allocating newcomer slots");
     };
+    h_.capacity = cells;
     alloc(h_.key, cells);
     alloc(h_.slot, cells);
     alloc(h_.uid, cells);
@@ -527,14 +546,22 @@ unsigned int NewcomerUids::assign(unsigned int next_uid) {
     check(cudaMemcpy(&n, h_.count, sizeof(unsigned int), cudaMemcpyDeviceToHost), "reading newcomer count");
     check(cudaMemset(h_.count, 0, sizeof(unsigned int)), "clearing newcomer count");
     if (n == 0) return 0;
+    // More newcomers than cells (deaths in a near-full world, with newborns killed in combat): there are not the empty
+    // sites to place them either, so the run stops here with the limit named.
+    if (n > h_.capacity) {
+        throw CapacityError(std::to_string(n) + " newcomers in one period, more than the " +
+                            std::to_string(h_.capacity) + " cells that can hold them");
+    }
     size_t bytes = 0;
-    cub::DeviceRadixSort::SortPairs(nullptr, bytes, h_.key, sorted_key_, h_.slot, sorted_slot_, n);
+    check(cub::DeviceRadixSort::SortPairs(nullptr, bytes, h_.key, sorted_key_, h_.slot, sorted_slot_, n),
+          "sorting on the device");
     if (bytes > temp_bytes_) {
         cudaFree(temp_);
         check(cudaMalloc(&temp_, bytes), "allocating newcomer scratch");
         temp_bytes_ = bytes;
     }
-    cub::DeviceRadixSort::SortPairs(temp_, bytes, h_.key, sorted_key_, h_.slot, sorted_slot_, n);
+    check(cub::DeviceRadixSort::SortPairs(temp_, bytes, h_.key, sorted_key_, h_.slot, sorted_slot_, n),
+          "sorting on the device");
     k_newcomer_uids<<<blocks(n), BLOCK>>>(n, sorted_slot_, h_.uid, next_uid);
     check(cudaDeviceSynchronize(), "assigning newcomer uids");
     return n;

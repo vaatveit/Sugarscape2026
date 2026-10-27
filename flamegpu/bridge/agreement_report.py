@@ -72,6 +72,8 @@ def _timing(exp_id: str, root: Path) -> tuple[float, float, float] | None:
         return None
     mean = lambda key: sum(float(r[key]) for r in rows) / len(rows)  # noqa: E731
     periods = mean("periods")
+    if not periods:  # no period stepped: nothing per period to report
+        return mean("setup_s"), math.nan, math.nan
     return mean("setup_s"), 1000 * mean("stepping_s") / periods, 1000 * mean("metrics_s") / periods
 
 

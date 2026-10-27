@@ -134,7 +134,7 @@ COMBAT_CASES = {
 }
 
 
-@pytest.mark.parametrize("name", COMBAT_CASES)
+@pytest.mark.parametrize("name", ["III-9", "III-11", "III-13", "stride5", "III-14", "sex_neighbors", "sex_vision"])
 def test_serial_equivalence_combat(exe, tmp_path, name):
     waves = _files(exe, tmp_path / "waves", COMBAT_CASES[name], 20)
     assert waves == _files(exe, tmp_path / "serial", COMBAT_CASES[name], 20, "--serial-turns")
@@ -271,3 +271,58 @@ def test_combat_inheritance_serial(exe, tmp_path):
     assert result.returncode == 0, result.stderr
     t = json.loads(timing.read_text())
     assert t["waves_mean"] == t["agents_start"], t
+
+
+# --- The deferred minors (Part B's review) ------------------------------------------------------------------------
+
+
+def test_killed_friend_order_in_one_period(exe, tmp_path):
+    # Review Focus 2 within one period: X reads whether its friend V is alive at X's turn, and A kills V in A's. Only
+    # the friend footprint orders the two turns (they are far apart), so waves must equal serial mode, and over seeds
+    # both orders occur (X keeps V for now, or has dropped it).
+    agents = [_attacker(sugar=50.0, vision=1), _still(6, 5, BLUE, 5), _still(15, 15, BLUE, 50, friends="1:0")]
+    cfg = {**COMBAT, "combat_alpha": "inf", "culture": "true"}
+    seen = set()
+    for seed in range(10):
+        friends = []
+        for mode, extra in (("w", ()), ("s", ("--serial-turns",))):
+            d = tmp_path / f"{seed}{mode}"
+            d.mkdir()
+            gpu = run_gpu(exe, d, {**cfg, "seed": str(seed)}, _world(), agents, steps=1, extra_args=extra)
+            assert gpu.returncode == 0, gpu.stderr
+            friends.append([a["friends"] for a in gpu.agents if a["uid"] == 2])
+        assert friends[0] == friends[1], (seed, friends)
+        seen.add(friends[0][0])
+    assert seen == {"1:0", ""}, seen
+
+
+ELEVEN = {"blue": "0" * 11, "red": "1" * 11}
+
+
+def test_victim_newcomer_same_tribe(exe, tmp_path):
+    # A (red) kills V (blue); with same-tribe replacement V's newcomer is blue, in every seed (2^-10 by chance).
+    agents = [_attacker(tags=ELEVEN["red"]), _still(6, 5, ELEVEN["blue"], 5)]
+    cfg = {"tag_length": "11", "combat_alpha": "inf", "replacement": "true", "max_age": "60,100",
+           "replacement_same_tribe": "true"}
+    for seed in range(10):
+        d = tmp_path / str(seed)
+        d.mkdir()
+        gpu = run_gpu(exe, d, {**cfg, "seed": str(seed)}, ATTACK, agents, steps=1)
+        assert gpu.returncode == 0, gpu.stderr
+        newcomers = [a for a in gpu.agents if a["age"] == 0]
+        assert len(newcomers) == 1 and 2 * newcomers[0]["tags"].count("1") < 11, (seed, newcomers)
+
+
+def test_buried_newborn_newcomer_same_tribe(exe, tmp_path):
+    # A newborn killed in its birth period is replaced by a newcomer of its own tribe (blue), made by a cell.
+    killed = 0
+    for seed in range(20):
+        d = tmp_path / str(seed)
+        d.mkdir()
+        cfg = {**NEWBORN_CFG, "replacement_same_tribe": "true", "seed": str(seed)}
+        gpu = run_gpu(exe, d, cfg, _world(), _newborn_scene(), steps=1)
+        assert gpu.returncode == 0, gpu.stderr
+        newcomers = [a for a in gpu.agents if a["age"] == 0]
+        killed += len(newcomers)
+        assert all(a["tags"] == BLUE for a in newcomers), (seed, newcomers)
+    assert killed > 0

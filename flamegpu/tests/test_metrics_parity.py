@@ -57,8 +57,9 @@ def test_one_step_matches_python(exe, tmp_path):
 
 def test_csv_header_is_pythons(exe, tmp_path):
     out = tmp_path / "metrics.csv"
-    dump = run_gpu(exe, tmp_path, {}, CAPACITY, TAGGED[:1], 1, extra_args=("--out", out))
+    agent = [{k: v for k, v in TAGGED[0].items() if k != "tags"}]  # no tags without a tag_length (--init checks)
+    dump = run_gpu(exe, tmp_path, {}, CAPACITY, agent, 1, extra_args=("--out", out))
     assert dump.returncode == 0, dump.stderr
     header = out.read_text().splitlines()[0].split(",")
-    assert header == list(python_metric_rows({}, CAPACITY, TAGGED[:1], 0)[0])  # "t", then sugarscape_metrics' keys
+    assert header == list(python_metric_rows({}, CAPACITY, agent, 0)[0])  # "t", then sugarscape_metrics' keys
     assert len(header) == 46

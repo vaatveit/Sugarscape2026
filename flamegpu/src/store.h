@@ -139,6 +139,7 @@ struct NewcomerSlots {
     unsigned int* slot;  // posting order
     unsigned int* uid;   // by posting order
     unsigned int* count;
+    unsigned int capacity;  // one per cell; beyond it nothing is written and assign() throws CapacityError
 };
 
 class NewcomerUids {
@@ -200,9 +201,15 @@ class DyingTable {
     size_t temp_bytes_ = 0;
 };
 
-// The death key of a citizen that starves (rank: its place in the period's order) or dies of old age (its uid).
-// The turns path uses turn_death_key in place of starved_key.
-__host__ __device__ inline uint64_t starved_key(uint64_t rank) { return rank; }
+// The death keys that order newcomers (NewcomerUids): starvation before old age, which sorts by uid (old_age_key).
+// On the fast path (no turns), a citizen that starves is ordered by the period's order key, priority << 32 | id, the
+// largest first: ~priority << 31 | ~id's low 31 bits, so bit 63 stays clear for old age. ~id's top bit is 1 for every
+// id below 2^31, so nothing that tells two agents apart is lost (keeping ~key >> 1 lost the id's lowest bit, and two
+// agents of tied priority could share a key). The turns path uses turn_death_key.
+__host__ __device__ inline uint64_t fast_starved_key(uint64_t order_key) {
+    const uint64_t k = ~order_key;
+    return ((k >> 32) << 31) | (k & 0x7FFFFFFFull);
+}
 // A row that dies in the turn of rank `rank`: a combat victim first, then the turn's own agent if it starves, as
 // Python appends them to dead_this_step.
 __host__ __device__ inline uint64_t turn_death_key(unsigned int rank, bool victim) {

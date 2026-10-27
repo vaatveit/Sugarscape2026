@@ -64,3 +64,15 @@ def test_no_inheritance_flag(exe, tmp_path):
     assert gpu.returncode == 0, gpu.stderr
     sugar = _compare(gpu, run_python(cfg, EMPTY, agents, 1))
     assert sugar == {1: (9.0, 9.0)}
+
+
+def test_inheritance_without_sex_matches_python(exe, tmp_path):
+    # Rule I needs no rule S: children given by --init inherit as in Python, though no sex or culture is on.
+    agents = [_agent(2, 2, 51.0, 31), _agent(6, 2, 10.0, 90, parent_a=0), _agent(10, 2, 10.0, 90, parent_a=0)]
+    cfg = {"inheritance": "true", "max_age": "60,100"}
+    gpu = run_gpu(exe, tmp_path, cfg, EMPTY, agents, steps=1)
+    assert gpu.returncode == 0, gpu.stderr
+    sugar = _compare(gpu, run_python(cfg, EMPTY, agents, 1))
+    assert set(sugar) == {1, 2}
+    for uid, (g, p) in sugar.items():
+        assert math.isclose(g, p, abs_tol=1e-9) and math.isclose(p, 34.0), (uid, g, p)

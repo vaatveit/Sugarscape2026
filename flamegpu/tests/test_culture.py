@@ -26,8 +26,7 @@ def _by_uid(agents):
     return {a["uid"]: a for a in agents}
 
 
-@pytest.mark.parametrize("seed", range(1))
-def test_transmit_pair_converges(exe, tmp_path, seed):
+def test_transmit_pair_converges(exe, tmp_path):
     # A (tag 1) and B (tag 0) are each other's only neighbour: whoever goes first copies its tag to the other, who
     # copies it back. Either way they end equal, and over seeds both outcomes occur.
     outcomes = set()

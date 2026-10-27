@@ -215,7 +215,7 @@ FLAMEGPU_AGENT_FUNCTION(metabolize_and_age, flamegpu::MessageNone, flamegpu::Mes
         if (FLAMEGPU->environment.getProperty<unsigned int>("replacement")) {
             // Python spawns newcomers for the starved first, in the period's order, then for old age by uid.
             const uint64_t key = order_key(FLAMEGPU->getVariable<unsigned int>("priority"), FLAMEGPU->getID());
-            output_newcomer(FLAMEGPU, sugar <= 0.0 ? starved_key(~key >> 1)
+            output_newcomer(FLAMEGPU, sugar <= 0.0 ? fast_starved_key(key)
                                                     : old_age_key(FLAMEGPU->getVariable<unsigned int>("uid")),
                             FLAMEGPU->getVariable<uint64_t>("tags"));
         }

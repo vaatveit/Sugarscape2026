@@ -69,3 +69,15 @@ def test_missing_side_not_run(tmp_path):
     assert report.not_run == [EXP] and report.tested == 0
     write_report(report, tmp_path / "A.md")
     assert "not run" in (tmp_path / "A.md").read_text(encoding="utf-8")
+
+
+def test_zero_periods_speed_is_nan(tmp_path):
+    # A run of 0 periods has no stepping time per period: NaN in the speed table, not a crash.
+    seeds = _seeds(np.random.default_rng(5))
+    _write(tmp_path / "py", seeds, {"setup_s": 0.5, "stepping_s": 0.0, "metrics_s": 0.0, "periods": 0})
+    _write(tmp_path / "gpu", seeds, {"setup_s": 2.0, "stepping_s": 0.0, "metrics_s": 0.0, "periods": 0})
+    report = build_report([EXP], tmp_path / "gpu", tmp_path / "py")
+    (speed,) = report.speed
+    assert speed.gpu_setup_s == 2.0 and np.isnan(speed.gpu_step_ms) and np.isnan(speed.py_metrics_ms)
+    write_report(report, tmp_path / "A.md")
+    assert "| TEST-tiny | 2 | nan |" in (tmp_path / "A.md").read_text(encoding="utf-8")

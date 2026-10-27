@@ -271,6 +271,7 @@ FLAMEGPU_AGENT_FUNCTION(newcomer_post, flamegpu::MessageNone, flamegpu::MessageN
     if (FLAMEGPU->getVariable<int>("x") >= 0) return flamegpu::ALIVE;
     const NewcomerSlots& n = *reinterpret_cast<const NewcomerSlots*>(FLAMEGPU->environment.getProperty<uint64_t>("newcomers"));
     const unsigned int slot = atomicAdd(n.count, 1u);
+    if (slot >= n.capacity) return flamegpu::ALIVE;  // NewcomerUids::assign() names the limit
     n.key[slot] = FLAMEGPU->getVariable<uint64_t>("death_key");
     n.slot[slot] = slot;
     FLAMEGPU->setVariable<unsigned int>("nc_slot", slot);

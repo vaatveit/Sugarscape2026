@@ -4,6 +4,8 @@
 #include <set>
 #include <sstream>
 
+#include "config.h"
+
 std::vector<uint32_t> load_map(const std::string& path, int width, int height) {
     std::ifstream in(path);
     if (!in) throw MapError(path + ": cannot open the map file");
@@ -125,8 +127,10 @@ std::vector<InitAgent> load_init_agents(const std::string& path, int width, int 
                         throw MapError(where + ": tags must be a 0/1 string of at most 63 bits");
                     }
                     for (size_t i = 0; i < v.size(); ++i) a.tags |= static_cast<uint64_t>(v[i] == '1') << i;
+                    a.tag_count = static_cast<int>(v.size());
                 }
             }
+            a.line = number;
             if (a.x < 0 || a.x >= width || a.y < 0 || a.y >= height) throw MapError(where + ": site outside the world");
             if (!sites.insert(a.x + static_cast<long long>(a.y) * width).second) throw MapError(where + ": site already taken");
             agents.push_back(a);
@@ -137,4 +141,32 @@ std::vector<InitAgent> load_init_agents(const std::string& path, int width, int 
         }
     }
     return agents;
+}
+
+void check_init_agents(const std::string& path, const std::vector<InitAgent>& agents, const RunConfig& cfg) {
+    const int stride = cfg.look_stride;
+    const auto n = static_cast<unsigned int>(agents.size());
+    for (const InitAgent& a : agents) {
+        const std::string where = path + " line " + std::to_string(a.line) + ": ";
+        if (cfg.sex && cfg.mate_contact == "vision" && a.vision / stride > MAX_SIGHT_LOOKS) {
+            throw MapError(where + "partners in sight look " + std::to_string(a.vision / stride) +
+                           " sites along each line, beyond the GPU's limit of " + std::to_string(MAX_SIGHT_LOOKS));
+        }
+        if (a.tag_count >= 0 && a.tag_count != cfg.tag_length) {
+            throw MapError(where + std::to_string(a.tag_count) + " tags given, but tag_length = " +
+                           std::to_string(cfg.tag_length));
+        }
+        for (const auto& parent : {a.parent_a, a.parent_b}) {
+            if (parent && *parent >= n) {
+                throw MapError(where + "parent " + std::to_string(*parent) + " is not an agent of the file (" +
+                               std::to_string(n) + " agents)");
+            }
+        }
+        for (const auto& [uid, dist] : a.friends) {
+            if (uid >= n) {
+                throw MapError(where + "friend " + std::to_string(uid) + " is not an agent of the file (" +
+                               std::to_string(n) + " agents)");
+            }
+        }
+    }
 }
