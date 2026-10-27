@@ -11,8 +11,12 @@ Python version's functionality, all of it, so the two can be timed against each 
   - all of Chapter III: sex S with every option, inheritance I, cultural tags, tribal blocks, culture K and
     friends, combat C_α and C_∞, and same-tribe replacement;
   - all of Chapter IV: spice, welfare movement with foresight and cultural preferences, trade T with
-    `trade_rounding`, credit L, `pollution_stop`, and `economic_metrics`.
-- **Still to come** (Parts D–F of the design): disease, the Schelling and Ring World models.
+    `trade_rounding`, credit L, `pollution_stop`, and `economic_metrics`;
+  - all of Chapter V: immune systems, the master disease list, disease E (transmission, then the immune response),
+    the disease fee wherever Python burns sugar, and `disease_metrics`.
+
+  Every rule of the Python project's `Config` now runs on the GPU.
+- **Still to come** (Parts E–F of the design): the Schelling and Ring World models.
   `bridge.gpu_run` skips experiments that need these and names them.
 
 ## Prerequisites
@@ -87,7 +91,9 @@ The results of Chapter III without combat (2026-10-26) are in
 [docs/validation/chapter3-part-a.md](docs/validation/chapter3-part-a.md): 0 of 1,601 windows flagged. Combat's are in
 [docs/validation/chapter3-part-b.md](docs/validation/chapter3-part-b.md): 0 of 348 windows flagged. Chapter IV's
 (2026-10-27) are in [docs/validation/chapter4-part-c.md](docs/validation/chapter4-part-c.md): 0 of 4,709 windows
-flagged. Python's saved results are read from the repository root's `results\` (`--python` for another folder).
+flagged. Chapter V's (2026-10-27) are in [docs/validation/chapter5-part-d.md](docs/validation/chapter5-part-d.md): 0 of
+432 windows flagged. Python's saved results are read from the repository root's `results\` (`--python` for another
+folder).
 
 `gpu_report` scores the GPU results and the Python project's saved `results\` against the same book
 targets, and writes `results-gpu\REPORT.md` with both sides and every status that changed.
@@ -185,7 +191,12 @@ GPU version moves everyone at once, but reaches the same outcome
   a deterministic placement would move Chapter II's newcomers.
 - **Limits**, each checked with an error that names it: at most 63 tag bits; partners in sight at most 64 looks
   along a line (vision / look_stride); at most 16,777,216 agents created in a run (`--uid-capacity`; exit 5); at most
-  2 loans per site in the book, and 32 heirs to a death in a turn (exit 5).
+  2 loans per site in the book, and 32 heirs to a lender's death in a turn (exit 5); immune systems of at most 64
+  bits and a master list of at most 64 diseases, checked only with disease on.
+- **Test options.** `--disease-list FILE` replaces the drawn master list (one 0/1 string per line, bit 0 first), and
+  `--dump-diseases FILE` writes the list in use, so a test can give Python and the GPU the same diseases.
+  `--loan-capacity N` sets the loan book's capacity, so a full book can be tested on a small world. Like
+  `--dump-order`, they are for tests, not experiments.
 - **Agent ids.** Each agent's `uid` follows Python's creation order (founders, then newborns in turn order, then
   newcomers in the order of their deaths), so `agents_ever` and every order that depends on it are Python's.
   FLAME GPU's own ids aren't.
