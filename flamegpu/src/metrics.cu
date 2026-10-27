@@ -4,6 +4,8 @@
 #include <bitset>
 #include <cmath>
 #include <limits>
+#include <map>
+#include <set>
 #include <stdexcept>
 #include <unordered_map>
 
@@ -26,6 +28,30 @@ double gini(std::vector<double> x) {
 }
 
 int ones(uint64_t bits) { return static_cast<int>(std::bitset<64>(bits).count()); }
+
+// Python's _longest_chain: the longest lender -> borrower path, in loans, through the credit network; simple paths only.
+using Edges = std::map<uint32_t, std::set<uint32_t>>;
+int walk(const Edges& edges, uint32_t node, std::set<uint32_t>& on_path) {
+    int best = 0;
+    const auto it = edges.find(node);
+    if (it == edges.end()) return 0;
+    for (const uint32_t next : it->second) {
+        if (on_path.count(next)) continue;
+        on_path.insert(next);
+        best = std::max(best, 1 + walk(edges, next, on_path));
+        on_path.erase(next);
+    }
+    return best;
+}
+
+int longest_chain(const Edges& edges) {
+    int best = 0;
+    for (const auto& [node, _] : edges) {
+        std::set<uint32_t> on_path{node};
+        best = std::max(best, walk(edges, node, on_path));
+    }
+    return best;
+}
 
 void put(FILE* f, double v) {
     if (std::isnan(v)) {
@@ -54,7 +80,8 @@ const std::vector<std::string>& metric_names() {
 }
 
 MetricsRow compute_metrics(const AgentColumns& a, const RunConfig& cfg, const std::vector<uint32_t>& capacity,
-                           unsigned int t, unsigned int agents_ever, const TradeTotals& trade) {
+                           unsigned int t, unsigned int agents_ever, const TradeTotals& trade,
+                           const std::vector<LoanRecord>& loans) {
     const size_t n = a.x.size();
     const int half_w = cfg.width / 2, half_h = cfg.height / 2;
     double vision = 0, metabolism = 0, neighbors = 0, moved = 0, ne = 0, peak = 0, spice = 0, foresight = 0;
@@ -122,6 +149,17 @@ MetricsRow compute_metrics(const AgentColumns& a, const RunConfig& cfg, const st
             ++with_friends;
         }
     }
+    // economic_metrics' credit network (p.133): loans, lenders, borrowers, those that are both, and the longest chain.
+    std::set<uint32_t> lenders, borrowers;
+    Edges edges;
+    for (const LoanRecord& l : loans) {
+        lenders.insert(l.lender);
+        borrowers.insert(l.borrower);
+        edges[l.lender].insert(l.borrower);
+    }
+    double both = 0;
+    for (const uint32_t u : lenders) both += borrowers.count(u) ? 1 : 0;
+
     const double tagged = n_blue + n_red;
     const double any = n ? 0.0 : NaN;  // Python's safe_mean of a constant 0 per agent, nan for nobody
     return {t,
@@ -133,10 +171,11 @@ MetricsRow compute_metrics(const AgentColumns& a, const RunConfig& cfg, const st
              n ? children / count : 0.0, ratio(best_sum, with_friends), ratio(mean_sum, with_friends),
              static_cast<double>(agents_ever),
              // economic_metrics: mean_spice and mean_foresight (0 without spice); the period's trades (fn 25: the
-             // geometric mean price; np.std of ln p); credit comes later in Part C.
+             // geometric mean price; np.std of ln p); the credit network.
              ratio(spice, count), trade.n, trade.n > 0 ? std::exp(trade.mean) : NaN, trade.n > 0 ? trade.mean : NaN,
              trade.n > 0 ? std::sqrt(trade.m2 / trade.n) : NaN, trade.sugar, trade.spice, ratio(foresight, count),
-             0.0, 0.0, 0.0, 0.0, 0.0,
+             static_cast<double>(loans.size()), static_cast<double>(lenders.size()),
+             static_cast<double>(borrowers.size()), both, static_cast<double>(longest_chain(edges)),
              // disease_metrics without disease.
              any, any, any, 0.0, 0.0}};
 }

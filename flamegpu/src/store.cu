@@ -163,6 +163,12 @@ StoreHost::StoreHost(const RunConfig& cfg, unsigned int uid_capacity, bool check
     alloc(h_.trade_n, rows);
     for (double** p : {&h_.trade_mean, &h_.trade_m2, &h_.trade_sugar, &h_.trade_spice}) alloc(*p, rows);
     alloc(h_.trade_total, 5);
+    h_.width = static_cast<unsigned int>(cfg.width);
+    for (unsigned int** p : {&h_.loan_first, &h_.loan_count, &h_.n_new}) alloc(*p, rows);
+    alloc(h_.loan_entry, static_cast<size_t>(LOANS_PER_CELL) * cells);
+    alloc(h_.new_lender, rows * LOAN_SLOTS);
+    alloc(h_.new_amount, rows * LOAN_SLOTS);
+    alloc(h_.new_due, rows * LOAN_SLOTS);
     alloc(h_.tags, rows);
     alloc(h_.key, rows);
     for (unsigned int** p : {&h_.uid, &h_.sex, &h_.n_children, &h_.parent_a, &h_.parent_b, &h_.n_friends, &h_.moved,
@@ -236,8 +242,9 @@ void StoreHost::prepare(unsigned int n_rows) {
     check(cudaMemset(h_.newborn_count, 0, sizeof(unsigned int)), "clearing newborn_count");
     check(cudaMemset(h_.site_row, 0xFF, sizeof(int) * h_.cells), "clearing site_row");
     check(cudaMemset(h_.target_row, 0xFF, sizeof(int) * h_.cells), "clearing target_row");
-    // Rule T: every turn's exchanges start at none.
+    // Rules T and L: every turn's exchanges and new loans start at none.
     check(cudaMemset(h_.trade_n, 0, sizeof(unsigned int) * n_rows), "clearing the trades");
+    check(cudaMemset(h_.n_new, 0, sizeof(unsigned int) * n_rows), "clearing the new loans");
     for (double* p : {h_.trade_mean, h_.trade_m2, h_.trade_sugar, h_.trade_spice}) {
         check(cudaMemset(p, 0, sizeof(double) * n_rows), "clearing the trades");
     }
@@ -268,9 +275,11 @@ void StoreHost::schedule(unsigned int n, const RunConfig& cfg) {
     check(cub::DeviceRadixSort::SortPairs(temp_, bytes, rank_keys_, rank_keys_sorted_, rank_rows_, h_.rank_row, n),
           "sorting on the device");
     k_ranks<<<blocks(n), BLOCK>>>(n, h_.rank_row, h_);
+    // Rule L: each row's loans as borrower, for its footprint and its turn (loans.h).
+    if (cfg.credit) loan_index(h_);
     // Footprints: count, offsets, fill.
     const FootprintEnv env{cfg.width, cfg.height, cfg.look_stride, cfg.sex, cfg.mate_contact == "vision", cfg.culture,
-                           cfg.combat()};
+                           cfg.combat(), cfg.credit.has_value()};
     k_fp_count<<<blocks(n), BLOCK>>>(n, h_, env);
     bytes = 0;
     check(cub::DeviceScan::ExclusiveSum(nullptr, bytes, h_.fp_count, h_.fp_offset, n), "scanning on the device");
@@ -552,9 +561,8 @@ void DyingTable::sort() {
         k_dying_gather<<<blocks(n), BLOCK>>>(n, sorted_order_, posted_sugar_, posted_spice_, h_);
     }
     // The heirs read the sorted table; the next period's dying post to the posted_* arrays again (posting()).
-    Dying sorted = h_;
-    sorted.n = n;
-    check(cudaMemcpy(d_, &sorted, sizeof(Dying), cudaMemcpyHostToDevice), "uploading the dying table");
+    h_.n = n;
+    check(cudaMemcpy(d_, &h_, sizeof(Dying), cudaMemcpyHostToDevice), "uploading the dying table");
     check(cudaDeviceSynchronize(), "sorting the dying");
 }
 

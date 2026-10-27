@@ -100,6 +100,7 @@ class Dump:
     agents: list[dict] = field(default_factory=list)  # x, y, vision, metabolism, sugar, age, max_age, moved, neighbors
     landscape: dict = field(default_factory=dict)  # (x, y) -> {capacity, sugar, pollution, occupied}
     csv: list[dict] | None = None
+    loans: list[dict] = field(default_factory=list)  # rule L's book in list order: lender, borrower, principal, due, due_t
     returncode: int = 0
     stderr: str = ""
 
@@ -162,11 +163,16 @@ def run_gpu(exe: Path, tmp: Path, cfg: dict | None = None, capacity: np.ndarray 
         args += ["--init", write_init(tmp / "init.csv", agents)]
     t = steps if dump_at is None else dump_at
     args += ["--dump-agents", tmp / "agents.csv", "--dump-landscape", tmp / "landscape.csv", "--dump-at", str(t)]
+    credit = bool(cfg.get("credit"))
+    if credit:
+        args += ["--dump-loans", tmp / "loans.csv"]
     result = run_exe(exe, *args, *extra_args)
     dump = Dump(returncode=result.returncode, stderr=result.stderr)
     if result.returncode != 0:
         return dump
     dump.agents = read_rows(tmp / "agents.csv")
+    if credit:
+        dump.loans = read_rows(tmp / "loans.csv")
     dump.landscape = {(r["x"], r["y"]): r for r in read_rows(tmp / "landscape.csv")}
     return dump
 

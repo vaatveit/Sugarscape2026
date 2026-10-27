@@ -117,12 +117,16 @@ SERIAL_CASES = {
 
 def _files(exe, tmp, cfg, steps, *extra):
     tmp.mkdir(parents=True, exist_ok=True)
+    files = ["metrics.csv", "agents.csv", "landscape.csv"]
+    loans = ("--dump-loans", tmp / "loans.csv") if cfg.get("credit") else ()  # rule L's book (Part C)
+    if loans:
+        files.append("loans.csv")
     result = run_exe(exe, "--config", write_cfg(tmp, **cfg, steps=str(steps)), "--out", tmp / "metrics.csv",
                      "--dump-agents", tmp / "agents.csv", "--dump-landscape", tmp / "landscape.csv",
-                     "--dump-at", str(steps), *extra)
+                     "--dump-at", str(steps), *loans, *extra)
     assert result.returncode == 0, result.stderr
     out = {}
-    for f in ("metrics.csv", "agents.csv", "landscape.csv"):
+    for f in files:
         lines = (tmp / f).read_text().splitlines()
         if f == "agents.csv":  # FLAME GPU numbers newborns in thread order; uids follow Python's creation order
             drop = lines[0].split(",").index("id")

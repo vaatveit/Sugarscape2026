@@ -160,6 +160,7 @@ def test_version(exe, build):
     assert info["max_cells"] == "6250000"
     assert info["max_tag_bits"] == "63"  # spec 2026-10-25-gpu-full-parity, section 5
     assert info["max_friends"] == "5" and info["max_sight_looks"] == "64" and info["uid_capacity"] == "16777216"
+    assert info["loans_per_cell"] == "2"  # plan 2026-10-26-gpu-parity-part-c, Task 6
     assert info["gpu"] != "" and info["cuda_runtime"] != ""
 
 

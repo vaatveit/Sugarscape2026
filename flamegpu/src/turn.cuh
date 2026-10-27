@@ -1,11 +1,12 @@
 // One agent's turn, exactly as Python's Model.step runs it for one agent (spec 2026-10-25-gpu-full-parity, section
-// 2): move to the deferred-acceptance target (or by combat), harvest, metabolise, count neighbours, then S, K and T. The
+// 2): move to the deferred-acceptance target (or by combat), harvest, metabolise, count neighbours, then S, K, T, L. The
 // scheduler has given the turn sole use of its footprint, so it reads and writes the store directly. Included only by
 // model.cu (via turns.cuh).
 #ifndef SRC_TURN_CUH_
 #define SRC_TURN_CUH_
 
 #include "combat.cuh"
+#include "credit.cuh"
 #include "culture.cuh"
 #include "heirs.cuh"
 #include "movement.cuh"
@@ -94,6 +95,10 @@ __device__ void take_turn(API* FLAMEGPU, const Store& s, unsigned int row) {
         update_friends(s, row, met, n);
     }
     if (env.template getProperty<unsigned int>("trade")) trade_with_neighbors(FLAMEGPU, s, row);
+    // Python's last_income: this period's sugar harvest minus its metabolism (credit's creditworthiness, p.132).
+    if (env.template getProperty<unsigned int>("credit")) {
+        seek_credit(FLAMEGPU, s, row, static_cast<double>(harvest) - static_cast<double>(metabolism));
+    }
 }
 
 #endif  // SRC_TURN_CUH_

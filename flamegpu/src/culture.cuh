@@ -68,6 +68,14 @@ __device__ void update_friends(const Store& s, unsigned int row, const int* met,
     unsigned int* dist = s.friend_dist + row * MAX_FRIENDS;
     unsigned int k = 0;
     for (unsigned int f = 0; f < s.n_friends[a]; ++f) {
+        // --check: a friend alive at the period's start is read where it stands now (touch point 12; footprint.cuh,
+        // friend_sites).
+        if (!(uid[f] & PROVISIONAL_FRIEND) && uid[f] < s.uid_capacity) {
+            const int r = s.uid_row[uid[f]];
+            if (r >= 0 && static_cast<unsigned int>(r) < s.n_rows && s.uid[r] == uid[f]) {
+                touch_row(s, static_cast<unsigned int>(r), s.rank[a], 12);
+            }
+        }
         if (!friend_alive(s, uid[f])) continue;
         uid[k] = uid[f];
         dist[k] = dist[f];

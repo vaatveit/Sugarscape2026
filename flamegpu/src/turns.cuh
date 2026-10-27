@@ -356,6 +356,42 @@ FLAMEGPU_HOST_FUNCTION(assign_births) {
 // After the turns, with rule T: the period's exchanges for the metrics row (StoreHost::trade_totals).
 FLAMEGPU_HOST_FUNCTION(total_trades) { state().trades = state().store->trade_totals(); }
 
+// After the turns, with rule L: the book as Python's list stands after them (loans.h, rebuild_loans); new loans fall
+// due d periods on.
+FLAMEGPU_HOST_FUNCTION(settle_turn_loans) {
+    RunState& s = state();
+    const int t = static_cast<int>(FLAMEGPU->getStepCounter());
+    rebuild_loans(s.store->host_view(), t + s.cfg.credit->first);
+    s.loans->check_errors();
+}
+
+// The end of the period with rule L (after the old-age deaths): every citizen's sugar by its index, the ledger on one
+// device thread (old-age on_death, then settle_loans), and the sugar back. uid_row is free to reuse here: publish
+// rewrites it for every living citizen.
+FLAMEGPU_AGENT_FUNCTION(ledger_post, flamegpu::MessageNone, flamegpu::MessageNone) {
+    if (FLAMEGPU->getVariable<int>("x") < 0) return flamegpu::ALIVE;  // this period's newcomers hold no loans
+    const Store& s = the_store(FLAMEGPU);
+    const unsigned int index = FLAMEGPU->getIndex();
+    FLAMEGPU->setVariable<unsigned int>("row", index);
+    const unsigned int uid = FLAMEGPU->getVariable<unsigned int>("uid");
+    if (uid < s.uid_capacity) s.uid_row[uid] = static_cast<int>(index);
+    s.book.ledger_sugar[index] = FLAMEGPU->getVariable<double>("sugar");
+    return flamegpu::ALIVE;
+}
+
+FLAMEGPU_HOST_FUNCTION(ledger) {
+    RunState& s = state();
+    run_ledger(s.store->host_view(), s.dying->table(), static_cast<int>(FLAMEGPU->getStepCounter()),
+               s.cfg.credit->first, s.cfg.credit->second);
+    s.loans->check_errors();
+}
+
+FLAMEGPU_AGENT_FUNCTION(ledger_take, flamegpu::MessageNone, flamegpu::MessageNone) {
+    if (FLAMEGPU->getVariable<int>("x") < 0) return flamegpu::ALIVE;
+    FLAMEGPU->setVariable<double>("sugar", the_store(FLAMEGPU).book.ledger_sugar[FLAMEGPU->getVariable<unsigned int>("row")]);
+    return flamegpu::ALIVE;
+}
+
 // After the turns: a newborn that combat killed in its birth period is a death, as Python's die() makes it (its uid
 // came with the others in assign_births). It is no citizen, so it is never spawned; the host lists and counts it, and
 // with replacement cell i makes the i-th one's newcomer (replace_newborns), unplaced and with the victim's death key so

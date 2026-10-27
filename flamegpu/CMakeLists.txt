@@ -55,6 +55,13 @@ SET(ALL_SRC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/looks.cuh
     ${CMAKE_CURRENT_SOURCE_DIR}/src/sex.cuh
     ${CMAKE_CURRENT_SOURCE_DIR}/src/culture.cuh
+    # Chapter IV (plan 2026-10-26-gpu-parity-part-c).
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/welfare.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/heirs.cuh
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/trade.cuh
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/credit.cuh
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/loans.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/loans.cu
 )
 
 # Add the executable and set required flags for the target

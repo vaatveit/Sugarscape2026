@@ -37,6 +37,8 @@ struct RunState {
     std::unique_ptr<StoreHost> store;
     std::unique_ptr<NewcomerUids> newcomers;
     std::unique_ptr<DyingTable> dying;
+    std::unique_ptr<LoanBook> loans;  // rule L's book (loans.h)
+    std::string dump_loans;           // --dump-loans: the book at --dump-at
     unsigned int turn_rows = 0;          // citizens taking turns this period
     unsigned int waves_this_period = 0;
     unsigned int newborns_this_period = 0;  // rule S's children, for --check's population count

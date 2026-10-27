@@ -167,6 +167,8 @@ def python_dump(model: Model, capacity: np.ndarray) -> Dump:
                             # Chapter IV (Part C).
                             "spice": a.spice, "initial_spice": a.initial_spice,
                             "spice_metabolism": a.spice_metabolism, "foresight": a.foresight})
+    dump.loans = [{"lender": loan.lender.id, "borrower": loan.borrower.id, "principal": loan.principal, "due": loan.due,
+                   "due_t": loan.due_t} for loan in model.loans]
     ls = model.landscape
     width, height = capacity.shape
     for x in range(width):

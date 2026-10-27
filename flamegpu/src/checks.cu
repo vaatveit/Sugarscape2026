@@ -116,6 +116,16 @@ void write_dumps(flamegpu::HostAPI* api, unsigned int t) {
         }
         std::fclose(f);
     }
+    if (!s.dump_loans.empty()) {  // rule L's book in list order (Python's model.loans)
+        FILE* f = open_or_throw(s.dump_loans);
+        std::fprintf(f, "lender,borrower,principal,due,due_t\n");
+        if (s.loans) {
+            for (const LoanRecord& l : s.loans->to_host()) {
+                std::fprintf(f, "%u,%u,%.17g,%.17g,%d\n", l.lender, l.borrower, l.principal, l.due, l.due_t);
+            }
+        }
+        std::fclose(f);
+    }
     if (!s.dump_landscape.empty()) {
         auto sugar = api->environment.getMacroProperty<float, MAX_CELLS>("sugar");
         auto pollution = api->environment.getMacroProperty<float, MAX_CELLS>("pollution");

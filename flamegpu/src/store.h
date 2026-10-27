@@ -13,6 +13,7 @@
 #include "flamegpu/flamegpu.h"
 
 #include "config.h"
+#include "loans.h"
 #include "metrics.h"
 
 struct SchedulerError : std::runtime_error {  // a wave ran no turn while turns were pending: exit 4
@@ -43,6 +44,15 @@ struct Store {
     unsigned int* trade_n;
     double *trade_mean, *trade_m2, *trade_sugar, *trade_spice;
     double* trade_total;  // 5: n, mean, m2, sugar, spice
+    // Rule L (credit.cuh, loans.h): the book; each row's start-of-period loans as borrower (loan_entry[loan_first[r]
+    // .. + loan_count[r]], book entries in list order); and each turn's new loans, at most LOAN_SLOTS, in the order made
+    // (the lender's row, the amount, the amount due).
+    Loans book;
+    unsigned int *loan_first, *loan_count, *loan_entry;
+    int* new_lender;
+    double *new_amount, *new_due;
+    unsigned int* n_new;
+    unsigned int width;  // the world's width, for touch_row
     uint64_t* tags;
     unsigned int *uid, *sex, *n_children, *parent_a, *parent_b, *friend_uid, *friend_dist, *n_friends;
     unsigned int *moved, *neighbors;
@@ -97,6 +107,13 @@ __device__ __forceinline__ void touch(const Store& s, unsigned int site, unsigne
     }
 }
 
+// --check on a row a turn reaches by uid (a friend, a lender): the site that row stands on now must be in the turn's
+// footprint (touch points 12 and 13).
+__device__ __forceinline__ void touch_row(const Store& s, unsigned int r, unsigned int rank, unsigned int where) {
+    if (!s.check_footprints) return;
+    touch(s, static_cast<unsigned int>(s.x[r]) + static_cast<unsigned int>(s.y[r]) * s.width, rank, where);
+}
+
 // The host side of the store: allocation, the period's scheduling, and the error check.
 class StoreHost {
  public:
@@ -108,6 +125,10 @@ class StoreHost {
 
     // The Store's device address, for the environment property "store".
     uint64_t device_address() const { return reinterpret_cast<uint64_t>(d_store_); }
+    // Rule L: the loan book the turns use (LoanBook::device()).
+    void attach_loans(const Loans& book) { h_.book = book; }
+    // The Store as the device sees it, for the loans' kernels (loans.h).
+    const Store& host_view() const { return h_; }
     // Before publish: every site empty and untargeted, the counters cleared.
     void prepare(unsigned int n_rows);
     // After publish: ranks in the period's order, footprints, groups and wait counters (section 2).
@@ -204,6 +225,8 @@ class DyingTable {
     void posting();
     // After the dying have posted: sort by uid, clear the heir counts, and reset the posting count.
     void sort();
+    // The sorted table (after sort()), for the loan ledger (loans.h, run_ledger).
+    const Dying& table() const { return h_; }
 
  private:
     Dying h_{}, *d_ = nullptr;

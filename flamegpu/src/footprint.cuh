@@ -1,6 +1,7 @@
 // A turn's footprint: the sites it may read and the sites it may write, fixed for the period from the state at the
 // start of the turns (spec 2026-10-25-gpu-full-parity, section 2). Included by store.cu (the scheduler) only. The
-// --check touch points that test it: 0-2 the move and neighbours, 3-4 and 6 rules S and K, 7-9 combat.
+// --check touch points that test it: 0-2 the move and neighbours, 3-4 and 6 rules S and K, 7-9 combat, 10 T, 11 L's
+// neighbours, 12 friends' rows and 13 lenders' rows (touch_row).
 #ifndef SRC_FOOTPRINT_CUH_
 #define SRC_FOOTPRINT_CUH_
 
@@ -12,6 +13,7 @@ struct FootprintEnv {
     bool sex, mate_vision;  // rule S on; partners in sight (mate_contact = "vision") rather than the four neighbours
     bool culture;           // rule K and friends
     bool combat;            // combat C_alpha: the whole turn, movement included, from the start site
+    bool credit;            // rule L: the lenders of the row's start-of-period loans, wherever they are
 };
 
 __device__ __forceinline__ int fp_wrap(int v, int n) { return ((v % n) + n) % n; }
@@ -111,11 +113,25 @@ __device__ void friend_sites(const Store& s, unsigned int row, const FootprintEn
     }
 }
 
+// Rule L (credit.cuh): a borrower reads whether each lender of its start-of-period loans still lives, where that lender
+// stands at its turn: at its start if later in the order, else at its target, as friends are read (plan
+// 2026-10-26-gpu-parity-part-c, ruling R2). Credit has no combat (Python Config).
+template <typename Emit>
+__device__ void lender_sites(const Store& s, unsigned int row, Emit& emit) {
+    const unsigned int first = s.loan_first[row], end = first + s.loan_count[row];
+    for (unsigned int k = first; k < end; ++k) {
+        const int r = s.book.lender_row[s.loan_entry[k]];
+        if (r < 0) continue;
+        emit(s.key[r] < s.key[row] ? s.start[r] : s.target[r], false);
+    }
+}
+
 template <typename Emit>
 __device__ void footprint(const Store& s, unsigned int row, const FootprintEnv& e, Emit emit) {
     const bool childbearing = e.sex && s.sex[row] != 0u && s.fertility_start[row] <= s.age[row] &&
                               s.age[row] < s.fertility_end[row];
     if (e.culture) friend_sites(s, row, e, emit);
+    if (e.credit) lender_sites(s, row, emit);
     // Combat: the whole turn from the start site (spec section 2): writes the start, every site on its sight lines (a
     // target or a victim) and the four sites around each, with rule S's sites around each; reads the retaliation
     // lines from each of them.
