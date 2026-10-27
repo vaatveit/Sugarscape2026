@@ -8,9 +8,11 @@ Python version's functionality, all of it, so the two can be timed against each 
   - [every rule, Chapters III to VI](docs/superpowers/specs/2026-10-25-gpu-full-parity-design.md), built in parts.
 - **On the GPU now:**
   - all of Chapter II;
-  - all of Chapter III: sex S with every option, inheritance I at old age, cultural tags, tribal blocks, culture K and
-    friends, combat C_α and C_∞, and same-tribe replacement.
-- **Still to come** (Parts C–F of the design): Chapter IV, disease, the Schelling and Ring World models.
+  - all of Chapter III: sex S with every option, inheritance I, cultural tags, tribal blocks, culture K and
+    friends, combat C_α and C_∞, and same-tribe replacement;
+  - all of Chapter IV: spice, welfare movement with foresight and cultural preferences, trade T with
+    `trade_rounding`, credit L, `pollution_stop`, and `economic_metrics`.
+- **Still to come** (Parts D–F of the design): disease, the Schelling and Ring World models.
   `bridge.gpu_run` skips experiments that need these and names them.
 
 ## Prerequisites
@@ -83,8 +85,9 @@ The Julia agreement rule, GPU seeds against Python's, with a speed table, into `
 
 The results of Chapter III without combat (2026-10-26) are in
 [docs/validation/chapter3-part-a.md](docs/validation/chapter3-part-a.md): 0 of 1,601 windows flagged. Combat's are in
-[docs/validation/chapter3-part-b.md](docs/validation/chapter3-part-b.md): 0 of 348 windows flagged. Python's saved
-results are read from the repository root's `results\` (`--python` for another folder).
+[docs/validation/chapter3-part-b.md](docs/validation/chapter3-part-b.md): 0 of 348 windows flagged. Chapter IV's
+(2026-10-27) are in [docs/validation/chapter4-part-c.md](docs/validation/chapter4-part-c.md): 0 of 4,709 windows
+flagged. Python's saved results are read from the repository root's `results\` (`--python` for another folder).
 
 `gpu_report` scores the GPU results and the Python project's saved `results\` against the same book
 targets, and writes `results-gpu\REPORT.md` with both sides and every status that changed.
@@ -133,8 +136,10 @@ GPU version moves everyone at once, but reaches the same outcome
 - **Neighbours** are counted in the period's order, as Python counts each agent right after its own move and
   metabolism.
 - **The turns** ([design](docs/superpowers/specs/2026-10-25-gpu-full-parity-design.md), sections 1–3).
-  - With an interaction rule (sex, culture), everything after the choice of target runs as Python's turn, agent by
-    agent in the period's order: the move, harvest, metabolism, neighbours, S, then K and friends.
+  - With an interaction rule (sex, culture, trade, credit), everything after the choice of target runs as Python's
+    turn, agent by agent in the period's order: the move, harvest, metabolism, neighbours, S, K and friends, T, then L.
+  - **Spice** without an interaction rule (IV-6 and IV-13 without trade) stays on Chapter II's layers, which harvest
+    and burn spice too. With spice, movement scores sites with Python's welfare function, in double precision.
   - Each turn has a footprint: the sites it may read or write, fixed for the period. Turns whose footprints don't
     conflict run in the same wave.
   - The result is the sequential result: `--serial-turns` (one turn per wave) gives byte-identical output, and
@@ -146,6 +151,14 @@ GPU version moves everyone at once, but reaches the same outcome
     and takes no turn of its own; a child killed in its birth period counts as a death and is replaced, as in Python.
     III-9 needs about 144 waves a period, III-13 about 289. Combat with inheritance runs one turn per wave: a
     victim's heirs are found only at the kill.
+  - **Trade T** bargains with the four neighbours, as Python's `bargain`. Each turn keeps its own price statistics,
+    and the period combines them in turn order.
+  - **Credit L.** A borrower adds up what it owes from its own loans of the start of the period whose lender still lives
+    at its turn, so each such lender's site is in its footprint. A loan made in a turn waits in its borrower's row, and
+    after the turns one device thread rebuilds the loan book in Python's list order. Another runs the end of the
+    period: old-age deaths' loans, then settling.
+  - **Inheritance with combat, credit or spice** runs one turn per wave: a death's heirs (and with credit, the loans
+    they take over) are found only at the death. No registered experiment combines them.
   - With a look stride s above 1 (xl), an agent looks once for each whole stride of vision, at s·(k + 1) + a − b
     with a and b uniform on 0 … s − 1, and at each distance once: Python's centred look ([docs/xl.md](../docs/xl.md)).
     The looks are hashed from the period's look seed, so every movement round sees the same sites. Each retaliation
@@ -159,16 +172,20 @@ GPU version moves everyone at once, but reaches the same outcome
   2. A child is never born on a site that an agent later in the order moves to. In Python the child takes it and the
      later agent goes elsewhere.
   3. Movement scores sites with the holdings the agent had at the start of the period. Python uses them after
-     earlier agents' trades and gifts. This matters only with spice, which arrives in Part C.
+     earlier agents' trades and gifts. This matters only with spice.
 
   Python's model with all three ([semantics harness](docs/validation/semantics-harness.md)) agrees with Python itself:
-  0 of 2,835 windows flagged. Combat has none of them: its turns run whole in the period's order.
+  0 of 2,835 windows flagged. Combat has none of them: its turns run whole in the period's order. Two reproduction
+  variants show their effect without a flag: VAR-c1c3fit/VI-3's holdings run about 8% higher, and VAR-inttrade/IV-15's
+  mean price is lower, on the GPU and in the harness alike
+  ([chapter4-part-c.md](docs/validation/chapter4-part-c.md)).
 - **Newcomers' sites.** With replacement, newcomers claim random empty sites at once; when two draw the same site in
   the same try, the GPU's timing decides which keeps it. With dozens of newcomers a period (combat with sex, xl runs)
   a seed can then give different bytes from run to run. Distributions are unaffected, and this is accepted (2026-10-26):
   a deterministic placement would move Chapter II's newcomers.
 - **Limits**, each checked with an error that names it: at most 63 tag bits; partners in sight at most 64 looks
-  along a line (vision / look_stride); at most 16,777,216 agents created in a run (`--uid-capacity`; exit 5).
+  along a line (vision / look_stride); at most 16,777,216 agents created in a run (`--uid-capacity`; exit 5); at most
+  2 loans per site in the book, and 32 heirs to a death in a turn (exit 5).
 - **Agent ids.** Each agent's `uid` follows Python's creation order (founders, then newborns in turn order, then
   newcomers in the order of their deaths), so `agents_ever` and every order that depends on it are Python's.
   FLAME GPU's own ids aren't.
