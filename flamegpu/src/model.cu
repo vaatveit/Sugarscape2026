@@ -36,6 +36,11 @@ void describe_movement(flamegpu::ModelDescription& sub, const RunConfig& cfg) {
     env.newProperty<unsigned int>("pollution_active", 0u);
     env.newProperty<float>("pollution_alpha", 0.0f);
     env.newProperty<unsigned int>("look_stride", 1u);
+    // Welfare movement with spice (movement.cuh, propose); the parent model's values reach these through the
+    // sub-environment.
+    env.newProperty<unsigned int>("spice", 0u);
+    env.newProperty<unsigned int>("cultural_preferences", 0u);
+    env.newProperty<unsigned int>("tag_length", 0u);
     landscape_macros(env, false);
     flamegpu::AgentDescription citizen = sub.newAgent("citizen");
     citizen.newVariable<unsigned int>("look_seed");
@@ -44,6 +49,11 @@ void describe_movement(flamegpu::ModelDescription& sub, const RunConfig& cfg) {
     citizen.newVariable<int>("y");
     citizen.newVariable<int>("vision");
     citizen.newVariable<double>("sugar");
+    citizen.newVariable<double>("spice");
+    citizen.newVariable<int>("metabolism");
+    citizen.newVariable<int>("spice_metabolism");
+    citizen.newVariable<int>("foresight");
+    citizen.newVariable<uint64_t>("tags");
     citizen.newVariable<unsigned int>("moved");
     citizen.newVariable<unsigned int>("settled");
     citizen.newVariable<unsigned int>("priority");
@@ -164,6 +174,7 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
     env.newProperty<unsigned int>("foresight_on", cfg.foresight ? 1u : 0u);
     env.newProperty<int>("foresight_lo", cfg.foresight ? cfg.foresight->lo : 0);
     env.newProperty<int>("foresight_hi", cfg.foresight ? cfg.foresight->hi : 0);
+    env.newProperty<unsigned int>("cultural_preferences", cfg.cultural_preferences ? 1u : 0u);  // eq. 5 (welfare.h)
     env.newProperty<unsigned int>("t", 0u);
     env.newProperty<unsigned int>("round", 1u);
     env.newProperty<unsigned int>("seasons_beta", cfg.seasons ? static_cast<unsigned int>(cfg.seasons->first) : 0u);

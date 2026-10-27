@@ -8,6 +8,7 @@
 #include "host_state.h"
 #include "looks.cuh"
 #include "model.h"
+#include "welfare.h"
 
 // Directions in the Python project's VON_NEUMANN order: east, west, north, south.
 __device__ __constant__ int MOVE_DX[4] = {1, -1, 0, 0};
@@ -55,11 +56,37 @@ FLAMEGPU_AGENT_FUNCTION(propose, flamegpu::MessageNone, flamegpu::MessageNone) {
     auto occupied = FLAMEGPU->environment.getMacroProperty<unsigned int, MAX_CELLS>("occupied");
     auto sugar = FLAMEGPU->environment.getMacroProperty<float, MAX_CELLS>("sugar");
     auto pollution = FLAMEGPU->environment.getMacroProperty<float, MAX_CELLS>("pollution");
+    auto spice = FLAMEGPU->environment.getMacroProperty<float, MAX_CELLS>("spice");
+
+    // The site's score: sugar / (1 + pollution) in float (p.47 fn 37), or with spice Python's welfare_scorer in double,
+    // from the holdings at the start of the period (spec section 8, difference 3): W(max(w1 - phi m1, 0) + s/(1+p),
+    // max(w2 - phi m2, 0) + c/(1+p)), eq. 6's foresight and eq. 5's cultural fraction. A float score widened to double
+    // keeps every comparison as it was.
+    const bool with_spice = FLAMEGPU->environment.getProperty<unsigned int>("spice") != 0u;
+    double base1 = 0, base2 = 0, f = 0.5;
+    int metabolism = 0, spice_metabolism = 0;
+    if (with_spice) {
+        metabolism = FLAMEGPU->getVariable<int>("metabolism");
+        spice_metabolism = FLAMEGPU->getVariable<int>("spice_metabolism");
+        const double phi = static_cast<double>(FLAMEGPU->getVariable<int>("foresight"));
+        base1 = fmax(FLAMEGPU->getVariable<double>("sugar") - phi * metabolism, 0.0);
+        base2 = fmax(FLAMEGPU->getVariable<double>("spice") - phi * spice_metabolism, 0.0);
+        f = preference_fraction(FLAMEGPU->getVariable<uint64_t>("tags"),
+                                static_cast<int>(FLAMEGPU->environment.getProperty<unsigned int>("tag_length")),
+                                FLAMEGPU->environment.getProperty<unsigned int>("cultural_preferences") != 0u);
+    }
+    auto score_at = [&](unsigned int site) -> double {
+        if (!with_spice) return static_cast<double>(static_cast<float>(sugar[site]) / (1.0f + static_cast<float>(pollution[site])));
+        const double devalue = 1.0 + static_cast<double>(static_cast<float>(pollution[site]));
+        return welfare(static_cast<double>(metabolism), spice_metabolism, f,
+                       base1 + static_cast<double>(static_cast<float>(sugar[site])) / devalue,
+                       base2 + static_cast<double>(static_cast<float>(spice[site])) / devalue);
+    };
 
     const unsigned int own = static_cast<unsigned int>(x + y * w);
     unsigned int best = own;
     int best_dist = 0;
-    float best_score = static_cast<float>(sugar[own]) / (1.0f + static_cast<float>(pollution[own]));
+    double best_score = score_at(own);
 
     const unsigned int dir_order = FLAMEGPU->getVariable<unsigned int>("dir_order");  // the period's (start_period)
     const int stride = static_cast<int>(FLAMEGPU->environment.getProperty<unsigned int>("look_stride"));
@@ -73,7 +100,7 @@ FLAMEGPU_AGENT_FUNCTION(propose, flamegpu::MessageNone, flamegpu::MessageNone) {
                 static_cast<unsigned int>(wrap(x + MOVE_DX[d] * dist, w) + wrap(y + MOVE_DY[d] * dist, h) * w);
             if (static_cast<unsigned int>(occupied[site])) continue;  // check occupancy before reading the site
             if (static_cast<uint64_t>(claim[site]) > key) continue;  // an earlier agent holds it
-            const float score = static_cast<float>(sugar[site]) / (1.0f + static_cast<float>(pollution[site]));
+            const double score = score_at(site);
             if (score > best_score || (score == best_score && dist < best_dist)) {
                 best = site;
                 best_dist = dist;
