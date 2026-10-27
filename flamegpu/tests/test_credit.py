@@ -139,14 +139,37 @@ def test_serial_equivalence_credit(exe, tmp_path, name):
 
 @pytest.mark.parametrize("mode", ["waves", "serial"])
 def test_newborn_lender_uids(exe, tmp_path, mode):
-    # Fertile from age 0, a newborn can lend in its birth period, before it has a uid: every loan must name real uids.
-    cfg = {**_registry("IV-A5", fertility_start="0,0"), **({"inheritance": "true"} if mode == "serial" else {})}
-    out = tmp_path / "metrics.csv"
-    dump = run_gpu(exe, tmp_path, cfg, steps=20, extra_args=("--out", out))
-    assert dump.returncode == 0, dump.stderr
-    ever = read_rows(out)[-1]["agents_ever"]
-    assert dump.loans, "the scenario must have loans"
-    assert all(loan["lender"] < ever and loan["borrower"] < ever for loan in dump.loans)
+    # Fertile from age 0, a newborn can lend in its birth period, before it has a uid (with inheritance the book names it
+    # by its row until birth_uids, k_fix_loans). VI-3's trade lets a newborn pass its endowment, so newborns do lend
+    # (IV-A5's never do). Every loan must name real uids, and some must have been lent by an agent born that period.
+    cfg = {**_registry("VI-3", credit="10,10.0", fertility_start="0,0"),
+           **({"inheritance": "true"} if mode == "serial" else {})}
+    newborn_lent = 0
+    for seed in range(3):
+        tmp = tmp_path / str(seed)
+        tmp.mkdir()
+        out = tmp / "metrics.csv"
+        dump = run_gpu(exe, tmp, {**cfg, "seed": str(seed)}, steps=20, extra_args=("--out", out))
+        assert dump.returncode == 0, dump.stderr
+        ever = [row["agents_ever"] for row in read_rows(out)]  # ever[t]: agents created by the end of period t
+        assert dump.loans, "the scenario must have loans"
+        for loan in dump.loans:
+            assert loan["lender"] < ever[-1] and loan["borrower"] < ever[-1], loan
+            made = loan["due_t"] - 10  # Model.t of the period it was made in (no settling yet in 20 periods)
+            newborn_lent += ever[made] <= loan["lender"] < ever[made + 1]
+    assert newborn_lent > 0, "no loan was lent by an agent born in the loan's period"
+
+
+def test_borrower_repaid_to_zero_under_check(exe, tmp_path):
+    # The borrower (39 sugar, metabolism 4, a site of 10) borrows 15 in period 1, due 30 at t = 10, and burns 3 a period
+    # after: at t = 10 it holds exactly 30 and repays all of it. Python leaves it alive with 0 sugar until its next turn,
+    # so --check must accept that.
+    agents = [_lender(), _borrower(sugar=39.0, metabolism=4)]
+    py = run_python(CREDIT, CAPACITY, agents, 11)
+    gpu = run_gpu(exe, tmp_path, CREDIT, CAPACITY, agents, steps=11, extra_args=("--check",))
+    assert gpu.returncode == 0, gpu.stderr
+    assert _compare(gpu, py) == []
+    assert {a["uid"]: a["sugar"] for a in py.agents}[1] == 0.0  # repaid at Model.t = 10, the 11th step: alive with 0
 
 
 # --- Credit with inheritance (Task 7): loans pass to the lender's heirs, and the turns run one per wave -----------------

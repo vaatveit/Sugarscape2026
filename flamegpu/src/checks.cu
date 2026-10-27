@@ -166,7 +166,9 @@ void check_invariants(flamegpu::HostAPI* api, unsigned int t, unsigned int death
         const unsigned int i = static_cast<unsigned int>(a.x + a.y * w);
         if (!sites.insert(i).second) fail("two agents on site " + std::to_string(a.x) + "," + std::to_string(a.y));
         if (static_cast<unsigned int>(occupied[i]) != 1u) fail("occupied is 0 under an agent");
-        if (!(a.sugar > 0.0f)) fail("an agent survived with sugar <= 0");
+        // With credit a borrower may repay down to exactly 0 at the period's end and live, as in Python, until its next
+        // turn's metabolism.
+        if (s.cfg.credit ? !(a.sugar >= 0.0) : !(a.sugar > 0.0f)) fail("an agent survived with sugar <= 0");
         // No such check for spice: fertility tests sugar only (p.55), so a parent may give a child more spice than it
         // holds and live, as in Python, until its next turn's metabolism.
     }
