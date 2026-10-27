@@ -180,6 +180,10 @@ int main(int argc, const char** argv) {
                   << "map_capacity_sum = " << std::accumulate(capacity.begin(), capacity.end(), uint64_t{0}) << "\n";
         return EXIT_SUCCESS;
     }
+    if (cfg.disease()) {  // Part D, Task 2 brings the disease state
+        std::fprintf(stderr, "sugarscape_gpu: disease: not on the GPU yet\n");
+        return 2;
+    }
     std::vector<InitAgent> init;
     try {
         if (!opts.init.empty()) {

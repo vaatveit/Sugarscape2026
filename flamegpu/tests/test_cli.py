@@ -59,10 +59,10 @@ def test_unknown_key_is_rejected(exe, tmp_path):
 
 def test_unsupported_feature_key_is_rejected(exe, tmp_path):
     cfg = write_cfg(tmp_path)
-    cfg.write_text(cfg.read_text() + "disease_list = 1\n")
+    cfg.write_text(cfg.read_text() + "sugar_map = sugar-map.txt\n")  # run.cfg names the map by its path
     result = run_exe(exe, "--config", cfg, "--print-config")
     assert result.returncode == 2
-    assert "disease_list" in _error(result)
+    assert "sugar_map" in _error(result)
 
 
 def test_vision_too_large_is_rejected(exe, tmp_path):
@@ -314,13 +314,44 @@ def test_chapter4_validated(exe, tmp_path, overrides, named):
     assert named in _error(result)
 
 
-@pytest.mark.parametrize("line", ["disease_list = 10", "diseases_per_agent = 1", "disease_fee = 1.0"])
-def test_later_parts_still_refused(exe, tmp_path, line):
-    cfg = write_cfg(tmp_path)
-    cfg.write_text(cfg.read_text() + line + "\n")
-    result = run_exe(exe, "--config", cfg, "--print-config")
+# --- Chapter V (spec 2026-10-25-gpu-full-parity, Part D) ---------------------------------------------------------
+
+CHAPTER5 = {"disease_list": "25", "diseases_per_agent": "10", "disease_length": "2,9", "immune_length": "40",
+            "disease_fee": "1.5"}
+
+
+def test_chapter5_fields_round_trip(exe, tmp_path):
+    result = run_exe(exe, "--config", write_cfg(tmp_path, **CHAPTER5), "--print-config")
+    assert result.returncode == 0, result.stderr
+    printed = parse_printed(result.stdout)
+    assert {k: printed[k] for k in CHAPTER5} == CHAPTER5
+
+
+@pytest.mark.parametrize("overrides, named", [
+    ({"disease_list": "-1"}, "disease_list and diseases_per_agent must be >= 0"),
+    ({"disease_list": "3", "diseases_per_agent": "4"}, "cannot offer 4 distinct diseases from a list of 3"),
+    ({"disease_length": "0,5"}, "must be a range starting at >= 1"),
+    ({"disease_length": "1,50", "immune_length": "50"}, "diseases must be shorter than immune systems"),
+    ({"disease_fee": "-1"}, "disease_fee must be >= 0"),
+    ({"disease_list": "1", "immune_length": "65"}, "the GPU holds at most 64 immune bits"),
+    ({"disease_list": "65"}, "the GPU holds at most 64 diseases"),
+], ids=["negative", "too-many", "length0", "too-long", "fee", "immune65", "list65"])
+def test_chapter5_validated(exe, tmp_path, overrides, named):
+    result = run_exe(exe, "--config", write_cfg(tmp_path, **overrides), "--print-config")
     assert result.returncode == 2
-    assert line.split()[0] in _error(result) and "not on the GPU yet" in _error(result)
+    assert named in _error(result)
+
+
+def test_gpu_limits_only_with_disease(exe, tmp_path):
+    # Python accepts any immune_length without disease; so does the GPU.
+    result = run_exe(exe, "--config", write_cfg(tmp_path, immune_length="80"), "--print-config")
+    assert result.returncode == 0, result.stderr
+
+
+def test_disease_run_refused_for_now(exe, tmp_path):
+    result = run_exe(exe, "--config", write_cfg(tmp_path, disease_list="1", steps="1"))
+    assert result.returncode == 2
+    assert "not on the GPU yet" in _error(result)
 
 
 # --- The deferred minors (Parts A and B) --------------------------------------------------------------------------

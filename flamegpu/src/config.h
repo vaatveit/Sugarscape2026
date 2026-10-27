@@ -28,6 +28,10 @@ constexpr int MAX_TAG_BITS = 63;
 constexpr unsigned int MAX_FRIENDS = 5;
 // Rule S with partners in sight: the most looks along each line, vision / look_stride (24 registered).
 constexpr int MAX_SIGHT_LOOKS = 64;
+// Chapter V (spec 2026-10-25-gpu-full-parity, section 5): an immune system is one uint64_t, and an agent's diseases
+// are distinct ids into the master list.
+constexpr int MAX_IMMUNE_BITS = 64;
+constexpr int MAX_DISEASES = 64;
 
 // One tribal starting block of Python's Config.initial_blocks: n agents of the tribe in the w x h block at x0, y0.
 struct TribeBlock {
@@ -85,6 +89,12 @@ struct RunConfig {
     bool trade = false;                                     // rule T (p.105)
     std::string trade_rounding = "exact";                   // "exact" | "down" (VAR-inttrade)
     std::optional<std::pair<int, double>> credit;           // L_dr (p.132): duration d, rate r percent
+    // Chapter V (spec 2026-10-25-gpu-full-parity, Part D), Python's defaults.
+    int disease_list = 0;                                   // master list size (p.147); 0 = no disease
+    int diseases_per_agent = 0;                             // distinct diseases offered to each founder
+    IntRange disease_length{1, 10};                         // p.147
+    int immune_length = 50;                                 // p.147
+    double disease_fee = 1.0;                               // extra sugar burned per active disease (p.143)
     // Run.
     int steps = 0;
     uint64_t seed = 0;
@@ -95,8 +105,11 @@ struct RunConfig {
 
     // Whether every turn after movement runs in the ordered turns (spec section 1).
     // Inheritance counts: its old-age layers live on the turns path, and a run may give children through --init.
-    bool turns_on() const { return sex || culture || combat() || inheritance || trade || credit || force_turns; }
+    bool turns_on() const {
+        return sex || culture || combat() || inheritance || trade || credit || disease() || force_turns;
+    }
     bool combat() const { return combat_alpha.has_value(); }
+    bool disease() const { return disease_list > 0; }
     // One turn per wave: --serial-turns, or inheritance with combat, credit or spice, whose deaths in a turn have heirs
     // (and with credit, loans passed on) found only at the death, so they cannot be in a footprint (spec section 2;
     // plan 2026-10-26-gpu-parity-part-c, ruling R1).
