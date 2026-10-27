@@ -277,3 +277,44 @@ nearer, which the old stretch-by-stretch order listed the other way round.
 - **Cost:** the centred look draws twice per look and sorts. Over t = 1–100 of seed 0, stepping took 0.0253 against
   0.0208 s per period in IV-A3 and 0.0274 against 0.0232 in II-4, with 24% and 4% more agents at t = 100. Drawing a
   and b with one draw over 0 … 99 saved about 3%, too little to depart from Python's draws.
+
+## xl with the centred look on both sides (2026-10-27)
+
+The user re-ran Python's xl II-4, II-4-gini, II-6, II-7, II-8 and VI-1 with the centred look, all with `--jobs 1`
+(IV-A3 was already a centred, one-job run). Julia's were re-run the same way: one job each. Their seed files are
+byte-identical to the 10-job runs of the same code, so the job count changes only the timings.
+
+**xl: Julia agrees with Python on all seven experiments, 0 flags among 436 tested windows and 7 extinction tests**,
+now with the same look on both sides. No seed goes extinct on either side.
+
+- **II-6's early Gini.** The smallest p of the 436 is II-6's Gini over t = 0–74: Julia 0.2942 against Python 0.2955,
+  0.5% lower, p = 0.00055. It flagged in an earlier report, while the stale uniform-look results of the other four
+  experiments added many small p-values and so loosened the correction. It doesn't flag in this one. 50 Julia seeds put
+  it down to sampling: their mean is 0.29507 ± 0.00089 (one SD across seeds), Python's five-seed mean is 0.51 Julia
+  SDs above it, and each Python seed falls between Julia's 25th and 42nd of 50. Julia's registered five seeds happen
+  to sit low. Every other window of II-6 is within 0.75%, the first ten periods included.
+- **The next smallest p-values** are 0.013 (II-4, north fraction of high-vision agents, t = 125–249), 0.018 (VI-1,
+  best-friend closeness, t = 250–374), 0.022 and 0.023.
+- **VI-1** ends at t = 500 with 82,049 agents on average in Python (59,614 to 99,966) and 89,367 in Julia (77,304 to
+  96,020). The gap is 0.45 of Python's SD across seeds, p = 0.41 over the last window. Under the uniform look the two
+  sides ended at 83,623 and 86,415.
+- **End-of-run agents, Python against Julia:** II-6 20,144 and 20,292, II-7 17,604 and 17,621, II-8 19,088 and
+  19,104 (II-4 and IV-A3 are in the section above; II-4-gini keeps all 25,000 agents).
+
+**Speed, both sides `--jobs 1`** (shared machine; seconds of stepping per period, Python ÷ Julia):
+
+| Experiment | Python | Julia | Speedup |
+|---|---|---|---|
+| II-4 | 1.327 | 0.0141 | 94× |
+| II-4-gini | 1.671 | 0.0126 | 133× |
+| II-6 | 2.072 | 0.0171 | 121× |
+| II-7 | 1.044 | 0.0100 | 104× |
+| II-8 | 1.351 | 0.0265 | 51× |
+| IV-A3 | 1.113 | 0.0281 | 40× |
+| VI-1 | 16.44 | 0.323 | 51× |
+
+The median is 94×. Python's five VI-1 seeds took about 11.4 hours of stepping, Julia's about 13 minutes. The job
+count matters as much as the look: with 10 jobs sharing the processor, II-4 had stepped at 3.24 s per period in
+Python and 0.043 in Julia.
+
+The rest of `results-julia-xl/` (the other 128 experiments, Julia only) is still from the uniform look.
