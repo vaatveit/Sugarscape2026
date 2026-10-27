@@ -81,7 +81,7 @@ const std::vector<std::string>& metric_names() {
 
 MetricsRow compute_metrics(const AgentColumns& a, const RunConfig& cfg, const std::vector<uint32_t>& capacity,
                            unsigned int t, unsigned int agents_ever, const TradeTotals& trade,
-                           const std::vector<LoanRecord>& loans) {
+                           const std::vector<LoanRecord>& loans, unsigned int new_infections) {
     const size_t n = a.x.size();
     const int half_w = cfg.width / 2, half_h = cfg.height / 2;
     double vision = 0, metabolism = 0, neighbors = 0, moved = 0, ne = 0, peak = 0, spice = 0, foresight = 0;
@@ -192,8 +192,8 @@ MetricsRow compute_metrics(const AgentColumns& a, const RunConfig& cfg, const st
              trade.n > 0 ? std::sqrt(trade.m2 / trade.n) : NaN, trade.sugar, trade.spice, ratio(foresight, count),
              static_cast<double>(loans.size()), static_cast<double>(lenders.size()),
              static_cast<double>(borrowers.size()), both, static_cast<double>(longest_chain(edges)),
-             // disease_metrics; new infections come with rule E (Task 3 of plan 2026-10-27-gpu-parity-part-d).
-             mean_diseases, n ? std::sqrt(squares / count) : NaN, ratio(sick, count), 0.0,
+             // disease_metrics.
+             mean_diseases, n ? std::sqrt(squares / count) : NaN, ratio(sick, count), static_cast<double>(new_infections),
              static_cast<double>(circulating.size())}};
 }
 

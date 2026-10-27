@@ -380,6 +380,9 @@ FLAMEGPU_HOST_FUNCTION(assign_births) {
 // After the turns, with rule T: the period's exchanges for the metrics row (StoreHost::trade_totals).
 FLAMEGPU_HOST_FUNCTION(total_trades) { state().trades = state().store->trade_totals(); }
 
+// After the turns, with rule E: the period's new infections for the metrics row (StoreHost::take_infections).
+FLAMEGPU_HOST_FUNCTION(total_infections) { state().new_infections = state().store->take_infections(); }
+
 // After the turns, with rule L: the book as Python's list stands after them (loans.h, rebuild_loans); new loans fall
 // due d periods on.
 FLAMEGPU_HOST_FUNCTION(settle_turn_loans) {

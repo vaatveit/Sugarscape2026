@@ -44,10 +44,11 @@ const std::vector<std::string>& metric_names();
 
 // Means and fractions of nothing are nan, as Python's safe_mean and _fraction; gini is nan for an empty or
 // zero-wealth population. agents_ever counts every agent created so far, as Python's Model.agents_ever.
-// trade: the period's exchanges; loans: the book at the period's end (rule L), in list order.
+// trade: the period's exchanges; loans: the book at the period's end (rule L), in list order; new_infections: the
+// period's (rule E).
 MetricsRow compute_metrics(const AgentColumns& agents, const RunConfig& cfg, const std::vector<uint32_t>& capacity,
                            unsigned int t, unsigned int agents_ever, const TradeTotals& trade,
-                           const std::vector<LoanRecord>& loans);
+                           const std::vector<LoanRecord>& loans, unsigned int new_infections);
 
 class CsvWriter {
  public:

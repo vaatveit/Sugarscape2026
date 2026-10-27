@@ -59,8 +59,7 @@ void describe_movement(flamegpu::ModelDescription& sub, const RunConfig& cfg) {
     env.newProperty<unsigned int>("spice", 0u);
     env.newProperty<unsigned int>("cultural_preferences", 0u);
     env.newProperty<unsigned int>("tag_length", 0u);
-    env.newProperty<unsigned int>("disease", 0u);  // Chapter V: the fee counts in welfare (Task 3 of plan 2026-10-27)
-    env.newProperty<double>("disease_fee", 0.0);
+    env.newProperty<double>("disease_fee", 0.0);  // Chapter V: the fee counts in welfare (movement.cuh, propose)
     landscape_macros(env, false);
     flamegpu::AgentDescription citizen = sub.newAgent("citizen");
     citizen.newVariable<unsigned int>("look_seed");
@@ -74,6 +73,7 @@ void describe_movement(flamegpu::ModelDescription& sub, const RunConfig& cfg) {
     citizen.newVariable<int>("spice_metabolism");
     citizen.newVariable<int>("foresight");
     citizen.newVariable<uint64_t>("tags");
+    citizen.newVariable<unsigned int>("n_diseases");  // the disease fee in welfare (Chapter V)
     citizen.newVariable<unsigned int>("moved");
     citizen.newVariable<unsigned int>("settled");
     citizen.newVariable<unsigned int>("priority");
@@ -314,6 +314,7 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
         model.newLayer().addAgentFunction(cell.newFunction("unstage_sites", unstage_sites));
         model.newLayer().addHostFunction(assign_births);
         if (cfg.trade) model.newLayer().addHostFunction(total_trades);  // rule T's statistics (turns.cuh)
+        if (cfg.disease()) model.newLayer().addHostFunction(total_infections);  // rule E's (turns.cuh)
         if (cfg.credit) model.newLayer().addHostFunction(settle_turn_loans);  // rule L's book after the turns
         if (cfg.combat()) model.newLayer().addHostFunction(bury_newborns);  // combat's newborn victims (turns.cuh)
         flamegpu::AgentFunctionDescription absorb_fn = citizen.newFunction("absorb", absorb);

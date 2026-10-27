@@ -371,7 +371,8 @@ void write_metrics(flamegpu::CUDASimulation* simulation, flamegpu::AgentVector& 
         c.friend_uid = f ? std::vector<uint32_t>(f, f + pop.size() * MAX_FRIENDS) : std::vector<uint32_t>();
     }
     const auto row = compute_metrics(c, s.cfg, s.capacity, t, s.agents_ever, t == 0 ? TradeTotals{} : s.trades,
-                                     s.loans ? s.loans->to_host() : std::vector<LoanRecord>{});
+                                     s.loans ? s.loans->to_host() : std::vector<LoanRecord>{},
+                                     t == 0 ? 0u : s.new_infections);
     s.metrics_seconds += std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
     s.csv->write(row);
 }

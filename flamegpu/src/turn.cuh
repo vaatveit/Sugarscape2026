@@ -1,5 +1,5 @@
 // One agent's turn, exactly as Python's Model.step runs it for one agent (spec 2026-10-25-gpu-full-parity, section
-// 2): move to the deferred-acceptance target (or by combat), harvest, metabolise, count neighbours, then S, K, T, L. The
+// 2): move to the deferred-acceptance target (or by combat), harvest, metabolise, count neighbours, then S, K, T, L, E. The
 // scheduler has given the turn sole use of its footprint, so it reads and writes the store directly. Included only by
 // model.cu (via turns.cuh).
 #ifndef SRC_TURN_CUH_
@@ -8,6 +8,7 @@
 #include "combat.cuh"
 #include "credit.cuh"
 #include "culture.cuh"
+#include "disease.cuh"
 #include "heirs.cuh"
 #include "movement.cuh"
 #include "sex.cuh"
@@ -66,10 +67,11 @@ __device__ void take_turn(API* FLAMEGPU, const Store& s, unsigned int row) {
         s.site_spice[target] = 0.0f;
     }
     // Metabolism, with consumption pollution from the sugar burned; death when sugar, or spice, runs out (pp.25, 97).
-    const int metabolism = s.metabolism[row];
-    s.sugar[row] -= static_cast<double>(metabolism);
+    // The sugar burned is Python's sugar_burn: the metabolism plus the fee for each disease carried (p.143).
+    const double burn = sugar_burn(s, row, env.template getProperty<double>("disease_fee"));
+    s.sugar[row] -= burn;
     if (with_spice) s.spice[row] -= static_cast<double>(s.spice_metabolism[row]);
-    if (polluting) pollution[target] += env.template getProperty<float>("pollution_beta") * static_cast<float>(metabolism);
+    if (polluting) pollution[target] += env.template getProperty<float>("pollution_beta") * static_cast<float>(burn);
     if (s.sugar[row] <= 0.0 || (with_spice && s.spice[row] <= 0.0)) {
         s.dead[row] = 1u;
         s.death_key[row] = turn_death_key(rank, false);
@@ -100,9 +102,13 @@ __device__ void take_turn(API* FLAMEGPU, const Store& s, unsigned int row) {
         update_friends(s, row, met, n);
     }
     if (env.template getProperty<unsigned int>("trade")) trade_with_neighbors(FLAMEGPU, s, row);
-    // Python's last_income: this period's sugar harvest minus its metabolism (credit's creditworthiness, p.132).
-    if (env.template getProperty<unsigned int>("credit")) {
-        seek_credit(FLAMEGPU, s, row, static_cast<double>(harvest) - static_cast<double>(metabolism));
+    // Python's last_income: this period's sugar harvest minus the sugar burned (credit's creditworthiness, p.132).
+    if (env.template getProperty<unsigned int>("credit")) seek_credit(FLAMEGPU, s, row, static_cast<double>(harvest) - burn);
+    // E: transmission, then the immune response (p.143-145).
+    if (env.template getProperty<unsigned int>("disease")) {
+        const int immune_length = static_cast<int>(env.template getProperty<unsigned int>("immune_length"));
+        disease_transmit(FLAMEGPU, s, row, immune_length);
+        immune_response(FLAMEGPU, s, row, immune_length);
     }
 }
 

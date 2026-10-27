@@ -188,6 +188,8 @@ StoreHost::StoreHost(const RunConfig& cfg, unsigned int uid_capacity, bool check
     alloc(h_.errors, 1);
     alloc(h_.ran_count, 1);
     alloc(h_.done_count, 1);
+    alloc(h_.infections, 1);
+    check(cudaMemset(h_.infections, 0, sizeof(unsigned int)), "clearing infections");
     alloc(h_.footprint_miss, 4);
     check(cudaMemset(h_.footprint_miss, 0, 4 * sizeof(unsigned int)), "clearing the footprint check");
     check(cudaMemset(h_.errors, 0, sizeof(unsigned int)), "clearing the store's errors");
@@ -342,6 +344,13 @@ std::vector<unsigned int> StoreHost::footprint_misses() {
           "reading the footprint check");
     check(cudaMemset(h_.footprint_miss, 0, 4 * sizeof(unsigned int)), "clearing the footprint check");
     return miss;
+}
+
+unsigned int StoreHost::take_infections() {
+    unsigned int n = 0;
+    check(cudaMemcpy(&n, h_.infections, sizeof(unsigned int), cudaMemcpyDeviceToHost), "reading infections");
+    check(cudaMemset(h_.infections, 0, sizeof(unsigned int)), "clearing infections");
+    return n;
 }
 
 void StoreHost::wave_counts(unsigned int* ran, unsigned int* done) {

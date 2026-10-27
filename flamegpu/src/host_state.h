@@ -44,6 +44,7 @@ struct RunState {
     unsigned int newborns_this_period = 0;  // rule S's children, for --check's population count
     std::vector<unsigned int> waves;     // per completed period, for --timing's waves_mean
     TradeTotals trades;                  // the last period's exchanges (turns.cuh, total_trades)
+    unsigned int new_infections = 0;     // the last period's (turns.cuh, total_infections)
     // Chapter V's master list (p.147; make_disease_list): each disease's bits (bit i is Python's element i) and length,
     // and its canonical id, the lowest index with the same string, which agents carry.
     std::vector<uint64_t> disease_bits;

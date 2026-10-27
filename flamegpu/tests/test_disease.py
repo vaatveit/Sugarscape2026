@@ -4,11 +4,12 @@ the master disease list, rule E, the disease fee and disease_metrics."""
 import json
 import math
 
+import numpy as np
 import pytest
 
 from conftest import run_exe
-from gpu import read_rows, run_gpu, write_cfg
-from reference import python_metric_rows, run_python
+from gpu import compare_dumps, period_orders, read_rows, run_gpu, write_cfg
+from reference import python_metric_rows, run_python, run_python_in_order
 from sugarscape.rules.disease import is_immune
 from test_parity import CAPACITY
 from test_spice import _registry
@@ -178,3 +179,194 @@ def test_disease_runs_on_turns(exe, tmp_path):
     result = run_exe(exe, "--config", write_cfg(tmp_path, **_registry("V-1"), steps="1"), "--timing", timing)
     assert result.returncode == 0, result.stderr
     assert json.loads(timing.read_text())["waves_mean"] > 0
+
+
+# --- Task 3: rule E in the turn, the disease fee, new infections --------------------------------------------------
+
+FEE_LIST = ["111", "0110", "1", "10101"]  # "1" is cleared in period 1, the others later
+FEE_CASES = {
+    "plain": {},
+    "polluted": {"pollution": "1.0,1.0", "diffusion_period": "1"},
+    "welfare": {"spice": "true"},
+}
+
+
+def _fee_agents(spice: bool) -> list[dict]:
+    from test_spice import _movers
+
+    carried = ("", "2", "0|1", "0|2|3")  # 0, 1, 2 and 3 diseases
+    agents = [dict(a, immune="0" * 12, diseases=d) for a, d in zip(_movers(sugar=40.0), carried)]
+    if not spice:
+        for a in agents:
+            del a["spice"], a["spice_metabolism"]
+    return agents
+
+
+@pytest.mark.parametrize("name", FEE_CASES)
+def test_disease_fee_matches_python(exe, tmp_path, name):
+    # Python steps in the GPU's order: under welfare two agents reach for one site at t = 2.
+    cfg = {"disease_list": "4", "immune_length": "12", **FEE_CASES[name]}
+    agents = _fee_agents(name == "welfare")
+    orders = period_orders(exe, tmp_path / "order", cfg, CAPACITY, agents, 4, diseases=FEE_LIST)
+    gpu = run_gpu(exe, tmp_path, cfg, CAPACITY, agents, steps=4, diseases=FEE_LIST)
+    assert gpu.returncode == 0, gpu.stderr
+    py = run_python_in_order(cfg, CAPACITY, agents, orders, diseases=FEE_LIST)
+    assert compare_dumps(gpu, py, pollution=True) == []
+    assert len(py.agents) == 4
+
+
+def _welfare_choice_capacity():
+    # Spice capacity is the sugar map mirrored east-west: the site east of (3,3) holds 10 sugar, the site west 10 spice.
+    capacity = np.zeros((7, 7), dtype=int)
+    capacity[4, 3] = 10
+    return capacity
+
+
+def test_fee_steers_welfare_movement(exe, tmp_path):
+    # With equal holdings the agent takes sugar iff its sugar burn outweighs its spice metabolism (eq. 1): two diseases
+    # make the burn 3 against 2, so it goes east; scored on its metabolism alone (1) it would go west.
+    cfg = {"spice": "true", "vision": "1,1", "disease_list": "2", "immune_length": "12"}
+    agents = [{"x": 3, "y": 3, "vision": 1, "metabolism": 1, "sugar": 20.0, "spice": 20.0, "spice_metabolism": 2,
+               "age": 0, "max_age": None, "immune": "0" * 12, "diseases": "0|1"}]
+    capacity = _welfare_choice_capacity()
+    gpu = run_gpu(exe, tmp_path, cfg, capacity, agents, steps=1, diseases=STARVE_LIST)
+    assert gpu.returncode == 0, gpu.stderr
+    py = run_python(cfg, capacity, agents, 1, diseases=STARVE_LIST)
+    assert compare_dumps(gpu, py) == []
+    assert (gpu.agents[0]["x"], gpu.agents[0]["y"]) == (4, 3)
+
+
+STARVE_LIST = ["111", "0110"]
+
+
+def _starve_agents():
+    still = {"vision": 0, "age": 0, "max_age": None}
+    return [{"x": 3, "y": 3, "metabolism": 1, "sugar": 3.0, "immune": "0" * 12, "diseases": "0|1", **still},  # burns 3
+            {"x": 3, "y": 4, "metabolism": 0, "sugar": 50.0, "immune": "111011000000", **still}]  # immune to both
+
+
+def test_fee_starvation_matches_python(exe, tmp_path):
+    empty = np.zeros((7, 7), dtype=int)
+    agents = _starve_agents()
+    firsts = set()
+    for seed in range(10):
+        cfg = {"vision": "0,0", "disease_list": "2", "immune_length": "12", "seed": str(seed)}
+        tmp = tmp_path / str(seed)
+        orders = period_orders(exe, tmp / "order", cfg, empty, agents, 1, diseases=STARVE_LIST)
+        gpu = run_gpu(exe, tmp, cfg, empty, agents, steps=1, diseases=STARVE_LIST)
+        assert gpu.returncode == 0, gpu.stderr
+        py = run_python_in_order(cfg, empty, agents, orders, diseases=STARVE_LIST)
+        assert compare_dumps(gpu, py) == [], seed
+        assert len(gpu.agents) == len(py.agents) == 1, seed  # S starves of its fee
+        assert gpu.agents[0]["neighbors"] == py.agents[0]["neighbors"], seed
+        firsts.add(orders[0][0])
+    assert firsts == {0, 1}, "both orders must occur"
+
+
+def test_immune_response_matches_python(exe, tmp_path):
+    diseases = ["111", "1", "0110"]
+    cfg = {"disease_list": "3", "immune_length": "12"}
+    agents = [{"x": 2, "y": 2, "vision": 1, "metabolism": 1, "sugar": 40.0, "age": 0, "max_age": None,
+               "immune": "0" * 12, "diseases": "0|1|2"}]
+    counts = []
+    for t in range(1, 5):
+        (tmp_path / str(t)).mkdir()
+        gpu = run_gpu(exe, tmp_path / str(t), cfg, CAPACITY, agents, steps=t, diseases=diseases)
+        assert gpu.returncode == 0, gpu.stderr
+        py = run_python(cfg, CAPACITY, agents, t, diseases=diseases)
+        assert compare_dumps(gpu, py) == [], t
+        counts.append(len([d for d in _bits(gpu.agents[0]["diseases"]).split("|") if d]))
+    assert counts[-1] < counts[0], counts
+
+
+TRANSMIT_LIST = ["0110", "0110", "111"]  # index 1 is index 0's string
+TRANSMIT_CFG = {"vision": "0,0", "disease_list": "3", "immune_length": "12"}
+TRANSMIT_INFECTIONS = {"susceptible": 15, "immune": 0, "duplicate": 0}
+
+
+def _transmit_agents(case: str) -> list[dict]:
+    """15 pairs at (4 (i % 5), 4 (i // 5)) and the site east of it: the source carries index 0."""
+    agents = []
+    for i in range(15):
+        x, y = 4 * (i % 5), 4 * (i // 5)
+        still = {"y": y, "vision": 0, "metabolism": 0, "sugar": 50.0, "age": 0, "max_age": None}
+        agents.append({"x": x, "immune": "0" * 12, "diseases": "0", **still})
+        partner = {"x": x + 1, "immune": "0" * 12, **still}
+        if case == "immune":
+            partner["immune"] = "011000000000"  # holds 0110
+        elif case == "duplicate":
+            partner["diseases"] = "1"  # the same string under another index
+        agents.append(partner)
+    return agents
+
+
+@pytest.mark.parametrize("case", TRANSMIT_INFECTIONS)
+def test_transmission_matches_python(exe, tmp_path, case):
+    empty = np.zeros((20, 20), dtype=int)
+    agents = _transmit_agents(case)
+    for seed in range(5):
+        cfg = {**TRANSMIT_CFG, "seed": str(seed)}
+        tmp = tmp_path / str(seed)
+        orders = period_orders(exe, tmp / "order", cfg, empty, agents, 1, diseases=TRANSMIT_LIST)
+        out = tmp / "metrics.csv"
+        gpu = run_gpu(exe, tmp, cfg, empty, agents, steps=1, diseases=TRANSMIT_LIST, extra_args=("--out", out))
+        assert gpu.returncode == 0, gpu.stderr
+        py = run_python_in_order(cfg, empty, agents, orders, diseases=TRANSMIT_LIST)
+        assert compare_dumps(gpu, py) == [], (case, seed)
+        g = read_rows(out)[1]
+        assert g["new_infections"] == py.csv[1]["new_infections"] == TRANSMIT_INFECTIONS[case], (case, seed)
+        for name in DISEASE_STATE:
+            assert math.isclose(g[name], py.csv[1][name], rel_tol=1e-12), (case, seed, name)
+        rank = {uid: i for i, uid in enumerate(orders[0])}
+        assert {rank[2 * i] < rank[2 * i + 1] for i in range(15)} == {True, False}, "both orders must occur"
+
+
+def test_newborn_infected_in_birth_period(exe, tmp_path):
+    from test_sex import BOOK, CFG, EMPTY, PAIR
+
+    agents = [dict(a, immune="1100000000") for a in PAIR]  # immune to "11"
+    for parent in agents[:2]:
+        parent["immune_genotype"] = "0000000000"  # so the child is not
+    carrier = next(i for i, a in enumerate(agents) if (a["x"], a["y"]) == (6, 6))  # next to the child's site, (5,6)
+    agents[carrier].update(immune="0" * 10, diseases="0")
+    cfg = {**CFG, **BOOK, "disease_list": "1", "disease_length": "2,2", "immune_length": "10"}
+    outcomes = set()
+    for seed in range(10):
+        run = {**cfg, "seed": str(seed)}
+        tmp = tmp_path / str(seed)
+        orders = period_orders(exe, tmp / "order", run, EMPTY, agents, 1, diseases=["11"])
+        gpu = run_gpu(exe, tmp, run, EMPTY, agents, steps=1, diseases=["11"])
+        assert gpu.returncode == 0, gpu.stderr
+        py = run_python_in_order(run, EMPTY, agents, orders, diseases=["11"])
+        assert compare_dumps(gpu, py) == [], seed
+        child = next(a for a in gpu.agents if a["uid"] == len(agents))
+        rank = {uid: i for i, uid in enumerate(orders[0])}
+        infected = _bits(child["diseases"]) == "0"
+        assert infected == (rank[carrier] > min(rank[0], rank[1])), seed  # the carrier's turn follows the mating
+        outcomes.add(infected)
+    assert outcomes == {True, False}, "both outcomes must occur"
+
+
+@pytest.mark.parametrize("exp_id", ["V-2", "VI-1"])
+def test_serial_equivalence_disease(exe, tmp_path, exp_id):
+    from test_sex import _files
+
+    cfg = _registry(exp_id)
+    assert _files(exe, tmp_path / "waves", cfg, 20) == _files(exe, tmp_path / "serial", cfg, 20, "--serial-turns")
+    result = run_exe(exe, "--config", write_cfg(tmp_path, **cfg, steps="20"), "--check")
+    assert result.returncode == 0, result.stderr
+
+
+def test_disease_metrics_match_python(exe, tmp_path):
+    empty = np.zeros((20, 20), dtype=int)
+    agents = _transmit_agents("susceptible")
+    orders = period_orders(exe, tmp_path / "order", TRANSMIT_CFG, empty, agents, 1, diseases=TRANSMIT_LIST)
+    out = tmp_path / "metrics.csv"
+    gpu = run_gpu(exe, tmp_path, TRANSMIT_CFG, empty, agents, steps=1, diseases=TRANSMIT_LIST,
+                  extra_args=("--out", out))
+    assert gpu.returncode == 0, gpu.stderr
+    py = run_python_in_order(TRANSMIT_CFG, empty, agents, orders, diseases=TRANSMIT_LIST)
+    rows = read_rows(out)
+    for t in (0, 1):
+        for name in (*DISEASE_STATE, "new_infections"):
+            assert math.isclose(rows[t][name], py.csv[t][name], rel_tol=1e-12), (t, name, rows[t][name], py.csv[t][name])

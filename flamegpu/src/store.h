@@ -88,8 +88,8 @@ struct Store {
     unsigned int* group_site;     // group id -> site; group_site[n_groups] = NO_SITE
     unsigned int* entry_group;    // unique entry -> group id
     unsigned int* rank_row;       // rank -> row
-    // Counters (one each).
-    unsigned int *errors, *ran_count, *done_count;
+    // Counters (one each); infections: rule E's this period (disease.cuh), an integer sum, so deterministic.
+    unsigned int *errors, *ran_count, *done_count, *infections;
     // --check: every site a turn touches must be in its footprint (touch()); the first miss is kept as
     // {misses, site, rank, where}.
     unsigned int check_footprints, n_unique;
@@ -151,6 +151,8 @@ class StoreHost {
     // After the turns: the period's exchanges, every turn's statistics combined in rank order (Chan's formula; plan
     // 2026-10-26-gpu-parity-part-c, ruling R3), on one device thread.
     TradeTotals trade_totals();
+    // After the turns, with rule E: the period's new infections (Python's len(infection_log)); clears the count.
+    unsigned int take_infections();
     // Throws CapacityError for any error bit a kernel raised.
     void check_errors();
     // --check: the first site a turn touched outside its footprint, as {misses, site, rank, where}; clears it.

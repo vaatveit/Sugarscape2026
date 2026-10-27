@@ -63,13 +63,16 @@ FLAMEGPU_AGENT_FUNCTION(propose, flamegpu::MessageNone, flamegpu::MessageNone) {
     // max(w2 - phi m2, 0) + c/(1+p)), eq. 6's foresight and eq. 5's cultural fraction. A float score widened to double
     // keeps every comparison as it was.
     const bool with_spice = FLAMEGPU->environment.getProperty<unsigned int>("spice") != 0u;
-    double base1 = 0, base2 = 0, f = 0.5;
-    int metabolism = 0, spice_metabolism = 0;
+    double base1 = 0, base2 = 0, f = 0.5, burn = 0;
+    int spice_metabolism = 0;
     if (with_spice) {
-        metabolism = FLAMEGPU->getVariable<int>("metabolism");
+        // Python's sugar_burn, from the diseases carried at the start of the period (difference 3).
+        burn = static_cast<double>(FLAMEGPU->getVariable<int>("metabolism")) +
+               FLAMEGPU->environment.getProperty<double>("disease_fee") *
+                   static_cast<double>(FLAMEGPU->getVariable<unsigned int>("n_diseases"));
         spice_metabolism = FLAMEGPU->getVariable<int>("spice_metabolism");
         const double phi = static_cast<double>(FLAMEGPU->getVariable<int>("foresight"));
-        base1 = fmax(FLAMEGPU->getVariable<double>("sugar") - phi * metabolism, 0.0);
+        base1 = fmax(FLAMEGPU->getVariable<double>("sugar") - phi * burn, 0.0);
         base2 = fmax(FLAMEGPU->getVariable<double>("spice") - phi * spice_metabolism, 0.0);
         f = preference_fraction(FLAMEGPU->getVariable<uint64_t>("tags"),
                                 static_cast<int>(FLAMEGPU->environment.getProperty<unsigned int>("tag_length")),
@@ -78,7 +81,7 @@ FLAMEGPU_AGENT_FUNCTION(propose, flamegpu::MessageNone, flamegpu::MessageNone) {
     auto score_at = [&](unsigned int site) -> double {
         if (!with_spice) return static_cast<double>(static_cast<float>(sugar[site]) / (1.0f + static_cast<float>(pollution[site])));
         const double devalue = 1.0 + static_cast<double>(static_cast<float>(pollution[site]));
-        return welfare(static_cast<double>(metabolism), spice_metabolism, f,
+        return welfare(burn, spice_metabolism, f,
                        base1 + static_cast<double>(static_cast<float>(sugar[site])) / devalue,
                        base2 + static_cast<double>(static_cast<float>(spice[site])) / devalue);
     };

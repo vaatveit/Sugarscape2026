@@ -196,13 +196,13 @@ def run_gpu(exe: Path, tmp: Path, cfg: dict | None = None, capacity: np.ndarray 
 
 
 def period_orders(exe: Path, tmp: Path, cfg: dict | None, capacity: np.ndarray | None, agents: list[dict] | None,
-                  steps: int) -> list[list[int]]:
+                  steps: int, diseases: list[str] | None = None) -> list[list[int]]:
     """Each period's uids in the GPU's turn order (--dump-order), for stepping Python in the same order
     (reference.run_python_in_order) where the order matters."""
     tmp = Path(tmp)
     tmp.mkdir(parents=True, exist_ok=True)
     order_file = tmp / "order.csv"
-    dump = run_gpu(exe, tmp, cfg, capacity, agents, steps, extra_args=("--dump-order", order_file))
+    dump = run_gpu(exe, tmp, cfg, capacity, agents, steps, extra_args=("--dump-order", order_file), diseases=diseases)
     assert dump.returncode == 0, dump.stderr
     orders = [[] for _ in range(steps)]
     for row in read_rows(order_file):

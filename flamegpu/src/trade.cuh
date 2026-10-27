@@ -4,6 +4,7 @@
 #ifndef SRC_TRADE_CUH_
 #define SRC_TRADE_CUH_
 
+#include "disease.cuh"
 #include "looks.cuh"
 #include "rules.cuh"
 #include "store.h"
@@ -15,14 +16,16 @@ __device__ __forceinline__ bool valid_mrs(double v) { return is_finite(v) && v >
 // MRSs (eq. 4), p spice for 1 sugar (p > 1) or 1 spice for 1/p sugar (p < 1), whole units with `whole`; an exchange
 // stands only if both welfares strictly rise, every holding stays positive and the MRSs don't cross (fn 17). Each
 // exchange is logged in the row `owner`'s statistics: the turn's.
-__device__ void bargain(const Store& s, int a, int b, bool cultural, bool whole, int tag_length, unsigned int owner) {
+__device__ void bargain(const Store& s, int a, int b, bool cultural, bool whole, int tag_length, unsigned int owner,
+                        double fee) {
     const double fa = preference_fraction(s.tags[a], tag_length, cultural);
     const double fb = preference_fraction(s.tags[b], tag_length, cultural);
+    // Each side's sugar_burn now (disease.cuh): the metabolism plus its disease fees (Python's welfare and mrs).
     auto mrs_of = [&](int r, double f) {
-        return mrs(static_cast<double>(s.metabolism[r]), s.spice_metabolism[r], f, s.sugar[r], s.spice[r]);
+        return mrs(sugar_burn(s, static_cast<unsigned int>(r), fee), s.spice_metabolism[r], f, s.sugar[r], s.spice[r]);
     };
     auto welfare_of = [&](int r, double f) {
-        return welfare(static_cast<double>(s.metabolism[r]), s.spice_metabolism[r], f, s.sugar[r], s.spice[r]);
+        return welfare(sugar_burn(s, static_cast<unsigned int>(r), fee), s.spice_metabolism[r], f, s.sugar[r], s.spice[r]);
     };
     while (true) {
         const double ma = mrs_of(a, fa), mb = mrs_of(b, fb);
@@ -92,7 +95,8 @@ __device__ void trade_with_neighbors(API* FLAMEGPU, const Store& s, unsigned int
         neighbours[i] = neighbours[j];
         neighbours[j] = t;
     }
-    for (int i = 0; i < n; ++i) bargain(s, a, neighbours[i], cultural, whole, tag_length, row);
+    const double fee = env.template getProperty<double>("disease_fee");
+    for (int i = 0; i < n; ++i) bargain(s, a, neighbours[i], cultural, whole, tag_length, row, fee);
 }
 
 #endif  // SRC_TRADE_CUH_

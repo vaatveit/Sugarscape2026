@@ -61,6 +61,18 @@ def test_loan_and_repayment_matches_python(exe, tmp_path, t):
         assert len(py.loans) == 1
 
 
+def test_credit_income_counts_fee(exe, tmp_path):
+    # Chapter V (plan 2026-10-27-gpu-parity-part-d, Task 3): the borrower carries "111" with an all-0 immune string,
+    # so its income (harvest minus sugar burned) is 1 lower; the lender is immune, so nothing is transmitted.
+    cfg = {**CREDIT, "disease_list": "1", "disease_length": "3,3", "immune_length": "10"}
+    agents = [_lender(immune="1110000000"), _borrower(immune="0000000000", diseases="0")]
+    gpu = run_gpu(exe, tmp_path, cfg, CAPACITY, agents, steps=1, diseases=["111"])
+    assert gpu.returncode == 0, gpu.stderr
+    py = run_python(cfg, CAPACITY, agents, 1, diseases=["111"])
+    assert _compare(gpu, py) == []
+    assert len(py.loans) == 1
+
+
 def test_partial_repayment_reoriginates(exe, tmp_path):
     # The borrower burns 5 a period and harvests 1 after its first: at t = 10 it can't pay the 30 due (rate 50%), so
     # it pays half its sugar and the rest is originated anew, due at t = 20.

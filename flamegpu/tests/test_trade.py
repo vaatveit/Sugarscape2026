@@ -47,7 +47,12 @@ CASES = {
     "exact": (TRADE, _pairs(15, 11)),
     "down": ({**TRADE, "trade_rounding": "down"}, _pairs(15, 11)),
     "cultural": ({**TRADE, "tag_length": "3", "cultural_preferences": "true"}, _pairs(15, 12, tags=3)),
+    # Chapter V (plan 2026-10-27-gpu-parity-part-d, Task 3): everyone carries "111", which no all-0 immune string
+    # clears in two periods, so nobody is infected and each burn is 1 higher: welfare and the MRS count the fee.
+    "diseased": ({**TRADE, "disease_list": "1", "disease_length": "3,3", "immune_length": "10"},
+                 [dict(a, immune="0" * 10, diseases="0") for a in _pairs(15, 11)]),
 }
+DISEASES = {"diseased": ["111"]}
 
 
 @pytest.mark.parametrize("name", CASES)
@@ -55,11 +60,12 @@ def test_trade_pairs_match_python(exe, tmp_path, name):
     from reference import run_python_in_order
 
     cfg, agents = CASES[name]
-    orders = period_orders(exe, tmp_path / "order", cfg, EMPTY, agents, 2)
+    diseases = DISEASES.get(name)
+    orders = period_orders(exe, tmp_path / "order", cfg, EMPTY, agents, 2, diseases=diseases)
     out = tmp_path / "metrics.csv"
-    gpu = run_gpu(exe, tmp_path, cfg, EMPTY, agents, steps=2, extra_args=("--out", out))
+    gpu = run_gpu(exe, tmp_path, cfg, EMPTY, agents, steps=2, extra_args=("--out", out), diseases=diseases)
     assert gpu.returncode == 0, gpu.stderr
-    py = run_python_in_order(cfg, EMPTY, agents, orders)
+    py = run_python_in_order(cfg, EMPTY, agents, orders, diseases=diseases)
     g, p = {a["uid"]: a for a in gpu.agents}, {a["uid"]: a for a in py.agents}
     assert set(g) == set(p)
     for uid in p:
