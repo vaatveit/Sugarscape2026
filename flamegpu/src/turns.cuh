@@ -41,6 +41,10 @@ FLAMEGPU_AGENT_FUNCTION(publish, flamegpu::MessageNone, flamegpu::MessageNone) {
     s.disp_y[row] = FLAMEGPU->getVariable<int>("disp_y");
     s.sugar[row] = FLAMEGPU->getVariable<double>("sugar");
     s.initial_sugar[row] = FLAMEGPU->getVariable<double>("initial_sugar");
+    s.spice[row] = FLAMEGPU->getVariable<double>("spice");
+    s.initial_spice[row] = FLAMEGPU->getVariable<double>("initial_spice");
+    s.spice_metabolism[row] = FLAMEGPU->getVariable<int>("spice_metabolism");
+    s.foresight[row] = FLAMEGPU->getVariable<int>("foresight");
     s.tags[row] = FLAMEGPU->getVariable<uint64_t>("tags");
     const unsigned int uid = FLAMEGPU->getVariable<unsigned int>("uid");
     s.uid[row] = uid;
@@ -124,6 +128,7 @@ FLAMEGPU_AGENT_FUNCTION(absorb, flamegpu::MessageNone, flamegpu::MessageNone) {
     FLAMEGPU->setVariable<int>("disp_x", s.disp_x[row]);
     FLAMEGPU->setVariable<int>("disp_y", s.disp_y[row]);
     FLAMEGPU->setVariable<double>("sugar", s.sugar[row]);
+    FLAMEGPU->setVariable<double>("spice", s.spice[row]);
     FLAMEGPU->setVariable<uint64_t>("tags", s.tags[row]);
     FLAMEGPU->setVariable<unsigned int>("n_children", s.n_children[row]);
     FLAMEGPU->setVariable<unsigned int>("n_friends", s.n_friends[row]);
@@ -138,17 +143,25 @@ FLAMEGPU_AGENT_FUNCTION(absorb, flamegpu::MessageNone, flamegpu::MessageNone) {
 
 // Main model, cell layers around the turns: during the turns the sites' sugar lives in the store, so a combat turn can
 // read a site's sugar while other turns harvest (a macro property may not be read and written in one layer).
-FLAMEGPU_AGENT_FUNCTION(stage_sites, flamegpu::MessageNone, flamegpu::MessageNone) {  // reads sugar
+FLAMEGPU_AGENT_FUNCTION(stage_sites, flamegpu::MessageNone, flamegpu::MessageNone) {  // reads sugar, spice
     const unsigned int c = FLAMEGPU->getIndex();  // the site index (make_cells)
     auto sugar = FLAMEGPU->environment.getMacroProperty<float, MAX_CELLS>("sugar");
     the_store(FLAMEGPU).site_sugar[c] = sugar[c];
+    if (FLAMEGPU->environment.getProperty<unsigned int>("spice")) {
+        auto spice = FLAMEGPU->environment.getMacroProperty<float, MAX_CELLS>("spice");
+        the_store(FLAMEGPU).site_spice[c] = spice[c];
+    }
     return flamegpu::ALIVE;
 }
 
-FLAMEGPU_AGENT_FUNCTION(unstage_sites, flamegpu::MessageNone, flamegpu::MessageNone) {  // writes sugar
+FLAMEGPU_AGENT_FUNCTION(unstage_sites, flamegpu::MessageNone, flamegpu::MessageNone) {  // writes sugar, spice
     const unsigned int c = FLAMEGPU->getIndex();
     auto sugar = FLAMEGPU->environment.getMacroProperty<float, MAX_CELLS>("sugar");
     sugar[c].exchange(the_store(FLAMEGPU).site_sugar[c]);
+    if (FLAMEGPU->environment.getProperty<unsigned int>("spice")) {
+        auto spice = FLAMEGPU->environment.getMacroProperty<float, MAX_CELLS>("spice");
+        spice[c].exchange(the_store(FLAMEGPU).site_spice[c]);
+    }
     return flamegpu::ALIVE;
 }
 
@@ -167,6 +180,10 @@ FLAMEGPU_AGENT_FUNCTION(spawn_newborns, flamegpu::MessageNone, flamegpu::Message
     out.setVariable<int>("max_age", s.max_age[c]);
     out.setVariable<double>("sugar", s.sugar[c]);
     out.setVariable<double>("initial_sugar", s.initial_sugar[c]);
+    out.setVariable<double>("spice", s.spice[c]);
+    out.setVariable<double>("initial_spice", s.initial_spice[c]);
+    out.setVariable<int>("spice_metabolism", s.spice_metabolism[c]);
+    out.setVariable<int>("foresight", s.foresight[c]);
     out.setVariable<unsigned int>("uid", s.uid[c]);
     out.setVariable<unsigned int>("sex", s.sex[c]);
     out.setVariable<int>("fertility_start", s.fertility_start[c]);
@@ -218,6 +235,7 @@ FLAMEGPU_AGENT_FUNCTION(age_mark, flamegpu::MessageNone, flamegpu::MessageNone) 
     const unsigned int slot = atomicAdd(d.count, 1u);
     d.uid[slot] = FLAMEGPU->getVariable<unsigned int>("uid");
     d.sugar[slot] = FLAMEGPU->getVariable<double>("sugar");
+    d.spice[slot] = FLAMEGPU->getVariable<double>("spice");
     return flamegpu::ALIVE;
 }
 
@@ -239,12 +257,14 @@ FLAMEGPU_AGENT_FUNCTION(heirs_take, flamegpu::MessageNone, flamegpu::MessageNone
     const unsigned int a = FLAMEGPU->getVariable<unsigned int>("parent_a");
     const unsigned int b = FLAMEGPU->getVariable<unsigned int>("parent_b");
     const unsigned int first = a < b ? a : b, second = a < b ? b : a;  // NO_UID is the largest, so last
-    double sugar = FLAMEGPU->getVariable<double>("sugar");
+    double sugar = FLAMEGPU->getVariable<double>("sugar"), spice = FLAMEGPU->getVariable<double>("spice");
     for (const unsigned int p : {first, second}) {
         const int e = p == NO_UID ? -1 : find_dying(d, p);
         if (e >= 0 && d.sugar[e] > 0.0) sugar += d.sugar[e] / static_cast<double>(d.heirs[e]);
+        if (e >= 0 && d.spice[e] > 0.0) spice += d.spice[e] / static_cast<double>(d.heirs[e]);
     }
     FLAMEGPU->setVariable<double>("sugar", sugar);
+    FLAMEGPU->setVariable<double>("spice", spice);
     return flamegpu::ALIVE;
 }
 

@@ -105,26 +105,4 @@ __device__ __forceinline__ void combat_kill(const Store& s, unsigned int victim,
     s.death_key[victim] = turn_death_key(s.rank[attacker], true);
 }
 
-// Whether row c names row p as a parent: by uid, or for a parent born this period by its row (sex.cuh,
-// PROVISIONAL_PARENT, until StoreHost::birth_uids).
-__device__ __forceinline__ bool is_child_of(const Store& s, unsigned int c, unsigned int p) {
-    const unsigned int ref = s.uid[p] == NO_UID ? (PROVISIONAL_PARENT | p) : s.uid[p];
-    return s.parent_a[c] == ref || s.parent_b[c] == ref;
-}
-
-// Rule I for a combat victim (Python Model.die): what it keeps after the take, when positive, goes in equal shares to
-// its living children, wherever they are. They are found only now, so combat with inheritance runs one turn per wave
-// (spec section 2; RunConfig::serial) and this one thread may scan every row, this period's newborns included.
-__device__ __forceinline__ void pay_victim_heirs(const Store& s, unsigned int victim) {
-    if (!(s.sugar[victim] > 0.0)) return;
-    const unsigned int rows = s.n_rows + *s.newborn_count;
-    unsigned int heirs = 0;
-    for (unsigned int r = 0; r < rows; ++r) heirs += (r != victim && !s.dead[r] && is_child_of(s, r, victim)) ? 1u : 0u;
-    if (heirs == 0) return;
-    const double share = s.sugar[victim] / static_cast<double>(heirs);
-    for (unsigned int r = 0; r < rows; ++r) {
-        if (r != victim && !s.dead[r] && is_child_of(s, r, victim)) s.sugar[r] += share;
-    }
-}
-
 #endif  // SRC_COMBAT_CUH_

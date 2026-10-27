@@ -139,6 +139,7 @@ StoreHost::StoreHost(const RunConfig& cfg, unsigned int uid_capacity, bool check
     alloc(h_.site_row, cells);
     alloc(h_.target_row, cells);
     alloc(h_.site_sugar, cells);
+    alloc(h_.site_spice, cells);
     alloc(h_.buried_key, cells);
     alloc(h_.buried_tags, cells);
     // The uid map is sized by --uid-capacity: a capacity the device cannot hold is a limit, named (exit 5).
@@ -152,11 +153,13 @@ StoreHost::StoreHost(const RunConfig& cfg, unsigned int uid_capacity, bool check
     owned_.push_back(h_.uid_row);
     check(cudaMemset(h_.uid_row, 0xFF, uid_bytes), "clearing the uid map");
     for (int** p : {&h_.x, &h_.y, &h_.vision, &h_.metabolism, &h_.age, &h_.max_age, &h_.fertility_start,
-                    &h_.fertility_end, &h_.disp_x, &h_.disp_y, &h_.counter}) {
+                    &h_.fertility_end, &h_.disp_x, &h_.disp_y, &h_.counter, &h_.spice_metabolism, &h_.foresight}) {
         alloc(*p, rows);
     }
     alloc(h_.sugar, rows);
     alloc(h_.initial_sugar, rows);
+    alloc(h_.spice, rows);
+    alloc(h_.initial_spice, rows);
     alloc(h_.tags, rows);
     alloc(h_.key, rows);
     for (unsigned int** p : {&h_.uid, &h_.sex, &h_.n_children, &h_.parent_a, &h_.parent_b, &h_.n_friends, &h_.moved,
@@ -446,10 +449,12 @@ __global__ void k_dying_order(unsigned int n, unsigned int* order) {
     if (i < n) order[i] = i;
 }
 
-__global__ void k_dying_gather(unsigned int n, const unsigned int* sorted_order, const double* posted, Dying d) {
+__global__ void k_dying_gather(unsigned int n, const unsigned int* sorted_order, const double* posted,
+                               const double* posted_spice, Dying d) {
     const unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= n) return;
     d.sugar[i] = posted[sorted_order[i]];
+    d.spice[i] = posted_spice[sorted_order[i]];
     d.heirs[i] = 0u;
 }
 
@@ -461,10 +466,12 @@ DyingTable::DyingTable(unsigned int cells) {
     };
     alloc(h_.uid, cells);
     alloc(h_.sugar, cells);
+    alloc(h_.spice, cells);
     alloc(h_.heirs, cells);
     alloc(h_.count, 1);
     alloc(posted_uid_, cells);
     alloc(posted_sugar_, cells);
+    alloc(posted_spice_, cells);
     alloc(order_, cells);
     alloc(sorted_order_, cells);
     check(cudaMemset(h_.count, 0, sizeof(unsigned int)), "clearing the dying table");
@@ -473,12 +480,14 @@ DyingTable::DyingTable(unsigned int cells) {
     Dying posting = h_;
     posting.uid = posted_uid_;
     posting.sugar = posted_sugar_;
+    posting.spice = posted_spice_;
     check(cudaMemcpy(d_, &posting, sizeof(Dying), cudaMemcpyHostToDevice), "uploading the dying table");
 }
 
 DyingTable::~DyingTable() {
-    for (void* p : {static_cast<void*>(h_.uid), static_cast<void*>(h_.sugar), static_cast<void*>(h_.heirs),
-                    static_cast<void*>(h_.count), static_cast<void*>(posted_uid_), static_cast<void*>(posted_sugar_),
+    for (void* p : {static_cast<void*>(h_.uid), static_cast<void*>(h_.sugar), static_cast<void*>(h_.spice),
+                    static_cast<void*>(h_.heirs), static_cast<void*>(h_.count), static_cast<void*>(posted_uid_),
+                    static_cast<void*>(posted_sugar_), static_cast<void*>(posted_spice_),
                     static_cast<void*>(order_), static_cast<void*>(sorted_order_), static_cast<void*>(d_), temp_}) {
         cudaFree(p);
     }
@@ -500,7 +509,7 @@ void DyingTable::sort() {
         }
         check(cub::DeviceRadixSort::SortPairs(temp_, bytes, posted_uid_, h_.uid, order_, sorted_order_, n),
               "sorting on the device");
-        k_dying_gather<<<blocks(n), BLOCK>>>(n, sorted_order_, posted_sugar_, h_);
+        k_dying_gather<<<blocks(n), BLOCK>>>(n, sorted_order_, posted_sugar_, posted_spice_, h_);
     }
     // The heirs read the sorted table; the next period's dying post to the posted_* arrays again (posting()).
     Dying sorted = h_;
@@ -513,6 +522,7 @@ void DyingTable::posting() {
     Dying posting = h_;
     posting.uid = posted_uid_;
     posting.sugar = posted_sugar_;
+    posting.spice = posted_spice_;
     posting.n = 0;
     check(cudaMemcpy(d_, &posting, sizeof(Dying), cudaMemcpyHostToDevice), "uploading the dying table");
 }

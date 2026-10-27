@@ -157,7 +157,8 @@ void check_invariants(flamegpu::HostAPI* api, unsigned int t, unsigned int death
         if (!sites.insert(i).second) fail("two agents on site " + std::to_string(a.x) + "," + std::to_string(a.y));
         if (static_cast<unsigned int>(occupied[i]) != 1u) fail("occupied is 0 under an agent");
         if (!(a.sugar > 0.0f)) fail("an agent survived with sugar <= 0");
-        if (s.cfg.spice && !(a.spice > 0.0)) fail("an agent survived with spice <= 0");
+        // No such check for spice: fertility tests sugar only (p.55), so a parent may give a child more spice than it
+        // holds and live, as in Python, until its next turn's metabolism.
     }
     auto spice = api->environment.getMacroProperty<float, MAX_CELLS>("spice");
     unsigned long long occupied_count = 0;

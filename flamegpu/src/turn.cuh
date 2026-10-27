@@ -7,6 +7,7 @@
 
 #include "combat.cuh"
 #include "culture.cuh"
+#include "heirs.cuh"
 #include "movement.cuh"
 #include "sex.cuh"
 #include "store.h"
@@ -33,7 +34,7 @@ __device__ void take_turn(API* FLAMEGPU, const Store& s, unsigned int row) {
         if (choice.victim >= 0) {
             const unsigned int victim = static_cast<unsigned int>(choice.victim);
             combat_kill(s, victim, row, env.template getProperty<double>("combat_alpha"));
-            if (env.template getProperty<unsigned int>("inheritance")) pay_victim_heirs(s, victim);
+            if (env.template getProperty<unsigned int>("inheritance")) pay_heirs(s, victim);
         }
     }
     touch(s, start, rank, 0);
@@ -57,15 +58,23 @@ __device__ void take_turn(API* FLAMEGPU, const Store& s, unsigned int row) {
     s.site_sugar[target] = 0.0f;
     s.sugar[row] += static_cast<double>(harvest);
     if (polluting && !combat) pollution[target] += env.template getProperty<float>("pollution_alpha") * harvest;
-    // Metabolism, with consumption pollution; death when sugar runs out (p.25).
+    const bool with_spice = env.template getProperty<unsigned int>("spice") != 0u;
+    if (with_spice) {  // and the site's spice (Python move)
+        s.spice[row] += static_cast<double>(s.site_spice[target]);
+        s.site_spice[target] = 0.0f;
+    }
+    // Metabolism, with consumption pollution from the sugar burned; death when sugar, or spice, runs out (pp.25, 97).
     const int metabolism = s.metabolism[row];
     s.sugar[row] -= static_cast<double>(metabolism);
+    if (with_spice) s.spice[row] -= static_cast<double>(s.spice_metabolism[row]);
     if (polluting) pollution[target] += env.template getProperty<float>("pollution_beta") * static_cast<float>(metabolism);
-    if (s.sugar[row] <= 0.0) {
+    if (s.sugar[row] <= 0.0 || (with_spice && s.spice[row] <= 0.0)) {
         s.dead[row] = 1u;
         s.death_key[row] = turn_death_key(rank, false);
         s.site_row[target] = -1;
         occupied[target].exchange(0u);
+        // Rule I (Python Model.die): with spice, the good not run out may be left to the heirs. Serial mode only (R1).
+        if (env.template getProperty<unsigned int>("inheritance")) pay_heirs(s, row);
         return;
     }
     // Neighbours: the four von Neumann sites as they stand now (p.39), kept for update_friends (Python agent.neighbors).

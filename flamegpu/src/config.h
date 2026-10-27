@@ -97,9 +97,10 @@ struct RunConfig {
     // Inheritance counts: its old-age layers live on the turns path, and a run may give children through --init.
     bool turns_on() const { return sex || culture || combat() || inheritance || trade || credit || force_turns; }
     bool combat() const { return combat_alpha.has_value(); }
-    // One turn per wave: --serial-turns, or combat with inheritance, whose victims' heirs are found only at the kill and
-    // so cannot be in a footprint (spec section 2).
-    bool serial() const { return serial_turns || (combat() && inheritance); }
+    // One turn per wave: --serial-turns, or inheritance with combat, credit or spice, whose deaths in a turn have heirs
+    // (and with credit, loans passed on) found only at the death, so they cannot be in a footprint (spec section 2;
+    // plan 2026-10-26-gpu-parity-part-c, ruling R1).
+    bool serial() const { return serial_turns || (inheritance && (combat() || credit || spice)); }
 
     int base_width() const { return width / tile; }
     int base_height() const { return height / tile; }

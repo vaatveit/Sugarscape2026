@@ -100,7 +100,11 @@ void describe_turns(flamegpu::ModelDescription& sub, const RunConfig& cfg) {
     env.newProperty<double>("child_share", 0.5);
     env.newProperty<unsigned int>("combat", 0u);  // combat C_alpha replaces the move (combat.cuh)
     env.newProperty<double>("combat_alpha", 0.0);
-    env.newProperty<unsigned int>("inheritance", 0u);  // rule I for combat's victims (combat.cuh, pay_victim_heirs)
+    env.newProperty<unsigned int>("inheritance", 0u);  // rule I for deaths in a turn (heirs.cuh, pay_heirs)
+    // Chapter IV in the turn: spice, and rule S's redrawn initial spice (sex.cuh).
+    env.newProperty<unsigned int>("spice", 0u);
+    env.newProperty<int>("spice_endowment_lo", 0);
+    env.newProperty<int>("spice_endowment_hi", 0);
     for (const char* name : {"endowment_lo", "endowment_hi", "fertility_start_lo", "fertility_start_hi",
                              "female_fertility_end_lo", "female_fertility_end_hi", "male_fertility_end_lo",
                              "male_fertility_end_hi"}) {

@@ -167,6 +167,68 @@ def test_welfare_zero_metabolism_matches_python(exe, tmp_path):
     assert (2, 2) in {(a["x"], a["y"]) for a in gpu.agents}
 
 
+# --- Spice on the turns path (Task 4) -------------------------------------------------------------------------------
+
+def _registry(exp_id, **overrides):
+    from test_combat import registry_cfg
+
+    return registry_cfg(exp_id, **overrides)
+
+
+@pytest.mark.parametrize("exp_id, overrides", [("IV-6/notrade/v2", {}), ("IV-13/notrade/v3.5", {"replacement": "false"})],
+                         ids=["IV-6-notrade-v2", "IV-13-notrade-v3.5"])
+def test_turns_path_equals_fast_path_spice(exe, tmp_path, exp_id, overrides):
+    # Replacement is left out of IV-13: place_newcomer's site race is decided by the GPU's timing (chapter3-part-b.md).
+    from test_turns import FILES, _files
+
+    cfg = _registry(exp_id, **overrides)
+    fast = _files(exe, tmp_path / "fast", cfg, 20, 20)
+    turns = _files(exe, tmp_path / "turns", cfg, 20, 20, "--force-turns")
+    for f in FILES:
+        assert turns[f] == fast[f], f"{exp_id}: {f} differs between the turns and the fast path"
+
+
+def _child_cases():
+    from test_sex import BOOK
+
+    return {"endowment": BOOK, "capped": {**BOOK, "child_gift": "capped"}, "redraw": {**BOOK, "child_threshold": "redraw"},
+            "down": {"mate_contact": "neighbors", "gift_rounding": "down"}}
+
+
+@pytest.mark.parametrize("name", ["endowment", "capped", "redraw", "down"])
+def test_child_spice_matches_python(exe, tmp_path, name):
+    from test_sex import CFG as SEX_CFG, EMPTY as SEX_EMPTY, PAIR, _by_uid
+
+    cfg = {**SEX_CFG, "spice": "true", **_child_cases()[name]}
+    # Everyone burns no spice, so the order still can't matter; the parents' initial spice is 30.
+    agents = [dict(a, spice=40.0, spice_metabolism=0, **({"initial_spice": 30.0} if a.get("sex") else {})) for a in PAIR]
+    gpu = run_gpu(exe, tmp_path, cfg, SEX_EMPTY, agents, steps=1)
+    assert gpu.returncode == 0, gpu.stderr
+    py = run_python(cfg, SEX_EMPTY, agents, 1)
+    assert compare_dumps(gpu, py) == []
+    g, p = _by_uid(gpu.agents), _by_uid(py.agents)
+    child = len(agents)
+    assert set(g) == set(p) and child in g
+    for uid in p:
+        assert g[uid]["spice"] == pytest.approx(p[uid]["spice"], abs=1e-9), (name, uid)
+        if uid != child or name != "redraw":
+            assert g[uid]["initial_spice"] == pytest.approx(p[uid]["initial_spice"], abs=1e-9), (name, uid)
+    if name == "redraw":  # drawn from the endowment's range, spice_endowment being unset
+        assert 50 <= g[child]["initial_spice"] <= 100 and g[child]["initial_spice"] == int(g[child]["initial_spice"])
+
+
+@pytest.mark.parametrize("exp_id", ["IV-18", "VI-2"])
+def test_serial_equivalence_spice(exe, tmp_path, exp_id):
+    from conftest import run_exe
+    from gpu import write_cfg
+    from test_sex import _files
+
+    cfg = _registry(exp_id)
+    assert _files(exe, tmp_path / "waves", cfg, 20) == _files(exe, tmp_path / "serial", cfg, 20, "--serial-turns")
+    result = run_exe(exe, "--config", write_cfg(tmp_path, **cfg, steps="20"), "--check")
+    assert result.returncode == 0, result.stderr
+
+
 def test_init_spice_without_spice_refused(exe, tmp_path):
     dump = run_gpu(exe, tmp_path, {}, EMPTY, _harvesters(), steps=1)
     assert dump.returncode == 2

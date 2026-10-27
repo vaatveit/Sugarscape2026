@@ -36,6 +36,8 @@ struct Store {
     // Rows: the citizen variables a turn touches.
     int *x, *y, *vision, *metabolism, *age, *max_age, *fertility_start, *fertility_end, *disp_x, *disp_y;
     double *sugar, *initial_sugar;
+    double *spice, *initial_spice;           // Chapter IV (plan 2026-10-26-gpu-parity-part-c, Task 4); 0 without spice
+    int *spice_metabolism, *foresight;
     uint64_t* tags;
     unsigned int *uid, *sex, *n_children, *parent_a, *parent_b, *friend_uid, *friend_dist, *n_friends;
     unsigned int *moved, *neighbors;
@@ -43,6 +45,7 @@ struct Store {
     unsigned int* dir_order;      // the period's scan order (start_period), 2 bits per direction, for combat
     uint64_t* death_key;          // a row that dies in a turn: its place among the period's deaths (turn_death_key)
     float* site_sugar;            // cells: the sites' sugar during the turns (stage_sites, unstage_sites)
+    float* site_spice;            // cells: the sites' spice during the turns, as site_sugar
     // This period's newborns killed by combat, by death key (StoreHost::bury): one newcomer each, made by cell i.
     uint64_t *buried_key, *buried_tags;  // cells
     unsigned int n_buried;
@@ -165,6 +168,7 @@ class NewcomerUids {
 struct Dying {
     unsigned int* uid;    // posted, then sorted
     double* sugar;        // posted, then sorted with the uids
+    double* spice;        // the same, for spice (0 without it)
     unsigned int* heirs;  // living, non-dying children per sorted entry
     unsigned int* count;  // posted entries
     unsigned int n;       // sorted entries (after DyingTable::sort)
@@ -196,7 +200,7 @@ class DyingTable {
  private:
     Dying h_{}, *d_ = nullptr;
     unsigned int *posted_uid_ = nullptr, *order_ = nullptr, *sorted_order_ = nullptr;
-    double* posted_sugar_ = nullptr;
+    double *posted_sugar_ = nullptr, *posted_spice_ = nullptr;
     void* temp_ = nullptr;
     size_t temp_bytes_ = 0;
 };
