@@ -154,14 +154,29 @@ That belongs to the comparison work.
 - `python -m viewer`: tick **xl** before Start to watch an xl run. Each site is drawn as one solid colour, with no
   smoothing. The landscape is paler and agents fill their site in colours that stand out against every site (3:1
   contrast or better). Agent size is off, and the newest 100 periods are kept.
-- **Speed**, one process: about 2.4 s per period for II-4's rules early on (40,000 agents). The centred look's
-  extra draws and sorting account for about a quarter of that: 2.43 s against 1.89 s with the earlier uniform look,
-  timed together over t = 3–10. Early in VI-1 it was 6.5 s per period with the uniform look. Ten II-4 seeds sharing
-  the processor (`--jobs 10`) averaged 3.2 s per period over 500 periods, with other programs also running (1.8 s
-  with the uniform look on a quieter machine). IV-A3 alone averaged 1.1 s per period over 300 periods.
-  Replacement (rule R) costs little: II-4-gini, which adds it to II-4's rules and replaces about 900 agents a
-  period, took 1.13 s per period against II-4's 1.17 s, timed together over t = 3–7. Scanning all 250,000 sites
-  for each newcomer's site had taken 12.95 s.
+- **Speed**, one process (`--jobs 1`), one seed at a time, stepping only, over each experiment's full run
+  (centred look; `results-xl/*/timing.csv`):
+
+  | Experiment | Periods × seeds | Agents, start → end | s per period, mean (seed range) | Total stepping |
+  |---|---|---|---|---|
+  | II-4 | 500 × 10 | 40,000 → about 23,800 | 1.33 (1.08–2.09) | 111 min |
+  | II-4-gini | 500 × 10 | 25,000 throughout | 1.67 (1.26–2.52) | 139 min |
+  | II-6 | 300 × 5 | 40,000 → about 20,100 | 2.07 (1.73–2.41) | 52 min |
+  | II-7 | 500 × 5 | 40,000 → about 17,600 | 1.04 (0.83–1.36) | 44 min |
+  | II-8 | 200 × 5 | 40,000 → about 19,100 | 1.35 (1.22–1.70) | 23 min |
+  | IV-A3 | 300 × 10 | 20,000 → about 3,200 | 1.11 (1.07–1.17) | 56 min |
+  | VI-1 | 500 × 5 | 20,000 → 59,600–100,000 | 16.4 (9.6–25.2) | 685 min |
+
+  - Other programs were running on the machine at times, which accounts for part of the spread between seeds.
+    VI-1's spread is mostly its population: its seeds end with very different numbers of agents.
+  - Early in II-4 (40,000 agents), a period takes about 2.4 s. The centred look's extra draws and sorting account
+    for about a quarter of that: 2.43 s against 1.89 s with the earlier uniform look, timed together over t = 3–10.
+  - Ten II-4 seeds sharing the processor (`--jobs 10`) averaged 3.2 s per period, with other programs also
+    running.
+  - Replacement (rule R) replaces about 900 agents a period in II-4-gini. Finding each newcomer's site by
+    scanning all 250,000 sites had taken 12.95 s per period, against 1.13 s with the occupancy mask (t = 3–7,
+    uniform look).
+
   The Python model is the baseline being measured, so it hasn't been tuned for xl.
 - The rule that diffuses pollution 100 times is `Config.diffusion_passes`, and the look stride is
   `Config.look_stride`. Both default to 1 and are left out of regular fingerprints.

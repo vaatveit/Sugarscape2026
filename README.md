@@ -913,7 +913,8 @@ python -m experiments.run II-4 --xl --seeds 1
 
 This writes the xl run to `results-xl/`. Every run, regular or xl, also writes `timing.csv` (setup, stepping and
 metrics seconds per seed) and `machine.txt`. In the viewer, tick **xl** before Start. In Python an xl period takes
-seconds rather than milliseconds (about 2.4 s for II-4's rules, 6.5 s for VI-1's).
+seconds rather than milliseconds: over a full run, about 1.3 s for II-4 and 16 s for VI-1, whose population grows
+to 60,000–100,000 ([docs/xl.md](docs/xl.md) has each experiment).
 
 ## Julia
 
