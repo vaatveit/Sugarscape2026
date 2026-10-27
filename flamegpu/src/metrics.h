@@ -23,6 +23,9 @@ struct AgentColumns {
     // Chapter IV.
     std::vector<double> spice;
     std::vector<int> foresight;
+    // Chapter V: each agent's count, and with disease on MAX_DISEASES canonical ids per agent, the first n_diseases.
+    std::vector<uint32_t> n_diseases;
+    std::vector<uint8_t> diseases;
 };
 
 // The period's exchanges (rule T): their count, the mean and the sum of squared deviations (M2) of ln p, and the

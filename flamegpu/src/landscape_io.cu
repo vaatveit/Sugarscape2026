@@ -75,7 +75,7 @@ std::vector<InitAgent> load_init_agents(const std::string& path, int width, int 
         static const std::set<std::string> optional = {"sex",        "fertility_start", "fertility_end", "initial_sugar",
                                                        "tags",       "n_children",      "parent_a",      "parent_b",
                                                        "friends",    "spice",           "initial_spice", "spice_metabolism",
-                                                       "foresight"};
+                                                       "foresight",  "immune_genotype", "immune",        "diseases"};
         if (!optional.count(header[c])) throw MapError(path + " line 1: unknown column '" + header[c] + "'");
     }
     std::vector<InitAgent> agents;
@@ -137,6 +137,18 @@ std::vector<InitAgent> load_init_agents(const std::string& path, int width, int 
                     }
                     for (size_t i = 0; i < v.size(); ++i) a.tags |= static_cast<uint64_t>(v[i] == '1') << i;
                     a.tag_count = static_cast<int>(v.size());
+                } else if (header[c] == "immune" || header[c] == "immune_genotype") {
+                    if (v.size() > 64 || v.find_first_not_of("01") != std::string::npos) {
+                        throw MapError(where + ": " + header[c] + " must be a 0/1 string of at most 64 bits");
+                    }
+                    uint64_t bits = 0;
+                    for (size_t i = 0; i < v.size(); ++i) bits |= static_cast<uint64_t>(v[i] == '1') << i;
+                    (header[c] == "immune" ? a.immune : a.immune_genotype) = bits;
+                    (header[c] == "immune" ? a.immune_count : a.genotype_count) = static_cast<int>(v.size());
+                } else if (header[c] == "diseases") {  // master indices joined by '|'
+                    std::stringstream ds(v);
+                    std::string item;
+                    while (std::getline(ds, item, '|')) a.diseases.push_back(static_cast<unsigned int>(std::stoul(item)));
                 }
             }
             a.line = number;
@@ -163,6 +175,24 @@ void check_init_agents(const std::string& path, const std::vector<InitAgent>& ag
         }
         if (!cfg.spice && (a.spice || a.initial_spice || a.spice_metabolism || a.foresight)) {
             throw MapError(where + "spice values given, but spice = false");
+        }
+        // Chapter V (ruling D2): with disease on, the immune strings Python's _spawn_at would have drawn.
+        const bool disease_given = a.immune_count >= 0 || a.genotype_count >= 0 || !a.diseases.empty();
+        if (!cfg.disease() && disease_given) throw MapError(where + "disease columns given, but disease_list = 0");
+        if (cfg.disease()) {
+            if (a.immune_count < 0) throw MapError(where + "with disease on, every agent needs its immune string");
+            for (const int count : {a.immune_count, a.genotype_count}) {
+                if (count >= 0 && count != cfg.immune_length) {
+                    throw MapError(where + std::to_string(count) + " immune bits given, but immune_length = " +
+                                   std::to_string(cfg.immune_length));
+                }
+            }
+            for (const unsigned int d : a.diseases) {
+                if (d >= static_cast<unsigned int>(cfg.disease_list)) {
+                    throw MapError(where + "disease " + std::to_string(d) + " is not in the master list of " +
+                                   std::to_string(cfg.disease_list));
+                }
+            }
         }
         if (a.tag_count >= 0 && a.tag_count != cfg.tag_length) {
             throw MapError(where + std::to_string(a.tag_count) + " tags given, but tag_length = " +

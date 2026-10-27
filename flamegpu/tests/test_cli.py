@@ -161,6 +161,7 @@ def test_version(exe, build):
     assert info["max_tag_bits"] == "63"  # spec 2026-10-25-gpu-full-parity, section 5
     assert info["max_friends"] == "5" and info["max_sight_looks"] == "64" and info["uid_capacity"] == "16777216"
     assert info["loans_per_cell"] == "2" and info["max_heirs"] == "32"  # plan 2026-10-26-gpu-parity-part-c, Tasks 6-7
+    assert info["max_immune_bits"] == "64" and info["max_diseases"] == "64"  # plan 2026-10-27-gpu-parity-part-d
     assert info["gpu"] != "" and info["cuda_runtime"] != ""
 
 
@@ -346,12 +347,6 @@ def test_gpu_limits_only_with_disease(exe, tmp_path):
     # Python accepts any immune_length without disease; so does the GPU.
     result = run_exe(exe, "--config", write_cfg(tmp_path, immune_length="80"), "--print-config")
     assert result.returncode == 0, result.stderr
-
-
-def test_disease_run_refused_for_now(exe, tmp_path):
-    result = run_exe(exe, "--config", write_cfg(tmp_path, disease_list="1", steps="1"))
-    assert result.returncode == 2
-    assert "not on the GPU yet" in _error(result)
 
 
 # --- The deferred minors (Parts A and B) --------------------------------------------------------------------------

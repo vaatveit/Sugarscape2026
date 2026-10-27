@@ -31,6 +31,8 @@ const char* const USAGE =
     "  --dump-at T            period of the dumps (0 = after initialisation)\n"
     "  --dump-order FILE      each period's uids in turn order, as t,uid lines (tests)\n"
     "  --dump-loans FILE      the loan book at period --dump-at, in list order\n"
+    "  --disease-list FILE    the master disease list, one 0/1 string per line, in place of the drawn one (tests)\n"
+    "  --dump-diseases FILE   the master disease list in use, as index,canonical,bits lines\n"
     "  --tile K               tile the map K x K (population x K^2)\n"
     "  --timing FILE          timing JSON\n"
     "  --check                check invariants every period (exit 3 on a violation)\n"
@@ -47,6 +49,7 @@ struct UsageError : std::runtime_error {
 
 struct Options {
     std::string config, out, init, dump_agents, dump_landscape, dump_order, dump_loans, timing;
+    std::string disease_list, dump_diseases;  // Chapter V's master list in and out (tests; ruling D1)
     int metrics_every = 1;
     std::optional<int> dump_at;
     int tile = 1;
@@ -71,10 +74,11 @@ void print_version() {
 #endif
     // The build's limits (spec 2026-10-25-gpu-full-parity, section 5); uid_capacity is --uid-capacity's default.
     std::printf("flamegpu = %s\ncuda_runtime = %d.%d\ngpu = %s\nseatbelts = %s\nmax_cells = %u\nmax_tag_bits = %d\n"
-                "max_friends = %u\nmax_sight_looks = %d\nuid_capacity = %u\nloans_per_cell = %u\nmax_heirs = %u\n",
+                "max_friends = %u\nmax_sight_looks = %d\nuid_capacity = %u\nloans_per_cell = %u\nmax_heirs = %u\n"
+                "max_immune_bits = %d\nmax_diseases = %d\n",
                 flamegpu::VERSION_FULL, runtime / 1000, runtime % 1000 / 10, have_device ? device.name : "none",
                 seatbelts, static_cast<unsigned int>(SUGARSCAPE_MAX_CELLS), MAX_TAG_BITS, MAX_FRIENDS, MAX_SIGHT_LOOKS,
-                RunConfig{}.uid_capacity, LOANS_PER_CELL, MAX_HEIRS);
+                RunConfig{}.uid_capacity, LOANS_PER_CELL, MAX_HEIRS, MAX_IMMUNE_BITS, MAX_DISEASES);
     // Flush now: CUDA, started above, can end the process at exit before stdout is flushed (the output was lost
     // in about 1 run in 4, with exit code 0).
     std::fflush(stdout);
@@ -123,6 +127,8 @@ Options parse_args(int argc, const char** argv) {
         else if (arg == "--dump-landscape") o.dump_landscape = value();
         else if (arg == "--dump-order") o.dump_order = value();
         else if (arg == "--dump-loans") o.dump_loans = value();
+        else if (arg == "--disease-list") o.disease_list = value();
+        else if (arg == "--dump-diseases") o.dump_diseases = value();
         else if (arg == "--timing") o.timing = value();
         else if (arg == "--metrics-every") o.metrics_every = to_int(arg, value());
         else if (arg == "--dump-at") o.dump_at = to_int(arg, value());
@@ -180,10 +186,6 @@ int main(int argc, const char** argv) {
                   << "map_capacity_sum = " << std::accumulate(capacity.begin(), capacity.end(), uint64_t{0}) << "\n";
         return EXIT_SUCCESS;
     }
-    if (cfg.disease()) {  // Part D, Task 2 brings the disease state
-        std::fprintf(stderr, "sugarscape_gpu: disease: not on the GPU yet\n");
-        return 2;
-    }
     std::vector<InitAgent> init;
     try {
         if (!opts.init.empty()) {
@@ -199,6 +201,13 @@ int main(int argc, const char** argv) {
     s.cfg = cfg;
     s.capacity = std::move(capacity);
     s.rng.seed(cfg.seed);
+    try {  // Chapter V's master list, first of the host's draws as in Python's Model.__init__
+        make_disease_list(opts.disease_list, opts.dump_diseases);
+        if (cfg.disease() && !opts.init.empty()) canonical_init_diseases(opts.init, init);
+    } catch (const std::runtime_error& e) {
+        std::fprintf(stderr, "sugarscape_gpu: %s\n", e.what());
+        return 2;
+    }
     s.dump_agents = opts.dump_agents;
     s.dump_landscape = opts.dump_landscape;
     s.dump_order = opts.dump_order;

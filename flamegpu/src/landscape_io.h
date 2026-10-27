@@ -41,6 +41,12 @@ struct InitAgent {
     // Chapter IV: spice, initial_spice (default spice), spice_metabolism and foresight; any of them needs spice on.
     std::optional<double> spice, initial_spice;
     std::optional<int> spice_metabolism, foresight;
+    // Chapter V (plan 2026-10-27-gpu-parity-part-d, ruling D2): the immune strings (0/1, bit 0 first; the genotype
+    // defaults to the immune string) and the diseases carried, as master indices in infection order (canonical ids
+    // once the master list is made: canonical_init_diseases). Any of them needs disease on.
+    uint64_t immune = 0, immune_genotype = 0;
+    int immune_count = -1, genotype_count = -1;  // the number of bits given (-1: none given)
+    std::vector<unsigned int> diseases;
 };
 
 // Throws MapError naming the file and line on a bad header, field, or site outside width x height, or two
@@ -50,7 +56,8 @@ std::vector<InitAgent> load_init_agents(const std::string& path, int width, int 
 struct RunConfig;
 // The GPU's limits for --init agents (MapError naming the line): partners in sight within MAX_SIGHT_LOOKS (the turn's
 // partner array), exactly tag_length tags when tags are given, parents and friends naming agents of the file, spice
-// columns only with spice on. Python checks vision against
+// columns only with spice on; disease columns only with disease on, and then every agent's immune string, of
+// immune_length bits, and diseases within the master list (ruling D2). Python checks vision against
 // the grid only for the Config's range, so an agent's own vision is not checked against it.
 void check_init_agents(const std::string& path, const std::vector<InitAgent>& agents, const RunConfig& cfg);
 

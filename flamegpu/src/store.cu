@@ -170,6 +170,10 @@ StoreHost::StoreHost(const RunConfig& cfg, unsigned int uid_capacity, bool check
     alloc(h_.new_amount, rows * LOAN_SLOTS);
     alloc(h_.new_due, rows * LOAN_SLOTS);
     alloc(h_.tags, rows);
+    alloc(h_.immune_genotype, rows);
+    alloc(h_.immune, rows);
+    alloc(h_.n_diseases, rows);
+    alloc(h_.diseases, cfg.disease() ? rows * MAX_DISEASES : 1);
     alloc(h_.key, rows);
     for (unsigned int** p : {&h_.uid, &h_.sex, &h_.n_children, &h_.parent_a, &h_.parent_b, &h_.n_friends, &h_.moved,
                              &h_.neighbors, &h_.start, &h_.target, &h_.rank, &h_.dead, &h_.done, &h_.ran,

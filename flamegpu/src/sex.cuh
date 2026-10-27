@@ -173,6 +173,19 @@ __device__ void mate(API* FLAMEGPU, const Store& s, unsigned int row) {
             s.spice_metabolism[c] = s.spice_metabolism[parents[draw_between(FLAMEGPU, 0, 1)]];
             s.foresight[c] = s.foresight[parents[draw_between(FLAMEGPU, 0, 1)]];
         }
+        // Chapter V, last: the parents' untrained genotypes are crossed as the tags are (p.146); the phenotype copies
+        // the child's, and it carries no disease.
+        uint64_t genotype = 0;
+        if (env.template getProperty<unsigned int>("disease")) {
+            const int immune_length = static_cast<int>(env.template getProperty<unsigned int>("immune_length"));
+            for (int i = 0; i < immune_length; ++i) {
+                const uint64_t ga = (s.immune_genotype[a] >> i) & 1u, gb = (s.immune_genotype[b] >> i) & 1u;
+                genotype |= (ga == gb ? ga : static_cast<uint64_t>(draw_between(FLAMEGPU, 0, 1))) << i;
+            }
+        }
+        s.immune_genotype[c] = genotype;
+        s.immune[c] = genotype;
+        s.n_diseases[c] = 0u;
         s.uid[c] = NO_UID;  // given in creation order after the turns (StoreHost::birth_uids)
         s.n_children[c] = 0u;
         // A parent born this period (possible with fertility from age 0) has no uid yet: name it by its row, marked, until

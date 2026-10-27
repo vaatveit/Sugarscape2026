@@ -1,5 +1,6 @@
 #include "model.h"
 
+#include <array>
 #include <memory>
 
 #include "host_state.h"
@@ -8,6 +9,23 @@
 #include "turns.cuh"
 
 namespace {
+
+// Chapter V's switches and the master list (RunState's disease_bits and disease_len; host_state.cu,
+// make_disease_list), in the main and turns models.
+void disease_properties(flamegpu::EnvironmentDescription env, const RunConfig& cfg) {
+    const RunState& s = state();
+    std::array<uint64_t, MAX_DISEASES> bits{};
+    std::array<unsigned int, MAX_DISEASES> len{};
+    for (size_t i = 0; i < s.disease_bits.size(); ++i) {
+        bits[i] = s.disease_bits[i];
+        len[i] = s.disease_len[i];
+    }
+    env.newProperty<unsigned int>("disease", cfg.disease() ? 1u : 0u);
+    env.newProperty<unsigned int>("immune_length", static_cast<unsigned int>(cfg.immune_length));
+    env.newProperty<double>("disease_fee", cfg.disease_fee);
+    env.newProperty<uint64_t, MAX_DISEASES>("disease_bits", bits);
+    env.newProperty<unsigned int, MAX_DISEASES>("disease_len", len);
+}
 
 void landscape_macros(flamegpu::EnvironmentDescription env, bool all) {
     env.newMacroProperty<unsigned int, MAX_CELLS>("occupied");
@@ -41,6 +59,8 @@ void describe_movement(flamegpu::ModelDescription& sub, const RunConfig& cfg) {
     env.newProperty<unsigned int>("spice", 0u);
     env.newProperty<unsigned int>("cultural_preferences", 0u);
     env.newProperty<unsigned int>("tag_length", 0u);
+    env.newProperty<unsigned int>("disease", 0u);  // Chapter V: the fee counts in welfare (Task 3 of plan 2026-10-27)
+    env.newProperty<double>("disease_fee", 0.0);
     landscape_macros(env, false);
     flamegpu::AgentDescription citizen = sub.newAgent("citizen");
     citizen.newVariable<unsigned int>("look_seed");
@@ -110,6 +130,7 @@ void describe_turns(flamegpu::ModelDescription& sub, const RunConfig& cfg) {
     env.newProperty<int>("credit_duration", 0);
     env.newProperty<double>("credit_rate", 0.0);
     env.newProperty<unsigned int>("t", 0u);  // Python's Model.t: with inheritance, loans join the book in the turn
+    disease_properties(env, cfg);  // Chapter V: rule S crosses the immune genotypes; rule E (disease.cuh)
     env.newProperty<int>("spice_endowment_lo", 0);
     env.newProperty<int>("spice_endowment_hi", 0);
     for (const char* name : {"endowment_lo", "endowment_hi", "fertility_start_lo", "fertility_start_hi",
@@ -191,6 +212,7 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
     env.newProperty<unsigned int>("credit", cfg.credit ? 1u : 0u);                                // rule L (credit.cuh)
     env.newProperty<int>("credit_duration", cfg.credit ? cfg.credit->first : 0);
     env.newProperty<double>("credit_rate", cfg.credit ? cfg.credit->second : 0.0);
+    disease_properties(env, cfg);  // Chapter V (plan 2026-10-27-gpu-parity-part-d): newcomers' immune draws
     env.newProperty<unsigned int>("t", 0u);
     env.newProperty<unsigned int>("round", 1u);
     env.newProperty<unsigned int>("seasons_beta", cfg.seasons ? static_cast<unsigned int>(cfg.seasons->first) : 0u);
@@ -234,6 +256,12 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
     citizen.newVariable<double>("initial_spice");
     citizen.newVariable<int>("spice_metabolism");
     citizen.newVariable<int>("foresight");  // phi (p.129), 0 when myopic
+    // Chapter V state (plan 2026-10-27-gpu-parity-part-d): bit i is Python's element i; the diseases carried are
+    // canonical ids in infection order, the array declared only with disease on so other runs carry none of it.
+    citizen.newVariable<uint64_t>("immune_genotype");
+    citizen.newVariable<uint64_t>("immune");
+    citizen.newVariable<unsigned int>("n_diseases");
+    if (cfg.disease()) citizen.newVariable<uint8_t, MAX_DISEASES>("diseases");
     flamegpu::AgentDescription cell = model.newAgent("cell");
     cell.newVariable<unsigned int>("capacity");  // the site's sugar capacity (make_cells)
     cell.newVariable<unsigned int>("spice_capacity");  // the sugar map mirrored east-west, 0 without spice (make_cells)

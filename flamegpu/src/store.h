@@ -56,6 +56,11 @@ struct Store {
     unsigned int* n_new;
     unsigned int width;  // the world's width, for touch_row
     uint64_t* tags;
+    // Chapter V (plan 2026-10-27-gpu-parity-part-d): the immune strings, and the diseases carried, MAX_DISEASES
+    // canonical ids per row with disease on (one row's worth otherwise), the first n_diseases in infection order.
+    uint64_t *immune_genotype, *immune;
+    unsigned int* n_diseases;
+    uint8_t* diseases;
     unsigned int *uid, *sex, *n_children, *parent_a, *parent_b, *friend_uid, *friend_dist, *n_friends;
     unsigned int *moved, *neighbors;
     unsigned int* look_seed;      // the period's looks (start_period), for partners in sight and combat

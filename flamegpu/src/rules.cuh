@@ -89,7 +89,7 @@ __device__ __forceinline__ int draw_between(API* FLAMEGPU, int lo, int hi) {
     return lo + static_cast<int>(FLAMEGPU->random.template uniform<uint64_t>(0ull, static_cast<uint64_t>(hi - lo)));
 }
 
-// `bits` uniform random bits (at most 63), bit 0 first, drawn 32 at a time.
+// `bits` uniform random bits (at most 64), bit 0 first, drawn 32 at a time.
 template <typename API>
 __device__ __forceinline__ uint64_t random_bits(API* FLAMEGPU, int bits) {
     uint64_t out = 0;
@@ -143,6 +143,12 @@ __device__ __forceinline__ void init_citizen_out(flamegpu::DeviceAPI<flamegpu::M
     for (unsigned int f = 0; f < MAX_FRIENDS; ++f) {
         out.setVariable<unsigned int, MAX_FRIENDS>("friend_uid", f, 0u);
         out.setVariable<unsigned int, MAX_FRIENDS>("friend_dist", f, 0u);
+    }
+    out.setVariable<uint64_t>("immune_genotype", 0ull);
+    out.setVariable<uint64_t>("immune", 0ull);
+    out.setVariable<unsigned int>("n_diseases", 0u);
+    if (FLAMEGPU->environment.getProperty<unsigned int>("disease")) {  // the array exists only with disease on
+        for (unsigned int k = 0; k < MAX_DISEASES; ++k) out.setVariable<uint8_t, MAX_DISEASES>("diseases", k, 0u);
     }
 }
 
@@ -203,6 +209,12 @@ __device__ __forceinline__ void output_newcomer(flamegpu::DeviceAPI<flamegpu::Me
             FLAMEGPU->agent_out.setVariable<int>(
                 "foresight", draw_between(FLAMEGPU, env.getProperty<int>("foresight_lo"), env.getProperty<int>("foresight_hi")));
         }
+    }
+    // Chapter V's draw comes last: the immune genotype, which the phenotype copies (p.146).
+    if (env.getProperty<unsigned int>("disease")) {
+        const uint64_t genotype = random_bits(FLAMEGPU, static_cast<int>(env.getProperty<unsigned int>("immune_length")));
+        FLAMEGPU->agent_out.setVariable<uint64_t>("immune_genotype", genotype);
+        FLAMEGPU->agent_out.setVariable<uint64_t>("immune", genotype);
     }
     // Its uid comes after placement, in the order of the deaths (turns.cuh, newcomer_post / newcomer_take).
     FLAMEGPU->agent_out.setVariable<uint64_t>("death_key", death_key);

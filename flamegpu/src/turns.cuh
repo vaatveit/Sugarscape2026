@@ -46,6 +46,13 @@ FLAMEGPU_AGENT_FUNCTION(publish, flamegpu::MessageNone, flamegpu::MessageNone) {
     s.spice_metabolism[row] = FLAMEGPU->getVariable<int>("spice_metabolism");
     s.foresight[row] = FLAMEGPU->getVariable<int>("foresight");
     s.tags[row] = FLAMEGPU->getVariable<uint64_t>("tags");
+    s.immune_genotype[row] = FLAMEGPU->getVariable<uint64_t>("immune_genotype");
+    s.immune[row] = FLAMEGPU->getVariable<uint64_t>("immune");
+    const unsigned int n_diseases = FLAMEGPU->getVariable<unsigned int>("n_diseases");
+    s.n_diseases[row] = n_diseases;
+    for (unsigned int k = 0; k < n_diseases; ++k) {  // none without disease
+        s.diseases[row * MAX_DISEASES + k] = FLAMEGPU->getVariable<uint8_t, MAX_DISEASES>("diseases", k);
+    }
     const unsigned int uid = FLAMEGPU->getVariable<unsigned int>("uid");
     s.uid[row] = uid;
     s.sex[row] = FLAMEGPU->getVariable<unsigned int>("sex");
@@ -130,6 +137,11 @@ FLAMEGPU_AGENT_FUNCTION(absorb, flamegpu::MessageNone, flamegpu::MessageNone) {
     FLAMEGPU->setVariable<double>("sugar", s.sugar[row]);
     FLAMEGPU->setVariable<double>("spice", s.spice[row]);
     FLAMEGPU->setVariable<uint64_t>("tags", s.tags[row]);
+    FLAMEGPU->setVariable<uint64_t>("immune", s.immune[row]);
+    FLAMEGPU->setVariable<unsigned int>("n_diseases", s.n_diseases[row]);
+    for (unsigned int k = 0; k < s.n_diseases[row]; ++k) {
+        FLAMEGPU->setVariable<uint8_t, MAX_DISEASES>("diseases", k, s.diseases[row * MAX_DISEASES + k]);
+    }
     FLAMEGPU->setVariable<unsigned int>("n_children", s.n_children[row]);
     FLAMEGPU->setVariable<unsigned int>("n_friends", s.n_friends[row]);
     for (unsigned int f = 0; f < MAX_FRIENDS; ++f) {
@@ -189,6 +201,12 @@ FLAMEGPU_AGENT_FUNCTION(spawn_newborns, flamegpu::MessageNone, flamegpu::Message
     out.setVariable<int>("fertility_start", s.fertility_start[c]);
     out.setVariable<int>("fertility_end", s.fertility_end[c]);
     out.setVariable<uint64_t>("tags", s.tags[c]);
+    out.setVariable<uint64_t>("immune_genotype", s.immune_genotype[c]);
+    out.setVariable<uint64_t>("immune", s.immune[c]);
+    out.setVariable<unsigned int>("n_diseases", s.n_diseases[c]);  // a newborn may be infected in its birth period
+    for (unsigned int k = 0; k < s.n_diseases[c]; ++k) {
+        out.setVariable<uint8_t, MAX_DISEASES>("diseases", k, s.diseases[c * MAX_DISEASES + k]);
+    }
     out.setVariable<unsigned int>("parent_a", s.parent_a[c]);
     out.setVariable<unsigned int>("parent_b", s.parent_b[c]);
     out.setVariable<unsigned int>("n_children", s.n_children[c]);  // a newborn may already be a parent (fertility from 0)
