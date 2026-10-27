@@ -73,6 +73,7 @@ __device__ void seek_credit(API* FLAMEGPU, const Store& s, unsigned int row, dou
             for (unsigned int k = first; k < end; ++k) {
                 const unsigned int e = s.loan_entry[k];
                 const int lr = s.book.lender_row[e];
+                if (lr < 0) continue;  // no row: the lender is gone (ruling D4; rebuild_loans keeps no such loan)
                 touch_row(s, static_cast<unsigned int>(lr), s.rank[a], 13);
                 if (!s.dead[lr]) owed += s.book.due[e];
             }
@@ -101,10 +102,11 @@ __device__ void seek_credit(API* FLAMEGPU, const Store& s, unsigned int row, dou
 }
 
 // Python credit.on_death for the row's agent starving in its turn, with inheritance (serial mode): its loans as
-// borrower go, and its loans as lender pass to its living children (heirs.cuh, heirs_in_order).
+// borrower go, and its loans as lender pass to its living children (heirs.cuh, heirs_in_order). Only a lender's heirs are
+// counted, so MAX_HEIRS limits only deaths with loans to pass on.
 __device__ __forceinline__ void credit_on_death(const Store& s, unsigned int row) {
     unsigned int heirs[MAX_HEIRS];
-    const unsigned int n = heirs_in_order(s, row, heirs);
+    const unsigned int n = book_lends(s.book, s.uid[row]) ? heirs_in_order(s, row, heirs) : 0u;
     book_on_death(s.book, s.uid[row], heirs, n);
 }
 

@@ -401,8 +401,8 @@ __global__ void k_fix_friends(unsigned int n, Store s) {
 __global__ void k_fix_loans(Store s) {
     const Loans& b = s.book;
     for (unsigned int e = 0; e < *b.n; ++e) {
-        if (b.lender[e] & 0x80000000u) b.lender[e] = s.uid[b.lender[e] & 0x7FFFFFFFu];
-        if (b.borrower[e] & 0x80000000u) b.borrower[e] = s.uid[b.borrower[e] & 0x7FFFFFFFu];
+        if (b.lender[e] & PROVISIONAL_PARENT) b.lender[e] = s.uid[b.lender[e] & ~PROVISIONAL_PARENT];
+        if (b.borrower[e] & PROVISIONAL_PARENT) b.borrower[e] = s.uid[b.borrower[e] & ~PROVISIONAL_PARENT];
     }
 }
 

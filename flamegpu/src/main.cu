@@ -39,6 +39,7 @@ const char* const USAGE =
     "  --force-turns          run every turn after movement in the ordered turns, even without an interaction rule\n"
     "  --serial-turns         run the turns one per wave, strictly in the period's order\n"
     "  --uid-capacity N       the most agents a run may create (default 16777216; exit 5 beyond it)\n"
+    "  --loan-capacity N      the loans the book holds (default 2 per site; exit 5 beyond it; tests)\n"
     "  --print-config         print the effective configuration and exit\n"
     "  --version              print the FLAME GPU, CUDA and GPU versions and the build's settings, and exit\n"
     "  --help                 this text\n";
@@ -55,7 +56,7 @@ struct Options {
     int tile = 1;
     bool check = false;
     bool force_turns = false, serial_turns = false;
-    std::optional<unsigned int> uid_capacity;
+    std::optional<unsigned int> uid_capacity, loan_capacity;
     bool print_config = false;
     bool help = false;
     bool version = false;
@@ -119,6 +120,7 @@ Options parse_args(int argc, const char** argv) {
         else if (arg == "--force-turns") o.force_turns = true;
         else if (arg == "--serial-turns") o.serial_turns = true;
         else if (arg == "--uid-capacity") o.uid_capacity = to_count(arg, value());
+        else if (arg == "--loan-capacity") o.loan_capacity = to_count(arg, value());
         else if (arg == "--print-config") o.print_config = true;
         else if (arg == "--config") o.config = value();
         else if (arg == "--out") o.out = value();
@@ -171,6 +173,7 @@ int main(int argc, const char** argv) {
         cfg.force_turns = opts.force_turns;
         cfg.serial_turns = opts.serial_turns;
         if (opts.uid_capacity) cfg.uid_capacity = *opts.uid_capacity;
+        if (opts.loan_capacity) cfg.loan_capacity = *opts.loan_capacity;
         apply_tile(cfg, opts.tile);
         validate(cfg);
         setup_start = std::chrono::steady_clock::now();

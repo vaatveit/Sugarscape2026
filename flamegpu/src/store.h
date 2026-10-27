@@ -29,6 +29,8 @@ constexpr unsigned int STORE_ROW_CAPACITY = 2u;  // a newborn found no row (cann
 constexpr unsigned int STORE_HEIR_CAPACITY = 4u;  // a death in a turn with more than MAX_HEIRS heirs (heirs.cuh)
 constexpr unsigned int MAX_HEIRS = 32;           // spec 2026-10-25-gpu-full-parity, section 5
 constexpr unsigned int NO_SITE = 0xFFFFFFFFu;  // the group after a site's last
+// A newborn parent's, lender's or heir's row, until its uid exists (StoreHost::birth_uids): the row with this bit set.
+constexpr unsigned int PROVISIONAL_PARENT = 0x80000000u;
 
 // Device pointers. Rows are indexed by `row`, a citizen's index at publish (rows from n_rows on are newborns).
 struct Store {

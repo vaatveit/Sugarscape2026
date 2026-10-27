@@ -240,3 +240,64 @@ def test_credit_inheritance_check(exe, tmp_path):
     cfg = {**_registry("IV-A5", inheritance="true"), "steps": "20"}
     result = run_exe(exe, "--config", write_cfg(tmp_path, **cfg), "--check")
     assert result.returncode == 0, result.stderr
+
+
+# --- Part C's deferred minors (plan 2026-10-27-gpu-parity-part-d, Task 4) ------------------------------------------
+
+
+def test_full_book_reoriginates(exe, tmp_path):
+    # A book of exactly its capacity settles and re-originates: test_partial_repayment_reoriginates with room for one.
+    cfg = {**CREDIT, "credit": "10,50.0"}
+    agents = [_lender(), _borrower(sugar=50.0, metabolism=5)]
+    gpu = run_gpu(exe, tmp_path, cfg, CAPACITY, agents, steps=11, extra_args=("--loan-capacity", "1"))
+    assert gpu.returncode == 0, gpu.stderr
+    py = run_python(cfg, CAPACITY, agents, 11)
+    assert _compare(gpu, py) == []
+    assert [loan["due_t"] for loan in py.loans] == [20]
+
+
+def test_book_over_capacity_exits_5(exe, tmp_path):
+    # Two old lenders beside the borrower each lend 15 in period 1: two loans, one more than the book holds.
+    agents = [_lender(sugar=30.0), _lender(x=2, y=4, sugar=30.0), _borrower()]
+    py = run_python(CREDIT, CAPACITY, agents, 1)
+    assert len(py.loans) == 2
+    (tmp_path / "small").mkdir()
+    small = run_gpu(exe, tmp_path / "small", CREDIT, CAPACITY, agents, steps=1, extra_args=("--loan-capacity", "1"))
+    assert small.returncode == 5, small.stderr
+    assert "loan book capacity 1 exceeded" in small.stderr
+    gpu = run_gpu(exe, tmp_path, CREDIT, CAPACITY, agents, steps=1)
+    assert gpu.returncode == 0, gpu.stderr
+    by_lender = lambda book: sorted(book, key=lambda loan: loan["lender"])  # noqa: E731  (the borrower asks in random order)
+    gpu.loans, py.loans = by_lender(gpu.loans), by_lender(py.loans)
+    assert _compare(gpu, py) == []
+
+
+WIDE = np.zeros((24, 24), dtype=int)
+WIDE[3, 4] = 10
+HEIRS = {"sex": "true", "inheritance": "true", "credit": "10,10.0", "vision": "1,1"}
+
+
+def _many_children(parent: dict) -> list[dict]:
+    """The parent P first, then 33 of its children: one more than a death in a turn may have (MAX_HEIRS)."""
+    children = [{"x": 2 * (i % 11), "y": 12 + 2 * (i // 11), "vision": 1, "metabolism": 0, "sugar": 10.0, "age": 0,
+                 "max_age": None, "sex": "F", "fertility_start": 12, "fertility_end": 40, "initial_sugar": 10.0,
+                 "parent_a": 0} for i in range(33)]
+    return [parent, *children]
+
+
+def test_many_children_non_lender_starves(exe, tmp_path):
+    # P starves in its turn and lends nothing, so its 33 children never need counting as loan heirs.
+    parent = {"x": 3, "y": 3, "vision": 1, "metabolism": 2, "sugar": 1.0, "age": 30, "max_age": None, "sex": "M",
+              "fertility_start": 12, "fertility_end": 50, "initial_sugar": 1.0}
+    gpu = run_gpu(exe, tmp_path, HEIRS, np.zeros((24, 24), dtype=int), _many_children(parent), steps=1)
+    assert gpu.returncode == 0, gpu.stderr
+    assert len(gpu.agents) == 33
+
+
+def test_many_children_lender_exits_5(exe, tmp_path):
+    # P lends to B in period 1 and starves by period 2 in either order: its loan's heirs are beyond the GPU's limit.
+    parent = {"x": 3, "y": 3, "vision": 1, "metabolism": 60, "sugar": 100.0, "age": 70, "max_age": None, "sex": "M",
+              "fertility_start": 12, "fertility_end": 50, "initial_sugar": 100.0}
+    gpu = run_gpu(exe, tmp_path, HEIRS, WIDE, [*_many_children(parent), _borrower()], steps=2)
+    assert gpu.returncode == 5, gpu.stderr
+    assert "more than 32 heirs" in gpu.stderr

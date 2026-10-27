@@ -11,7 +11,6 @@
 // The most partners a turn considers: four lines of looks (validate() bounds vision / look_stride).
 constexpr int MAX_PARTNERS = 4 * MAX_SIGHT_LOOKS;
 constexpr double GIFT_CAP = 5.0;  // Ascape's most a parent gives a child (child_gift = "capped")
-constexpr unsigned int PROVISIONAL_PARENT = 0x80000000u;  // a newborn parent's row, until its uid exists
 
 // Of childbearing age and holding at least the share of its birth endowment the threshold asks (p.55).
 __device__ __forceinline__ bool is_fertile(const Store& s, int r, double threshold) {

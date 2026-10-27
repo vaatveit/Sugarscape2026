@@ -102,6 +102,7 @@ struct RunConfig {
     bool force_turns = false;              // --force-turns: the turns even without an interaction rule (tests)
     bool serial_turns = false;             // --serial-turns: one turn per wave, in the period's order
     unsigned int uid_capacity = 1u << 24;  // --uid-capacity: the most agents a run may create
+    unsigned int loan_capacity = 0;        // --loan-capacity: the loan book's (tests); 0 is LOANS_PER_CELL x cells
 
     // Whether every turn after movement runs in the ordered turns (spec section 1).
     // Inheritance counts: its old-age layers live on the turns path, and a run may give children through --init.

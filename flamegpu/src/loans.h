@@ -9,11 +9,16 @@
 
 // Python's credit.Loan: lender and borrower are uids, in list order. The device copy is part of the Store.
 struct Loans {
-    unsigned int capacity;  // 2 x cells (exit 5 beyond it)
+    unsigned int capacity;  // 2 x cells, or --loan-capacity (exit 5 beyond it)
     unsigned int* n;        // loans in the book
     unsigned int *lender, *borrower;
     double *principal, *due;
     int* due_t;
+    // A list being built apart from the book, of the same capacity (book.cuh): on_death's new list, and the ledger's
+    // re-originated loans until they join it.
+    unsigned int *stage_lender, *stage_borrower;
+    double *stage_principal, *stage_due;
+    int* stage_due_t;
     int *lender_row, *borrower_row;  // this period's rows (LoanBook::index, at schedule)
     double* ledger_sugar;            // the end of the period: each citizen's sugar by its index (ledger_post)
     unsigned int* errors;            // LOAN_CAPACITY_ERROR
@@ -34,7 +39,8 @@ struct Dying;
 
 class LoanBook {
  public:
-    LoanBook(unsigned int cells, unsigned int rows);
+    // capacity: the loans the book holds (--loan-capacity; 0 is LOANS_PER_CELL x cells).
+    LoanBook(unsigned int cells, unsigned int rows, unsigned int capacity = 0);
     ~LoanBook();
     LoanBook(const LoanBook&) = delete;
     LoanBook& operator=(const LoanBook&) = delete;
@@ -46,6 +52,7 @@ class LoanBook {
 
  private:
     Loans h_{};
+    bool per_cell_ = true;  // the capacity is LOANS_PER_CELL x cells, as the error says
 };
 
 // At schedule, after publish: each loan's lender and borrower rows, and each row's start-of-period loans as borrower

@@ -298,7 +298,7 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
         env.setProperty<uint64_t>("store", s.store->device_address());
         if (cfg.credit) {  // rule L's loan book (loans.h), read and extended through the store
             const unsigned int cells = static_cast<unsigned int>(cfg.cells());
-            s.loans = std::make_unique<LoanBook>(cells, 2 * cells);
+            s.loans = std::make_unique<LoanBook>(cells, 2 * cells, cfg.loan_capacity);
             s.store->attach_loans(s.loans->device());
         }
         flamegpu::ModelDescription turns("turns");  // sorts after "movement": its random stream stays as it was
