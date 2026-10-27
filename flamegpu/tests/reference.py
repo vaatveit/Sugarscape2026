@@ -48,6 +48,15 @@ def config_from_cfg(cfg: dict) -> Config:
     alpha = values["combat_alpha"]
     kwargs["combat_alpha"] = None if alpha == "" else math.inf if alpha == "inf" else float(alpha)
     kwargs["replacement_same_tribe"] = values["replacement_same_tribe"] == "true"
+    # Chapter IV (Part C).
+    for key in ("spice", "cultural_preferences", "trade"):
+        kwargs[key] = values[key] == "true"
+    for key in ("spice_metabolism", "spice_endowment", "foresight"):
+        kwargs[key] = tuple(int(v) for v in values[key].split(",")) if values[key] else None
+    kwargs["trade_rounding"] = values["trade_rounding"]
+    if values["credit"]:
+        d, r = values["credit"].split(",")
+        kwargs["credit"] = (int(d), float(r))
     return Config(**kwargs)
 
 
@@ -67,6 +76,13 @@ def build_python(cfg: dict, capacity: np.ndarray, agents: list[dict]) -> Model:
             agent.initial_sugar = float(a["initial_sugar"])
         if a.get("tags") is not None:
             agent.tags = [int(c) for c in a["tags"]]
+        # Chapter IV (Part C): spice, its initial endowment (the spice by default), metabolism and foresight.
+        if a.get("spice") is not None:
+            agent.spice = float(a["spice"])
+            agent.initial_spice = float(a["spice"] if a.get("initial_spice") is None else a["initial_spice"])
+        for key in ("spice_metabolism", "foresight"):
+            if a.get(key) is not None:
+                setattr(agent, key, int(a[key]))
         # Children that died before the run: they count in mean_children (len(children)) and nowhere else.
         agent.children = [Agent(-1, -1, -1, 1, 1, 0.0, 0.0, 0, alive=False) for _ in range(a.get("n_children", 0))]
     # Parents given as the index (= uid) of another --init agent: the child joins their children (rule I's heirs).
@@ -96,6 +112,42 @@ def python_metric_rows(cfg: dict, capacity: np.ndarray, agents: list[dict], step
 def run_python(cfg: dict, capacity: np.ndarray, agents: list[dict], steps: int) -> Dump:
     model = build_python(cfg, capacity, agents)
     model.run(steps)
+    return python_dump(model, capacity)
+
+
+class _OrderedRng:
+    """The model's generator, except that the next permutation drawn is `order` when it is set: Model.step's first
+    draw is the period's turn order."""
+
+    def __init__(self, rng):
+        self._rng = rng
+        self.order = None
+
+    def __getattr__(self, name):
+        return getattr(self._rng, name)
+
+    def permutation(self, n):
+        if self.order is None:
+            return self._rng.permutation(n)
+        order, self.order = self.order, None
+        assert len(order) == n, (len(order), n)
+        return np.array(order)
+
+
+def run_python_in_order(cfg: dict, capacity: np.ndarray, agents: list[dict], orders: list[list[int]]) -> Dump:
+    """Python stepped once per entry of `orders`, each period's turns in that order of uids (gpu.period_orders);
+    every other draw is Python's own."""
+    model = build_python(cfg, capacity, agents)
+    rng = _OrderedRng(model.rng)
+    model.rng = rng
+    for uids in orders:
+        index = {a.id: i for i, a in enumerate(model.agents)}
+        rng.order = [index[u] for u in uids]
+        model.step()
+    return python_dump(model, capacity)
+
+
+def python_dump(model: Model, capacity: np.ndarray) -> Dump:
     dump = Dump()
     for a in model.agents:
         dump.agents.append({"x": a.x, "y": a.y, "vision": a.vision, "metabolism": a.metabolism, "sugar": a.sugar,
@@ -105,12 +157,16 @@ def run_python(cfg: dict, capacity: np.ndarray, agents: list[dict], steps: int) 
                             "uid": a.id, "sex": a.sex or "", "initial_sugar": a.initial_sugar,
                             "n_children": len(a.children),
                             "tags": "" if a.tags is None else "".join(str(t) for t in a.tags),
-                            "friends": "|".join(f"{f.id}:{d}" for f, d in a.friends)})
+                            "friends": "|".join(f"{f.id}:{d}" for f, d in a.friends),
+                            # Chapter IV (Part C).
+                            "spice": a.spice, "initial_spice": a.initial_spice,
+                            "spice_metabolism": a.spice_metabolism, "foresight": a.foresight})
     ls = model.landscape
     width, height = capacity.shape
     for x in range(width):
         for y in range(height):
             dump.landscape[(x, y)] = {"capacity": int(ls.capacity[x, y]), "sugar": float(ls.sugar[x, y]),
                                       "pollution": float(ls.pollution[x, y]),
-                                      "occupied": int(model.agent_at(x, y) is not None)}
+                                      "occupied": int(model.agent_at(x, y) is not None),
+                                      "spice": float(ls.spice[x, y]), "spice_capacity": int(ls.spice_capacity[x, y])}
     return dump

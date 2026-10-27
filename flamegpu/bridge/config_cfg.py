@@ -1,5 +1,5 @@
-"""A registered Config as a run.cfg for the GPU program: Chapters II and III (spec 2026-10-25-gpu-full-parity, Parts A
-and B)."""
+"""A registered Config as a run.cfg for the GPU program: Chapters II to IV (spec 2026-10-25-gpu-full-parity, Parts A
+to C)."""
 
 import math
 from dataclasses import MISSING, Field, fields
@@ -17,7 +17,10 @@ FIELDS = ("width", "height", "initial_population", "placement", "block", "vision
           "culture", "initial_blocks", "fertility_threshold", "child_share", "mate_contact", "child_gift",
           "child_threshold", "gift_rounding",
           # Combat and same-tribe replacement (Part B).
-          "combat_alpha", "replacement_same_tribe")
+          "combat_alpha", "replacement_same_tribe",
+          # Chapter IV (Part C).
+          "spice", "spice_metabolism", "spice_endowment", "foresight", "cultural_preferences", "trade",
+          "trade_rounding", "credit")
 # Read too, but written as run.cfg's map path rather than as its own line.
 READ_AS_MAP = "sugar_map"
 

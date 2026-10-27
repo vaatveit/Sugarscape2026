@@ -13,12 +13,10 @@
 
 namespace {
 
-// Python Config fields the GPU does not implement yet (spec 2026-10-25-gpu-full-parity, Parts C and D). sugar_map is
+// Python Config fields the GPU does not implement yet (spec 2026-10-25-gpu-full-parity, Part D). sugar_map is
 // run.cfg's map path.
 const std::set<std::string> UNSUPPORTED = {
-    "sugar_map", "spice", "spice_metabolism", "spice_endowment",
-    "foresight", "cultural_preferences", "trade", "trade_rounding", "credit", "disease_list",
-    "diseases_per_agent", "disease_length", "immune_length", "disease_fee"};
+    "sugar_map", "disease_list", "diseases_per_agent", "disease_length", "immune_length", "disease_fee"};
 
 std::string trim(const std::string& s) {
     const auto b = s.find_first_not_of(" \t\r\n");
@@ -161,7 +159,8 @@ const std::set<std::string> KNOWN = {
     "pollution_start", "pollution_stop", "diffusion_period", "diffusion_start", "diffusion_passes", "look_stride", "steps",
     "seed", "sex", "fertility_start", "female_fertility_end", "male_fertility_end", "inheritance", "tag_length",
     "culture", "initial_blocks", "fertility_threshold", "child_share", "mate_contact", "child_gift", "child_threshold",
-    "gift_rounding", "combat_alpha", "replacement_same_tribe"};
+    "gift_rounding", "combat_alpha", "replacement_same_tribe", "spice", "spice_metabolism", "spice_endowment",
+    "foresight", "cultural_preferences", "trade", "trade_rounding", "credit"};
 
 [[noreturn]] void invalid(const std::string& message) { throw ConfigError("invalid configuration: " + message); }
 
@@ -174,6 +173,10 @@ void check_range(const char* name, const IntRange& r) {
 std::string fmt(double v) {
     if (std::isinf(v)) return v > 0 ? "inf" : "-inf";
     char buf[64];
+    if (v == std::floor(v) && std::fabs(v) < 1e15) {  // whole numbers without an exponent: 10, not 1e+01
+        std::snprintf(buf, sizeof(buf), "%.0f", v);
+        return buf;
+    }
     for (int digits = 1; digits <= 17; ++digits) {
         std::snprintf(buf, sizeof(buf), "%.*g", digits, v);
         if (std::strtod(buf, nullptr) == v) break;
@@ -263,6 +266,18 @@ RunConfig parse_config(const std::string& path) {
         cfg.combat_alpha = r.raw("combat_alpha") == "inf" ? INFINITY : r.real("combat_alpha", r.raw("combat_alpha"));
     }
     r.get("replacement_same_tribe", cfg.replacement_same_tribe);
+    r.get("spice", cfg.spice);
+    r.get("spice_metabolism", cfg.spice_metabolism);
+    r.get("spice_endowment", cfg.spice_endowment);
+    r.get("foresight", cfg.foresight);
+    r.get("cultural_preferences", cfg.cultural_preferences);
+    r.get("trade", cfg.trade);
+    r.get("trade_rounding", cfg.trade_rounding);
+    if (r.has("credit")) {  // "d,r": an integer duration, then a rate in percent
+        const auto parts = split(r.raw("credit"), ',');
+        if (parts.size() != 2) r.fail("credit", "expected d,r (a duration, then a rate)");
+        cfg.credit = std::make_pair(static_cast<int>(r.integer("credit", parts[0])), r.real("credit", parts[1]));
+    }
     r.get("steps", cfg.steps);
     r.get("seed", cfg.seed);
     return cfg;
@@ -374,6 +389,24 @@ void validate(const RunConfig& cfg) {
     check_option("child_gift", cfg.child_gift, {"endowment", "capped"});
     check_option("child_threshold", cfg.child_threshold, {"endowment", "redraw"});
     check_option("gift_rounding", cfg.gift_rounding, {"exact", "down"});
+    // Chapter IV (Python Config.__post_init__).
+    check_range("spice_metabolism", cfg.spice_metabolism);
+    if (cfg.spice_endowment) check_range("spice_endowment", *cfg.spice_endowment);
+    if (cfg.foresight) check_range("foresight", *cfg.foresight);
+    if (!cfg.spice && (cfg.trade || cfg.cultural_preferences || cfg.foresight.has_value())) {
+        invalid("trade, cultural preferences, and foresight need the second commodity (spice=True)");
+    }
+    if (cfg.cultural_preferences && cfg.tag_length == 0) invalid("cultural preferences need cultural tags (tag_length > 0)");
+    if (cfg.spice && cfg.combat()) invalid("combat is defined for sugar only (p.83); not with spice");
+    if (cfg.credit) {
+        if (!cfg.sex) invalid("credit L_dr lends for childbearing; it needs sex=True");
+        if (cfg.combat()) invalid("credit needs each agent's income, which combat movement doesn't record");
+        if (cfg.credit->first < 1 || !(cfg.credit->second >= 0)) {
+            invalid("credit duration must be >= 1 and rate >= 0, not " + std::to_string(cfg.credit->first) + "," +
+                    fmt(cfg.credit->second));
+        }
+    }
+    check_option("trade_rounding", cfg.trade_rounding, {"exact", "down"});
 }
 
 void print_config(std::ostream& out, const RunConfig& cfg) {
@@ -422,6 +455,14 @@ void print_config(std::ostream& out, const RunConfig& cfg) {
         << "gift_rounding = " << cfg.gift_rounding << "\n"
         << "combat_alpha = " << (cfg.combat_alpha ? fmt(*cfg.combat_alpha) : "") << "\n"
         << "replacement_same_tribe = " << (cfg.replacement_same_tribe ? "true" : "false") << "\n"
+        << "spice = " << (cfg.spice ? "true" : "false") << "\n"
+        << "spice_metabolism = " << fmt(cfg.spice_metabolism) << "\n"
+        << "spice_endowment = " << (cfg.spice_endowment ? fmt(*cfg.spice_endowment) : "") << "\n"
+        << "foresight = " << (cfg.foresight ? fmt(*cfg.foresight) : "") << "\n"
+        << "cultural_preferences = " << (cfg.cultural_preferences ? "true" : "false") << "\n"
+        << "trade = " << (cfg.trade ? "true" : "false") << "\n"
+        << "trade_rounding = " << cfg.trade_rounding << "\n"
+        << "credit = " << (cfg.credit ? std::to_string(cfg.credit->first) + "," + fmt(cfg.credit->second) : "") << "\n"
         << "steps = " << cfg.steps << "\n"
         << "seed = " << cfg.seed << "\n";
 }
