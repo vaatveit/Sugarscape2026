@@ -24,6 +24,12 @@ struct AgentColumns {
     std::vector<int> foresight;
 };
 
+// The period's exchanges (rule T): their count, the mean and the sum of squared deviations (M2) of ln p, and the
+// sugar and spice moved (StoreHost::trade_totals; all zero in a period without trade, and at t = 0).
+struct TradeTotals {
+    double n = 0, mean = 0, m2 = 0, sugar = 0, spice = 0;
+};
+
 struct MetricsRow {
     unsigned int t;
     std::vector<double> values;  // one per metric_names() entry
@@ -35,7 +41,7 @@ const std::vector<std::string>& metric_names();
 // Means and fractions of nothing are nan, as Python's safe_mean and _fraction; gini is nan for an empty or
 // zero-wealth population. agents_ever counts every agent created so far, as Python's Model.agents_ever.
 MetricsRow compute_metrics(const AgentColumns& agents, const RunConfig& cfg, const std::vector<uint32_t>& capacity,
-                           unsigned int t, unsigned int agents_ever);
+                           unsigned int t, unsigned int agents_ever, const TradeTotals& trade);
 
 class CsvWriter {
  public:

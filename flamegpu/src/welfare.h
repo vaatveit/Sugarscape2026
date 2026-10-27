@@ -4,6 +4,7 @@
 #ifndef SRC_WELFARE_H_
 #define SRC_WELFARE_H_
 
+#include <cfloat>
 #include <cmath>
 #include <cstdint>
 
@@ -34,6 +35,11 @@ WELFARE_FN double welfare(double sugar_burn, int spice_metabolism, double f, dou
     return left * right;
 }
 
+// Infinity and finiteness by comparison: MSVC's std::isinf and std::isfinite are host-only templates, which device code
+// must not call.
+WELFARE_FN bool is_infinite(double v) { return v > DBL_MAX || v < -DBL_MAX; }
+WELFARE_FN bool is_finite(double v) { return v == v && !is_infinite(v); }
+
 // Spice the agent would give for one sugar: (w2 / a2) / (w1 / a1) (eq. 3, eq. 5's form); inf or 0 when a holding or a
 // weight is zero, nan when both sides are.
 WELFARE_FN double mrs(double sugar_burn, int spice_metabolism, double f, double w1, double w2) {
@@ -43,7 +49,7 @@ WELFARE_FN double mrs(double sugar_burn, int spice_metabolism, double f, double 
     const double numerator = a2 == 0.0 ? INFINITY : w2 / a2;
     const double denominator = a1 == 0.0 ? INFINITY : w1 / a1;
     if (denominator == 0.0) return numerator > 0.0 ? INFINITY : NAN;
-    if (std::isinf(denominator)) return std::isfinite(numerator) ? 0.0 : NAN;
+    if (is_infinite(denominator)) return is_finite(numerator) ? 0.0 : NAN;
     return numerator / denominator;
 }
 

@@ -41,6 +41,7 @@ struct RunState {
     unsigned int waves_this_period = 0;
     unsigned int newborns_this_period = 0;  // rule S's children, for --check's population count
     std::vector<unsigned int> waves;     // per completed period, for --timing's waves_mean
+    TradeTotals trades;                  // the last period's exchanges (turns.cuh, total_trades)
     // Output options.
     std::string dump_agents, dump_landscape;
     std::string dump_order;  // --dump-order: each period's uids in turn order (record_order; tests)

@@ -101,8 +101,11 @@ void describe_turns(flamegpu::ModelDescription& sub, const RunConfig& cfg) {
     env.newProperty<unsigned int>("combat", 0u);  // combat C_alpha replaces the move (combat.cuh)
     env.newProperty<double>("combat_alpha", 0.0);
     env.newProperty<unsigned int>("inheritance", 0u);  // rule I for deaths in a turn (heirs.cuh, pay_heirs)
-    // Chapter IV in the turn: spice, and rule S's redrawn initial spice (sex.cuh).
+    // Chapter IV in the turn: spice, and rule S's redrawn initial spice (sex.cuh); rule T (trade.cuh).
     env.newProperty<unsigned int>("spice", 0u);
+    env.newProperty<unsigned int>("trade", 0u);
+    env.newProperty<unsigned int>("trade_down", 0u);
+    env.newProperty<unsigned int>("cultural_preferences", 0u);
     env.newProperty<int>("spice_endowment_lo", 0);
     env.newProperty<int>("spice_endowment_hi", 0);
     for (const char* name : {"endowment_lo", "endowment_hi", "fertility_start_lo", "fertility_start_hi",
@@ -179,6 +182,8 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
     env.newProperty<int>("foresight_lo", cfg.foresight ? cfg.foresight->lo : 0);
     env.newProperty<int>("foresight_hi", cfg.foresight ? cfg.foresight->hi : 0);
     env.newProperty<unsigned int>("cultural_preferences", cfg.cultural_preferences ? 1u : 0u);  // eq. 5 (welfare.h)
+    env.newProperty<unsigned int>("trade", cfg.trade ? 1u : 0u);                                 // rule T (trade.cuh)
+    env.newProperty<unsigned int>("trade_down", cfg.trade_rounding == "down" ? 1u : 0u);
     env.newProperty<unsigned int>("t", 0u);
     env.newProperty<unsigned int>("round", 1u);
     env.newProperty<unsigned int>("seasons_beta", cfg.seasons ? static_cast<unsigned int>(cfg.seasons->first) : 0u);
@@ -268,6 +273,7 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
         model.newLayer().addSubModel(turns_sub);
         model.newLayer().addAgentFunction(cell.newFunction("unstage_sites", unstage_sites));
         model.newLayer().addHostFunction(assign_births);
+        if (cfg.trade) model.newLayer().addHostFunction(total_trades);  // rule T's statistics (turns.cuh)
         if (cfg.combat()) model.newLayer().addHostFunction(bury_newborns);  // combat's newborn victims (turns.cuh)
         flamegpu::AgentFunctionDescription absorb_fn = citizen.newFunction("absorb", absorb);
         absorb_fn.setAllowAgentDeath(true);

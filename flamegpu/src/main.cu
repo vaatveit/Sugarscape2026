@@ -178,8 +178,8 @@ int main(int argc, const char** argv) {
                   << "map_capacity_sum = " << std::accumulate(capacity.begin(), capacity.end(), uint64_t{0}) << "\n";
         return EXIT_SUCCESS;
     }
-    // Part C's rules, until each is on the GPU (plan 2026-10-26-gpu-parity-part-c, Tasks 5 and 6).
-    for (const auto& [on, name] : {std::pair<bool, const char*>{cfg.trade, "trade"}, {cfg.credit.has_value(), "credit"}}) {
+    // Part C's credit, until it is on the GPU (plan 2026-10-26-gpu-parity-part-c, Task 6).
+    for (const auto& [on, name] : {std::pair<bool, const char*>{cfg.credit.has_value(), "credit"}}) {
         if (on) {
             std::fprintf(stderr, "sugarscape_gpu: %s: %s: not on the GPU yet\n", opts.config.c_str(), name);
             return 2;

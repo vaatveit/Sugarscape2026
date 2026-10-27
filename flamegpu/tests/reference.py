@@ -136,15 +136,21 @@ class _OrderedRng:
 
 def run_python_in_order(cfg: dict, capacity: np.ndarray, agents: list[dict], orders: list[list[int]]) -> Dump:
     """Python stepped once per entry of `orders`, each period's turns in that order of uids (gpu.period_orders);
-    every other draw is Python's own."""
+    every other draw is Python's own. The dump's csv holds sugarscape_metrics for t = 0 .. len(orders)."""
+    from experiments.run import sugarscape_metrics
+
     model = build_python(cfg, capacity, agents)
     rng = _OrderedRng(model.rng)
     model.rng = rng
+    rows = [{"t": model.t, **sugarscape_metrics(model)}]
     for uids in orders:
         index = {a.id: i for i, a in enumerate(model.agents)}
         rng.order = [index[u] for u in uids]
         model.step()
-    return python_dump(model, capacity)
+        rows.append({"t": model.t, **sugarscape_metrics(model)})
+    dump = python_dump(model, capacity)
+    dump.csv = rows
+    return dump
 
 
 def python_dump(model: Model, capacity: np.ndarray) -> Dump:

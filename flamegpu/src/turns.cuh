@@ -353,6 +353,9 @@ FLAMEGPU_HOST_FUNCTION(assign_births) {
     }
 }
 
+// After the turns, with rule T: the period's exchanges for the metrics row (StoreHost::trade_totals).
+FLAMEGPU_HOST_FUNCTION(total_trades) { state().trades = state().store->trade_totals(); }
+
 // After the turns: a newborn that combat killed in its birth period is a death, as Python's die() makes it (its uid
 // came with the others in assign_births). It is no citizen, so it is never spawned; the host lists and counts it, and
 // with replacement cell i makes the i-th one's newcomer (replace_newborns), unplaced and with the victim's death key so

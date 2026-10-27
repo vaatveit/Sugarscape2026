@@ -54,7 +54,7 @@ const std::vector<std::string>& metric_names() {
 }
 
 MetricsRow compute_metrics(const AgentColumns& a, const RunConfig& cfg, const std::vector<uint32_t>& capacity,
-                           unsigned int t, unsigned int agents_ever) {
+                           unsigned int t, unsigned int agents_ever, const TradeTotals& trade) {
     const size_t n = a.x.size();
     const int half_w = cfg.width / 2, half_h = cfg.height / 2;
     double vision = 0, metabolism = 0, neighbors = 0, moved = 0, ne = 0, peak = 0, spice = 0, foresight = 0;
@@ -132,8 +132,11 @@ MetricsRow compute_metrics(const AgentColumns& a, const RunConfig& cfg, const st
              ratio(blue_xy, n_blue), ratio(red_xy, n_red), ratio(blue_adv, n_blue), ratio(red_adv, n_red),
              n ? children / count : 0.0, ratio(best_sum, with_friends), ratio(mean_sum, with_friends),
              static_cast<double>(agents_ever),
-             // economic_metrics: mean_spice and mean_foresight (0 without spice); trade and credit come later in Part C.
-             ratio(spice, count), 0.0, NaN, NaN, NaN, 0.0, 0.0, ratio(foresight, count), 0.0, 0.0, 0.0, 0.0, 0.0,
+             // economic_metrics: mean_spice and mean_foresight (0 without spice); the period's trades (fn 25: the
+             // geometric mean price; np.std of ln p); credit comes later in Part C.
+             ratio(spice, count), trade.n, trade.n > 0 ? std::exp(trade.mean) : NaN, trade.n > 0 ? trade.mean : NaN,
+             trade.n > 0 ? std::sqrt(trade.m2 / trade.n) : NaN, trade.sugar, trade.spice, ratio(foresight, count),
+             0.0, 0.0, 0.0, 0.0, 0.0,
              // disease_metrics without disease.
              any, any, any, 0.0, 0.0}};
 }

@@ -13,6 +13,7 @@
 #include "flamegpu/flamegpu.h"
 
 #include "config.h"
+#include "metrics.h"
 
 struct SchedulerError : std::runtime_error {  // a wave ran no turn while turns were pending: exit 4
     using std::runtime_error::runtime_error;
@@ -38,6 +39,10 @@ struct Store {
     double *sugar, *initial_sugar;
     double *spice, *initial_spice;           // Chapter IV (plan 2026-10-26-gpu-parity-part-c, Task 4); 0 without spice
     int *spice_metabolism, *foresight;
+    // Rule T: the turn's exchanges (trade.cuh), combined in rank order by StoreHost::trade_totals into trade_total.
+    unsigned int* trade_n;
+    double *trade_mean, *trade_m2, *trade_sugar, *trade_spice;
+    double* trade_total;  // 5: n, mean, m2, sugar, spice
     uint64_t* tags;
     unsigned int *uid, *sex, *n_children, *parent_a, *parent_b, *friend_uid, *friend_dist, *n_friends;
     unsigned int *moved, *neighbors;
@@ -115,6 +120,9 @@ class StoreHost {
     // and returns how many. They are never spawned; turns.cuh's bury_newborns counts their deaths and the cells
     // replace them (replace_newborns). Throws CapacityError beyond one per cell.
     unsigned int bury();
+    // After the turns: the period's exchanges, every turn's statistics combined in rank order (Chan's formula; plan
+    // 2026-10-26-gpu-parity-part-c, ruling R3), on one device thread.
+    TradeTotals trade_totals();
     // Throws CapacityError for any error bit a kernel raised.
     void check_errors();
     // --check: the first site a turn touched outside its footprint, as {misses, site, rank, where}; clears it.

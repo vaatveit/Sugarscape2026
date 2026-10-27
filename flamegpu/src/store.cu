@@ -160,6 +160,9 @@ StoreHost::StoreHost(const RunConfig& cfg, unsigned int uid_capacity, bool check
     alloc(h_.initial_sugar, rows);
     alloc(h_.spice, rows);
     alloc(h_.initial_spice, rows);
+    alloc(h_.trade_n, rows);
+    for (double** p : {&h_.trade_mean, &h_.trade_m2, &h_.trade_sugar, &h_.trade_spice}) alloc(*p, rows);
+    alloc(h_.trade_total, 5);
     alloc(h_.tags, rows);
     alloc(h_.key, rows);
     for (unsigned int** p : {&h_.uid, &h_.sex, &h_.n_children, &h_.parent_a, &h_.parent_b, &h_.n_friends, &h_.moved,
@@ -233,6 +236,11 @@ void StoreHost::prepare(unsigned int n_rows) {
     check(cudaMemset(h_.newborn_count, 0, sizeof(unsigned int)), "clearing newborn_count");
     check(cudaMemset(h_.site_row, 0xFF, sizeof(int) * h_.cells), "clearing site_row");
     check(cudaMemset(h_.target_row, 0xFF, sizeof(int) * h_.cells), "clearing target_row");
+    // Rule T: every turn's exchanges start at none.
+    check(cudaMemset(h_.trade_n, 0, sizeof(unsigned int) * n_rows), "clearing the trades");
+    for (double* p : {h_.trade_mean, h_.trade_m2, h_.trade_sugar, h_.trade_spice}) {
+        check(cudaMemset(p, 0, sizeof(double) * n_rows), "clearing the trades");
+    }
     check(cudaMemcpy(d_store_, &h_, sizeof(Store), cudaMemcpyHostToDevice), "uploading the store");
 }
 
@@ -419,6 +427,38 @@ unsigned int StoreHost::bury() {
     h_.n_buried = static_cast<unsigned int>(buried.size());
     check(cudaMemcpy(d_store_, &h_, sizeof(Store), cudaMemcpyHostToDevice), "uploading the store");
     return h_.n_buried;
+}
+
+namespace {
+
+// One thread: the turns' exchange statistics in rank order, merged by Chan's formula (ruling R3).
+__global__ void k_trade_totals(unsigned int n, Store s) {
+    double count = 0, mean = 0, m2 = 0, sugar = 0, spice = 0;
+    for (unsigned int r = 0; r < n; ++r) {
+        const unsigned int row = s.rank_row[r];
+        const double k = static_cast<double>(s.trade_n[row]);
+        if (k == 0) continue;
+        const double total = count + k, delta = s.trade_mean[row] - mean;
+        mean += delta * k / total;
+        m2 += s.trade_m2[row] + delta * delta * count * k / total;
+        count = total;
+        sugar += s.trade_sugar[row];
+        spice += s.trade_spice[row];
+    }
+    s.trade_total[0] = count;
+    s.trade_total[1] = mean;
+    s.trade_total[2] = m2;
+    s.trade_total[3] = sugar;
+    s.trade_total[4] = spice;
+}
+
+}  // namespace
+
+TradeTotals StoreHost::trade_totals() {
+    k_trade_totals<<<1, 1>>>(h_.n_rows, h_);
+    double v[5];
+    check(cudaMemcpy(v, h_.trade_total, sizeof(v), cudaMemcpyDeviceToHost), "reading the trades");
+    return {v[0], v[1], v[2], v[3], v[4]};
 }
 
 void StoreHost::check_errors() {
