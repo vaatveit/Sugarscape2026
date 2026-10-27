@@ -14,9 +14,11 @@ void landscape_macros(flamegpu::EnvironmentDescription env, bool all) {
     env.newMacroProperty<float, MAX_CELLS>("sugar");
     env.newMacroProperty<float, MAX_CELLS>("pollution");
     env.newMacroProperty<uint64_t, MAX_CELLS>("claim");
+    env.newMacroProperty<float, MAX_CELLS>("spice");  // the second commodity (p.96); 0 everywhere without spice
     if (!all) return;
     env.newMacroProperty<float, MAX_CELLS>("sugar_next");
     env.newMacroProperty<float, MAX_CELLS>("pollution_next");
+    env.newMacroProperty<float, MAX_CELLS>("spice_next");
     env.newMacroProperty<unsigned int>("deaths");
     // The period's order key of the agent that started at a site and of the one that ended there and has not starved,
     // for count_neighbors (spec 2026-10-25-gpu-sequential-semantics, section 3); cleared in cell_commit.
@@ -151,6 +153,17 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
     env.newProperty<unsigned int>("combat", cfg.combat() ? 1u : 0u);
     env.newProperty<double>("combat_alpha", cfg.combat() ? *cfg.combat_alpha : 0.0);
     env.newProperty<unsigned int>("inheritance", cfg.inheritance ? 1u : 0u);
+    // Chapter IV (plan 2026-10-26-gpu-parity-part-c): spice, and newcomers' Chapter IV draws (rules.cuh,
+    // output_newcomer).
+    env.newProperty<unsigned int>("spice", cfg.spice ? 1u : 0u);
+    env.newProperty<int>("spice_metabolism_lo", cfg.spice_metabolism.lo);
+    env.newProperty<int>("spice_metabolism_hi", cfg.spice_metabolism.hi);
+    const IntRange spice_endowment = cfg.spice_endowment.value_or(cfg.endowment);
+    env.newProperty<int>("spice_endowment_lo", spice_endowment.lo);
+    env.newProperty<int>("spice_endowment_hi", spice_endowment.hi);
+    env.newProperty<unsigned int>("foresight_on", cfg.foresight ? 1u : 0u);
+    env.newProperty<int>("foresight_lo", cfg.foresight ? cfg.foresight->lo : 0);
+    env.newProperty<int>("foresight_hi", cfg.foresight ? cfg.foresight->hi : 0);
     env.newProperty<unsigned int>("t", 0u);
     env.newProperty<unsigned int>("round", 1u);
     env.newProperty<unsigned int>("seasons_beta", cfg.seasons ? static_cast<unsigned int>(cfg.seasons->first) : 0u);
@@ -189,8 +202,14 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
     citizen.newVariable<uint64_t>("death_key");      // a newcomer's place among this period's deaths (store.h)
     citizen.newVariable<unsigned int>("nc_slot");    // a newcomer's slot while it takes its uid
     citizen.newVariable<unsigned int>("dying");      // reached its maximum age this period (rule I's layers)
+    // Chapter IV state (plan 2026-10-26-gpu-parity-part-c): 0 without spice, as in Python.
+    citizen.newVariable<double>("spice");
+    citizen.newVariable<double>("initial_spice");
+    citizen.newVariable<int>("spice_metabolism");
+    citizen.newVariable<int>("foresight");  // phi (p.129), 0 when myopic
     flamegpu::AgentDescription cell = model.newAgent("cell");
     cell.newVariable<unsigned int>("capacity");  // the site's sugar capacity (make_cells)
+    cell.newVariable<unsigned int>("spice_capacity");  // the sugar map mirrored east-west, 0 without spice (make_cells)
 
     flamegpu::ModelDescription movement("movement");
     describe_movement(movement, cfg);
@@ -213,6 +232,7 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
     initialise.addAgentFunction(occupy);  // the founders' sites
     model.newLayer().addHostFunction(finish_init);
     model.newLayer().addAgentFunction(citizen.newFunction("start_period", start_period));
+    if (!state().dump_order.empty()) model.newLayer().addHostFunction(record_order);  // --dump-order (tests)
     // With combat there is no movement M: each turn moves by combat_move (spec section 1).
     if (!cfg.combat()) model.newLayer().addSubModel(movement_sub);
     if (cfg.turns_on()) {

@@ -23,6 +23,9 @@ struct CitizenRow {
     unsigned int n_children, parent_a, parent_b, n_friends;
     int disp_x, disp_y;
     unsigned int friend_uid[MAX_FRIENDS], friend_dist[MAX_FRIENDS];
+    // Chapter IV (plan 2026-10-26-gpu-parity-part-c, Task 2).
+    double spice, initial_spice;
+    int spice_metabolism, foresight;
 };
 
 std::vector<CitizenRow> citizens(flamegpu::HostAPI* api) {
@@ -41,7 +44,9 @@ std::vector<CitizenRow> citizens(flamegpu::HostAPI* api) {
                         a.getVariable<double>("initial_sugar"), a.getVariable<uint64_t>("tags"),
                         a.getVariable<unsigned int>("n_children"), a.getVariable<unsigned int>("parent_a"),
                         a.getVariable<unsigned int>("parent_b"), a.getVariable<unsigned int>("n_friends"),
-                        a.getVariable<int>("disp_x"), a.getVariable<int>("disp_y"), {}, {}});
+                        a.getVariable<int>("disp_x"), a.getVariable<int>("disp_y"), {}, {},
+                        a.getVariable<double>("spice"), a.getVariable<double>("initial_spice"),
+                        a.getVariable<int>("spice_metabolism"), a.getVariable<int>("foresight")});
         for (unsigned int f = 0; f < MAX_FRIENDS; ++f) {
             rows.back().friend_uid[f] = a.getVariable<unsigned int, MAX_FRIENDS>("friend_uid", f);
             rows.back().friend_dist[f] = a.getVariable<unsigned int, MAX_FRIENDS>("friend_dist", f);
@@ -61,6 +66,27 @@ FILE* open_or_throw(const std::string& path) {
 
 }  // namespace
 
+// --dump-order (tests): the period's uids in turn order, the largest order key first, as "t,uid" lines.
+FLAMEGPU_HOST_FUNCTION(record_order) {
+    RunState& s = state();
+    if (!s.order_file) {
+        s.order_file = open_or_throw(s.dump_order);
+        std::fputs("t,uid\n", s.order_file);
+    }
+    flamegpu::DeviceAgentVector pop = FLAMEGPU->agent("citizen").getPopulationData();
+    std::vector<std::pair<uint64_t, unsigned int>> keyed;
+    keyed.reserve(pop.size());
+    for (unsigned int i = 0; i < pop.size(); ++i) {
+        const auto a = pop[i];
+        keyed.emplace_back((static_cast<uint64_t>(a.getVariable<unsigned int>("priority")) << 32) | a.getID(),
+                           a.getVariable<unsigned int>("uid"));
+    }
+    std::sort(keyed.begin(), keyed.end(), [](const auto& a, const auto& b) { return a.first > b.first; });
+    const unsigned int t = FLAMEGPU->getStepCounter() + 1;
+    for (const auto& k : keyed) std::fprintf(s.order_file, "%u,%u\n", t, k.second);
+    std::fflush(s.order_file);
+}
+
 void write_dumps(flamegpu::HostAPI* api, unsigned int t) {
     const RunState& s = state();
     if (!s.dump_at || *s.dump_at != t) return;
@@ -68,7 +94,7 @@ void write_dumps(flamegpu::HostAPI* api, unsigned int t) {
         FILE* f = open_or_throw(s.dump_agents);
         std::fprintf(f, "x,y,vision,metabolism,sugar,age,max_age,moved,neighbors,id,priority,dir_order,look_seed,"
                         "sex,fertility_start,fertility_end,initial_sugar,tags,uid,n_children,parent_a,parent_b,"
-                        "n_friends,disp_x,disp_y,friends\n");
+                        "n_friends,disp_x,disp_y,friends,spice,initial_spice,spice_metabolism,foresight\n");
         for (const CitizenRow& a : citizens(api)) {
             std::fprintf(f, "%d,%d,%d,%d,%.17g,%d,", a.x, a.y, a.vision, a.metabolism, a.sugar, a.age);
             if (a.max_age != IMMORTAL) std::fprintf(f, "%d", a.max_age);
@@ -86,7 +112,7 @@ void write_dumps(flamegpu::HostAPI* api, unsigned int t) {
             if (a.parent_b != NO_UID) std::fprintf(f, "%u", a.parent_b);
             std::fprintf(f, ",%u,%d,%d,", a.n_friends, a.disp_x, a.disp_y);
             for (unsigned int k = 0; k < a.n_friends; ++k) std::fprintf(f, "%s%u:%u", k ? "|" : "", a.friend_uid[k], a.friend_dist[k]);
-            std::fputc('\n', f);
+            std::fprintf(f, ",%.17g,%.17g,%d,%d\n", a.spice, a.initial_spice, a.spice_metabolism, a.foresight);
         }
         std::fclose(f);
     }
@@ -94,14 +120,17 @@ void write_dumps(flamegpu::HostAPI* api, unsigned int t) {
         auto sugar = api->environment.getMacroProperty<float, MAX_CELLS>("sugar");
         auto pollution = api->environment.getMacroProperty<float, MAX_CELLS>("pollution");
         auto occupied = api->environment.getMacroProperty<unsigned int, MAX_CELLS>("occupied");
+        auto spice = api->environment.getMacroProperty<float, MAX_CELLS>("spice");
         FILE* f = open_or_throw(s.dump_landscape);
-        std::fprintf(f, "x,y,capacity,sugar,pollution,occupied\n");
+        std::fprintf(f, "x,y,capacity,sugar,pollution,occupied,spice,spice_capacity\n");
         const int w = s.cfg.width, h = s.cfg.height;
         for (int x = 0; x < w; ++x) {
             for (int y = 0; y < h; ++y) {
                 const unsigned int i = static_cast<unsigned int>(x + y * w);
-                std::fprintf(f, "%d,%d,%u,%.17g,%.17g,%u\n", x, y, s.capacity[i], static_cast<double>(static_cast<float>(sugar[i])),
-                             static_cast<double>(static_cast<float>(pollution[i])), static_cast<unsigned int>(occupied[i]));
+                std::fprintf(f, "%d,%d,%u,%.17g,%.17g,%u,%.17g,%u\n", x, y, s.capacity[i],
+                             static_cast<double>(static_cast<float>(sugar[i])),
+                             static_cast<double>(static_cast<float>(pollution[i])), static_cast<unsigned int>(occupied[i]),
+                             static_cast<double>(static_cast<float>(spice[i])), s.spice_capacity[i]);
             }
         }
         std::fclose(f);
@@ -128,12 +157,16 @@ void check_invariants(flamegpu::HostAPI* api, unsigned int t, unsigned int death
         if (!sites.insert(i).second) fail("two agents on site " + std::to_string(a.x) + "," + std::to_string(a.y));
         if (static_cast<unsigned int>(occupied[i]) != 1u) fail("occupied is 0 under an agent");
         if (!(a.sugar > 0.0f)) fail("an agent survived with sugar <= 0");
+        if (s.cfg.spice && !(a.spice > 0.0)) fail("an agent survived with spice <= 0");
     }
+    auto spice = api->environment.getMacroProperty<float, MAX_CELLS>("spice");
     unsigned long long occupied_count = 0;
     for (unsigned int i = 0; i < static_cast<unsigned int>(s.capacity.size()); ++i) {
         occupied_count += static_cast<unsigned int>(occupied[i]);
         const float v = sugar[i];
         if (!(v >= 0.0f && v <= static_cast<float>(s.capacity[i]))) fail("site sugar outside [0, capacity]");
+        const float sp = spice[i];
+        if (!(sp >= 0.0f && sp <= static_cast<float>(s.spice_capacity[i]))) fail("site spice outside [0, spice capacity]");
     }
     if (occupied_count != agents.size()) fail("occupied count != population");
 }

@@ -144,6 +144,11 @@ FLAMEGPU_AGENT_FUNCTION(commit_move, flamegpu::MessageNone, flamegpu::MessageNon
     auto sugar = FLAMEGPU->environment.getMacroProperty<float, MAX_CELLS>("sugar");
     const float harvest = sugar[site].exchange(0.0f);
     FLAMEGPU->setVariable<double>("sugar", FLAMEGPU->getVariable<double>("sugar") + static_cast<double>(harvest));
+    if (FLAMEGPU->environment.getProperty<unsigned int>("spice")) {  // and the site's spice (Python move)
+        auto spice = FLAMEGPU->environment.getMacroProperty<float, MAX_CELLS>("spice");
+        FLAMEGPU->setVariable<double>("spice", FLAMEGPU->getVariable<double>("spice") +
+                                                   static_cast<double>(spice[site].exchange(0.0f)));
+    }
     if (FLAMEGPU->environment.getProperty<unsigned int>("pollution_active")) {
         auto pollution = FLAMEGPU->environment.getMacroProperty<float, MAX_CELLS>("pollution");
         pollution[site] += FLAMEGPU->environment.getProperty<float>("pollution_alpha") * harvest;  // production (p.47)

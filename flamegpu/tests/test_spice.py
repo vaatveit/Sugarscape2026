@@ -115,6 +115,58 @@ def test_spice_metrics_match_python(exe, tmp_path):
         assert _compare(g, p) == [], g["t"]
 
 
+# --- Welfare movement (Task 3; Julia's spice_move scenarios, julia/bridge/scenarios.py) -----------------------------
+
+def _movers(**kw):
+    """test_parity's four far-apart agents (visions 1-3), with spice 30 and spice metabolism 2."""
+    sites = ((2, 2), (12, 2), (2, 12), (12, 12))
+    return [{"x": x, "y": y, "vision": v, "metabolism": m, "sugar": 10.0, "age": 0, "max_age": None, "spice": 30.0,
+             "spice_metabolism": 2, **kw} for (x, y), v, m in zip(sites, (1, 2, 3, 3), (1, 2, 3, 4))]
+
+
+POLLUTED = {"spice": "true", "pollution": "1.0,1.0", "diffusion_period": "1"}
+WELFARE_CASES = {
+    "myopic": ({"spice": "true"}, {}),
+    "foresight": ({"spice": "true", "foresight": "0,10"}, {"foresight": 5}),
+    "polluted": (POLLUTED, {}),
+    "stopped": ({**POLLUTED, "pollution_start": "1", "pollution_stop": "3"}, {}),
+}
+
+
+@pytest.mark.parametrize("name", WELFARE_CASES)
+def test_welfare_move_matches_python(exe, tmp_path, name):
+    cfg, extra = WELFARE_CASES[name]
+    agents = _movers(**extra)
+    gpu = run_gpu(exe, tmp_path, cfg, CAPACITY, agents, steps=4)
+    assert gpu.returncode == 0, gpu.stderr
+    assert compare_dumps(gpu, run_python(cfg, CAPACITY, agents, 4), pollution=True) == []
+
+
+def test_cultural_preferences_move_matches_python(exe, tmp_path):
+    capacity = np.zeros((21, 21), dtype=int)
+    capacity[14, 5] = capacity[14, 15] = 4  # sugar east; through the mirror, spice at x = 6 on the same rows
+    cfg = {"spice": "true", "tag_length": "3", "cultural_preferences": "true", "vision": "4,4"}
+    common = {"vision": 4, "metabolism": 1, "sugar": 10.0, "age": 0, "max_age": None, "spice": 10.0,
+              "spice_metabolism": 1}
+    agents = [{"x": 10, "y": 5, "tags": "000", **common},   # f = 1: only sugar counts
+              {"x": 10, "y": 15, "tags": "111", **common}]  # f = 0: only spice counts
+    gpu = run_gpu(exe, tmp_path, cfg, capacity, agents, steps=1)
+    assert gpu.returncode == 0, gpu.stderr
+    assert {(a["x"], a["y"]) for a in gpu.agents} == {(14, 5), (6, 15)}
+    assert compare_dumps(gpu, run_python(cfg, capacity, agents, 1)) == []
+
+
+def test_welfare_zero_metabolism_matches_python(exe, tmp_path):
+    cfg = {"spice": "true"}
+    agents = _movers()[:2]
+    agents[0].update(metabolism=0, spice_metabolism=0)  # every site's welfare is 1.0: it stays
+    agents[1].update(spice_metabolism=0)                # only sugar counts
+    gpu = run_gpu(exe, tmp_path, cfg, CAPACITY, agents, steps=2)
+    assert gpu.returncode == 0, gpu.stderr
+    assert compare_dumps(gpu, run_python(cfg, CAPACITY, agents, 2)) == []
+    assert (2, 2) in {(a["x"], a["y"]) for a in gpu.agents}
+
+
 def test_init_spice_without_spice_refused(exe, tmp_path):
     dump = run_gpu(exe, tmp_path, {}, EMPTY, _harvesters(), steps=1)
     assert dump.returncode == 2

@@ -29,6 +29,7 @@ const char* const USAGE =
     "  --dump-agents FILE     agents CSV at period --dump-at\n"
     "  --dump-landscape FILE  landscape CSV at period --dump-at\n"
     "  --dump-at T            period of the dumps (0 = after initialisation)\n"
+    "  --dump-order FILE      each period's uids in turn order, as t,uid lines (tests)\n"
     "  --tile K               tile the map K x K (population x K^2)\n"
     "  --timing FILE          timing JSON\n"
     "  --check                check invariants every period (exit 3 on a violation)\n"
@@ -44,7 +45,7 @@ struct UsageError : std::runtime_error {
 };
 
 struct Options {
-    std::string config, out, init, dump_agents, dump_landscape, timing;
+    std::string config, out, init, dump_agents, dump_landscape, dump_order, timing;
     int metrics_every = 1;
     std::optional<int> dump_at;
     int tile = 1;
@@ -119,6 +120,7 @@ Options parse_args(int argc, const char** argv) {
         else if (arg == "--init") o.init = value();
         else if (arg == "--dump-agents") o.dump_agents = value();
         else if (arg == "--dump-landscape") o.dump_landscape = value();
+        else if (arg == "--dump-order") o.dump_order = value();
         else if (arg == "--timing") o.timing = value();
         else if (arg == "--metrics-every") o.metrics_every = to_int(arg, value());
         else if (arg == "--dump-at") o.dump_at = to_int(arg, value());
@@ -176,9 +178,8 @@ int main(int argc, const char** argv) {
                   << "map_capacity_sum = " << std::accumulate(capacity.begin(), capacity.end(), uint64_t{0}) << "\n";
         return EXIT_SUCCESS;
     }
-    // Part C's rules, until each is on the GPU (plan 2026-10-26-gpu-parity-part-c, Tasks 2, 5 and 6).
-    for (const auto& [on, name] : {std::pair<bool, const char*>{cfg.spice, "spice"}, {cfg.trade, "trade"},
-                                   {cfg.credit.has_value(), "credit"}}) {
+    // Part C's rules, until each is on the GPU (plan 2026-10-26-gpu-parity-part-c, Tasks 5 and 6).
+    for (const auto& [on, name] : {std::pair<bool, const char*>{cfg.trade, "trade"}, {cfg.credit.has_value(), "credit"}}) {
         if (on) {
             std::fprintf(stderr, "sugarscape_gpu: %s: %s: not on the GPU yet\n", opts.config.c_str(), name);
             return 2;
@@ -201,6 +202,7 @@ int main(int argc, const char** argv) {
     s.rng.seed(cfg.seed);
     s.dump_agents = opts.dump_agents;
     s.dump_landscape = opts.dump_landscape;
+    s.dump_order = opts.dump_order;
     if (opts.dump_at) s.dump_at = static_cast<unsigned int>(*opts.dump_at);
     s.check = opts.check;
     s.metrics_every = static_cast<unsigned int>(opts.metrics_every);
@@ -277,6 +279,7 @@ int main(int argc, const char** argv) {
         std::fprintf(stderr, "sugarscape_gpu: %s\n", e.what());
         return 1;
     }
+    if (s.order_file) std::fclose(s.order_file);
     s.store.reset();  // the device buffers go before the device is reset
     s.newcomers.reset();
     s.dying.reset();

@@ -19,6 +19,9 @@ struct AgentColumns {
     std::vector<uint32_t> uid, n_children, n_friends;
     std::vector<uint32_t> friend_uid;  // MAX_FRIENDS per agent, agent by agent
     std::vector<int> disp_x, disp_y;
+    // Chapter IV.
+    std::vector<double> spice;
+    std::vector<int> foresight;
 };
 
 struct MetricsRow {

@@ -57,7 +57,7 @@ MetricsRow compute_metrics(const AgentColumns& a, const RunConfig& cfg, const st
                            unsigned int t, unsigned int agents_ever) {
     const size_t n = a.x.size();
     const int half_w = cfg.width / 2, half_h = cfg.height / 2;
-    double vision = 0, metabolism = 0, neighbors = 0, moved = 0, ne = 0, peak = 0;
+    double vision = 0, metabolism = 0, neighbors = 0, moved = 0, ne = 0, peak = 0, spice = 0, foresight = 0;
     double high = 0, high_north = 0, low = 0, low_north = 0;
     std::vector<double> sugar(n);
     double sugar_sum = 0;
@@ -66,8 +66,10 @@ MetricsRow compute_metrics(const AgentColumns& a, const RunConfig& cfg, const st
         metabolism += a.metabolism[i];
         neighbors += a.neighbors[i];
         moved += a.moved[i];
-        sugar[i] = a.sugar[i];  // + spice, which is 0 without the second commodity
-        sugar_sum += sugar[i];
+        sugar_sum += a.sugar[i];
+        sugar[i] = a.sugar[i] + a.spice[i];  // gini's wealth: spice is 0 without the second commodity
+        spice += a.spice[i];
+        foresight += a.foresight[i];
         const bool north = a.y[i] >= half_h;
         ne += (a.x[i] >= half_w && north) ? 1 : 0;
         peak += capacity[a.x[i] + static_cast<size_t>(a.y[i]) * cfg.width] >= 3 ? 1 : 0;
@@ -130,8 +132,8 @@ MetricsRow compute_metrics(const AgentColumns& a, const RunConfig& cfg, const st
              ratio(blue_xy, n_blue), ratio(red_xy, n_red), ratio(blue_adv, n_blue), ratio(red_adv, n_red),
              n ? children / count : 0.0, ratio(best_sum, with_friends), ratio(mean_sum, with_friends),
              static_cast<double>(agents_ever),
-             // economic_metrics without spice, trade or credit (Parts C and D fill them in).
-             any, 0.0, NaN, NaN, NaN, 0.0, 0.0, any, 0.0, 0.0, 0.0, 0.0, 0.0,
+             // economic_metrics: mean_spice and mean_foresight (0 without spice); trade and credit come later in Part C.
+             ratio(spice, count), 0.0, NaN, NaN, NaN, 0.0, 0.0, ratio(foresight, count), 0.0, 0.0, 0.0, 0.0, 0.0,
              // disease_metrics without disease.
              any, any, any, 0.0, 0.0}};
 }

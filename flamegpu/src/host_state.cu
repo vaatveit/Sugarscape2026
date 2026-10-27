@@ -141,6 +141,11 @@ flamegpu::AgentVector make_citizens(flamegpu::ModelDescription& model, const std
                 agent.setVariable<int>("fertility_start", a.fertility_start.value_or(NO_FERTILITY_START));
                 agent.setVariable<int>("fertility_end", a.fertility_end.value_or(NO_FERTILITY_END));
             }
+            // Chapter IV: the initial spice defaults to the spice, as initial_sugar to the sugar.
+            agent.setVariable<double>("spice", a.spice.value_or(0.0));
+            agent.setVariable<double>("initial_spice", a.initial_spice.value_or(a.spice.value_or(0.0)));
+            agent.setVariable<int>("spice_metabolism", a.spice_metabolism.value_or(0));
+            agent.setVariable<int>("foresight", a.foresight.value_or(0));
         }
         s.next_uid = s.agents_ever = static_cast<unsigned int>(init->size());
         return pop;
@@ -162,6 +167,14 @@ flamegpu::AgentVector make_citizens(flamegpu::ModelDescription& model, const std
                     max_ages[i]);
         if (cfg.tag_length) agent.setVariable<uint64_t>("tags", random_tags(s.rng, cfg.tag_length, sites[i].second));
         if (cfg.sex) assign_sex(agent, s.rng, cfg, std::uniform_int_distribution<int>(0, 1)(s.rng) == 0 ? SEX_F : SEX_M);
+        // Chapter IV's draws come last: spice metabolism, spice (= initial spice), then foresight when it is set.
+        if (cfg.spice) {
+            agent.setVariable<int>("spice_metabolism", draw(s.rng, cfg.spice_metabolism));
+            const double spice = static_cast<double>(draw(s.rng, cfg.spice_endowment.value_or(cfg.endowment)));
+            agent.setVariable<double>("spice", spice);
+            agent.setVariable<double>("initial_spice", spice);
+            if (cfg.foresight) agent.setVariable<int>("foresight", draw(s.rng, *cfg.foresight));
+        }
     }
     s.next_uid = s.agents_ever = static_cast<unsigned int>(n);
     // Founders of a society with finite lives start at ages U[0, max age) (Python Config.founder_ages).
@@ -176,10 +189,18 @@ flamegpu::AgentVector make_citizens(flamegpu::ModelDescription& model, const std
 
 flamegpu::AgentVector make_cells(flamegpu::ModelDescription& model) {
     // A cell's site index is its index in the population (DeviceAPI::getIndex()); cells never die or sort.
-    const std::vector<uint32_t>& capacity = state().capacity;
+    RunState& s = state();
+    const std::vector<uint32_t>& capacity = s.capacity;
+    // Fig IV-1: spice mountains NW and SE, the sugar map mirrored east-west (Python's capacity[::-1, :]).
+    const size_t w = static_cast<size_t>(s.cfg.width);
+    s.spice_capacity.assign(capacity.size(), 0u);
+    if (s.cfg.spice) {
+        for (size_t i = 0; i < capacity.size(); ++i) s.spice_capacity[i] = capacity[(w - 1 - i % w) + i / w * w];
+    }
     flamegpu::AgentVector cells(model.Agent("cell"), static_cast<unsigned int>(capacity.size()));
     for (size_t i = 0; i < capacity.size(); ++i) {
         cells[static_cast<unsigned int>(i)].setVariable<unsigned int>("capacity", capacity[i]);
+        cells[static_cast<unsigned int>(i)].setVariable<unsigned int>("spice_capacity", s.spice_capacity[i]);
     }
     return cells;
 }
@@ -215,6 +236,8 @@ void write_metrics(flamegpu::CUDASimulation* simulation, flamegpu::AgentVector& 
     c.n_friends = column<uint32_t>(pop, "n_friends");
     c.disp_x = column<int>(pop, "disp_x");
     c.disp_y = column<int>(pop, "disp_y");
+    c.spice = column<double>(pop, "spice");
+    c.foresight = column<int>(pop, "foresight");
     {
         const uint32_t* f = pop.size() ? pop.data<uint32_t>("friend_uid") : nullptr;
         c.friend_uid = f ? std::vector<uint32_t>(f, f + pop.size() * MAX_FRIENDS) : std::vector<uint32_t>();
