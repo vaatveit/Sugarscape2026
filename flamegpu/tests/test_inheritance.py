@@ -66,6 +66,51 @@ def test_no_inheritance_flag(exe, tmp_path):
     assert sugar == {1: (9.0, 9.0)}
 
 
+def _compare_spice(gpu, py):
+    g = {a["uid"]: a for a in gpu.agents}
+    p = {a["uid"]: a for a in py.agents}
+    assert set(g) == set(p)
+    return {uid: (g[uid]["spice"], p[uid]["spice"]) for uid in p}
+
+
+def test_old_age_inheritance_spice(exe, tmp_path):
+    # test_inheritance_matches_python with spice (Part C, Task 4): the parent's 60 spice goes 30 to each living child.
+    cfg = {**CFG, "spice": "true"}
+    spice = {"spice": 10.0, "spice_metabolism": 1}
+    agents = [_agent(2, 2, 51.0, 31, spice=61.0, spice_metabolism=1),
+              _agent(6, 2, 10.0, 90, parent_a=0, **spice), _agent(10, 2, 10.0, 90, parent_a=0, **spice),
+              _agent(14, 2, 10.0, 31, parent_a=0, **spice)]
+    gpu = run_gpu(exe, tmp_path, cfg, EMPTY, agents, steps=1)
+    assert gpu.returncode == 0, gpu.stderr
+    py = run_python(cfg, EMPTY, agents, 1)
+    for uid, (g, p) in _compare(gpu, py).items():
+        assert math.isclose(g, p, abs_tol=1e-9), (uid, g, p)
+    shares = _compare_spice(gpu, py)
+    assert set(shares) == {1, 2}
+    for uid, (g, p) in shares.items():
+        assert math.isclose(g, p, abs_tol=1e-9) and math.isclose(p, 39.0), (uid, g, p)
+
+
+def test_starved_heirs_get_spice(exe, tmp_path):
+    # A parent starving of sugar in its turn leaves 30 spice: 15 to each child (Python Model.die at starvation). Rule I
+    # with spice runs one turn per wave (plan ruling R1).
+    import json
+
+    cfg = {"inheritance": "true", "spice": "true", "max_age": "60,100"}
+    still = {"metabolism": 0, "spice": 10.0, "spice_metabolism": 0}
+    agents = [_agent(2, 2, 1.0, 90, metabolism=2, spice=30.0, spice_metabolism=0),
+              _agent(10, 10, 10.0, 90, parent_a=0, **still), _agent(15, 15, 10.0, 90, parent_a=0, **still)]
+    timing = tmp_path / "timing.json"
+    gpu = run_gpu(exe, tmp_path, cfg, EMPTY, agents, steps=1, extra_args=("--timing", timing))
+    assert gpu.returncode == 0, gpu.stderr
+    shares = _compare_spice(gpu, run_python(cfg, EMPTY, agents, 1))
+    assert set(shares) == {1, 2}
+    for uid, (g, p) in shares.items():
+        assert math.isclose(g, p, abs_tol=1e-9) and math.isclose(p, 25.0), (uid, g, p)
+    t = json.loads(timing.read_text())
+    assert t["waves_mean"] == t["agents_start"]
+
+
 def test_inheritance_without_sex_matches_python(exe, tmp_path):
     # Rule I needs no rule S: children given by --init inherit as in Python, though no sex or culture is on.
     agents = [_agent(2, 2, 51.0, 31), _agent(6, 2, 10.0, 90, parent_a=0), _agent(10, 2, 10.0, 90, parent_a=0)]

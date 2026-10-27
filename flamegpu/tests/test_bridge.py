@@ -37,10 +37,30 @@ def test_cfg_steps_and_seed():
 
 
 def test_unsupported_lists_features():
-    cfg = Config(spice=True)
-    assert unsupported_features(cfg) == ["spice"]
-    with pytest.raises(UnsupportedFeature, match="spice"):
+    cfg = Config(disease_list=1)
+    assert unsupported_features(cfg) == ["disease_list"]
+    with pytest.raises(UnsupportedFeature, match="disease_list"):
         config_to_cfg(cfg, steps=10, seed=0)
+
+
+def _part_c_ids():
+    """Part C's experiments: Chapter IV, VI-2, VI-3, their reproduction variants, and VAR-inttrade but VI-1's."""
+    base = [i for i in EXPERIMENTS if i.startswith("IV-")] + ["VI-2", "VI-3"]
+    variants = [i for i in EXPERIMENTS if i.startswith("VAR-") and i.split("/", 1)[1] in ("VI-2", "VI-3")
+                and not i.startswith("VAR-inttrade/")]
+    inttrade = [i for i in EXPERIMENTS if i.startswith("VAR-inttrade/") and i != "VAR-inttrade/VI-1"]
+    return [*base, *variants, *inttrade]
+
+
+PART_C_IDS = _part_c_ids()
+
+
+def test_part_c_configs_convert():
+    assert len(PART_C_IDS) == 69
+    assert "credit = 10,10.0" in _lines(config_to_cfg(EXPERIMENTS["IV-A5"].config, steps=10, seed=0))
+    assert "trade_rounding = down" in _lines(config_to_cfg(EXPERIMENTS["VAR-inttrade/IV-3"].config, steps=10, seed=0))
+    for exp_id in PART_C_IDS:
+        assert unsupported_features(EXPERIMENTS[exp_id].config) == [], exp_id
 
 
 def test_part_b_configs_convert():
@@ -110,9 +130,10 @@ def test_any_other_field_off_default_is_refused():
     from dataclasses import replace
 
     base = EXPERIMENTS["II-4"].config
-    # Fields the GPU program doesn't read, including ones left out of repr, are refused unless at their default.
-    assert unsupported_features(replace(base, trade_rounding="down")) == ["trade_rounding"]
-    assert unsupported_features(replace(base, spice=True)) == ["spice"]
+    # Fields the GPU program doesn't read are refused unless at their default. (Since Part C every field left out of
+    # repr is read: trade_rounding was the last.)
+    assert unsupported_features(replace(base, immune_length=60)) == ["immune_length"]
+    assert unsupported_features(replace(base, disease_list=2)) == ["disease_list"]
     with pytest.raises(UnsupportedFeature, match="disease_fee"):
         config_to_cfg(replace(base, disease_fee=2.0), steps=10, seed=0)
 

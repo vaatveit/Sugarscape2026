@@ -59,10 +59,10 @@ def test_unknown_key_is_rejected(exe, tmp_path):
 
 def test_unsupported_feature_key_is_rejected(exe, tmp_path):
     cfg = write_cfg(tmp_path)
-    cfg.write_text(cfg.read_text() + "spice = true\n")
+    cfg.write_text(cfg.read_text() + "disease_list = 1\n")
     result = run_exe(exe, "--config", cfg, "--print-config")
     assert result.returncode == 2
-    assert "spice" in _error(result)
+    assert "disease_list" in _error(result)
 
 
 def test_vision_too_large_is_rejected(exe, tmp_path):
@@ -160,6 +160,7 @@ def test_version(exe, build):
     assert info["max_cells"] == "6250000"
     assert info["max_tag_bits"] == "63"  # spec 2026-10-25-gpu-full-parity, section 5
     assert info["max_friends"] == "5" and info["max_sight_looks"] == "64" and info["uid_capacity"] == "16777216"
+    assert info["loans_per_cell"] == "2" and info["max_heirs"] == "32"  # plan 2026-10-26-gpu-parity-part-c, Tasks 6-7
     assert info["gpu"] != "" and info["cuda_runtime"] != ""
 
 
@@ -284,7 +285,36 @@ def test_combat_alpha_validated(exe, tmp_path, overrides, named):
     assert named in _error(result)
 
 
-@pytest.mark.parametrize("line", ["spice = true", "disease_list = 10"])
+# --- Chapter IV (spec 2026-10-25-gpu-full-parity, Part C) ---------------------------------------------------------
+
+CHAPTER4 = {"spice": "true", "spice_metabolism": "2,3", "spice_endowment": "7,9", "foresight": "0,10",
+            "tag_length": "3", "cultural_preferences": "true", "trade": "true", "trade_rounding": "down", "sex": "true",
+            "credit": "10,10.0"}
+
+
+def test_chapter4_fields_round_trip(exe, tmp_path):
+    result = run_exe(exe, "--config", write_cfg(tmp_path, **CHAPTER4), "--print-config")
+    assert result.returncode == 0, result.stderr
+    printed = parse_printed(result.stdout)
+    assert {k: printed[k] for k in CHAPTER4} == {**CHAPTER4, "credit": "10,10"}  # 10.0 prints as Python's repr of 10
+
+
+@pytest.mark.parametrize("overrides, named", [
+    ({"trade": "true"}, "need the second commodity"),
+    ({"spice": "true", "cultural_preferences": "true"}, "cultural preferences need cultural tags"),
+    ({"spice": "true", "tag_length": "1", "combat_alpha": "2"}, "combat is defined for sugar only"),
+    ({"credit": "10,10.0"}, "it needs sex=True"),
+    ({"sex": "true", "tag_length": "1", "combat_alpha": "2", "credit": "10,10.0"}, "combat movement doesn't record"),
+    ({"sex": "true", "credit": "0,10.0"}, "credit duration must be >= 1"),
+    ({"trade_rounding": "up"}, "trade_rounding must be one of"),
+], ids=["trade-no-spice", "prefs-no-tags", "spice-combat", "credit-no-sex", "credit-combat", "credit-d0", "bad-rounding"])
+def test_chapter4_validated(exe, tmp_path, overrides, named):
+    result = run_exe(exe, "--config", write_cfg(tmp_path, **overrides), "--print-config")
+    assert result.returncode == 2
+    assert named in _error(result)
+
+
+@pytest.mark.parametrize("line", ["disease_list = 10", "diseases_per_agent = 1", "disease_fee = 1.0"])
 def test_later_parts_still_refused(exe, tmp_path, line):
     cfg = write_cfg(tmp_path)
     cfg.write_text(cfg.read_text() + line + "\n")

@@ -29,6 +29,8 @@ const char* const USAGE =
     "  --dump-agents FILE     agents CSV at period --dump-at\n"
     "  --dump-landscape FILE  landscape CSV at period --dump-at\n"
     "  --dump-at T            period of the dumps (0 = after initialisation)\n"
+    "  --dump-order FILE      each period's uids in turn order, as t,uid lines (tests)\n"
+    "  --dump-loans FILE      the loan book at period --dump-at, in list order\n"
     "  --tile K               tile the map K x K (population x K^2)\n"
     "  --timing FILE          timing JSON\n"
     "  --check                check invariants every period (exit 3 on a violation)\n"
@@ -44,7 +46,7 @@ struct UsageError : std::runtime_error {
 };
 
 struct Options {
-    std::string config, out, init, dump_agents, dump_landscape, timing;
+    std::string config, out, init, dump_agents, dump_landscape, dump_order, dump_loans, timing;
     int metrics_every = 1;
     std::optional<int> dump_at;
     int tile = 1;
@@ -69,10 +71,10 @@ void print_version() {
 #endif
     // The build's limits (spec 2026-10-25-gpu-full-parity, section 5); uid_capacity is --uid-capacity's default.
     std::printf("flamegpu = %s\ncuda_runtime = %d.%d\ngpu = %s\nseatbelts = %s\nmax_cells = %u\nmax_tag_bits = %d\n"
-                "max_friends = %u\nmax_sight_looks = %d\nuid_capacity = %u\n",
+                "max_friends = %u\nmax_sight_looks = %d\nuid_capacity = %u\nloans_per_cell = %u\nmax_heirs = %u\n",
                 flamegpu::VERSION_FULL, runtime / 1000, runtime % 1000 / 10, have_device ? device.name : "none",
                 seatbelts, static_cast<unsigned int>(SUGARSCAPE_MAX_CELLS), MAX_TAG_BITS, MAX_FRIENDS, MAX_SIGHT_LOOKS,
-                RunConfig{}.uid_capacity);
+                RunConfig{}.uid_capacity, LOANS_PER_CELL, MAX_HEIRS);
     // Flush now: CUDA, started above, can end the process at exit before stdout is flushed (the output was lost
     // in about 1 run in 4, with exit code 0).
     std::fflush(stdout);
@@ -119,6 +121,8 @@ Options parse_args(int argc, const char** argv) {
         else if (arg == "--init") o.init = value();
         else if (arg == "--dump-agents") o.dump_agents = value();
         else if (arg == "--dump-landscape") o.dump_landscape = value();
+        else if (arg == "--dump-order") o.dump_order = value();
+        else if (arg == "--dump-loans") o.dump_loans = value();
         else if (arg == "--timing") o.timing = value();
         else if (arg == "--metrics-every") o.metrics_every = to_int(arg, value());
         else if (arg == "--dump-at") o.dump_at = to_int(arg, value());
@@ -128,8 +132,8 @@ Options parse_args(int argc, const char** argv) {
     if (o.help || o.version) return o;
     if (o.config.empty()) throw UsageError("--config is required");
     if (o.metrics_every < 1) throw UsageError("--metrics-every must be >= 1");
-    if ((!o.dump_agents.empty() || !o.dump_landscape.empty()) && !o.dump_at) {
-        throw UsageError("--dump-agents/--dump-landscape need --dump-at");
+    if ((!o.dump_agents.empty() || !o.dump_landscape.empty() || !o.dump_loans.empty()) && !o.dump_at) {
+        throw UsageError("--dump-agents/--dump-landscape/--dump-loans need --dump-at");
     }
     return o;
 }
@@ -193,6 +197,8 @@ int main(int argc, const char** argv) {
     s.rng.seed(cfg.seed);
     s.dump_agents = opts.dump_agents;
     s.dump_landscape = opts.dump_landscape;
+    s.dump_order = opts.dump_order;
+    s.dump_loans = opts.dump_loans;
     if (opts.dump_at) s.dump_at = static_cast<unsigned int>(*opts.dump_at);
     s.check = opts.check;
     s.metrics_every = static_cast<unsigned int>(opts.metrics_every);
@@ -269,7 +275,9 @@ int main(int argc, const char** argv) {
         std::fprintf(stderr, "sugarscape_gpu: %s\n", e.what());
         return 1;
     }
+    if (s.order_file) std::fclose(s.order_file);
     s.store.reset();  // the device buffers go before the device is reset
+    s.loans.reset();
     s.newcomers.reset();
     s.dying.reset();
     flamegpu::util::cleanup();

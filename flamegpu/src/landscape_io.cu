@@ -74,7 +74,8 @@ std::vector<InitAgent> load_init_agents(const std::string& path, int width, int 
     for (size_t c = 7; c < header.size(); ++c) {
         static const std::set<std::string> optional = {"sex",        "fertility_start", "fertility_end", "initial_sugar",
                                                        "tags",       "n_children",      "parent_a",      "parent_b",
-                                                       "friends"};
+                                                       "friends",    "spice",           "initial_spice", "spice_metabolism",
+                                                       "foresight"};
         if (!optional.count(header[c])) throw MapError(path + " line 1: unknown column '" + header[c] + "'");
     }
     std::vector<InitAgent> agents;
@@ -122,6 +123,14 @@ std::vector<InitAgent> load_init_agents(const std::string& path, int width, int 
                     a.parent_b = static_cast<unsigned int>(std::stoul(v));
                 } else if (header[c] == "initial_sugar") {
                     a.initial_sugar = std::stod(v);
+                } else if (header[c] == "spice") {
+                    a.spice = std::stod(v);
+                } else if (header[c] == "initial_spice") {
+                    a.initial_spice = std::stod(v);
+                } else if (header[c] == "spice_metabolism") {
+                    a.spice_metabolism = std::stoi(v);
+                } else if (header[c] == "foresight") {
+                    a.foresight = std::stoi(v);
                 } else if (header[c] == "tags") {
                     if (v.size() > 63 || v.find_first_not_of("01") != std::string::npos) {
                         throw MapError(where + ": tags must be a 0/1 string of at most 63 bits");
@@ -151,6 +160,9 @@ void check_init_agents(const std::string& path, const std::vector<InitAgent>& ag
         if (cfg.sex && cfg.mate_contact == "vision" && a.vision / stride > MAX_SIGHT_LOOKS) {
             throw MapError(where + "partners in sight look " + std::to_string(a.vision / stride) +
                            " sites along each line, beyond the GPU's limit of " + std::to_string(MAX_SIGHT_LOOKS));
+        }
+        if (!cfg.spice && (a.spice || a.initial_spice || a.spice_metabolism || a.foresight)) {
+            throw MapError(where + "spice values given, but spice = false");
         }
         if (a.tag_count >= 0 && a.tag_count != cfg.tag_length) {
             throw MapError(where + std::to_string(a.tag_count) + " tags given, but tag_length = " +

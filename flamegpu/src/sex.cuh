@@ -150,6 +150,29 @@ __device__ void mate(API* FLAMEGPU, const Store& s, unsigned int row) {
             }
         }
         s.tags[c] = tags;
+        // Chapter IV, after the tags as Python draws it: each parent gives half its initial spice (or capped), the
+        // child's initial spice may be redrawn, and its spice metabolism and foresight come each from a random parent.
+        s.spice[c] = 0.0;
+        s.initial_spice[c] = 0.0;
+        s.spice_metabolism[c] = 0;
+        s.foresight[c] = 0;
+        if (env.template getProperty<unsigned int>("spice")) {
+            double spice_gifts[2];
+            for (int p = 0; p < 2; ++p) {
+                const int q = parents[p];
+                spice_gifts[p] = capped ? fmin(GIFT_CAP, fmax(s.spice[q], 0.0)) : s.initial_spice[q] * share;
+                if (rounded) spice_gifts[p] = floor(spice_gifts[p]);
+            }
+            s.spice[a] -= spice_gifts[0];
+            s.spice[b] -= spice_gifts[1];
+            s.spice[c] = s.initial_spice[c] = spice_gifts[0] + spice_gifts[1];
+            if (redraw) {
+                s.initial_spice[c] = static_cast<double>(draw_between(FLAMEGPU, env.template getProperty<int>("spice_endowment_lo"),
+                                                                      env.template getProperty<int>("spice_endowment_hi")));
+            }
+            s.spice_metabolism[c] = s.spice_metabolism[parents[draw_between(FLAMEGPU, 0, 1)]];
+            s.foresight[c] = s.foresight[parents[draw_between(FLAMEGPU, 0, 1)]];
+        }
         s.uid[c] = NO_UID;  // given in creation order after the turns (StoreHost::birth_uids)
         s.n_children[c] = 0u;
         // A parent born this period (possible with fertility from age 0) has no uid yet: name it by its row, marked, until

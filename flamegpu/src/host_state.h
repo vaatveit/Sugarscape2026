@@ -28,6 +28,7 @@ struct RoundLimitError : std::runtime_error {  // movement needed more rounds th
 struct RunState {
     RunConfig cfg;
     std::vector<uint32_t> capacity;  // indexed x + y * width
+    std::vector<uint32_t> spice_capacity;  // the sugar map mirrored east-west with spice on, else 0 (make_cells)
     std::mt19937_64 rng;             // host-side draws: the founders (replacement draws on the device)
     unsigned int population = 0;     // citizens at the end of the last completed period
     unsigned int next_uid = 0;       // the founders' count: the first uid the device hands out
@@ -36,12 +37,17 @@ struct RunState {
     std::unique_ptr<StoreHost> store;
     std::unique_ptr<NewcomerUids> newcomers;
     std::unique_ptr<DyingTable> dying;
+    std::unique_ptr<LoanBook> loans;  // rule L's book (loans.h)
+    std::string dump_loans;           // --dump-loans: the book at --dump-at
     unsigned int turn_rows = 0;          // citizens taking turns this period
     unsigned int waves_this_period = 0;
     unsigned int newborns_this_period = 0;  // rule S's children, for --check's population count
     std::vector<unsigned int> waves;     // per completed period, for --timing's waves_mean
+    TradeTotals trades;                  // the last period's exchanges (turns.cuh, total_trades)
     // Output options.
     std::string dump_agents, dump_landscape;
+    std::string dump_order;  // --dump-order: each period's uids in turn order (record_order; tests)
+    FILE* order_file = nullptr;
     std::optional<unsigned int> dump_at;
     bool check = false;
     std::unique_ptr<CsvWriter> csv;  // --out
@@ -71,5 +77,6 @@ void check_invariants(flamegpu::HostAPI* api, unsigned int t, unsigned int death
 FLAMEGPU_HOST_FUNCTION_DECL(begin_period)    // layer: t, round and the period's rule switches
 FLAMEGPU_HOST_FUNCTION_DECL(finish_init)     // layer, first period only: the t = 0 dumps and checks
 FLAMEGPU_HOST_FUNCTION_DECL(end_period)      // step: deaths, dumps, checks
+FLAMEGPU_HOST_FUNCTION_DECL(record_order)    // layer after start_period, with --dump-order only: the period's order
 
 #endif  // SRC_HOST_STATE_H_

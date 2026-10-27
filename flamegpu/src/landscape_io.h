@@ -22,7 +22,8 @@ std::vector<uint32_t> tile_map(const std::vector<uint32_t>& map, int w, int h, i
 
 // One starting agent from --init (header x,y,vision,metabolism,sugar,age,max_age; max_age blank = immortal), with
 // optional further columns by name: sex (F, M or blank), fertility_start, fertility_end, initial_sugar (default
-// sugar), tags (a 0/1 string, tag 0 first), n_children, parent_a, parent_b and friends ("uid:distance|...").
+// sugar), tags (a 0/1 string, tag 0 first), n_children, parent_a, parent_b, friends ("uid:distance|..."), and
+// Chapter IV's spice, initial_spice, spice_metabolism and foresight.
 struct InitAgent {
     int x, y, vision, metabolism;
     double sugar;
@@ -37,6 +38,9 @@ struct InitAgent {
     std::optional<unsigned int> parent_a, parent_b;  // the uid (row in the file) of each parent (tests: rule I)
     std::vector<std::pair<unsigned int, unsigned int>> friends;  // (uid, distance at the encounter), "uid:d|uid:d"
     int line = 0;  // the agent's line in the file, for error messages
+    // Chapter IV: spice, initial_spice (default spice), spice_metabolism and foresight; any of them needs spice on.
+    std::optional<double> spice, initial_spice;
+    std::optional<int> spice_metabolism, foresight;
 };
 
 // Throws MapError naming the file and line on a bad header, field, or site outside width x height, or two
@@ -45,7 +49,8 @@ std::vector<InitAgent> load_init_agents(const std::string& path, int width, int 
 
 struct RunConfig;
 // The GPU's limits for --init agents (MapError naming the line): partners in sight within MAX_SIGHT_LOOKS (the turn's
-// partner array), exactly tag_length tags when tags are given, parents and friends naming agents of the file. Python checks vision against
+// partner array), exactly tag_length tags when tags are given, parents and friends naming agents of the file, spice
+// columns only with spice on. Python checks vision against
 // the grid only for the Config's range, so an agent's own vision is not checked against it.
 void check_init_agents(const std::string& path, const std::vector<InitAgent>& agents, const RunConfig& cfg);
 

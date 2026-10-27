@@ -14,6 +14,10 @@ FLAMEGPU_AGENT_FUNCTION(cell_initialise, flamegpu::MessageNone, flamegpu::Messag
     if (!FLAMEGPU->environment.getProperty<unsigned int>("initialising")) return flamegpu::ALIVE;
     auto sugar = FLAMEGPU->environment.getMacroProperty<float, MAX_CELLS>("sugar");
     sugar[FLAMEGPU->getIndex()].exchange(static_cast<float>(FLAMEGPU->getVariable<unsigned int>("capacity")));
+    if (FLAMEGPU->environment.getProperty<unsigned int>("spice")) {
+        auto spice = FLAMEGPU->environment.getMacroProperty<float, MAX_CELLS>("spice");
+        spice[FLAMEGPU->getIndex()].exchange(static_cast<float>(FLAMEGPU->getVariable<unsigned int>("spice_capacity")));
+    }
     return flamegpu::ALIVE;
 }
 
@@ -132,6 +136,10 @@ __device__ __forceinline__ void init_citizen_out(flamegpu::DeviceAPI<flamegpu::M
     out.setVariable<unsigned int>("row", 0u);
     out.setVariable<unsigned int>("nc_slot", 0u);
     out.setVariable<unsigned int>("dying", 0u);
+    out.setVariable<double>("spice", 0.0);
+    out.setVariable<double>("initial_spice", 0.0);
+    out.setVariable<int>("spice_metabolism", 0);
+    out.setVariable<int>("foresight", 0);
     for (unsigned int f = 0; f < MAX_FRIENDS; ++f) {
         out.setVariable<unsigned int, MAX_FRIENDS>("friend_uid", f, 0u);
         out.setVariable<unsigned int, MAX_FRIENDS>("friend_dist", f, 0u);
@@ -182,12 +190,26 @@ __device__ __forceinline__ void output_newcomer(flamegpu::DeviceAPI<flamegpu::Me
                                     : draw_between(FLAMEGPU, env.getProperty<int>("male_fertility_end_lo"),
                                                    env.getProperty<int>("male_fertility_end_hi")));
     }
+    // Chapter IV draws last, as Python's _spawn_at: spice metabolism, then spice (= initial spice), then foresight.
+    if (env.getProperty<unsigned int>("spice")) {
+        FLAMEGPU->agent_out.setVariable<int>(
+            "spice_metabolism", draw_between(FLAMEGPU, env.getProperty<int>("spice_metabolism_lo"),
+                                             env.getProperty<int>("spice_metabolism_hi")));
+        const double spice = static_cast<double>(draw_between(FLAMEGPU, env.getProperty<int>("spice_endowment_lo"),
+                                                              env.getProperty<int>("spice_endowment_hi")));
+        FLAMEGPU->agent_out.setVariable<double>("spice", spice);
+        FLAMEGPU->agent_out.setVariable<double>("initial_spice", spice);
+        if (env.getProperty<unsigned int>("foresight_on")) {
+            FLAMEGPU->agent_out.setVariable<int>(
+                "foresight", draw_between(FLAMEGPU, env.getProperty<int>("foresight_lo"), env.getProperty<int>("foresight_hi")));
+        }
+    }
     // Its uid comes after placement, in the order of the deaths (turns.cuh, newcomer_post / newcomer_take).
     FLAMEGPU->agent_out.setVariable<uint64_t>("death_key", death_key);
 }
 
-// Metabolism (p.25) with consumption pollution (p.47), then aging; death frees the site and, with replacement,
-// outputs the newcomer (writes occupied, pollution, deaths).
+// Metabolism (p.25, and spice's p.97) with consumption pollution from the sugar burned (p.47; spice is clean, p.127),
+// then aging; death frees the site and, with replacement, outputs the newcomer (writes occupied, pollution, deaths).
 FLAMEGPU_AGENT_FUNCTION(metabolize_and_age, flamegpu::MessageNone, flamegpu::MessageNone) {
     const unsigned int w = FLAMEGPU->environment.getProperty<unsigned int>("width");
     const unsigned int site = static_cast<unsigned int>(FLAMEGPU->getVariable<int>("x")) +
@@ -195,27 +217,34 @@ FLAMEGPU_AGENT_FUNCTION(metabolize_and_age, flamegpu::MessageNone, flamegpu::Mes
     const int metabolism = FLAMEGPU->getVariable<int>("metabolism");
     const double sugar = FLAMEGPU->getVariable<double>("sugar") - static_cast<double>(metabolism);
     FLAMEGPU->setVariable<double>("sugar", sugar);
+    bool starved = sugar <= 0.0;
+    if (FLAMEGPU->environment.getProperty<unsigned int>("spice")) {  // Python metabolize: either good running out
+        const double spice = FLAMEGPU->getVariable<double>("spice") -
+                             static_cast<double>(FLAMEGPU->getVariable<int>("spice_metabolism"));
+        FLAMEGPU->setVariable<double>("spice", spice);
+        starved = starved || spice <= 0.0;
+    }
     if (FLAMEGPU->environment.getProperty<unsigned int>("pollution_active")) {
         auto pollution = FLAMEGPU->environment.getMacroProperty<float, MAX_CELLS>("pollution");
         pollution[site] += FLAMEGPU->environment.getProperty<float>("pollution_beta") * static_cast<float>(metabolism);
     }
     const int age = FLAMEGPU->getVariable<int>("age") + 1;
     FLAMEGPU->setVariable<int>("age", age);
-    if (sugar <= 0.0f || age >= FLAMEGPU->getVariable<int>("max_age")) {
+    if (starved || age >= FLAMEGPU->getVariable<int>("max_age")) {
         auto occupied = FLAMEGPU->environment.getMacroProperty<unsigned int, MAX_CELLS>("occupied");
         auto deaths = FLAMEGPU->environment.getMacroProperty<unsigned int>("deaths");
         occupied[site].exchange(0u);
         ++deaths;
         // Python removes a starved agent at its turn, so later agents don't count it; an agent dying of old age is
         // removed only at the end of the period, so everyone still counts it (count_neighbors).
-        if (sugar <= 0.0f) {
+        if (starved) {
             auto arrived = FLAMEGPU->environment.getMacroProperty<uint64_t, MAX_CELLS>("arrived");
             arrived[site].exchange(uint64_t{0});
         }
         if (FLAMEGPU->environment.getProperty<unsigned int>("replacement")) {
             // Python spawns newcomers for the starved first, in the period's order, then for old age by uid.
             const uint64_t key = order_key(FLAMEGPU->getVariable<unsigned int>("priority"), FLAMEGPU->getID());
-            output_newcomer(FLAMEGPU, sugar <= 0.0 ? fast_starved_key(key)
+            output_newcomer(FLAMEGPU, starved ? fast_starved_key(key)
                                                     : old_age_key(FLAMEGPU->getVariable<unsigned int>("uid")),
                             FLAMEGPU->getVariable<uint64_t>("tags"));
         }
@@ -282,6 +311,12 @@ FLAMEGPU_AGENT_FUNCTION(cell_grow, flamegpu::MessageNone, flamegpu::MessageNone)
         }
     }
     sugar_next[i].exchange(fminf(static_cast<float>(sugar[i]) + rate, static_cast<float>(capacity)));
+    if (FLAMEGPU->environment.getProperty<unsigned int>("spice")) {  // the same rule for spice (Python Landscape)
+        auto spice = FLAMEGPU->environment.getMacroProperty<float, MAX_CELLS>("spice");
+        auto spice_next = FLAMEGPU->environment.getMacroProperty<float, MAX_CELLS>("spice_next");
+        spice_next[i].exchange(fminf(static_cast<float>(spice[i]) + rate,
+                                     static_cast<float>(FLAMEGPU->getVariable<unsigned int>("spice_capacity"))));
+    }
 
     float p = pollution[i];
     if (FLAMEGPU->environment.getProperty<unsigned int>("diffuse_now")) {
@@ -306,6 +341,11 @@ FLAMEGPU_AGENT_FUNCTION(cell_commit, flamegpu::MessageNone, flamegpu::MessageNon
     auto left = FLAMEGPU->environment.getMacroProperty<uint64_t, MAX_CELLS>("left");
     auto arrived = FLAMEGPU->environment.getMacroProperty<uint64_t, MAX_CELLS>("arrived");
     sugar[i].exchange(static_cast<float>(sugar_next[i]));
+    if (FLAMEGPU->environment.getProperty<unsigned int>("spice")) {
+        auto spice = FLAMEGPU->environment.getMacroProperty<float, MAX_CELLS>("spice");
+        auto spice_next = FLAMEGPU->environment.getMacroProperty<float, MAX_CELLS>("spice_next");
+        spice[i].exchange(static_cast<float>(spice_next[i]));
+    }
     pollution[i].exchange(static_cast<float>(pollution_next[i]));
     claim[i].min(uint64_t{0});
     left[i].min(uint64_t{0});

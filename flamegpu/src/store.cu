@@ -139,6 +139,7 @@ StoreHost::StoreHost(const RunConfig& cfg, unsigned int uid_capacity, bool check
     alloc(h_.site_row, cells);
     alloc(h_.target_row, cells);
     alloc(h_.site_sugar, cells);
+    alloc(h_.site_spice, cells);
     alloc(h_.buried_key, cells);
     alloc(h_.buried_tags, cells);
     // The uid map is sized by --uid-capacity: a capacity the device cannot hold is a limit, named (exit 5).
@@ -152,11 +153,22 @@ StoreHost::StoreHost(const RunConfig& cfg, unsigned int uid_capacity, bool check
     owned_.push_back(h_.uid_row);
     check(cudaMemset(h_.uid_row, 0xFF, uid_bytes), "clearing the uid map");
     for (int** p : {&h_.x, &h_.y, &h_.vision, &h_.metabolism, &h_.age, &h_.max_age, &h_.fertility_start,
-                    &h_.fertility_end, &h_.disp_x, &h_.disp_y, &h_.counter}) {
+                    &h_.fertility_end, &h_.disp_x, &h_.disp_y, &h_.counter, &h_.spice_metabolism, &h_.foresight}) {
         alloc(*p, rows);
     }
     alloc(h_.sugar, rows);
     alloc(h_.initial_sugar, rows);
+    alloc(h_.spice, rows);
+    alloc(h_.initial_spice, rows);
+    alloc(h_.trade_n, rows);
+    for (double** p : {&h_.trade_mean, &h_.trade_m2, &h_.trade_sugar, &h_.trade_spice}) alloc(*p, rows);
+    alloc(h_.trade_total, 5);
+    h_.width = static_cast<unsigned int>(cfg.width);
+    for (unsigned int** p : {&h_.loan_first, &h_.loan_count, &h_.n_new}) alloc(*p, rows);
+    alloc(h_.loan_entry, static_cast<size_t>(LOANS_PER_CELL) * cells);
+    alloc(h_.new_lender, rows * LOAN_SLOTS);
+    alloc(h_.new_amount, rows * LOAN_SLOTS);
+    alloc(h_.new_due, rows * LOAN_SLOTS);
     alloc(h_.tags, rows);
     alloc(h_.key, rows);
     for (unsigned int** p : {&h_.uid, &h_.sex, &h_.n_children, &h_.parent_a, &h_.parent_b, &h_.n_friends, &h_.moved,
@@ -230,6 +242,12 @@ void StoreHost::prepare(unsigned int n_rows) {
     check(cudaMemset(h_.newborn_count, 0, sizeof(unsigned int)), "clearing newborn_count");
     check(cudaMemset(h_.site_row, 0xFF, sizeof(int) * h_.cells), "clearing site_row");
     check(cudaMemset(h_.target_row, 0xFF, sizeof(int) * h_.cells), "clearing target_row");
+    // Rules T and L: every turn's exchanges and new loans start at none.
+    check(cudaMemset(h_.trade_n, 0, sizeof(unsigned int) * n_rows), "clearing the trades");
+    check(cudaMemset(h_.n_new, 0, sizeof(unsigned int) * n_rows), "clearing the new loans");
+    for (double* p : {h_.trade_mean, h_.trade_m2, h_.trade_sugar, h_.trade_spice}) {
+        check(cudaMemset(p, 0, sizeof(double) * n_rows), "clearing the trades");
+    }
     check(cudaMemcpy(d_store_, &h_, sizeof(Store), cudaMemcpyHostToDevice), "uploading the store");
 }
 
@@ -257,9 +275,11 @@ void StoreHost::schedule(unsigned int n, const RunConfig& cfg) {
     check(cub::DeviceRadixSort::SortPairs(temp_, bytes, rank_keys_, rank_keys_sorted_, rank_rows_, h_.rank_row, n),
           "sorting on the device");
     k_ranks<<<blocks(n), BLOCK>>>(n, h_.rank_row, h_);
+    // Rule L: each row's loans as borrower, for its footprint and its turn (loans.h).
+    if (cfg.credit) loan_index(h_);
     // Footprints: count, offsets, fill.
     const FootprintEnv env{cfg.width, cfg.height, cfg.look_stride, cfg.sex, cfg.mate_contact == "vision", cfg.culture,
-                           cfg.combat()};
+                           cfg.combat(), cfg.credit.has_value()};
     k_fp_count<<<blocks(n), BLOCK>>>(n, h_, env);
     bytes = 0;
     check(cub::DeviceScan::ExclusiveSum(nullptr, bytes, h_.fp_count, h_.fp_offset, n), "scanning on the device");
@@ -363,6 +383,16 @@ __global__ void k_fix_friends(unsigned int n, Store s) {
     }
 }
 
+// With inheritance the turns keep the loan book live (credit.cuh): a newborn lender, or a newborn heir that took over a
+// loan, is named by its row (PROVISIONAL_PARENT) until now. One thread: the book holds hundreds of loans.
+__global__ void k_fix_loans(Store s) {
+    const Loans& b = s.book;
+    for (unsigned int e = 0; e < *b.n; ++e) {
+        if (b.lender[e] & 0x80000000u) b.lender[e] = s.uid[b.lender[e] & 0x7FFFFFFFu];
+        if (b.borrower[e] & 0x80000000u) b.borrower[e] = s.uid[b.borrower[e] & 0x7FFFFFFFu];
+    }
+}
+
 }  // namespace
 
 unsigned int StoreHost::birth_uids(unsigned int next_uid) {
@@ -384,6 +414,7 @@ unsigned int StoreHost::birth_uids(unsigned int next_uid) {
     k_newborn_uids<<<blocks(n), BLOCK>>>(n, h_.rank_row, h_, next_uid);
     k_fix_parents<<<blocks(n), BLOCK>>>(n, h_.n_rows, h_);
     if (h_.n_rows) k_fix_friends<<<blocks(h_.n_rows), BLOCK>>>(h_.n_rows, h_);
+    if (h_.book.n) k_fix_loans<<<1, 1>>>(h_);
     check(cudaDeviceSynchronize(), "assigning newborn uids");
     return n;
 }
@@ -418,11 +449,46 @@ unsigned int StoreHost::bury() {
     return h_.n_buried;
 }
 
+namespace {
+
+// One thread: the turns' exchange statistics in rank order, merged by Chan's formula (ruling R3).
+__global__ void k_trade_totals(unsigned int n, Store s) {
+    double count = 0, mean = 0, m2 = 0, sugar = 0, spice = 0;
+    for (unsigned int r = 0; r < n; ++r) {
+        const unsigned int row = s.rank_row[r];
+        const double k = static_cast<double>(s.trade_n[row]);
+        if (k == 0) continue;
+        const double total = count + k, delta = s.trade_mean[row] - mean;
+        mean += delta * k / total;
+        m2 += s.trade_m2[row] + delta * delta * count * k / total;
+        count = total;
+        sugar += s.trade_sugar[row];
+        spice += s.trade_spice[row];
+    }
+    s.trade_total[0] = count;
+    s.trade_total[1] = mean;
+    s.trade_total[2] = m2;
+    s.trade_total[3] = sugar;
+    s.trade_total[4] = spice;
+}
+
+}  // namespace
+
+TradeTotals StoreHost::trade_totals() {
+    k_trade_totals<<<1, 1>>>(h_.n_rows, h_);
+    double v[5];
+    check(cudaMemcpy(v, h_.trade_total, sizeof(v), cudaMemcpyDeviceToHost), "reading the trades");
+    return {v[0], v[1], v[2], v[3], v[4]};
+}
+
 void StoreHost::check_errors() {
     unsigned int errors = 0;
     check(cudaMemcpy(&errors, h_.errors, sizeof(unsigned int), cudaMemcpyDeviceToHost), "reading the store's errors");
     if (errors & STORE_ROW_CAPACITY) {
         throw CapacityError("the device store's " + std::to_string(h_.rows_capacity) + " rows are full");
+    }
+    if (errors & STORE_HEIR_CAPACITY) {
+        throw CapacityError("a death in a turn had more than " + std::to_string(MAX_HEIRS) + " heirs (max_heirs)");
     }
     if (errors & STORE_UID_CAPACITY) {
         throw CapacityError("uid capacity " + std::to_string(h_.uid_capacity) +
@@ -446,25 +512,36 @@ __global__ void k_dying_order(unsigned int n, unsigned int* order) {
     if (i < n) order[i] = i;
 }
 
-__global__ void k_dying_gather(unsigned int n, const unsigned int* sorted_order, const double* posted, Dying d) {
+__global__ void k_dying_gather(unsigned int n, const unsigned int* sorted_order, const double* posted,
+                               const double* posted_spice, Dying d) {
     const unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= n) return;
     d.sugar[i] = posted[sorted_order[i]];
+    d.spice[i] = posted_spice[sorted_order[i]];
     d.heirs[i] = 0u;
 }
 
 }  // namespace
 
-DyingTable::DyingTable(unsigned int cells) {
+DyingTable::DyingTable(unsigned int cells, bool pairs) {
     auto alloc = [](auto*& p, size_t n) {
         check(cudaMalloc(reinterpret_cast<void**>(&p), sizeof(*p) * (n ? n : 1)), "allocating the dying table");
     };
+    if (pairs) {  // each citizen names at most two parents
+        alloc(h_.pair_key, 2 * static_cast<size_t>(cells));
+        alloc(h_.pair_sorted, 2 * static_cast<size_t>(cells));
+        alloc(h_.pair_child, 2 * static_cast<size_t>(cells));
+        alloc(h_.pair_count, 1);
+        check(cudaMemset(h_.pair_count, 0, sizeof(unsigned int)), "clearing the dying table");
+    }
     alloc(h_.uid, cells);
     alloc(h_.sugar, cells);
+    alloc(h_.spice, cells);
     alloc(h_.heirs, cells);
     alloc(h_.count, 1);
     alloc(posted_uid_, cells);
     alloc(posted_sugar_, cells);
+    alloc(posted_spice_, cells);
     alloc(order_, cells);
     alloc(sorted_order_, cells);
     check(cudaMemset(h_.count, 0, sizeof(unsigned int)), "clearing the dying table");
@@ -473,12 +550,16 @@ DyingTable::DyingTable(unsigned int cells) {
     Dying posting = h_;
     posting.uid = posted_uid_;
     posting.sugar = posted_sugar_;
+    posting.spice = posted_spice_;
     check(cudaMemcpy(d_, &posting, sizeof(Dying), cudaMemcpyHostToDevice), "uploading the dying table");
 }
 
 DyingTable::~DyingTable() {
-    for (void* p : {static_cast<void*>(h_.uid), static_cast<void*>(h_.sugar), static_cast<void*>(h_.heirs),
-                    static_cast<void*>(h_.count), static_cast<void*>(posted_uid_), static_cast<void*>(posted_sugar_),
+    for (void* p : {static_cast<void*>(h_.uid), static_cast<void*>(h_.sugar), static_cast<void*>(h_.spice),
+                    static_cast<void*>(h_.heirs), static_cast<void*>(h_.count), static_cast<void*>(posted_uid_),
+                    static_cast<void*>(posted_sugar_), static_cast<void*>(posted_spice_),
+                    static_cast<void*>(h_.pair_key), static_cast<void*>(h_.pair_sorted),
+                    static_cast<void*>(h_.pair_child), static_cast<void*>(h_.pair_count),
                     static_cast<void*>(order_), static_cast<void*>(sorted_order_), static_cast<void*>(d_), temp_}) {
         cudaFree(p);
     }
@@ -500,19 +581,47 @@ void DyingTable::sort() {
         }
         check(cub::DeviceRadixSort::SortPairs(temp_, bytes, posted_uid_, h_.uid, order_, sorted_order_, n),
               "sorting on the device");
-        k_dying_gather<<<blocks(n), BLOCK>>>(n, sorted_order_, posted_sugar_, h_);
+        k_dying_gather<<<blocks(n), BLOCK>>>(n, sorted_order_, posted_sugar_, posted_spice_, h_);
     }
     // The heirs read the sorted table; the next period's dying post to the posted_* arrays again (posting()).
-    Dying sorted = h_;
-    sorted.n = n;
-    check(cudaMemcpy(d_, &sorted, sizeof(Dying), cudaMemcpyHostToDevice), "uploading the dying table");
+    h_.n = n;
+    check(cudaMemcpy(d_, &h_, sizeof(Dying), cudaMemcpyHostToDevice), "uploading the dying table");
     check(cudaDeviceSynchronize(), "sorting the dying");
+}
+
+namespace {
+
+__global__ void k_pair_children(unsigned int n, const uint64_t* sorted, unsigned int* child) {
+    const unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < n) child[i] = static_cast<unsigned int>(sorted[i] & 0xFFFFFFFFull);
+}
+
+}  // namespace
+
+void DyingTable::sort_pairs() {
+    unsigned int n = 0;
+    check(cudaMemcpy(&n, h_.pair_count, sizeof(unsigned int), cudaMemcpyDeviceToHost), "reading the dying pairs");
+    check(cudaMemset(h_.pair_count, 0, sizeof(unsigned int)), "clearing the dying pairs");
+    if (n) {
+        size_t bytes = 0;
+        check(cub::DeviceRadixSort::SortKeys(nullptr, bytes, h_.pair_key, h_.pair_sorted, n), "sorting on the device");
+        if (bytes > temp_bytes_) {
+            cudaFree(temp_);
+            check(cudaMalloc(&temp_, bytes), "allocating dying scratch");
+            temp_bytes_ = bytes;
+        }
+        check(cub::DeviceRadixSort::SortKeys(temp_, bytes, h_.pair_key, h_.pair_sorted, n), "sorting on the device");
+        k_pair_children<<<blocks(n), BLOCK>>>(n, h_.pair_sorted, h_.pair_child);
+    }
+    h_.n_pairs = n;
+    check(cudaDeviceSynchronize(), "sorting the dying pairs");
 }
 
 void DyingTable::posting() {
     Dying posting = h_;
     posting.uid = posted_uid_;
     posting.sugar = posted_sugar_;
+    posting.spice = posted_spice_;
     posting.n = 0;
     check(cudaMemcpy(d_, &posting, sizeof(Dying), cudaMemcpyHostToDevice), "uploading the dying table");
 }

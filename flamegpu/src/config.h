@@ -76,6 +76,15 @@ struct RunConfig {
     // Combat and same-tribe replacement (spec 2026-10-25-gpu-full-parity, Part B).
     std::optional<double> combat_alpha;                     // rule C_alpha (p.83); INFINITY = C_inf; none = movement M
     bool replacement_same_tribe = false;                    // R with newcomers of the dead agent's tribe (p.86)
+    // Chapter IV (spec 2026-10-25-gpu-full-parity, Part C), Python's defaults.
+    bool spice = false;                                     // the second commodity (p.96); the sugar map mirrored
+    IntRange spice_metabolism{1, 5};                        // p.108
+    std::optional<IntRange> spice_endowment;                // none: endowment's range
+    std::optional<IntRange> foresight;                      // phi (p.129); none: myopic, phi = 0
+    bool cultural_preferences = false;                      // eq. 5 (p.124)
+    bool trade = false;                                     // rule T (p.105)
+    std::string trade_rounding = "exact";                   // "exact" | "down" (VAR-inttrade)
+    std::optional<std::pair<int, double>> credit;           // L_dr (p.132): duration d, rate r percent
     // Run.
     int steps = 0;
     uint64_t seed = 0;
@@ -86,11 +95,12 @@ struct RunConfig {
 
     // Whether every turn after movement runs in the ordered turns (spec section 1).
     // Inheritance counts: its old-age layers live on the turns path, and a run may give children through --init.
-    bool turns_on() const { return sex || culture || combat() || inheritance || force_turns; }
+    bool turns_on() const { return sex || culture || combat() || inheritance || trade || credit || force_turns; }
     bool combat() const { return combat_alpha.has_value(); }
-    // One turn per wave: --serial-turns, or combat with inheritance, whose victims' heirs are found only at the kill and
-    // so cannot be in a footprint (spec section 2).
-    bool serial() const { return serial_turns || (combat() && inheritance); }
+    // One turn per wave: --serial-turns, or inheritance with combat, credit or spice, whose deaths in a turn have heirs
+    // (and with credit, loans passed on) found only at the death, so they cannot be in a footprint (spec section 2;
+    // plan 2026-10-26-gpu-parity-part-c, ruling R1).
+    bool serial() const { return serial_turns || (inheritance && (combat() || credit || spice)); }
 
     int base_width() const { return width / tile; }
     int base_height() const { return height / tile; }

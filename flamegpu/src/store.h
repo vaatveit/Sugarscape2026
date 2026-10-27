@@ -13,6 +13,8 @@
 #include "flamegpu/flamegpu.h"
 
 #include "config.h"
+#include "loans.h"
+#include "metrics.h"
 
 struct SchedulerError : std::runtime_error {  // a wave ran no turn while turns were pending: exit 4
     using std::runtime_error::runtime_error;
@@ -24,6 +26,8 @@ struct CapacityError : std::runtime_error {  // a buffer limit was reached: exit
 // Error bits a kernel or agent function raises in Store::errors; the next host function throws CapacityError.
 constexpr unsigned int STORE_UID_CAPACITY = 1u;
 constexpr unsigned int STORE_ROW_CAPACITY = 2u;  // a newborn found no row (cannot happen with 2 x cells rows)
+constexpr unsigned int STORE_HEIR_CAPACITY = 4u;  // a death in a turn with more than MAX_HEIRS heirs (heirs.cuh)
+constexpr unsigned int MAX_HEIRS = 32;           // spec 2026-10-25-gpu-full-parity, section 5
 constexpr unsigned int NO_SITE = 0xFFFFFFFFu;  // the group after a site's last
 
 // Device pointers. Rows are indexed by `row`, a citizen's index at publish (rows from n_rows on are newborns).
@@ -36,6 +40,21 @@ struct Store {
     // Rows: the citizen variables a turn touches.
     int *x, *y, *vision, *metabolism, *age, *max_age, *fertility_start, *fertility_end, *disp_x, *disp_y;
     double *sugar, *initial_sugar;
+    double *spice, *initial_spice;           // Chapter IV (plan 2026-10-26-gpu-parity-part-c, Task 4); 0 without spice
+    int *spice_metabolism, *foresight;
+    // Rule T: the turn's exchanges (trade.cuh), combined in rank order by StoreHost::trade_totals into trade_total.
+    unsigned int* trade_n;
+    double *trade_mean, *trade_m2, *trade_sugar, *trade_spice;
+    double* trade_total;  // 5: n, mean, m2, sugar, spice
+    // Rule L (credit.cuh, loans.h): the book; each row's start-of-period loans as borrower (loan_entry[loan_first[r]
+    // .. + loan_count[r]], book entries in list order); and each turn's new loans, at most LOAN_SLOTS, in the order made
+    // (the lender's row, the amount, the amount due).
+    Loans book;
+    unsigned int *loan_first, *loan_count, *loan_entry;
+    int* new_lender;
+    double *new_amount, *new_due;
+    unsigned int* n_new;
+    unsigned int width;  // the world's width, for touch_row
     uint64_t* tags;
     unsigned int *uid, *sex, *n_children, *parent_a, *parent_b, *friend_uid, *friend_dist, *n_friends;
     unsigned int *moved, *neighbors;
@@ -43,6 +62,7 @@ struct Store {
     unsigned int* dir_order;      // the period's scan order (start_period), 2 bits per direction, for combat
     uint64_t* death_key;          // a row that dies in a turn: its place among the period's deaths (turn_death_key)
     float* site_sugar;            // cells: the sites' sugar during the turns (stage_sites, unstage_sites)
+    float* site_spice;            // cells: the sites' spice during the turns, as site_sugar
     // This period's newborns killed by combat, by death key (StoreHost::bury): one newcomer each, made by cell i.
     uint64_t *buried_key, *buried_tags;  // cells
     unsigned int n_buried;
@@ -89,6 +109,13 @@ __device__ __forceinline__ void touch(const Store& s, unsigned int site, unsigne
     }
 }
 
+// --check on a row a turn reaches by uid (a friend, a lender): the site that row stands on now must be in the turn's
+// footprint (touch points 12 and 13).
+__device__ __forceinline__ void touch_row(const Store& s, unsigned int r, unsigned int rank, unsigned int where) {
+    if (!s.check_footprints) return;
+    touch(s, static_cast<unsigned int>(s.x[r]) + static_cast<unsigned int>(s.y[r]) * s.width, rank, where);
+}
+
 // The host side of the store: allocation, the period's scheduling, and the error check.
 class StoreHost {
  public:
@@ -100,6 +127,10 @@ class StoreHost {
 
     // The Store's device address, for the environment property "store".
     uint64_t device_address() const { return reinterpret_cast<uint64_t>(d_store_); }
+    // Rule L: the loan book the turns use (LoanBook::device()).
+    void attach_loans(const Loans& book) { h_.book = book; }
+    // The Store as the device sees it, for the loans' kernels (loans.h).
+    const Store& host_view() const { return h_; }
     // Before publish: every site empty and untargeted, the counters cleared.
     void prepare(unsigned int n_rows);
     // After publish: ranks in the period's order, footprints, groups and wait counters (section 2).
@@ -112,6 +143,9 @@ class StoreHost {
     // and returns how many. They are never spawned; turns.cuh's bury_newborns counts their deaths and the cells
     // replace them (replace_newborns). Throws CapacityError beyond one per cell.
     unsigned int bury();
+    // After the turns: the period's exchanges, every turn's statistics combined in rank order (Chan's formula; plan
+    // 2026-10-26-gpu-parity-part-c, ruling R3), on one device thread.
+    TradeTotals trade_totals();
     // Throws CapacityError for any error bit a kernel raised.
     void check_errors();
     // --check: the first site a turn touched outside its footprint, as {misses, site, rank, where}; clears it.
@@ -165,9 +199,16 @@ class NewcomerUids {
 struct Dying {
     unsigned int* uid;    // posted, then sorted
     double* sugar;        // posted, then sorted with the uids
+    double* spice;        // the same, for spice (0 without it)
     unsigned int* heirs;  // living, non-dying children per sorted entry
     unsigned int* count;  // posted entries
     unsigned int n;       // sorted entries (after DyingTable::sort)
+    // With credit and inheritance (plan 2026-10-26-gpu-parity-part-c, Task 7): each living, non-dying child of a dying
+    // parent posts parent uid << 32 | its uid (heirs_count); sorted, they give each dying lender's heirs in uid order.
+    uint64_t *pair_key, *pair_sorted;  // nullptr without credit and inheritance
+    unsigned int* pair_child;          // the child uid of each sorted pair
+    unsigned int* pair_count;
+    unsigned int n_pairs;
 };
 
 // The sorted entry of a dying uid, or -1.
@@ -183,7 +224,8 @@ __device__ __forceinline__ int find_dying(const Dying& d, unsigned int uid) {
 
 class DyingTable {
  public:
-    explicit DyingTable(unsigned int cells);
+    // pairs: the dying parents' children too (credit with inheritance).
+    DyingTable(unsigned int cells, bool pairs);
     ~DyingTable();
     DyingTable(const DyingTable&) = delete;
     DyingTable& operator=(const DyingTable&) = delete;
@@ -192,11 +234,15 @@ class DyingTable {
     void posting();
     // After the dying have posted: sort by uid, clear the heir counts, and reset the posting count.
     void sort();
+    // After the heirs have posted their pairs: sort them, and reset the posting count.
+    void sort_pairs();
+    // The sorted table (after sort()), for the loan ledger (loans.h, run_ledger).
+    const Dying& table() const { return h_; }
 
  private:
     Dying h_{}, *d_ = nullptr;
     unsigned int *posted_uid_ = nullptr, *order_ = nullptr, *sorted_order_ = nullptr;
-    double* posted_sugar_ = nullptr;
+    double *posted_sugar_ = nullptr, *posted_spice_ = nullptr;
     void* temp_ = nullptr;
     size_t temp_bytes_ = 0;
 };

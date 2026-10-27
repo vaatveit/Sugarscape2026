@@ -14,9 +14,11 @@ void landscape_macros(flamegpu::EnvironmentDescription env, bool all) {
     env.newMacroProperty<float, MAX_CELLS>("sugar");
     env.newMacroProperty<float, MAX_CELLS>("pollution");
     env.newMacroProperty<uint64_t, MAX_CELLS>("claim");
+    env.newMacroProperty<float, MAX_CELLS>("spice");  // the second commodity (p.96); 0 everywhere without spice
     if (!all) return;
     env.newMacroProperty<float, MAX_CELLS>("sugar_next");
     env.newMacroProperty<float, MAX_CELLS>("pollution_next");
+    env.newMacroProperty<float, MAX_CELLS>("spice_next");
     env.newMacroProperty<unsigned int>("deaths");
     // The period's order key of the agent that started at a site and of the one that ended there and has not starved,
     // for count_neighbors (spec 2026-10-25-gpu-sequential-semantics, section 3); cleared in cell_commit.
@@ -34,6 +36,11 @@ void describe_movement(flamegpu::ModelDescription& sub, const RunConfig& cfg) {
     env.newProperty<unsigned int>("pollution_active", 0u);
     env.newProperty<float>("pollution_alpha", 0.0f);
     env.newProperty<unsigned int>("look_stride", 1u);
+    // Welfare movement with spice (movement.cuh, propose); the parent model's values reach these through the
+    // sub-environment.
+    env.newProperty<unsigned int>("spice", 0u);
+    env.newProperty<unsigned int>("cultural_preferences", 0u);
+    env.newProperty<unsigned int>("tag_length", 0u);
     landscape_macros(env, false);
     flamegpu::AgentDescription citizen = sub.newAgent("citizen");
     citizen.newVariable<unsigned int>("look_seed");
@@ -42,6 +49,11 @@ void describe_movement(flamegpu::ModelDescription& sub, const RunConfig& cfg) {
     citizen.newVariable<int>("y");
     citizen.newVariable<int>("vision");
     citizen.newVariable<double>("sugar");
+    citizen.newVariable<double>("spice");
+    citizen.newVariable<int>("metabolism");
+    citizen.newVariable<int>("spice_metabolism");
+    citizen.newVariable<int>("foresight");
+    citizen.newVariable<uint64_t>("tags");
     citizen.newVariable<unsigned int>("moved");
     citizen.newVariable<unsigned int>("settled");
     citizen.newVariable<unsigned int>("priority");
@@ -88,7 +100,18 @@ void describe_turns(flamegpu::ModelDescription& sub, const RunConfig& cfg) {
     env.newProperty<double>("child_share", 0.5);
     env.newProperty<unsigned int>("combat", 0u);  // combat C_alpha replaces the move (combat.cuh)
     env.newProperty<double>("combat_alpha", 0.0);
-    env.newProperty<unsigned int>("inheritance", 0u);  // rule I for combat's victims (combat.cuh, pay_victim_heirs)
+    env.newProperty<unsigned int>("inheritance", 0u);  // rule I for deaths in a turn (heirs.cuh, pay_heirs)
+    // Chapter IV in the turn: spice, and rule S's redrawn initial spice (sex.cuh); rule T (trade.cuh).
+    env.newProperty<unsigned int>("spice", 0u);
+    env.newProperty<unsigned int>("trade", 0u);
+    env.newProperty<unsigned int>("trade_down", 0u);
+    env.newProperty<unsigned int>("cultural_preferences", 0u);
+    env.newProperty<unsigned int>("credit", 0u);  // rule L (credit.cuh)
+    env.newProperty<int>("credit_duration", 0);
+    env.newProperty<double>("credit_rate", 0.0);
+    env.newProperty<unsigned int>("t", 0u);  // Python's Model.t: with inheritance, loans join the book in the turn
+    env.newProperty<int>("spice_endowment_lo", 0);
+    env.newProperty<int>("spice_endowment_hi", 0);
     for (const char* name : {"endowment_lo", "endowment_hi", "fertility_start_lo", "fertility_start_hi",
                              "female_fertility_end_lo", "female_fertility_end_hi", "male_fertility_end_lo",
                              "male_fertility_end_hi"}) {
@@ -151,6 +174,23 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
     env.newProperty<unsigned int>("combat", cfg.combat() ? 1u : 0u);
     env.newProperty<double>("combat_alpha", cfg.combat() ? *cfg.combat_alpha : 0.0);
     env.newProperty<unsigned int>("inheritance", cfg.inheritance ? 1u : 0u);
+    // Chapter IV (plan 2026-10-26-gpu-parity-part-c): spice, and newcomers' Chapter IV draws (rules.cuh,
+    // output_newcomer).
+    env.newProperty<unsigned int>("spice", cfg.spice ? 1u : 0u);
+    env.newProperty<int>("spice_metabolism_lo", cfg.spice_metabolism.lo);
+    env.newProperty<int>("spice_metabolism_hi", cfg.spice_metabolism.hi);
+    const IntRange spice_endowment = cfg.spice_endowment.value_or(cfg.endowment);
+    env.newProperty<int>("spice_endowment_lo", spice_endowment.lo);
+    env.newProperty<int>("spice_endowment_hi", spice_endowment.hi);
+    env.newProperty<unsigned int>("foresight_on", cfg.foresight ? 1u : 0u);
+    env.newProperty<int>("foresight_lo", cfg.foresight ? cfg.foresight->lo : 0);
+    env.newProperty<int>("foresight_hi", cfg.foresight ? cfg.foresight->hi : 0);
+    env.newProperty<unsigned int>("cultural_preferences", cfg.cultural_preferences ? 1u : 0u);  // eq. 5 (welfare.h)
+    env.newProperty<unsigned int>("trade", cfg.trade ? 1u : 0u);                                 // rule T (trade.cuh)
+    env.newProperty<unsigned int>("trade_down", cfg.trade_rounding == "down" ? 1u : 0u);
+    env.newProperty<unsigned int>("credit", cfg.credit ? 1u : 0u);                                // rule L (credit.cuh)
+    env.newProperty<int>("credit_duration", cfg.credit ? cfg.credit->first : 0);
+    env.newProperty<double>("credit_rate", cfg.credit ? cfg.credit->second : 0.0);
     env.newProperty<unsigned int>("t", 0u);
     env.newProperty<unsigned int>("round", 1u);
     env.newProperty<unsigned int>("seasons_beta", cfg.seasons ? static_cast<unsigned int>(cfg.seasons->first) : 0u);
@@ -189,8 +229,14 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
     citizen.newVariable<uint64_t>("death_key");      // a newcomer's place among this period's deaths (store.h)
     citizen.newVariable<unsigned int>("nc_slot");    // a newcomer's slot while it takes its uid
     citizen.newVariable<unsigned int>("dying");      // reached its maximum age this period (rule I's layers)
+    // Chapter IV state (plan 2026-10-26-gpu-parity-part-c): 0 without spice, as in Python.
+    citizen.newVariable<double>("spice");
+    citizen.newVariable<double>("initial_spice");
+    citizen.newVariable<int>("spice_metabolism");
+    citizen.newVariable<int>("foresight");  // phi (p.129), 0 when myopic
     flamegpu::AgentDescription cell = model.newAgent("cell");
     cell.newVariable<unsigned int>("capacity");  // the site's sugar capacity (make_cells)
+    cell.newVariable<unsigned int>("spice_capacity");  // the sugar map mirrored east-west, 0 without spice (make_cells)
 
     flamegpu::ModelDescription movement("movement");
     describe_movement(movement, cfg);
@@ -213,6 +259,7 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
     initialise.addAgentFunction(occupy);  // the founders' sites
     model.newLayer().addHostFunction(finish_init);
     model.newLayer().addAgentFunction(citizen.newFunction("start_period", start_period));
+    if (!state().dump_order.empty()) model.newLayer().addHostFunction(record_order);  // --dump-order (tests)
     // With combat there is no movement M: each turn moves by combat_move (spec section 1).
     if (!cfg.combat()) model.newLayer().addSubModel(movement_sub);
     if (cfg.turns_on()) {
@@ -221,6 +268,11 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
         RunState& s = state();
         s.store = std::make_unique<StoreHost>(cfg, cfg.uid_capacity, s.check);
         env.setProperty<uint64_t>("store", s.store->device_address());
+        if (cfg.credit) {  // rule L's loan book (loans.h), read and extended through the store
+            const unsigned int cells = static_cast<unsigned int>(cfg.cells());
+            s.loans = std::make_unique<LoanBook>(cells, 2 * cells);
+            s.store->attach_loans(s.loans->device());
+        }
         flamegpu::ModelDescription turns("turns");  // sorts after "movement": its random stream stays as it was
         describe_turns(turns, cfg);
         flamegpu::SubModelDescription turns_sub = model.newSubModel("turns", turns);
@@ -233,6 +285,8 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
         model.newLayer().addSubModel(turns_sub);
         model.newLayer().addAgentFunction(cell.newFunction("unstage_sites", unstage_sites));
         model.newLayer().addHostFunction(assign_births);
+        if (cfg.trade) model.newLayer().addHostFunction(total_trades);  // rule T's statistics (turns.cuh)
+        if (cfg.credit) model.newLayer().addHostFunction(settle_turn_loans);  // rule L's book after the turns
         if (cfg.combat()) model.newLayer().addHostFunction(bury_newborns);  // combat's newborn victims (turns.cuh)
         flamegpu::AgentFunctionDescription absorb_fn = citizen.newFunction("absorb", absorb);
         absorb_fn.setAllowAgentDeath(true);
@@ -250,19 +304,30 @@ void describe_model(flamegpu::ModelDescription& model, const RunConfig& cfg) {
                 model.newLayer().addAgentFunction(replace_fn);
             }
         }
-        if (cfg.inheritance) {
-            // Rule I at old age: age and post the dying, count and pay the heirs, then the dying die (turns.cuh).
-            s.dying = std::make_unique<DyingTable>(static_cast<unsigned int>(cfg.cells()));
+        if (cfg.inheritance || cfg.credit) {
+            // Old age through the table of the period's dying (turns.cuh): age and post the dying; with rule I count
+            // and pay the heirs; then the dying die. With rule L the ledger follows: on_death for the dying, then
+            // settle_loans, on each citizen's sugar (Python's order after aging).
+            const bool pairs = cfg.inheritance && cfg.credit;  // a dying lender's heirs take its loans (loans.cu)
+            s.dying = std::make_unique<DyingTable>(static_cast<unsigned int>(cfg.cells()), pairs);
             env.setProperty<uint64_t>("dying", s.dying->device_address());
             model.newLayer().addHostFunction(dying_posting);
             model.newLayer().addAgentFunction(citizen.newFunction("age_mark", age_mark));
             model.newLayer().addHostFunction(dying_sort);
-            model.newLayer().addAgentFunction(citizen.newFunction("heirs_count", heirs_count));
-            model.newLayer().addAgentFunction(citizen.newFunction("heirs_take", heirs_take));
+            if (cfg.inheritance) {
+                model.newLayer().addAgentFunction(citizen.newFunction("heirs_count", heirs_count));
+                if (pairs) model.newLayer().addHostFunction(dying_pairs_sort);
+                model.newLayer().addAgentFunction(citizen.newFunction("heirs_take", heirs_take));
+            }
             flamegpu::AgentFunctionDescription die_fn = citizen.newFunction("die_old", die_old);
             die_fn.setAllowAgentDeath(true);
             if (cfg.replacement) die_fn.setAgentOutput(citizen);
             model.newLayer().addAgentFunction(die_fn);
+            if (cfg.credit) {
+                model.newLayer().addAgentFunction(citizen.newFunction("ledger_post", ledger_post));
+                model.newLayer().addHostFunction(ledger);
+                model.newLayer().addAgentFunction(citizen.newFunction("ledger_take", ledger_take));
+            }
         } else {
             flamegpu::AgentFunctionDescription age_fn = citizen.newFunction("age_and_die", age_and_die);
             age_fn.setAllowAgentDeath(true);

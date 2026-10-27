@@ -52,6 +52,15 @@ DEFAULT_CFG = {
     # Combat and same-tribe replacement (Part B).
     "combat_alpha": "",
     "replacement_same_tribe": "false",
+    # Chapter IV (Part C).
+    "spice": "false",
+    "spice_metabolism": "1,5",
+    "spice_endowment": "",
+    "foresight": "",
+    "cultural_preferences": "false",
+    "trade": "false",
+    "trade_rounding": "exact",
+    "credit": "",
     "steps": "10",
     "seed": "0",
 }
@@ -91,6 +100,7 @@ class Dump:
     agents: list[dict] = field(default_factory=list)  # x, y, vision, metabolism, sugar, age, max_age, moved, neighbors
     landscape: dict = field(default_factory=dict)  # (x, y) -> {capacity, sugar, pollution, occupied}
     csv: list[dict] | None = None
+    loans: list[dict] = field(default_factory=list)  # rule L's book in list order: lender, borrower, principal, due, due_t
     returncode: int = 0
     stderr: str = ""
 
@@ -103,7 +113,9 @@ def capacity_rows(capacity: np.ndarray) -> list[list[int]]:
 
 # --init's optional columns (spec 2026-10-25-gpu-full-parity, Task 2), written only when some agent sets them.
 INIT_OPTIONAL = ("sex", "fertility_start", "fertility_end", "initial_sugar", "tags", "n_children", "parent_a", "parent_b",
-                 "friends")
+                 "friends",
+                 # Chapter IV (Part C). With spice on, an agent given no spice has 0 and starves at its first turn.
+                 "spice", "initial_spice", "spice_metabolism", "foresight")
 # Dump columns read as text, not numbers: tags is a 0/1 string, tag 0 first; friends is "uid:distance|...".
 TEXT_COLUMNS = ("sex", "tags", "friends")
 
@@ -151,13 +163,33 @@ def run_gpu(exe: Path, tmp: Path, cfg: dict | None = None, capacity: np.ndarray 
         args += ["--init", write_init(tmp / "init.csv", agents)]
     t = steps if dump_at is None else dump_at
     args += ["--dump-agents", tmp / "agents.csv", "--dump-landscape", tmp / "landscape.csv", "--dump-at", str(t)]
+    credit = bool(cfg.get("credit"))
+    if credit:
+        args += ["--dump-loans", tmp / "loans.csv"]
     result = run_exe(exe, *args, *extra_args)
     dump = Dump(returncode=result.returncode, stderr=result.stderr)
     if result.returncode != 0:
         return dump
     dump.agents = read_rows(tmp / "agents.csv")
+    if credit:
+        dump.loans = read_rows(tmp / "loans.csv")
     dump.landscape = {(r["x"], r["y"]): r for r in read_rows(tmp / "landscape.csv")}
     return dump
+
+
+def period_orders(exe: Path, tmp: Path, cfg: dict | None, capacity: np.ndarray | None, agents: list[dict] | None,
+                  steps: int) -> list[list[int]]:
+    """Each period's uids in the GPU's turn order (--dump-order), for stepping Python in the same order
+    (reference.run_python_in_order) where the order matters."""
+    tmp = Path(tmp)
+    tmp.mkdir(parents=True, exist_ok=True)
+    order_file = tmp / "order.csv"
+    dump = run_gpu(exe, tmp, cfg, capacity, agents, steps, extra_args=("--dump-order", order_file))
+    assert dump.returncode == 0, dump.stderr
+    orders = [[] for _ in range(steps)]
+    for row in read_rows(order_file):
+        orders[row["t"] - 1].append(row["uid"])
+    return orders
 
 
 def compare_dumps(gpu: Dump, py: Dump, pollution: bool = False) -> list[str]:
@@ -169,12 +201,18 @@ def compare_dumps(gpu: Dump, py: Dump, pollution: bool = False) -> list[str]:
     if set(g) != set(p):
         problems.append(f"agents differ: gpu-only {sorted(set(g) - set(p))}, python-only {sorted(set(p) - set(g))}")
     for k in set(g) & set(p):
-        if not math.isclose(g[k]["sugar"], p[k]["sugar"], abs_tol=1e-5):
-            problems.append(f"agent {k}: sugar gpu {g[k]['sugar']} python {p[k]['sugar']}")
+        for good in ("sugar", "spice"):  # spice wherever both dumps carry it (Part C)
+            if good not in g[k] or good not in p[k]:
+                continue
+            if not math.isclose(g[k][good], p[k][good], abs_tol=1e-5):
+                problems.append(f"agent {k}: {good} gpu {g[k][good]} python {p[k][good]}")
     for site, pc in py.landscape.items():
         gc = gpu.landscape[site]
-        if not math.isclose(gc["sugar"], pc["sugar"], abs_tol=1e-5):
-            problems.append(f"site {site}: sugar gpu {gc['sugar']} python {pc['sugar']}")
+        for good in ("sugar", "spice"):
+            if good not in gc or good not in pc:
+                continue
+            if not math.isclose(gc[good], pc[good], abs_tol=1e-5):
+                problems.append(f"site {site}: {good} gpu {gc[good]} python {pc[good]}")
         if gc["occupied"] != pc["occupied"]:
             problems.append(f"site {site}: occupied gpu {gc['occupied']} python {pc['occupied']}")
         if pollution and not math.isclose(gc["pollution"], pc["pollution"], rel_tol=1e-4, abs_tol=1e-5):
