@@ -126,12 +126,16 @@ the port: the look stride (commit 0b6b937), then the centred look (80f4630, 2026
   Julia agrees with Python, 0 flags among 436 tested windows and 7 extinction tests** (2026-10-27). At the end, II-4
   has 23,838 agents in Python and 23,828 in Julia, and IV-A3 has 3,212 and 3,253. The smallest p, II-6's early
   Gini (0.5% lower in Julia), is sampling noise by 50 Julia seeds.
-- **The earlier uniform look** also agreed on the same seven, with 0 flags. The fingerprint doesn't record the look,
-  so the report can't tell the two apart.
+- **The earlier uniform look** also agreed on the same seven, with 0 flags.
+- **The fingerprint names the look** (since 48a56cb, 2026-10-28): every xl fingerprint starts with `look: centred`,
+  so results made with an older look read as stale in the report. The 17 Julia results on record as centred-look
+  runs were re-stamped with the new line: the seven above, and ten re-run with the centred look on 2026-10-28 (one
+  job) as the GPU port's xl reference, III-1, III-7, III-8, III-9, III-11, IV-3, IV-6/trade/v6, VI-3, IV-A5 and
+  V-2. Python's seven xl results are being re-run (started 2026-10-28) to carry the line; until each finishes, the
+  report lists it as stale.
 - **The whole registry** ran in Julia at xl with the uniform look: all 135 experiments at their registered seeds,
-  without a failure. Apart from the seven above, `results-julia-xl/` still holds those uniform-look results, except
-  for ten re-run with the centred look on 2026-10-28 (one job) as the GPU port's xl reference: III-1, III-7, III-8,
-  III-9, III-11, IV-3, IV-6/trade/v6, VI-3, IV-A5 and V-2.
+  without a failure. The other 118 of `results-julia-xl/` are still those uniform-look runs, and read as stale until
+  they are re-run.
 - **VI-1 at xl does not go extinct on either side**, unlike 3 of 5 regular seeds: at t = 500 Python has 82,049
   agents on average and Julia 89,367, a gap of 0.45 of Python's SD across seeds. The larger world sustains the
   society; [docs/validation.md](docs/validation.md) has the numbers.
@@ -150,23 +154,24 @@ on both sides. Over the 135 regular experiments, both with one job, the median s
 centred-look xl experiments, also one job each, it is 94× ([docs/validation.md](docs/validation.md)).
 
 Julia alone, a selection of the xl registry (seconds of stepping per period; agents at start and end, mean over
-seeds). The median xl experiment takes 72 ms per period; the whole registry took 51 hours of stepping, summed over
-seeds. II-4, II-8, IV-A3 and VI-1 are centred-look runs with one job (2026-10-26 and 27); the rest used the uniform
-look and ran with 5 to 10 jobs sharing the processor.
+seeds). Over the results in `results-julia-xl/` now, the median experiment takes 68 ms per period, and the whole
+registry took about 50 hours of stepping, summed over seeds. All rows but III-15 are centred-look runs with one job
+(2026-10-26 to 28); III-15 used the uniform look and ran with 10 jobs sharing the processor, as did the other 118
+experiments not listed.
 
 | Experiment | Agents | Periods | Julia s/period |
 |---|---|---|---|
 | II-4 | 40,000 → 23,828 | 500 | 0.014 |
 | II-8 | 40,000 → 19,104 | 200 | 0.027 |
-| III-1 | 40,000 → 64,377 | 2,500 | 0.159 |
-| III-9 | 54,000 → 21,290 | 1,000 | 0.079 |
+| III-1 | 40,000 → 66,259 | 2,500 | 0.110 |
+| III-9 | 54,000 → 303 | 1,000 | 0.031 |
 | III-15 | 10,000 → 67,695 | 6,000 | 0.307 |
-| IV-3 | 20,000 → 4,732 | 1,000 | 0.012 |
+| IV-3 | 20,000 → 5,971 | 1,000 | 0.010 |
 | IV-A3 | 20,000 → 3,253 | 300 | 0.028 |
-| IV-A5 | 40,000 → 72,532 | 500 | 0.579 |
-| V-2 | 40,000 → 22,401 | 500 | 0.029 |
+| IV-A5 | 40,000 → 72,839 | 500 | 0.256 |
+| V-2 | 40,000 → 22,926 | 500 | 0.032 |
 | VI-1 | 20,000 → 89,367 | 500 | 0.323 |
-| VI-3 | 50,000 → 93,710 | 1,000 | 0.369 |
+| VI-3 | 50,000 → 94,342 | 1,000 | 0.320 |
 
 At regular size the median Julia experiment steps in about 0.1–0.5 ms per period.
 
