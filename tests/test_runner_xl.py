@@ -18,6 +18,16 @@ def test_xl_fingerprint_names_the_world_and_the_map():
     assert "width=500" in fp and "xl map sha256=" in fp and fp != fingerprint("TEST-tiny")
 
 
+def test_xl_results_made_before_the_centred_look_are_stale(tmp_path):
+    # The look rule is code, not settings, so the fingerprint names it: xl results from an older look must not pass.
+    run_experiment("TEST-tiny", out_dir=tmp_path, xl=True)
+    assert results_current("TEST-tiny", tmp_path, xl=True)
+    fp = tmp_path / "TEST-tiny" / "fingerprint.txt"
+    fp.write_text(fp.read_text(encoding="utf-8").replace("look: centred\n", ""), encoding="utf-8")
+    assert not results_current("TEST-tiny", tmp_path, xl=True)
+    assert "look:" not in fingerprint("TEST-tiny")  # stride 1 looks at every site, whatever the rule
+
+
 def test_cli_xl_defaults_to_results_xl():
     assert XL_OUT.name == "results-xl"
 
