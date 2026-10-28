@@ -63,3 +63,18 @@ function replace_rules(r::XxlRules; kw...)
     end
     return XxlRules(; values...)
 end
+
+"""
+    Remembered
+
+A site an xxl agent remembers (spec, "Memory"): its coordinates, the raw sugar and spice it showed when last seen,
+the pollution as seen, and the period `t` of the sighting.
+"""
+struct Remembered
+    x::Int
+    y::Int
+    sugar::Float64
+    spice::Float64
+    pollution::Float64
+    t::Int
+end

@@ -36,6 +36,10 @@ mutable struct Model{R<:AbstractRNG}
     looks::Vector{Int}  # scratch: in_sight's looks across the four lines, nearest first
     sight::Vector{Agent}  # scratch: in_sight's agents, nearest first
     sites::Vector{Tuple{Int,Int}}  # scratch: mate!'s empty sites next to the parents
+    near::Dict{Float64,Vector{Tuple{Int,Int}}}  # xxl: disc offsets by radius (near_offsets)
+    looked::Vector{Tuple{Int,Int}}  # xxl scratch: this move's looked-at sites
+    shell_shares::Vector{Float64}  # xxl: the clustering cache, empty until first used
+    threat_looked::Vector{Tuple{Int,Int}}  # xxl scratch: the retaliation look's sites, apart from `looked`
 end
 
 """
@@ -78,6 +82,10 @@ function Model(
         Int[],
         Int[],
         Agent[],
+        Tuple{Int,Int}[],
+        Dict{Float64,Vector{Tuple{Int,Int}}}(),
+        Tuple{Int,Int}[],
+        Float64[],
         Tuple{Int,Int}[],
     )
     cfg.disease_list > 0 && init_disease_list!(m)
@@ -158,13 +166,17 @@ end
 
 function move_agent!(m::Model, a::Agent, x::Int, y::Int)
     x, y = wrap(m, x, y)
-    (x, y) == (a.x, a.y) && return nothing
+    if (x, y) == (a.x, a.y)
+        a.moved_dist = 0.0
+        return nothing
+    end
     m.grid[x + 1, y + 1] === nothing || throw(ArgumentError("site ($x, $y) is occupied"))
     m.grid[a.x + 1, a.y + 1] = nothing
     m.grid[x + 1, y + 1] = a
     w, h = m.config.width, m.config.height
     a.disp_x += mod(x - a.x + w ÷ 2, w) - w ÷ 2  # shortest way round the torus
     a.disp_y += mod(y - a.y + h ÷ 2, h) - h ÷ 2
+    a.moved_dist = torus_dist(w, h, a.x, a.y, x, y)  # xxl's travel cost reads it; draws nothing
     a.x, a.y = x, y
     return nothing
 end
@@ -368,7 +380,7 @@ function spawn_at!(m::Model, x::Int, y::Int; tribe::Symbol=:none)
     return a
 end
 
-"""Chapter III-V draws for a new random agent, each gated by its rules and in Python's order (III, IV, V)."""
+"""Chapter III-V draws for a new random agent, each gated by its rules and in Python's order (III, IV, V), then xxl's speed."""
 function spawn_chapter_draws!(m::Model, a::Agent, tribe::Symbol)
     cfg, rng = m.config, m.rng
     # Chapter III draws come after the Chapter II ones.
@@ -391,6 +403,8 @@ function spawn_chapter_draws!(m::Model, a::Agent, tribe::Symbol)
         a.immune, a.nimmune = a.immune_genotype, cfg.immune_length  # the phenotype trains on a copy (p.146)
         a.disease_fee = cfg.disease_fee
     end
+    # xxl's draws come after every book draw.
+    xxl_on(cfg, :speed) && (a.speed = draw(rng, cfg.xxl.speed))
     return a
 end
 

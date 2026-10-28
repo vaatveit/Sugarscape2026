@@ -74,6 +74,8 @@ function move!(m::Model, a::Agent)
     ls = m.landscape
     spice = m.config.spice
     w, h = ls.width, ls.height
+    a.moved_dist = 0.0
+    a.target_remembered = false
     best_x, best_y, best_d = a.x, a.y, 0
     sw = spice ? SiteWelfare(m, a) : NO_WELFARE  # the agent's part of welfare_score, once per move
     best = spice ? score(sw, ls, a.x + 1, a.y + 1) : site_score(ls, a.x + 1, a.y + 1)

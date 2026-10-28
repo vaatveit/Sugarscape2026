@@ -16,7 +16,9 @@ export Experiment, REGISTRY_PATH, load_registry, find_experiment, config_from_to
 export MAPS_DIR, load_map, parse_map, map_sha256
 export XL_FACTOR, XL_MAP, to_xl
 export XxlRules, XXL_BOOK, XXL_DEFAULTS, XXL_MAP, replace_rules, to_xxl, xxl_on
-export torus_delta, torus_dist, disc_offsets, ring_point, ring_draws, winter_weight
+export torus_delta,
+    torus_dist, disc_offsets, near_offsets, ring_point, ring_draws, winter_weight
+export Remembered
 export Agent, Exchange, Loan, sugar_burn
 export Landscape, wrap, growback!, is_summer_north, seasonal_growback!, diffuse!, set_spice!
 export Model,

@@ -135,6 +135,7 @@ function mate!(m::Model, a::Agent)
             child.immune, child.nimmune = child.immune_genotype, a.nimmune
             child.disease_fee = cfg.disease_fee
         end
+        xxl_on(cfg, :speed) && (child.speed = parents[rand(rng, 1:2)].speed)  # xxl: after every book draw
         push!(a.children, child)
         push!(other.children, child)
         push!(children, child)

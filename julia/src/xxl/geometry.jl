@@ -1,4 +1,4 @@
-# xxl: torus distances, disc offsets, ring draws and the season weight (spec, "The rules"). Pure functions; none takes a Model.
+# xxl: torus distances, disc offsets, ring draws and the season weight (spec, "The rules"). Pure functions, except [`near_offsets`](@ref), which caches on the model.
 
 """
     torus_delta(w, x1, x2) -> Int
@@ -69,3 +69,12 @@ The season gradient's weight at row `y` of `h`: `abs(sinpi(2y / h))`, 0 on the e
 the way up each hemisphere.
 """
 winter_weight(y::Integer, h::Integer) = abs(sinpi(2y / h))
+
+"""
+    near_offsets(m, r) -> Vector{Tuple{Int,Int}}
+
+[`disc_offsets`](@ref)`(r)`, cached on the model: computed on first use, then looked up. Do not mutate the result.
+"""
+function near_offsets(m::Model, r::Real)
+    return get!(() -> disc_offsets(r), m.near, Float64(r))
+end
