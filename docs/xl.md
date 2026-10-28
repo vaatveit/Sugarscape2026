@@ -2,8 +2,8 @@
 
 xl is the sugarscape at 10× the linear resolution: 500 × 500 sites instead of 50 × 50, with every distribution of
 resources and agents scaled so that an xl run looks like a regular run, only more detailed. It exists to compare
-the performance of different implementations of the same model: this Python model, the FLAME GPU 2 port in
-`flamegpu/`, and a Julia implementation. This document is the contract they implement. It needs no Python.
+the performance of different implementations of the same model: this Python model, the Julia port in `julia/` and
+the FLAME GPU 2 port in `flamegpu/`. This document is the contract they implement. It needs no Python.
 
 xl is defined by two things: the map file `sugarscape/maps/sugar-map-xl.txt` and the configuration table below.
 The design and its reasoning are in
@@ -143,7 +143,8 @@ seed 0 against 0.001 s for seed 1. With `--jobs J`, each of the J worker process
 `--jobs 2`, seeds 0 and 1 both took about 0.06 s and the rest about 0.001 s).
 
 *Not defined here:* which metrics must agree between implementations, over how many seeds, and to what tolerance.
-That belongs to the comparison work.
+That belongs to the comparison work: the agreement rule in [julia/README.md](../julia/README.md) ("Comparing with
+Python"), which the GPU port uses too.
 
 ## The Python reference
 
@@ -156,7 +157,7 @@ That belongs to the comparison work.
   smoothing. The landscape is paler and agents fill their site in colours that stand out against every site (3:1
   contrast or better). Agent size is off, and the newest 100 periods are kept.
 - **Speed**, one process (`--jobs 1`), one seed at a time, stepping only, over each experiment's full run
-  (centred look; `results-xl/*/timing.csv`):
+  (centred look; the `results-xl/*/timing.csv` of the runs of 2026-10-26 and 27):
 
   | Experiment | Periods × seeds | Agents, start → end | s per period, mean (seed range) | Total stepping |
   |---|---|---|---|---|
@@ -179,5 +180,8 @@ That belongs to the comparison work.
     uniform look).
 
   The Python model is the baseline being measured, so it hasn't been tuned for xl.
+
+  Those runs' fingerprints predate the look line, so they read as stale; the seven are being re-run with
+  `--jobs 1` (started 2026-10-28, about 19 hours), and each new run replaces its folder and its timings.
 - The rule that diffuses pollution 100 times is `Config.diffusion_passes`, and the look stride is
   `Config.look_stride`. Both default to 1 and are left out of regular fingerprints.

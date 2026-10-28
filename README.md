@@ -1,19 +1,20 @@
 # Reproducing *Growing Artificial Societies*: a retrospective
 
 This is a review of our attempt to rebuild Epstein and Axtell's Sugarscape (1996) from the book and
-reproduce its results. The work ran from 2026-10-21 to 2026-10-22, with four follow-ups on 2026-10-23.
-The [first](#follow-up-2026-10-23) carried out this review's recommendations, and each later one
-([second](#second-follow-up-2026-10-23), [third](#third-follow-up-2026-10-23),
-[fourth](#fourth-follow-up-2026-10-23)) took the next steps the one before left. The detailed evidence is in the
+reproduce its results. The work ran from 2026-10-21 to 2026-10-22, with nine follow-ups on 2026-10-23.
+The [first](#follow-up-2026-10-23) carried out this review's recommendations, and each later one (from the
+[second](#second-follow-up-2026-10-23) to the [ninth](#ninth-follow-up-2026-10-23)) took the next steps the one
+before left. From 2026-10-23 to 2026-10-28 the model was also ported to Julia and to the GPU, and the three were
+compared on the book's rules and on speed ([Three implementations compared](#three-implementations-compared)). The detailed evidence is in the
 chapter records ([II](docs/replication/chapter-2.md), [III](docs/replication/chapter-3.md), [IV](docs/replication/chapter-4.md), [V](docs/replication/chapter-5.md),
 [VI](docs/replication/chapter-6.md)), our reading of the book is in [book-notes.md](docs/book-notes.md), the
 design is in [the spec](docs/superpowers/specs/2026-10-21-sugarscape-design.md), and the probe scripts are in
-[diagnostics/](diagnostics/README.md). Every number below is taken from those records as of the follow-up.
+[diagnostics/](diagnostics/README.md). Every number below is taken from those records as of the last follow-up.
 
 ## The short version
 
-- **Every rule in the book is implemented**, with 96 registered experiments and 169 measured
-  targets. Across the targets, **99 pass, 27 are near and 43 fail**, under the default rule S since
+- **Every rule in the book is implemented**, with 140 registered experiments (81 for the book's figures and
+  59 labelled variants) and 169 measured targets. Across the targets, **99 pass, 27 are near and 43 fail**, under the default rule S since
   2026-10-23 (integer gifts and partners in sight; below). Under the previous default, a fitted
   threshold of 0.83, they scored 95 / 22 / 52. (Before the follow-up added 28 early
   carrying-capacity rows and tightened "near", 141 targets scored 68 / 30 / 43.)
@@ -108,7 +109,7 @@ test-first, then an experiment per figure or animation, then a multi-seed replic
 then a whole-branch review and a fix pass, then the chapter record.
 
 **Tests.**
-- 287 fast tests cover three things:
+- 412 fast tests cover three things:
   - rules checked against the book's worked examples: Appendix C's welfare example, Table V-1's
     immune response, Fig IV-2's trade, the growback, seasonal and diffusion formulas;
   - invariants: one agent per site, no negative sugar, trade conserves goods and raises both
@@ -851,6 +852,8 @@ in winter, is untested (pulse growth is). Beyond that, look for the original pro
 | Experiments and targets | `experiments/registry.py`, `replication/targets.py` |
 | Viewer (watch one run in the browser) | `viewer/`; [design](docs/superpowers/specs/2026-10-24-viewer-design.md) |
 | xl, the 500×500 workload for comparing implementations | [docs/xl.md](docs/xl.md); `sugarscape/xl.py`, `sugarscape/maps/xl.py`; [design](docs/superpowers/specs/2026-10-24-xl-design.md) |
+| Julia port and its comparison record | [julia/](julia/README.md), [julia/docs/validation.md](julia/docs/validation.md) |
+| FLAME GPU port and its comparison record | [flamegpu/](flamegpu/README.md), [flamegpu/docs/validation/part-f.md](flamegpu/docs/validation/part-f.md) |
 | Probe scripts behind the records; MASON, Ascape, SugarscapeCW and nkremerh harnesses | [diagnostics/](diagnostics/README.md), [diagnostics/mason/](diagnostics/mason/README.md), [diagnostics/ascape/](diagnostics/ascape/README.md), [diagnostics/sugarscapecw/](diagnostics/sugarscapecw/README.md), [diagnostics/nkremerh/](diagnostics/nkremerh/README.md) |
 
 ```bash
@@ -924,6 +927,113 @@ comparison report (`python -m bridge.report`, from `julia/`) tests agreement wit
 by metric, scores both against the book's targets, and puts their timings side by side. Across all 134 experiments
 it finds no flagged difference in 8,146 tested windows. 37 book-target statuses differ, so the report's own
 verdict reads "does not agree"; each change is followed up in [julia/docs/validation.md](julia/docs/validation.md),
-and all of them came out as sampling noise. II-4 at xl agrees too (0 flags). In development timings on a shared machine, Julia
-stepped II-4 about 144× faster per period at regular size and about 86× at xl; quiet-machine numbers are still to
-come.
+and all of them came out as sampling noise. The seven experiments Python has at xl agree too (0 flags in 436
+windows). Julia steps a period a median 36× faster than Python at regular size and 94× faster at xl, one job each
+([below](#three-implementations-compared)).
+
+## FLAME GPU
+
+[flamegpu/](flamegpu/README.md) is a GPU port on FLAME GPU 2 (C++ and CUDA). It runs every rule of the Python
+`Config` and all 134 sugarscape experiments, at regular and xl size; the Schelling and Ring World models (VI-4 to
+VI-9) are skipped by the user's decision. Agents act in parallel, yet each period reaches the result of Python's
+one-at-a-time order, apart from three small differences in the order of events within a period (flamegpu/README.md,
+"How the GPU version differs"). Its bridge (`bridge.gpu_run`, `bridge.agreement_report`, from `flamegpu/`) writes
+results in this runner's layout and applies Julia's agreement rule. The record of every comparison is
+[flamegpu/docs/validation/part-f.md](flamegpu/docs/validation/part-f.md).
+
+## Three implementations compared
+
+The same model is implemented three times. Python is the specification; the other two are ports that must match it.
+
+| | Python | Julia | FLAME GPU 2 |
+|---|---|---|---|
+| Where | `sugarscape/`, `experiments/` | [julia/](julia/README.md) | [flamegpu/](flamegpu/README.md) |
+| Runs on | CPU, one seed per process | CPU, one seed per process, single-threaded | GPU (C++ and CUDA, FLAME GPU `v2.0.0-rc.5`) |
+| Experiments | all 140, regular; 7 at xl | all 134 sugarscape experiments, regular and xl | all 134 sugarscape experiments at regular size; a sample of 15 at xl |
+| Not covered | — | Schelling and Ring World (VI-4 to VI-9) | Schelling and Ring World, by the user's decision |
+| Order within a period | agents act one at a time, in a fresh random order | the same | agents act in parallel, in conflict-free waves that reproduce the sequential order; three small differences remain (below) |
+| Random numbers | numpy `default_rng` | `Random.Xoshiro` | FLAME GPU's own streams |
+
+No two implementations share a random stream, so no run matches another site for site. "Agreeing" means the same
+statistics across seeds.
+
+### How they agree
+
+The agreement is tested at three levels.
+
+**1. Rules, exactly.** Small scenarios whose outcome cannot depend on the order agents act in or on random draws:
+- **Python:** 412 fast tests, including the book's worked examples (Appendix C's welfare, Table V-1's immune
+  response, Fig IV-2's trade) and invariants such as one agent per site and conservation in trade and credit.
+- **Julia:** 7,974 checks, one test set per deterministic Python test. 21 cross-language scenarios must match
+  Python's end state to 1e-12. In 9 lockstep cases Julia is fed every random choice Python made and must reproduce
+  its run period by period. 30 Python-side tests cover the comparison bridge and fail when the shared fixtures fall
+  out of date.
+- **GPU:** 400 tests that drive the built program. Rule scenarios must give Python's results (sugar to 1e-5),
+  replayed periods must put every agent on Python's site, and running one turn per wave must give byte-identical
+  output.
+
+**2. Whole runs, statistically.** Julia's agreement rule: for every experiment, metric and quarter of the run, a
+Welch t-test between the two sides' seed means, and Fisher's exact test on extinction, all corrected together
+(Benjamini–Hochberg, q = 0.01). A test that survives the correction is a flag.
+
+| Comparison | Experiments | Windows tested | Flagged |
+|---|---|---|---|
+| Julia against Python, regular | 134 | 8,146 | 0 |
+| Julia against Python, xl | 7 | 436 | 0 |
+| GPU against Python, regular | 134 and `TEST-tiny` | 8,172 | 0 |
+| GPU against Python, xl | 7 | 436 | 0 |
+| GPU against Julia, xl, where Python has no xl results | 8 | 523 | 6 |
+
+The six flags are shifts of about 1% in III-7 and VI-3, with the GPU above Julia. They come from the GPU's three
+remaining differences in order (a site freed during a period is free only from the next period; a child is never
+born on a later mover's target; movement scores sites with the holdings at the start of the period). Python's own
+rules run with the GPU's order shift the same way: over 60 seeds at regular size that harness flags III-7 against
+Python, and the GPU flags nothing against the harness. The many agents at xl make the seeds' spread small enough to
+detect a 1% shift.
+
+**3. Book targets.** Each port's results are scored against the same targets as Python's. Julia changes 37
+statuses and the GPU 15. Each change was followed up (seed-level p-values, and more seeds where p was low) and came
+out as sampling noise. Details: [julia/docs/validation.md](julia/docs/validation.md) and
+[flamegpu/docs/validation/targets-part-f.md](flamegpu/docs/validation/targets-part-f.md).
+
+### How they compare in speed
+
+Milliseconds of stepping per period, averaged over seeds and periods, one job each. These are development timings,
+on an i7-13700K that other programs shared at times and an RTX 4080; they can be off by up to about 2× either way.
+Quiet-machine timings are still to be made.
+
+| Experiment | Size | Agents, start → end | Python | Julia | GPU |
+|---|---|---|---|---|---|
+| II-4 | regular | 400 → about 233 | 2.89 | 0.063 | 0.82 |
+| III-1 | regular | 400 → about 570 | 12.6 | 0.40 | 12.8 |
+| IV-13/trade/v14.5 | regular | 400 throughout | 47.9 | 1.29 | 12.7 |
+| VI-3 | regular | 500 → about 910 | 32.1 | 1.28 | 22.6 |
+| II-4 | xl | 40,000 → about 23,800 | 1,327 | 14.1 | 1.24 |
+| IV-A3 | xl | 20,000 → about 3,200 | 1,113 | 28.1 | 17.4 |
+| VI-1 | xl | 20,000 → 60,000–100,000 | 16,440 | 323 | 597 |
+| III-1 | xl | 40,000 → about 66,000 | — | 110 | 302 |
+
+Over every experiment timed on both sides:
+
+| Pair | Regular size | xl |
+|---|---|---|
+| Julia against Python | Julia faster in all 135; median 36× | faster in all 7; median 94× (40× to 133×) |
+| GPU against Python | GPU faster in 108 of 135; median about 2× | faster in all 7; 28× (VI-1) to about 1,500× (Chapter II) |
+| GPU against Julia | GPU slower in 133 of 135; median 16× slower | GPU faster in 9 of 15; median 2× faster (13× faster to 2.8× slower) |
+
+- **Julia** runs Python's algorithm one agent at a time, compiled. It is the fastest of the three at regular size,
+  and at xl wherever the GPU needs many waves.
+- **The GPU** has a floor of about 0.5 ms a period for kernel launches and synchronisation, which a few hundred
+  agents can't fill. Its time barely grows with agents: 40,000 agents step Chapter II's rules in 1 to 3.5 ms, and
+  the scaling benchmark steps II-4's rules for a million agents in 4.8 ms.
+- **The waves are the GPU's cost.** Rules where agents interact (sex, trade, credit, culture, combat) run as turns in
+  waves of non-conflicting agents, each wave a round of launches. Chapter II needs none. Most of the 27 regular
+  experiments where the GPU is slower than Python need many waves a period: III-9 (84 waves, 2.9× slower), III-13
+  (154, 2.4×), IV-17 (160, 2.75×). Sex at xl needs 1,200 to 2,700 waves a period, which is where Julia beats the GPU
+  (III-1 2.8×, III-7 2.6×, VI-1 1.85×).
+- **Python** is the plain reference, not tuned for speed. Its time grows about linearly with agents, roughly 13 µs
+  per agent a period.
+
+The full tables, every experiment on all three, are in
+[flamegpu/docs/validation/part-f.md](flamegpu/docs/validation/part-f.md) ("Speed") and Julia's against Python in
+[julia/docs/validation.md](julia/docs/validation.md).
