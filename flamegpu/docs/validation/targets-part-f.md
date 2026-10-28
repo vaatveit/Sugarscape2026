@@ -13,8 +13,8 @@ Every experiment at regular size on `build\` (seatbelts on), registered seeds an
 | VI | 21 pass, 4 near, 13 fail | 4 pass, 5 near, 14 fail, 15 not run |
 
 VI's 15 not run are VI-4 to VI-9, the Schelling and Ring World models, skipped by the user's decision (2026-10-27:
-"I am not interested in the Schelling and Ring World models"). Of the 23 VI targets both sides ran, Python has 4 pass
-more than the GPU and the GPU 4 more near or fail: the four status changes below.
+"I am not interested in the Schelling and Ring World models"). Of the 23 VI targets both sides ran, Python has 3
+passes more than the GPU, and the GPU 2 more near and 1 more fail: the four VI status changes below.
 
 ## Status changes
 

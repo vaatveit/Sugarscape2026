@@ -41,7 +41,7 @@ None.
 - III-9
 - III-11
 
-## Stale fingerprints
+## Stale fingerprints or missing seeds
 
 None.
 

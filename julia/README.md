@@ -129,7 +129,9 @@ the port: the look stride (commit 0b6b937), then the centred look (80f4630, 2026
 - **The earlier uniform look** also agreed on the same seven, with 0 flags. The fingerprint doesn't record the look,
   so the report can't tell the two apart.
 - **The whole registry** ran in Julia at xl with the uniform look: all 135 experiments at their registered seeds,
-  without a failure. Apart from the seven above, `results-julia-xl/` still holds those uniform-look results.
+  without a failure. Apart from the seven above, `results-julia-xl/` still holds those uniform-look results, except
+  for ten re-run with the centred look on 2026-10-28 (one job) as the GPU port's xl reference: III-1, III-7, III-8,
+  III-9, III-11, IV-3, IV-6/trade/v6, VI-3, IV-A5 and V-2.
 - **VI-1 at xl does not go extinct on either side**, unlike 3 of 5 regular seeds: at t = 500 Python has 82,049
   agents on average and Julia 89,367, a gap of 0.45 of Python's SD across seeds. The larger world sustains the
   society; [docs/validation.md](docs/validation.md) has the numbers.

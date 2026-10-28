@@ -20,7 +20,7 @@ None.
 
 None.
 
-## Stale fingerprints
+## Stale fingerprints or missing seeds
 
 None.
 

@@ -317,7 +317,7 @@ None.
 - VI-8
 - VI-9
 
-## Stale fingerprints
+## Stale fingerprints or missing seeds
 
 None.
 

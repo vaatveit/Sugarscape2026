@@ -19,7 +19,7 @@ import math
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from bridge.gpu_run import gpu_fingerprint, matching_ids
+from bridge.gpu_run import gpu_current, matching_ids
 from bridge.paths import SUGARSCAPE_ROOT
 from experiments.registry import EXPERIMENTS
 from experiments.run import fingerprint, load_results, result_dir, results_current
@@ -93,9 +93,12 @@ def _fingerprint_is(folder: Path, text: str) -> bool:
 
 
 def _reference_current(exp_id: str, ref_dir: Path, reference: str, xl: bool) -> bool:
-    """Python's results as experiments.run checks them; Julia's carry Python's fingerprint after a "julia" line."""
+    """Python's results as experiments.run checks them; Julia's carry Python's fingerprint after a "julia" line, and
+    like Python's hold every registered seed."""
     if reference == "julia":
-        return _fingerprint_is(result_dir(exp_id, ref_dir), "julia\n" + fingerprint(exp_id, xl))
+        folder = result_dir(exp_id, ref_dir)
+        return (_fingerprint_is(folder, "julia\n" + fingerprint(exp_id, xl))
+                and all((folder / f"seed{k}.csv").exists() for k in range(EXPERIMENTS[exp_id].seeds)))
     return results_current(exp_id, ref_dir, xl=xl)
 
 
@@ -113,8 +116,7 @@ def build_report(args: list[str], gpu_dir: Path, ref_dir: Path, *, xl: bool = Fa
             continue
         report.checks += agreement.compare_experiment(exp_id, load_results(exp_id, ref_dir),
                                                       load_results(exp_id, gpu_dir))
-        if not (_reference_current(exp_id, ref_dir, reference, xl)
-                and _fingerprint_is(result_dir(exp_id, gpu_dir), gpu_fingerprint(exp_id, xl))):
+        if not (_reference_current(exp_id, ref_dir, reference, xl) and gpu_current(exp_id, gpu_dir, xl)):
             report.stale.append(exp_id)
         g, p = _timing(exp_id, timing_dir), _timing(exp_id, ref_dir)
         if g and p:
@@ -148,7 +150,7 @@ def write_report(report: Report, path: Path) -> None:
     lines += ["", "## Untestable windows (fewer than two seed values on a side)", ""]
     lines += [f"- {_label(c)}" for c in checks if c.kind == "untestable"] or ["None."]
     lines += ["", "## Not run", ""] + ([f"- {i}" for i in report.not_run] or ["None."])
-    lines += ["", "## Stale fingerprints", ""] + ([f"- {i}" for i in report.stale] or ["None."])
+    lines += ["", "## Stale fingerprints or missing seeds", ""] + ([f"- {i}" for i in report.stale] or ["None."])
     lines += ["", "## Speed (per period; development timings, uncontrolled)", "",
               f"| Experiment | GPU setup s | GPU step ms | GPU metrics ms | {ref} setup s | {ref} step ms | "
               f"{ref} metrics ms | GPU / {ref} step | Julia step ms | GPU / Julia step |",

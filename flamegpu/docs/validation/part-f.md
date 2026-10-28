@@ -119,9 +119,10 @@ seeds each of III-7 and VI-3 at regular size on four versions:
 - the GPU (`build-fast\`);
 - Python;
 - Julia;
-- the semantics harness: Python's rules with the GPU's turns, run through `bridge.semantics_harness.run_seed`.
+- the semantics harness: Python's rules with the GPU's turns (`bridge.semantics_harness --seeds 60`).
 
-The pairings were scored by the same agreement rule, over 131 windows.
+The pairings were scored by the same agreement rule, over 131 windows. The reports and commands are in
+[part-f-60-seeds/](part-f-60-seeds/README.md).
 
 | Pairing | Flagged | Which |
 |---|---|---|
@@ -139,8 +140,10 @@ Agents that changed site, per agent, in III-7's last quarter:
 
 In VI-3's first quarter, the harness and the GPU are both 0.9% above Python (t 1.8), and Julia 0.2% below.
 
-- **III-7: shown directly.** The turns move more agents and leave fewer on the peaks. The GPU carries that shift,
-  and nothing beyond it.
+- **III-7: shown directly.** The turns move more agents and leave fewer on the peaks.
+  - The GPU's shift goes the same way and is bounded by the harness's: 0 flags against the harness.
+  - The GPU's moves sit between Python's and the harness's, so against Python only two of the harness's four
+    flags reach significance.
 - **VI-3: consistent, not proven.** At regular size VI-3 flags nothing in any pairing. Its moves-per-agent lean is
   the harness's, and Part C's VAR-c1c3fit/VI-3 trade shift was the harness's too. Its extra sugar per trade is not
   resolved at regular size.

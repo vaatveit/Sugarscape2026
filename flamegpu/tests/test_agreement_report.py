@@ -155,3 +155,15 @@ def test_xl_fingerprints(tmp_path):
     assert build_report([EXP], tmp_path / "gpu", tmp_path / "py", xl=True).stale == [EXP]
     (tmp_path / "gpu" / EXP / "fingerprint.txt").write_text(_gpu_fp(xl=True), encoding="utf-8")
     assert build_report([EXP], tmp_path / "gpu", tmp_path / "py", xl=True).stale == []
+
+
+def test_incomplete_side_listed_stale(tmp_path):
+    # A folder with a current fingerprint but fewer seeds than registered (TEST-tiny: 2) is listed, GPU or Julia,
+    # as Python's results_current lists it: never scored as if complete.
+    _write(tmp_path / "jl", _seeds(np.random.default_rng(11), n=2), fingerprint="julia\n" + _py_fp())
+    _write(tmp_path / "gpu", _seeds(np.random.default_rng(12), n=1), fingerprint=_gpu_fp())
+    assert build_report([EXP], tmp_path / "gpu", tmp_path / "jl", reference="julia").stale == [EXP]
+    _write(tmp_path / "jl1", _seeds(np.random.default_rng(13), n=1), fingerprint="julia\n" + _py_fp())
+    _write(tmp_path / "gpu2", _seeds(np.random.default_rng(14), n=2), fingerprint=_gpu_fp())
+    assert build_report([EXP], tmp_path / "gpu2", tmp_path / "jl1", reference="julia").stale == [EXP]
+    assert build_report([EXP], tmp_path / "gpu2", tmp_path / "jl", reference="julia").stale == []

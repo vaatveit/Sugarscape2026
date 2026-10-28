@@ -230,7 +230,8 @@ explained are in [docs/validation/part-f.md](docs/validation/part-f.md).
 | xl, against Julia, where Python has no xl results | 8 | 523 | 6 |
 
 - The six xl flags are shifts of about 1% in III-7 and VI-3: the turn semantics (differences 1–3 above).
-  - Python's own rules with the GPU's turns show them, and the GPU agrees with that harness: 0 flags over 60 seeds.
+  - Python's own rules with the GPU's turns shift the same way at regular size. The GPU's shift is no larger: 0
+    flags against that harness over 60 seeds.
 - Combat III-9 and III-11 were left out of the xl sample: about 23 h together.
 
 **Book targets** (pass, near, fail):
