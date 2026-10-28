@@ -11,9 +11,11 @@ from bridge.agreement_report import build_report, write_report
 EXP = "TEST-tiny"  # 5 steps, so four windows of the periods 0..5
 
 
-def _write(folder: Path, seeds: list[list[dict]], timing: dict | None = None) -> None:
+def _write(folder: Path, seeds: list[list[dict]], timing: dict | None = None, fingerprint: str | None = None) -> None:
     run = folder / EXP
     run.mkdir(parents=True)
+    if fingerprint is not None:
+        (run / "fingerprint.txt").write_text(fingerprint, encoding="utf-8")
     for k, series in enumerate(seeds):
         with (run / f"seed{k}.csv").open("w", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=list(series[0]))
@@ -81,3 +83,75 @@ def test_zero_periods_speed_is_nan(tmp_path):
     assert speed.gpu_setup_s == 2.0 and np.isnan(speed.gpu_step_ms) and np.isnan(speed.py_metrics_ms)
     write_report(report, tmp_path / "A.md")
     assert "| TEST-tiny | 2 | nan |" in (tmp_path / "A.md").read_text(encoding="utf-8")
+
+
+# --- Part F (plan 2026-10-27-gpu-parity-part-f, Task 2): xl, a Julia reference, Julia's timings --------------------
+
+TIMING = {"setup_s": 0.5, "stepping_s": 10.0, "metrics_s": 1.0}
+
+
+def _gpu_fp(xl: bool = False) -> str:
+    from bridge.gpu_run import gpu_fingerprint
+
+    return gpu_fingerprint(EXP, xl)
+
+
+def _py_fp(xl: bool = False) -> str:
+    from experiments.run import fingerprint
+
+    return fingerprint(EXP, xl)
+
+
+def test_xl_julia_reference(tmp_path):
+    seeds = _seeds(np.random.default_rng(6))
+    _write(tmp_path / "jl", seeds, fingerprint="julia\n" + _py_fp())
+    _write(tmp_path / "gpu", seeds, fingerprint=_gpu_fp())
+    report = build_report([EXP], tmp_path / "gpu", tmp_path / "jl", reference="julia")
+    assert report.flagged == [] and report.tested > 0 and report.stale == []
+    write_report(report, tmp_path / "A.md")
+    assert "Julia" in (tmp_path / "A.md").read_text(encoding="utf-8").splitlines()[0]
+
+
+def test_julia_stale_listed(tmp_path):
+    seeds = _seeds(np.random.default_rng(7))
+    _write(tmp_path / "jl", seeds, fingerprint="julia\nold\n")
+    _write(tmp_path / "gpu", seeds, fingerprint=_gpu_fp())
+    assert build_report([EXP], tmp_path / "gpu", tmp_path / "jl", reference="julia").stale == [EXP]
+
+
+def test_speed_table_julia_column(tmp_path):
+    seeds = _seeds(np.random.default_rng(8))
+    _write(tmp_path / "py", seeds, TIMING)
+    _write(tmp_path / "gpu", seeds, {**TIMING, "stepping_s": 1.0})
+    _write(tmp_path / "jl", seeds, {**TIMING, "stepping_s": 2.0})
+    (speed,) = build_report([EXP], tmp_path / "gpu", tmp_path / "py", julia_dir=tmp_path / "jl").speed
+    assert speed.julia_step_ms == 200.0 and speed.julia_ratio == 0.5
+    report = build_report([EXP], tmp_path / "gpu", tmp_path / "py", julia_dir=tmp_path / "missing")
+    (speed,) = report.speed
+    assert np.isnan(speed.julia_step_ms) and np.isnan(speed.julia_ratio)
+    write_report(report, tmp_path / "A.md")
+    row = next(line for line in (tmp_path / "A.md").read_text(encoding="utf-8").splitlines()
+               if line.startswith(f"| {EXP} |"))
+    assert row.endswith("| nan | nan |")
+
+
+def test_timing_dir_overrides(tmp_path):
+    seeds = _seeds(np.random.default_rng(9))
+    _write(tmp_path / "py", seeds, TIMING)
+    _write(tmp_path / "gpu", seeds, TIMING)
+    _write(tmp_path / "fast", seeds, {**TIMING, "stepping_s": 0.5})
+    (speed,) = build_report([EXP], tmp_path / "gpu", tmp_path / "py", timing_dir=tmp_path / "fast").speed
+    assert speed.gpu_step_ms == 50.0
+
+
+def test_xl_fingerprints(tmp_path):
+    # With --xl both sides are checked against the xl fingerprints: regular ones read stale.
+    seeds = _seeds(np.random.default_rng(10))
+    _write(tmp_path / "py", seeds, fingerprint=_py_fp())
+    _write(tmp_path / "gpu", seeds, fingerprint=_gpu_fp(xl=True))
+    assert build_report([EXP], tmp_path / "gpu", tmp_path / "py", xl=True).stale == [EXP]
+    (tmp_path / "py" / EXP / "fingerprint.txt").write_text(_py_fp(xl=True), encoding="utf-8")
+    (tmp_path / "gpu" / EXP / "fingerprint.txt").write_text(_gpu_fp(), encoding="utf-8")
+    assert build_report([EXP], tmp_path / "gpu", tmp_path / "py", xl=True).stale == [EXP]
+    (tmp_path / "gpu" / EXP / "fingerprint.txt").write_text(_gpu_fp(xl=True), encoding="utf-8")
+    assert build_report([EXP], tmp_path / "gpu", tmp_path / "py", xl=True).stale == []

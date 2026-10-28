@@ -73,12 +73,19 @@ One run, from a `run.cfg` of `key = value` lines (the Python `Config` field name
 build\bin\Release\sugarscape_gpu.exe --config run.cfg --out metrics.csv
 ```
 
-A chapter's registered experiments, every seed, written where the Python project's tools can read them. Experiments
-that need rules not yet on the GPU are skipped and named:
+A chapter's registered experiments, every seed, written where the Python project's tools can read them. The Schelling
+and Ring World models are skipped by decision, and named:
 
 ```bat
 .venv\Scripts\python -m bridge.gpu_run II --jobs 4
 .venv\Scripts\python -m bridge.gpu_report --chapter II
+```
+
+Every Sugarscape experiment at once, picking up a stopped run where it left off (`--resume` keeps each experiment whose
+results are current and complete):
+
+```bat
+.venv\Scripts\python -m bridge.gpu_run TEST-tiny II III IV V VI VAR --jobs 4 --resume
 ```
 
 The Julia agreement rule, GPU seeds against Python's, with a speed table, into `results-gpu\AGREEMENT.md`:
@@ -86,6 +93,10 @@ The Julia agreement rule, GPU seeds against Python's, with a speed table, into `
 ```bat
 .venv\Scripts\python -m bridge.agreement_report III VAR-book
 ```
+
+`--xl` compares the xl versions (`results-gpu-xl\` against `results-xl\`). `--reference julia --julia DIR` scores
+against Julia's results instead, where Python has none. `--julia DIR` alone adds Julia's stepping to the speed table,
+and `--timing DIR` reads the GPU's timings from another folder, such as a fast build's run one job at a time.
 
 The results of Chapter III without combat (2026-10-26) are in
 [docs/validation/chapter3-part-a.md](docs/validation/chapter3-part-a.md): 0 of 1,601 windows flagged. Combat's are in

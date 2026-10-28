@@ -9,9 +9,8 @@ import math
 from dataclasses import dataclass
 from pathlib import Path
 
-from bridge.gpu_run import gpu_fingerprint
+from bridge.gpu_run import gpu_current
 from bridge.paths import SUGARSCAPE_ROOT
-from experiments.registry import EXPERIMENTS
 from experiments.run import load_results, result_dir, results_current
 from replication.report import Result, _fmt, evaluate
 from replication.targets import TARGETS, Target
@@ -24,15 +23,6 @@ class Comparison:
     py: Result | None
     py_stale: bool
     gpu_stale: bool = False
-
-
-def gpu_current(exp_id: str, gpu_dir: Path) -> bool:
-    """GPU results match the experiment's current settings and hold every registered seed (as results_current)."""
-    folder = result_dir(exp_id, gpu_dir)
-    fp = folder / "fingerprint.txt"
-    if not fp.exists() or fp.read_text(encoding="utf-8") != gpu_fingerprint(exp_id):
-        return False
-    return len(list(folder.glob("seed*.csv"))) >= EXPERIMENTS[exp_id].seeds
 
 
 def _load(exp_id: str, folder: Path, cache: dict) -> list | None:
