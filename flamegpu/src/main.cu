@@ -176,6 +176,10 @@ int main(int argc, const char** argv) {
         if (opts.loan_capacity) cfg.loan_capacity = *opts.loan_capacity;
         apply_tile(cfg, opts.tile);
         validate(cfg);
+        // The test options of a rule that is off would be ignored: refuse them instead.
+        if (!opts.disease_list.empty() && !cfg.disease()) throw ConfigError("--disease-list needs disease_list > 0");
+        if (!opts.dump_diseases.empty() && !cfg.disease()) throw ConfigError("--dump-diseases needs disease_list > 0");
+        if (opts.loan_capacity && !cfg.credit) throw ConfigError("--loan-capacity needs credit");
         setup_start = std::chrono::steady_clock::now();
         capacity = tile_map(load_map(cfg.map_path, cfg.base_width(), cfg.base_height()), cfg.base_width(),
                             cfg.base_height(), cfg.tile);

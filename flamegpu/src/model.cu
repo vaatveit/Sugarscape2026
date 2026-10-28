@@ -22,7 +22,7 @@ void disease_properties(flamegpu::EnvironmentDescription env, const RunConfig& c
     }
     env.newProperty<unsigned int>("disease", cfg.disease() ? 1u : 0u);
     env.newProperty<unsigned int>("immune_length", static_cast<unsigned int>(cfg.immune_length));
-    env.newProperty<double>("disease_fee", cfg.disease_fee);
+    env.newProperty<double>("disease_fee", cfg.disease() ? cfg.disease_fee : 0.0);  // Python's Agent.disease_fee
     env.newProperty<uint64_t, MAX_DISEASES>("disease_bits", bits);
     env.newProperty<unsigned int, MAX_DISEASES>("disease_len", len);
 }

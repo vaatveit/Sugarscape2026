@@ -343,6 +343,20 @@ def test_chapter5_validated(exe, tmp_path, overrides, named):
     assert named in _error(result)
 
 
+@pytest.mark.parametrize("option, named", [
+    ("--disease-list", "--disease-list needs disease_list > 0"),
+    ("--dump-diseases", "--dump-diseases needs disease_list > 0"),
+    ("--loan-capacity", "--loan-capacity needs credit"),
+], ids=["disease-list", "dump-diseases", "loan-capacity"])
+def test_option_needs_its_rule(exe, tmp_path, option, named):
+    # Part D's final review, minor 2: a test option for a rule that is off is a mistake, not something to ignore.
+    value = "2" if option == "--loan-capacity" else str(tmp_path / "diseases.txt")
+    (tmp_path / "diseases.txt").write_text("1\n", encoding="utf-8")
+    result = run_exe(exe, "--config", write_cfg(tmp_path, steps="1"), option, value)
+    assert result.returncode == 2
+    assert named in _error(result)
+
+
 def test_gpu_limits_only_with_disease(exe, tmp_path):
     # Python accepts any immune_length without disease; so does the GPU.
     result = run_exe(exe, "--config", write_cfg(tmp_path, immune_length="80"), "--print-config")
