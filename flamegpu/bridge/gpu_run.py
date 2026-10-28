@@ -26,14 +26,14 @@ from sugarscape.config import Config
 GPU_FINGERPRINT = "gpu-parity\n"
 # Replacement moved to the device (spec 2026-10-25): its random stream changed, so results made before are stale.
 REPLACEMENT_FINGERPRINT = "replacement: device\n"
-# 2026-10-26: xl's looks follow Python's centred look (docs/xl.md), so xl results made before are stale.
-XL_LOOK_FINGERPRINT = "look: centred\n"
 
 
 def gpu_fingerprint(exp_id: str, xl: bool = False) -> str:
-    """The fingerprint.txt of the GPU's results for an experiment (or its xl version)."""
+    """The fingerprint.txt of the GPU's results for an experiment (or its xl version).
+
+    xl's looks follow Python's centred look (docs/xl.md), which Python's xl fingerprint names in its first line.
+    """
     extra = REPLACEMENT_FINGERPRINT if experiment_config(exp_id, xl).replacement else ""
-    extra += XL_LOOK_FINGERPRINT if xl else ""
     return GPU_FINGERPRINT + extra + fingerprint(exp_id, xl)
 
 

@@ -35,6 +35,9 @@ Series = list[dict[str, float]]
 # runner's metrics collection, which the model doesn't do.
 TIMING_COLUMNS = ("seed", "periods", "setup_s", "stepping_s", "metrics_s", "agents_start", "agents_end")
 XL_OUT = Path("results-xl")  # xl results never mix with the regular results/
+# 2026-10-26: xl looks are centred on each stride (docs/xl.md, "Looking"), so xl results made before are stale. It
+# leads the xl fingerprint, where the GPU port wrote it before Python did, so the GPU's xl results stay current.
+XL_LOOK = "look: centred\n"
 PLOTTED = ("population", "gini", "mean_vision", "mean_metabolism")
 
 
@@ -65,7 +68,8 @@ def experiment_config(exp_id: str, xl: bool = False):
 
 
 def fingerprint(exp_id: str, xl: bool = False) -> str:
-    """The settings that produced an experiment's results (rules, Config, steps; for xl, also the map's checksum).
+    """The settings that produced an experiment's results (rules, Config, steps; for xl, also the look rule and the
+    map's checksum).
 
     Covers settings, not code: after a model change, re-run with --rerun.
     """
@@ -77,7 +81,7 @@ def fingerprint(exp_id: str, xl: bool = False) -> str:
     text = f"{exp.rules}\nsteps={exp.steps}\n{cfg!r}\n{hidden}"
     if xl:  # the map file is data the config only names, so a regenerated map makes xl results stale
         data = resources.files("sugarscape.maps").joinpath(XL_MAP).read_bytes()
-        text += f"xl map sha256={hashlib.sha256(data).hexdigest()}\n"
+        text = XL_LOOK + text + f"xl map sha256={hashlib.sha256(data).hexdigest()}\n"
     return text
 
 

@@ -150,7 +150,8 @@ That belongs to the comparison work.
 - `sugarscape.xl.to_xl(config)` returns the xl configuration of a regular one, and refuses anything that isn't
   50 × 50 on `sugar-map.txt`.
 - `python -m experiments.run <id> --xl` runs an experiment's xl version into `results-xl/`, with its own
-  fingerprint: the xl configuration plus the map's SHA-256. Schelling and Ring World have no xl.
+  fingerprint: the look rule (`look: centred`), the xl configuration and the map's SHA-256. Schelling and Ring
+  World have no xl.
 - `python -m viewer`: tick **xl** before Start to watch an xl run. Each site is drawn as one solid colour, with no
   smoothing. The landscape is paler and agents fill their site in colours that stand out against every site (3:1
   contrast or better). Agent size is off, and the newest 100 periods are kept.

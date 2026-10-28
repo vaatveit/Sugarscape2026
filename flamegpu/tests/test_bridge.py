@@ -261,17 +261,25 @@ def test_xl_look_fingerprint():
     assert "look: centred\n" not in gpu_fingerprint("II-4")
 
 
+def test_xl_look_comes_from_python_once():
+    # Python's xl fingerprint names the look; the GPU's keeps the same text as when it wrote the line itself.
+    from bridge.gpu_run import GPU_FINGERPRINT, gpu_fingerprint
+    from experiments.run import XL_LOOK, fingerprint
+
+    assert gpu_fingerprint("II-4", xl=True).count(XL_LOOK) == 1
+    assert gpu_fingerprint("II-4", xl=True) == GPU_FINGERPRINT + fingerprint("II-4", xl=True)
+
+
 def test_gpu_run_xl(exe, tmp_path):
     import csv
 
-    from bridge.gpu_run import GPU_FINGERPRINT, XL_LOOK_FINGERPRINT
+    from bridge.gpu_run import GPU_FINGERPRINT
     from experiments.run import TIMING_COLUMNS, fingerprint
 
     run_experiment_gpu("II-8", seeds=1, out_dir=tmp_path, exe=exe, xl=True)
     folder = tmp_path / "II-8"
     assert len(load_results("II-8", tmp_path)[0]) == 201
-    assert (folder / "fingerprint.txt").read_text(encoding="utf-8") == (GPU_FINGERPRINT + XL_LOOK_FINGERPRINT +
-                                                                         fingerprint("II-8", xl=True))
+    assert (folder / "fingerprint.txt").read_text(encoding="utf-8") == GPU_FINGERPRINT + fingerprint("II-8", xl=True)
     with (folder / "timing.csv").open(newline="") as f:
         reader = csv.DictReader(f)
         rows = list(reader)
