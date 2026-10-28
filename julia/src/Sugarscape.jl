@@ -30,6 +30,7 @@ export Model,
     spawn_random_agent!,
     spawn_at!
 export move_agent!, kill!, die!, deaths_this_step, agents_ever, step!, run!, sample_distinct
+export look!, xxl_move!, disc_in_sight, harvest!
 export move!, metabolize!, pollution_active, look_distance, look_distances
 export METRIC_COLUMNS, collect_metrics, gini, tribe, closeness
 export random_tags, cross_tags, hamming, culture_transmit!, update_friends!
@@ -60,6 +61,7 @@ include("rules/welfare.jl")
 include("rules/trade.jl")
 include("rules/credit.jl")
 include("rules/disease.jl")
+include("xxl/vision.jl")
 include("stats.jl")
 include("runner.jl")
 

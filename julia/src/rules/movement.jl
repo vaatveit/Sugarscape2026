@@ -71,6 +71,7 @@ comparisons keep the first site encountered on ties. On the sugar-and-spice land
 the site's resources would bring (`welfare_score`, Chapter IV).
 """
 function move!(m::Model, a::Agent)
+    xxl_on(m.config, :disc) && return xxl_move!(m, a)  # xxl: round vision (the speed rules join it later)
     ls = m.landscape
     spice = m.config.spice
     w, h = ls.width, ls.height
@@ -94,13 +95,25 @@ function move!(m::Model, a::Agent)
     end
     a.moved = (best_x, best_y) != (a.x, a.y)
     move_agent!(m, a, best_x, best_y)
+    harvest!(m, a, best_x, best_y)
+    return nothing
+end
 
-    i, j = best_x + 1, best_y + 1
+"""
+    harvest!(m, a, x, y)
+
+Collect all the resources at the site the agent has just moved to (p.25): the sugar into its holdings and income, the
+spice too on the sugar-and-spice landscape, and the production pollution (p.47). Shared by [`move!`](@ref) and the
+xxl movement.
+"""
+function harvest!(m::Model, a::Agent, x::Int, y::Int)
+    ls = m.landscape
+    i, j = x + 1, y + 1
     harvest = ls.sugar[i, j]
     a.sugar += harvest
     ls.sugar[i, j] = 0.0
     a.last_income = harvest  # metabolize! subtracts metabolism
-    if spice
+    if m.config.spice
         a.spice += ls.spice[i, j]
         ls.spice[i, j] = 0.0
     end

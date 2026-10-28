@@ -34,6 +34,7 @@ Agents within the agent's vision along the four lattice directions, nearest firs
 `m.sight`, which the next call reuses.
 """
 function in_sight(m::Model, a::Agent)
+    xxl_on(m.config, :disc) && return disc_in_sight(m, a)  # xxl: a fresh round look
     stride = m.config.look_stride
     n = a.vision ÷ stride
     # Each look as 4 dist + (d - 1), kept sorted: nearest first, and at equal distance in VON_NEUMANN order. A
