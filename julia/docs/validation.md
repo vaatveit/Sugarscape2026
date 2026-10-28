@@ -318,3 +318,47 @@ count matters as much as the look: with 10 jobs sharing the processor, II-4 had 
 Python and 0.043 in Julia.
 
 The rest of `results-julia-xl/` (the other 128 experiments, Julia only) is still from the uniform look.
+
+## III-9 at xl (2026-10-28)
+
+Julia's centred-look re-run of III-9 at xl ended with 303 agents on average at t = 1000, where the uniform-look runs
+had ended with about 21,000. **The cause is the rules at xl, not the port:** Python's centred-look run (2 seeds,
+`--jobs 2`, made for this check) collapses the same way.
+
+| t | Python population | Julia population | p | Python Red / Blue across | Julia Red / Blue across |
+|---|---|---|---|---|---|
+| 100 | 26,882 | 27,060 | 0.07 | 25.5 / 74.0 | 20.4 / 79.4 |
+| 200 | 17,802 | 18,311 | 0.22 | 25.5 / 86.0 | 22.0 / 88.9 |
+| 500 | 5,224 | 6,287 | 0.46 | 23.5 / 85.0 | 21.7 / 86.6 |
+| 1000 | 174 | 303 | 0.11 | 23.5 / 80.5 | 21.9 / 83.6 |
+
+Means over seeds (Python 2, Julia 10); p is Welch's on the seeds' values. "Across" is Red on Blue's south-west
+mountain (`sw_red`) and Blue on Red's north-east one (`ne_blue`). Julia's t = 1000 range is 156 to 739, and both
+Python seeds (156 and 192) fall inside it. Red and Blue counts also agree at every checkpoint (p ≥ 0.11).
+
+**Against regular size** (10 seeds each side), the xl population at t = 200 is still near 100 × regular (Python 162,
+Julia 219), but at t = 1000 regular has 126 and 163, 100 × which is 12,600 and 16,300. Regular runs have 0–12 agents
+on the other tribe's mountain; xl runs have 16–31 Red and 64–99 Blue.
+
+**What happens** (Julia seed 0, with a probe that counts kills and starvation by tribe each period):
+
+- Red's home population is gone by t = 300: Red falls from 27,000 at the start to 11,926 at t = 100 and 171 at
+  t = 300, with Blue killing about 69 Red a period at t = 100–200. In the periods the probe printed after t = 300
+  (every 25th), nobody starves; every death is a kill.
+- The 23 Red left, all on Blue's mountain, kill 15–23 Blue a period to t = 700, about one each, and fewer as Blue
+  runs out: 404 Blue at t = 800, 158 at t = 1000. Red's median sugar reaches 324,933 by then, Blue's 2,767, so no
+  Blue can attack them.
+- In the regular run's seed 0, Red is down to one agent by t = 700 and Blue keeps 134–139 agents from then to
+  t = 1000.
+
+**Why:** rule C's retaliation check (`vulnerable` in `src/rules/combat.jl`) looks for a wealthier enemy in sight of
+the site an agent would take, and at xl it samples one site in 10 along each line, like every look (docs/xl.md,
+"Looking"). A Blue agent therefore usually misses a Red within its vision, which it never does at regular size, and
+walks into range. A probe with the check looking at every site out to vision + 9 left 2,062 Blue at t = 1000 instead
+of 158, and Red's kills fell to 6–16 a period. The uniform look reached 4.5 sites less far, and few agents crossed:
+0–2 Red and 5–41 Blue on the other mountain at t = 200–1000 (3 seeds re-run with that look), and the war was milder
+than regular: 28,660 agents at t = 200 and 21,133 at t = 1000.
+
+**Status:** Julia agrees with Python; III-9 at xl doesn't behave like 100 regular runs. Whether to make the
+retaliation check see every site is a rule change for the user to decide; docs/xl.md lists it under its notes.
+Python's two seeds took 3.9 and 4.4 s per period (`--jobs 2`), Julia's 0.031 (one job).

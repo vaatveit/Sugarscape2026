@@ -117,6 +117,25 @@ Notes:
   xl agents trade twice as often each (37.9 trades a period, divided by 100, against 18.0, with about as many
   agents), and prices spread more (standard deviation 0.56 against 0.36). Mean sugar is 14% lower, and the Gini
   0.38 against 0.35. Making the neighbourhood scale with the map would be a change to the rules, not yet decided.
+- **Combat's retaliation check (III-9).** In III-9 (combat C_∞, nobody replaced), the xl war nearly ends both
+  tribes. At t = 200 the population is close to 100 × the regular run's: 17,802 in Python (2 seeds) and 18,311 in
+  Julia (10 seeds), against 16,200 and 21,900. By t = 1000 only 174 and 303 agents are left, against 12,600 and
+  16,300. Python and Julia agree at every checkpoint (Welch p ≥ 0.07), so the cause is in the rules, not in either
+  implementation:
+  - Some agents cross to the other tribe's mountain early and stay: 16–31 Red on Blue's south-west mountain and
+    64–99 Blue on Red's north-east one at t = 100–1000, against 0–12 in the regular runs. In Julia's seed 0, Red's
+    home population is gone by t ≈ 300, the Blue there killing about 69 Red a period at t = 100–200. The 23 Red
+    left in Blue's territory then kill about one Blue each per period until few are left (t ≈ 900). By then each
+    of those Red holds about 325,000 sugar, far too much for any Blue to attack.
+  - Before taking a site, an agent checks it for a wealthier enemy in sight (rule C's retaliation check). At xl
+    that check, like every look, sees one site in 10. A Blue agent therefore misses a Red attacker within its
+    vision most of the time, where the regular run always sees it. In Julia's seed 0, checking every site out to
+    the farthest look instead leaves 2,062 Blue at t = 1000 rather than 158.
+  - The uniform look reached 4.5 sites less far, and few agents crossed: 0–2 Red and 5–41 Blue on the other
+    mountain, and the war was milder than regular: Julia's uniform-look runs ended with about 21,000 agents.
+
+  Making the retaliation check see every site would be a change to the rules, not yet decided. The numbers are in
+  [julia/docs/validation.md](../julia/docs/validation.md), "III-9 at xl".
 - **Seasons** split the world into northern and southern halves at y = 250.
 - **The largest registered vision** is [5, 24], which becomes [50, 240]. Its farthest look, 249 sites, is still
   less than half of 500, so opposite lattice scans never reach the same site. `Config` refuses any vision whose
