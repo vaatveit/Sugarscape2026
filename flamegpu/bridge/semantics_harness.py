@@ -6,8 +6,8 @@ order over the sites free at the start, scored with the holdings at the start. T
 order exactly as Python does (move to the target, harvest, metabolise, S, K, T, L, E), except that a child is never
 born on the target of an agent still to come. Combat runs are refused: the GPU runs combat exactly in order.
 
-Usage: python -m bridge.semantics_harness <id-or-prefix>... [--jobs J] [--out DIR]
-Seeds base + 1000 + k for k < the registered count (a stream of their own), registered steps, into results-harness/
+Usage: python -m bridge.semantics_harness <id-or-prefix>... [--seeds N] [--jobs J] [--out DIR]
+Seeds base + 1000 + k for k < the registered count or N (a stream of their own), registered steps, into results-harness/
 in experiments.run's layout, so `python -m bridge.agreement_report --gpu results-harness` scores them against Python.
 """
 
@@ -158,12 +158,13 @@ def _run(args):
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("ids", nargs="+")
+    parser.add_argument("--seeds", type=int, default=None, help="default: the registered count")
     parser.add_argument("--jobs", type=int, default=1)
     parser.add_argument("--out", type=Path, default=Path("results-harness"))
     args = parser.parse_args(argv)
     ids = [i for a in args.ids for i in matching_ids(a, EXPERIMENTS)
            if EXPERIMENTS[i].config.__class__.__name__ == "Config" and EXPERIMENTS[i].config.combat_alpha is None]
-    tasks = sorted(((args.out, i, k) for i in ids for k in range(EXPERIMENTS[i].seeds)),
+    tasks = sorted(((args.out, i, k) for i in ids for k in range(args.seeds or EXPERIMENTS[i].seeds)),
                    key=lambda t: -EXPERIMENTS[t[1]].steps)  # longest first
     start = time.time()
     with Pool(max(1, args.jobs)) as pool:

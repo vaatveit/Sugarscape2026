@@ -308,6 +308,7 @@ rules are then all on the GPU and checking them against Python under the agreeme
   - Unlocks Chapter IV, VI-2, VI-3, their reproduction variants, and VAR-inttrade except VI-1's.
 - **D. Chapter V:** disease and `disease_metrics`. Unlocks V-1, V-2, VI-1 and VAR-inttrade/VI-1.
 - **E. Schelling and Ring World.** Unlocks VI-4 to VI-9 and their test experiments.
+  Skipped by the user's decision (2026-10-27): "I am not interested in the Schelling and Ring World models."
 - **F. Everything together:**
   - Chapter II rerun, every experiment at regular size, the full xl registry, the comparison and speed reports,
     the validation write-up, and the README's "How the GPU version differs" and results.

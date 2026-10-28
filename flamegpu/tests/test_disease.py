@@ -18,7 +18,7 @@ DISEASE_STATE = ("mean_diseases", "sd_diseases", "fraction_sick", "diseases_circ
 
 
 def _bits(text) -> str:
-    """A 0/1 string read back from a dump (read_rows reads a bare column of digits as a number)."""
+    """A 0/1 string or disease list read back from a dump: the columns are TEXT_COLUMNS, so only None becomes ""."""
     return "" if text is None else str(text)
 
 
@@ -277,6 +277,20 @@ def test_immune_response_matches_python(exe, tmp_path):
         assert compare_dumps(gpu, py) == [], t
         counts.append(len([d for d in _bits(gpu.agents[0]["diseases"]).split("|") if d]))
     assert counts[-1] < counts[0], counts
+
+
+def test_disease_limits_match_python(exe, tmp_path):
+    # Part D's final review, minor 3: the GPU's limits themselves, a 64-bit immune system and a 64-entry list, its
+    # last entry a 63-bit disease. Every string is distinct, so every id is canonical.
+    diseases = [format(i, "06b") for i in range(63)] + ["1" * 63]
+    cfg = {"disease_list": "64", "disease_length": "1,63", "immune_length": "64"}
+    agents = [{"x": 2, "y": 2, "vision": 1, "metabolism": 1, "sugar": 40.0, "age": 0, "max_age": None,
+               "immune": "0" * 64, "diseases": "63|5"}]
+    gpu = run_gpu(exe, tmp_path, cfg, CAPACITY, agents, steps=3, diseases=diseases)
+    assert gpu.returncode == 0, gpu.stderr
+    py = run_python(cfg, CAPACITY, agents, 3, diseases=diseases)
+    assert compare_dumps(gpu, py) == []
+    assert "63" in _bits(gpu.agents[0]["diseases"]).split("|")  # 63 bits from all 0: not cleared in 3 periods
 
 
 TRANSMIT_LIST = ["0110", "0110", "111"]  # index 1 is index 0's string

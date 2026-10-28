@@ -144,7 +144,49 @@ def test_run_tiny_experiment(exe, tmp_path):
     assert len(paths) == 2
     series = load_results("TEST-tiny", tmp_path)
     assert len(series) == 2 and all(len(s) == 6 for s in series)
-    assert (tmp_path / "TEST-tiny" / "fingerprint.txt").read_text(encoding="utf-8").startswith("gpu-phase3")
+    assert (tmp_path / "TEST-tiny" / "fingerprint.txt").read_text(encoding="utf-8").startswith("gpu-parity")
+
+
+def test_resume_skips_only_complete(exe, tmp_path):
+    # Plan 2026-10-27-gpu-parity-part-f, Review Focus 2: --resume keeps a folder only when it is current and complete.
+    from bridge.gpu_run import main
+
+    run_experiment_gpu("TEST-tiny", out_dir=tmp_path, exe=exe)
+    folder = tmp_path / "TEST-tiny"
+    resume = ["TEST-tiny", "--resume", "--out", str(tmp_path), "--exe", str(exe)]
+    before = (folder / "seed0.csv").stat().st_mtime_ns
+    main(resume)
+    assert (folder / "seed0.csv").stat().st_mtime_ns == before  # current and complete: kept
+    (folder / "seed1.csv").unlink()
+    main(resume)
+    assert (folder / "seed1.csv").exists() and (folder / "seed0.csv").stat().st_mtime_ns != before  # incomplete: rerun
+    before = (folder / "seed0.csv").stat().st_mtime_ns
+    (folder / "fingerprint.txt").write_text("gpu-phase3\nold\n", encoding="utf-8")
+    main(resume)
+    assert (folder / "seed0.csv").stat().st_mtime_ns != before  # stale: rerun
+
+
+def test_gpu_run_names_skipped_models(exe, tmp_path, capsys):
+    # Part E is skipped by the user's decision: a prefix runs the Sugarscape experiments and names the rest.
+    from bridge.gpu_run import main
+
+    main(["VI", "--seeds", "0", "--out", str(tmp_path), "--exe", str(exe)])
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["VI-1", "VI-2", "VI-3"]
+    out = capsys.readouterr().out
+    assert "skipped by decision" in out and "VI-4" in out
+    main(["VI", "--seeds", "0", "--out", str(tmp_path / "xl"), "--exe", str(exe), "--xl"])  # no SystemExit
+
+
+def test_fast_build_same_output(exe, tmp_path):
+    # Review Focus 1: the fast build (seatbelts off) runs the xl sample and the timings, so it must give build's bytes.
+    from bridge.paths import FAST_EXE
+    from test_sex import _files
+    from test_spice import _registry
+
+    if not FAST_EXE.exists():
+        pytest.skip(f"no {FAST_EXE}")
+    cfg = _registry("VI-1")
+    assert _files(exe, tmp_path / "build", cfg, 10) == _files(FAST_EXE, tmp_path / "fast", cfg, 10)
 
 
 def test_any_other_field_off_default_is_refused():
