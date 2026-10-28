@@ -16,7 +16,7 @@ Python version's functionality, all of it, so the two can be timed against each 
     the disease fee wherever Python burns sugar, and `disease_metrics`.
 
   Every rule of the Python project's `Config` now runs on the GPU.
-- **Still to come** (Parts E–F of the design): the Schelling and Ring World models.
+- **Skipped by decision** (2026-10-27, Part E of the design): the Schelling and Ring World models, VI-4 to VI-9.
   `bridge.gpu_run` skips experiments that need these and names them.
 
 ## Prerequisites
@@ -103,7 +103,8 @@ The results of Chapter III without combat (2026-10-26) are in
 [docs/validation/chapter3-part-b.md](docs/validation/chapter3-part-b.md): 0 of 348 windows flagged. Chapter IV's
 (2026-10-27) are in [docs/validation/chapter4-part-c.md](docs/validation/chapter4-part-c.md): 0 of 4,709 windows
 flagged. Chapter V's (2026-10-27) are in [docs/validation/chapter5-part-d.md](docs/validation/chapter5-part-d.md): 0 of
-432 windows flagged. Python's saved results are read from the repository root's `results\` (`--python` for another
+432 windows flagged. Everything together, at regular size and an xl sample (2026-10-28), is in
+[docs/validation/part-f.md](docs/validation/part-f.md). Python's saved results are read from the repository root's `results\` (`--python` for another
 folder).
 
 `gpu_report` scores the GPU results and the Python project's saved `results\` against the same book
@@ -188,14 +189,17 @@ GPU version moves everyone at once, but reaches the same outcome
      the first period of a random start and under 1% after, and none in II-6.
   2. A child is never born on a site that an agent later in the order moves to. In Python the child takes it and the
      later agent goes elsewhere.
-  3. Movement scores sites with the holdings the agent had at the start of the period. Python uses them after
-     earlier agents' trades and gifts. This matters only with spice.
+  3. Movement scores sites with the holdings, tags and diseases the agent had at the start of the period. Python
+     uses them as earlier agents' trades, gifts, loans, tag flips and infections have left them. Only the welfare
+     score uses them, so this matters only with spice.
 
   Python's model with all three ([semantics harness](docs/validation/semantics-harness.md)) agrees with Python itself:
   0 of 2,835 windows flagged. Combat has none of them: its turns run whole in the period's order. Two reproduction
   variants show their effect without a flag: VAR-c1c3fit/VI-3's holdings run about 8% higher, and VAR-inttrade/IV-15's
   mean price is lower, on the GPU and in the harness alike
-  ([chapter4-part-c.md](docs/validation/chapter4-part-c.md)).
+  ([chapter4-part-c.md](docs/validation/chapter4-part-c.md)). At xl, where tens of thousands of agents shrink the
+  spread between seeds, they show as 6 flags against Julia in III-7 and VI-3, shifts of about 1%
+  ([part-f.md](docs/validation/part-f.md)).
 - **Newcomers' sites.** With replacement, newcomers claim random empty sites at once; when two draw the same site in
   the same try, the GPU's timing decides which keeps it. With dozens of newcomers a period (combat with sex, xl runs)
   a seed can then give different bytes from run to run. Distributions are unaffected, and this is accepted (2026-10-26):
@@ -212,7 +216,52 @@ GPU version moves everyone at once, but reaches the same outcome
   newcomers in the order of their deaths), so `agents_ever` and every order that depends on it are Python's.
   FLAME GPU's own ids aren't.
 
-## Results (Phase 1, 2026-10-23)
+## Results (Part F, 2026-10-28)
+
+Every experiment at regular size, and a sample of the xl registry. Details, the full speed tables and every flag
+explained are in [docs/validation/part-f.md](docs/validation/part-f.md).
+
+**Agreement** (the Julia rule: Welch per experiment, metric and quarter, Benjamini–Hochberg at q = 0.01):
+
+| Comparison | Experiments | Windows | Flagged |
+|---|---|---|---|
+| Regular size, against Python | 135 | 8,172 | 0 |
+| xl, against Python | 7 | 436 | 0 |
+| xl, against Julia, where Python has no xl results | 8 | 523 | 6 |
+
+- The six xl flags are shifts of about 1% in III-7 and VI-3: the turn semantics (differences 1–3 above).
+  - Python's own rules with the GPU's turns show them, and the GPU agrees with that harness: 0 flags over 60 seeds.
+- Combat III-9 and III-11 were left out of the xl sample: about 23 h together.
+
+**Book targets** (pass, near, fail):
+
+| Chapter | Python | GPU |
+|---|---|---|
+| II | 37, 9, 3 | 37, 9, 3 |
+| III | 11, 5, 9 | 14, 5, 6 |
+| IV | 28, 9, 14 | 25, 10, 16 |
+| V | 2, 0, 4 | 2, 0, 4 |
+| VI | 21, 4, 13 | 4, 5, 14; 15 not run (VI-4 to VI-9) |
+
+All 15 status changes are noise near a band's edge, each with a seed-level p of 0.055 or more. The exception is
+VI-1's Gini, at p 0.021, and that is p 0.59 with 20 seeds a side.
+
+**Speed** (milliseconds of stepping per period; development timings on an RTX 4080 and an i7-13700K, one job each;
+ratios below 1 mean the GPU is faster):
+
+| Size | GPU / Python | GPU / Julia |
+|---|---|---|
+| Regular, 135 experiments | median 0.51; GPU faster in 108 | median 16; GPU faster in 2 |
+| xl, 7 against Python | 0.00065–0.036; GPU faster in all 7 | — |
+| xl, all 15 | — | median 0.50; GPU faster in 9 |
+
+- **At regular size** a few hundred agents can't fill the GPU. A period costs at least about 0.5 ms of launches,
+  and every wave of turns adds more.
+- **At xl** the GPU is about 1,000× faster than Python on Chapter II and 28× on VI-1.
+  - It beats Julia where agents act together.
+  - It loses to Julia, by up to 2.8×, where sex's turns need 1,200 to 2,700 waves a period.
+
+### Phase 1 (2026-10-23), for history
 
 **Chapter II validation.** The 25 registered experiments, 225 runs, scored against the book's 49
 targets:
