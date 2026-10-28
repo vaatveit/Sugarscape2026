@@ -15,6 +15,7 @@ export Config, validate, replace_config
 export Experiment, REGISTRY_PATH, load_registry, find_experiment, config_from_toml
 export MAPS_DIR, load_map, parse_map, map_sha256
 export XL_FACTOR, XL_MAP, to_xl
+export XxlRules, XXL_BOOK, XXL_DEFAULTS, XXL_MAP, replace_rules, to_xxl, xxl_on
 export Agent, Exchange, Loan, sugar_burn
 export Landscape, wrap, growback!, is_summer_north, seasonal_growback!, diffuse!, set_spice!
 export Model,
@@ -38,10 +39,12 @@ export intern_disease!,
     nearest_substring, is_immune, immune_step!, infect!, immune_response!
 export disease_transmit!
 
+include("xxl/types.jl")
 include("config.jl")
 include("registry.jl")
 include("maps.jl")
 include("xl.jl")
+include("xxl/transform.jl")
 include("agent.jl")
 include("landscape.jl")
 include("model.jl")
