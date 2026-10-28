@@ -73,6 +73,18 @@ def test_credit_income_counts_fee(exe, tmp_path):
     assert len(py.loans) == 1
 
 
+def test_credit_fee_makes_borrower_unworthy(exe, tmp_path):
+    # Final review, Important 1: here creditworthiness binds. Initial sugar 76 makes the borrower need 47, due 94; its
+    # income with the fee is 9, and 9 x 10 < 94, so Python lends nothing (without the fee, 10 x 10 >= 94 would lend).
+    cfg = {**CREDIT, "disease_list": "1", "disease_length": "3,3", "immune_length": "10"}
+    agents = [_lender(immune="1110000000"), _borrower(immune="0000000000", diseases="0", initial_sugar=76.0)]
+    gpu = run_gpu(exe, tmp_path, cfg, CAPACITY, agents, steps=1, diseases=["111"])
+    assert gpu.returncode == 0, gpu.stderr
+    py = run_python(cfg, CAPACITY, agents, 1, diseases=["111"])
+    assert py.loans == []
+    assert _compare(gpu, py) == []
+
+
 def test_partial_repayment_reoriginates(exe, tmp_path):
     # The borrower burns 5 a period and harvests 1 after its first: at t = 10 it can't pay the 30 due (rate 50%), so
     # it pays half its sugar and the rest is originated anew, due at t = 20.
