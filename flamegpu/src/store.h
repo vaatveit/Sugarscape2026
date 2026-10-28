@@ -29,6 +29,8 @@ constexpr unsigned int STORE_ROW_CAPACITY = 2u;  // a newborn found no row (cann
 constexpr unsigned int STORE_HEIR_CAPACITY = 4u;  // a death in a turn with more than MAX_HEIRS heirs (heirs.cuh)
 constexpr unsigned int MAX_HEIRS = 32;           // spec 2026-10-25-gpu-full-parity, section 5
 constexpr unsigned int NO_SITE = 0xFFFFFFFFu;  // the group after a site's last
+// A newborn parent's, lender's or heir's row, until its uid exists (StoreHost::birth_uids): the row with this bit set.
+constexpr unsigned int PROVISIONAL_PARENT = 0x80000000u;
 
 // Device pointers. Rows are indexed by `row`, a citizen's index at publish (rows from n_rows on are newborns).
 struct Store {
@@ -56,6 +58,11 @@ struct Store {
     unsigned int* n_new;
     unsigned int width;  // the world's width, for touch_row
     uint64_t* tags;
+    // Chapter V (plan 2026-10-27-gpu-parity-part-d): the immune strings, and the diseases carried, MAX_DISEASES
+    // canonical ids per row with disease on (one row's worth otherwise), the first n_diseases in infection order.
+    uint64_t *immune_genotype, *immune;
+    unsigned int* n_diseases;
+    uint8_t* diseases;
     unsigned int *uid, *sex, *n_children, *parent_a, *parent_b, *friend_uid, *friend_dist, *n_friends;
     unsigned int *moved, *neighbors;
     unsigned int* look_seed;      // the period's looks (start_period), for partners in sight and combat
@@ -83,8 +90,8 @@ struct Store {
     unsigned int* group_site;     // group id -> site; group_site[n_groups] = NO_SITE
     unsigned int* entry_group;    // unique entry -> group id
     unsigned int* rank_row;       // rank -> row
-    // Counters (one each).
-    unsigned int *errors, *ran_count, *done_count;
+    // Counters (one each); infections: rule E's this period (disease.cuh), an integer sum, so deterministic.
+    unsigned int *errors, *ran_count, *done_count, *infections;
     // --check: every site a turn touches must be in its footprint (touch()); the first miss is kept as
     // {misses, site, rank, where}.
     unsigned int check_footprints, n_unique;
@@ -146,6 +153,8 @@ class StoreHost {
     // After the turns: the period's exchanges, every turn's statistics combined in rank order (Chan's formula; plan
     // 2026-10-26-gpu-parity-part-c, ruling R3), on one device thread.
     TradeTotals trade_totals();
+    // After the turns, with rule E: the period's new infections (Python's len(infection_log)); clears the count.
+    unsigned int take_infections();
     // Throws CapacityError for any error bit a kernel raised.
     void check_errors();
     // --check: the first site a turn touched outside its footprint, as {misses, site, rank, where}; clears it.

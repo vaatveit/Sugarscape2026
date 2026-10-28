@@ -44,6 +44,11 @@ struct RunState {
     unsigned int newborns_this_period = 0;  // rule S's children, for --check's population count
     std::vector<unsigned int> waves;     // per completed period, for --timing's waves_mean
     TradeTotals trades;                  // the last period's exchanges (turns.cuh, total_trades)
+    unsigned int new_infections = 0;     // the last period's (turns.cuh, total_infections)
+    // Chapter V's master list (p.147; make_disease_list): each disease's bits (bit i is Python's element i) and length,
+    // and its canonical id, the lowest index with the same string, which agents carry.
+    std::vector<uint64_t> disease_bits;
+    std::vector<unsigned int> disease_len, disease_canon;
     // Output options.
     std::string dump_agents, dump_landscape;
     std::string dump_order;  // --dump-order: each period's uids in turn order (record_order; tests)
@@ -62,6 +67,12 @@ struct RunState {
 
 RunState& state();
 
+// Chapter V's master list, with disease on: drawn first of all the host's draws, as Python's Model.__init__ draws it,
+// or read from --disease-list (path, one 0/1 string per line, bit 0 first; MapError naming the file); then each
+// entry's canonical id. With --dump-diseases (dump, non-empty) writes index,canonical,bits per entry.
+void make_disease_list(const std::string& path, const std::string& dump);
+// The --init agents' diseases as canonical ids (ruling D2): MapError naming the line for two indices of one string.
+void canonical_init_diseases(const std::string& path, std::vector<InitAgent>& agents);
 // The initial citizens: the --init agents if given, else drawn as the spec's Initialisation section says.
 flamegpu::AgentVector make_citizens(flamegpu::ModelDescription& model, const std::vector<InitAgent>* init);
 // One cell agent per site, carrying the site's capacity.

@@ -4,6 +4,7 @@
 #include <set>
 #include <string>
 #include <tuple>
+#include <vector>
 
 #include "host_state.h"
 #include "model.h"
@@ -26,6 +27,9 @@ struct CitizenRow {
     // Chapter IV (plan 2026-10-26-gpu-parity-part-c, Task 2).
     double spice, initial_spice;
     int spice_metabolism, foresight;
+    // Chapter V (plan 2026-10-27-gpu-parity-part-d, Task 2).
+    uint64_t immune_genotype, immune;
+    std::vector<unsigned int> diseases;  // canonical ids in infection order
 };
 
 std::vector<CitizenRow> citizens(flamegpu::HostAPI* api) {
@@ -50,6 +54,12 @@ std::vector<CitizenRow> citizens(flamegpu::HostAPI* api) {
         for (unsigned int f = 0; f < MAX_FRIENDS; ++f) {
             rows.back().friend_uid[f] = a.getVariable<unsigned int, MAX_FRIENDS>("friend_uid", f);
             rows.back().friend_dist[f] = a.getVariable<unsigned int, MAX_FRIENDS>("friend_dist", f);
+        }
+        rows.back().immune_genotype = a.getVariable<uint64_t>("immune_genotype");
+        rows.back().immune = a.getVariable<uint64_t>("immune");
+        const unsigned int n_diseases = a.getVariable<unsigned int>("n_diseases");
+        for (unsigned int k = 0; k < n_diseases; ++k) {  // none without disease, whose agents have no diseases array
+            rows.back().diseases.push_back(a.getVariable<uint8_t, MAX_DISEASES>("diseases", k));
         }
     }
     std::sort(rows.begin(), rows.end(), [](const CitizenRow& a, const CitizenRow& b) {
@@ -94,7 +104,8 @@ void write_dumps(flamegpu::HostAPI* api, unsigned int t) {
         FILE* f = open_or_throw(s.dump_agents);
         std::fprintf(f, "x,y,vision,metabolism,sugar,age,max_age,moved,neighbors,id,priority,dir_order,look_seed,"
                         "sex,fertility_start,fertility_end,initial_sugar,tags,uid,n_children,parent_a,parent_b,"
-                        "n_friends,disp_x,disp_y,friends,spice,initial_spice,spice_metabolism,foresight\n");
+                        "n_friends,disp_x,disp_y,friends,spice,initial_spice,spice_metabolism,foresight,"
+                        "immune_genotype,immune,diseases\n");
         for (const CitizenRow& a : citizens(api)) {
             std::fprintf(f, "%d,%d,%d,%d,%.17g,%d,", a.x, a.y, a.vision, a.metabolism, a.sugar, a.age);
             if (a.max_age != IMMORTAL) std::fprintf(f, "%d", a.max_age);
@@ -112,7 +123,15 @@ void write_dumps(flamegpu::HostAPI* api, unsigned int t) {
             if (a.parent_b != NO_UID) std::fprintf(f, "%u", a.parent_b);
             std::fprintf(f, ",%u,%d,%d,", a.n_friends, a.disp_x, a.disp_y);
             for (unsigned int k = 0; k < a.n_friends; ++k) std::fprintf(f, "%s%u:%u", k ? "|" : "", a.friend_uid[k], a.friend_dist[k]);
-            std::fprintf(f, ",%.17g,%.17g,%d,%d\n", a.spice, a.initial_spice, a.spice_metabolism, a.foresight);
+            std::fprintf(f, ",%.17g,%.17g,%d,%d,", a.spice, a.initial_spice, a.spice_metabolism, a.foresight);
+            // Chapter V: the immune strings, bit 0 first (empty without disease), and the canonical ids joined by '|'.
+            const int bits = s.cfg.disease() ? s.cfg.immune_length : 0;
+            for (int i = 0; i < bits; ++i) std::fputc((a.immune_genotype >> i) & 1u ? '1' : '0', f);
+            std::fputc(',', f);
+            for (int i = 0; i < bits; ++i) std::fputc((a.immune >> i) & 1u ? '1' : '0', f);
+            std::fputc(',', f);
+            for (size_t k = 0; k < a.diseases.size(); ++k) std::fprintf(f, "%s%u", k ? "|" : "", a.diseases[k]);
+            std::fputc('\n', f);
         }
         std::fclose(f);
     }
@@ -171,6 +190,15 @@ void check_invariants(flamegpu::HostAPI* api, unsigned int t, unsigned int death
         if (s.cfg.credit ? !(a.sugar >= 0.0) : !(a.sugar > 0.0f)) fail("an agent survived with sugar <= 0");
         // No such check for spice: fertility tests sugar only (p.55), so a parent may give a child more spice than it
         // holds and live, as in Python, until its next turn's metabolism.
+        // Chapter V: at most one of each string of the master list, by its canonical id (Python's infect).
+        if (a.diseases.size() > s.disease_bits.size()) fail("an agent carries more diseases than the master list holds");
+        for (size_t k = 0; k < a.diseases.size(); ++k) {
+            const unsigned int id = a.diseases[k];
+            if (id >= s.disease_canon.size() || s.disease_canon[id] != id) fail("an agent carries a non-canonical disease id");
+            for (size_t j = 0; j < k; ++j) {
+                if (a.diseases[j] == id) fail("an agent carries one disease twice");
+            }
+        }
     }
     auto spice = api->environment.getMacroProperty<float, MAX_CELLS>("spice");
     unsigned long long occupied_count = 0;

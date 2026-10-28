@@ -57,14 +57,22 @@ def config_from_cfg(cfg: dict) -> Config:
     if values["credit"]:
         d, r = values["credit"].split(",")
         kwargs["credit"] = (int(d), float(r))
+    # Chapter V (Part D).
+    for key in ("disease_list", "diseases_per_agent", "immune_length"):
+        kwargs[key] = int(values[key])
+    kwargs["disease_length"] = tuple(int(v) for v in values["disease_length"].split(","))
+    kwargs["disease_fee"] = float(values["disease_fee"])
     return Config(**kwargs)
 
 
-def build_python(cfg: dict, capacity: np.ndarray, agents: list[dict]) -> Model:
-    """A Python model holding exactly `agents` (run_gpu's --init agents), with their Chapter III state."""
+def build_python(cfg: dict, capacity: np.ndarray, agents: list[dict], diseases: list[str] | None = None) -> Model:
+    """A Python model holding exactly `agents` (run_gpu's --init agents), with their Chapter III state; diseases
+    (run_gpu's --disease-list) replace the master list."""
     config = replace(config_from_cfg({**cfg, "width": str(capacity.shape[0]), "height": str(capacity.shape[1])}),
                      initial_population=0, initial_blocks=())
     model = Model(config, capacity)
+    if diseases is not None:
+        model.disease_list = [tuple(int(c) for c in d) for d in diseases]
     for a in agents:
         max_age = math.inf if a.get("max_age") is None else a["max_age"]
         agent = model.new_agent(a["x"], a["y"], a["vision"], a["metabolism"], a["sugar"], max_age)
@@ -83,6 +91,13 @@ def build_python(cfg: dict, capacity: np.ndarray, agents: list[dict]) -> Model:
         for key in ("spice_metabolism", "foresight"):
             if a.get(key) is not None:
                 setattr(agent, key, int(a[key]))
+        # Chapter V (Part D): the immune strings (the genotype defaults to the immune string), and the diseases as
+        # master indices in infection order.
+        if a.get("immune") is not None:
+            agent.immune = [int(c) for c in a["immune"]]
+            agent.immune_genotype = [int(c) for c in (a.get("immune_genotype") or a["immune"])]
+            agent.disease_fee = config.disease_fee
+            agent.diseases = [model.disease_list[int(i)] for i in filter(None, a.get("diseases", "").split("|"))]
         # Children that died before the run: they count in mean_children (len(children)) and nowhere else.
         agent.children = [Agent(-1, -1, -1, 1, 1, 0.0, 0.0, 0, alive=False) for _ in range(a.get("n_children", 0))]
     # Parents given as the index (= uid) of another --init agent: the child joins their children (rule I's heirs).
@@ -97,11 +112,12 @@ def build_python(cfg: dict, capacity: np.ndarray, agents: list[dict]) -> Model:
     return model
 
 
-def python_metric_rows(cfg: dict, capacity: np.ndarray, agents: list[dict], steps: int) -> list[dict]:
+def python_metric_rows(cfg: dict, capacity: np.ndarray, agents: list[dict], steps: int,
+                       diseases: list[str] | None = None) -> list[dict]:
     """sugarscape_metrics for t = 0 .. steps, as experiments.run records them."""
     from experiments.run import sugarscape_metrics
 
-    model = build_python(cfg, capacity, agents)
+    model = build_python(cfg, capacity, agents, diseases)
     rows = [{"t": model.t, **sugarscape_metrics(model)}]
     for _ in range(steps):
         model.step()
@@ -109,8 +125,9 @@ def python_metric_rows(cfg: dict, capacity: np.ndarray, agents: list[dict], step
     return rows
 
 
-def run_python(cfg: dict, capacity: np.ndarray, agents: list[dict], steps: int) -> Dump:
-    model = build_python(cfg, capacity, agents)
+def run_python(cfg: dict, capacity: np.ndarray, agents: list[dict], steps: int,
+               diseases: list[str] | None = None) -> Dump:
+    model = build_python(cfg, capacity, agents, diseases)
     model.run(steps)
     return python_dump(model, capacity)
 
@@ -134,12 +151,13 @@ class _OrderedRng:
         return np.array(order)
 
 
-def run_python_in_order(cfg: dict, capacity: np.ndarray, agents: list[dict], orders: list[list[int]]) -> Dump:
+def run_python_in_order(cfg: dict, capacity: np.ndarray, agents: list[dict], orders: list[list[int]],
+                        diseases: list[str] | None = None) -> Dump:
     """Python stepped once per entry of `orders`, each period's turns in that order of uids (gpu.period_orders);
     every other draw is Python's own. The dump's csv holds sugarscape_metrics for t = 0 .. len(orders)."""
     from experiments.run import sugarscape_metrics
 
-    model = build_python(cfg, capacity, agents)
+    model = build_python(cfg, capacity, agents, diseases)
     rng = _OrderedRng(model.rng)
     model.rng = rng
     rows = [{"t": model.t, **sugarscape_metrics(model)}]
@@ -151,6 +169,10 @@ def run_python_in_order(cfg: dict, capacity: np.ndarray, agents: list[dict], ord
     dump = python_dump(model, capacity)
     dump.csv = rows
     return dump
+
+
+def _bits(bits: list[int] | None) -> str:
+    return "" if bits is None else "".join(str(b) for b in bits)
 
 
 def python_dump(model: Model, capacity: np.ndarray) -> Dump:
@@ -166,7 +188,10 @@ def python_dump(model: Model, capacity: np.ndarray) -> Dump:
                             "friends": "|".join(f"{f.id}:{d}" for f, d in a.friends),
                             # Chapter IV (Part C).
                             "spice": a.spice, "initial_spice": a.initial_spice,
-                            "spice_metabolism": a.spice_metabolism, "foresight": a.foresight})
+                            "spice_metabolism": a.spice_metabolism, "foresight": a.foresight,
+                            # Chapter V (Part D): diseases by their lowest master index, the GPU's canonical ids.
+                            "immune_genotype": _bits(a.immune_genotype), "immune": _bits(a.immune),
+                            "diseases": "|".join(str(model.disease_list.index(d)) for d in a.diseases)})
     dump.loans = [{"lender": loan.lender.id, "borrower": loan.borrower.id, "principal": loan.principal, "due": loan.due,
                    "due_t": loan.due_t} for loan in model.loans]
     ls = model.landscape

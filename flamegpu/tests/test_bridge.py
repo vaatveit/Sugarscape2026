@@ -1,5 +1,7 @@
 """The bridge: registered Configs to run.cfg, and running registered experiments on the GPU."""
 
+from dataclasses import field, make_dataclass
+
 import pytest
 
 from bridge.config_cfg import UnsupportedFeature, config_to_cfg, unsupported_features
@@ -36,10 +38,14 @@ def test_cfg_steps_and_seed():
     assert {"steps = 500", "seed = 13"} <= lines
 
 
+# No Config field is left unread since Part D, so the guard is tested on a field Python might add later (ruling D5).
+Future = make_dataclass("Future", [("future_rule", bool, field(default=False))], bases=(Config,), frozen=True)
+
+
 def test_unsupported_lists_features():
-    cfg = Config(disease_list=1)
-    assert unsupported_features(cfg) == ["disease_list"]
-    with pytest.raises(UnsupportedFeature, match="disease_list"):
+    cfg = Future(future_rule=True)
+    assert unsupported_features(cfg) == ["future_rule"]
+    with pytest.raises(UnsupportedFeature, match="future_rule"):
         config_to_cfg(cfg, steps=10, seed=0)
 
 
@@ -61,6 +67,21 @@ def test_part_c_configs_convert():
     assert "trade_rounding = down" in _lines(config_to_cfg(EXPERIMENTS["VAR-inttrade/IV-3"].config, steps=10, seed=0))
     for exp_id in PART_C_IDS:
         assert unsupported_features(EXPERIMENTS[exp_id].config) == [], exp_id
+
+
+PART_D_IDS = ("V-1", "V-2", "VI-1", "VAR-inttrade/VI-1")
+
+
+def test_part_d_configs_convert():
+    assert {"disease_list = 25", "diseases_per_agent = 10"} <= _lines(
+        config_to_cfg(EXPERIMENTS["V-2"].config, steps=10, seed=0))
+    for exp_id in PART_D_IDS:
+        assert unsupported_features(EXPERIMENTS[exp_id].config) == [], exp_id
+
+
+def test_every_config_experiment_converts():
+    ids = [i for i, e in EXPERIMENTS.items() if isinstance(e.config, Config)]
+    assert [i for i in ids if unsupported_features(EXPERIMENTS[i].config)] == []
 
 
 def test_part_b_configs_convert():
@@ -127,15 +148,13 @@ def test_run_tiny_experiment(exe, tmp_path):
 
 
 def test_any_other_field_off_default_is_refused():
-    from dataclasses import replace
+    from dataclasses import asdict
 
-    base = EXPERIMENTS["II-4"].config
-    # Fields the GPU program doesn't read are refused unless at their default. (Since Part C every field left out of
-    # repr is read: trade_rounding was the last.)
-    assert unsupported_features(replace(base, immune_length=60)) == ["immune_length"]
-    assert unsupported_features(replace(base, disease_list=2)) == ["disease_list"]
-    with pytest.raises(UnsupportedFeature, match="disease_fee"):
-        config_to_cfg(replace(base, disease_fee=2.0), steps=10, seed=0)
+    # A field the GPU program doesn't read is refused unless at its default; the others on II-4's values are free.
+    base = Future(**asdict(EXPERIMENTS["II-4"].config))
+    assert unsupported_features(base) == []
+    assert unsupported_features(Future(**{**asdict(base), "future_rule": True})) == ["future_rule"]
+    assert unsupported_features(Future()) == []
 
 
 def test_seed_and_chapter_ii_fields_are_free():

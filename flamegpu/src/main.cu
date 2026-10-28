@@ -31,12 +31,15 @@ const char* const USAGE =
     "  --dump-at T            period of the dumps (0 = after initialisation)\n"
     "  --dump-order FILE      each period's uids in turn order, as t,uid lines (tests)\n"
     "  --dump-loans FILE      the loan book at period --dump-at, in list order\n"
+    "  --disease-list FILE    the master disease list, one 0/1 string per line, in place of the drawn one (tests)\n"
+    "  --dump-diseases FILE   the master disease list in use, as index,canonical,bits lines\n"
     "  --tile K               tile the map K x K (population x K^2)\n"
     "  --timing FILE          timing JSON\n"
     "  --check                check invariants every period (exit 3 on a violation)\n"
     "  --force-turns          run every turn after movement in the ordered turns, even without an interaction rule\n"
     "  --serial-turns         run the turns one per wave, strictly in the period's order\n"
     "  --uid-capacity N       the most agents a run may create (default 16777216; exit 5 beyond it)\n"
+    "  --loan-capacity N      the loans the book holds (default 2 per site; exit 5 beyond it; tests)\n"
     "  --print-config         print the effective configuration and exit\n"
     "  --version              print the FLAME GPU, CUDA and GPU versions and the build's settings, and exit\n"
     "  --help                 this text\n";
@@ -47,12 +50,13 @@ struct UsageError : std::runtime_error {
 
 struct Options {
     std::string config, out, init, dump_agents, dump_landscape, dump_order, dump_loans, timing;
+    std::string disease_list, dump_diseases;  // Chapter V's master list in and out (tests; ruling D1)
     int metrics_every = 1;
     std::optional<int> dump_at;
     int tile = 1;
     bool check = false;
     bool force_turns = false, serial_turns = false;
-    std::optional<unsigned int> uid_capacity;
+    std::optional<unsigned int> uid_capacity, loan_capacity;
     bool print_config = false;
     bool help = false;
     bool version = false;
@@ -71,10 +75,11 @@ void print_version() {
 #endif
     // The build's limits (spec 2026-10-25-gpu-full-parity, section 5); uid_capacity is --uid-capacity's default.
     std::printf("flamegpu = %s\ncuda_runtime = %d.%d\ngpu = %s\nseatbelts = %s\nmax_cells = %u\nmax_tag_bits = %d\n"
-                "max_friends = %u\nmax_sight_looks = %d\nuid_capacity = %u\nloans_per_cell = %u\nmax_heirs = %u\n",
+                "max_friends = %u\nmax_sight_looks = %d\nuid_capacity = %u\nloans_per_cell = %u\nmax_heirs = %u\n"
+                "max_immune_bits = %d\nmax_diseases = %d\n",
                 flamegpu::VERSION_FULL, runtime / 1000, runtime % 1000 / 10, have_device ? device.name : "none",
                 seatbelts, static_cast<unsigned int>(SUGARSCAPE_MAX_CELLS), MAX_TAG_BITS, MAX_FRIENDS, MAX_SIGHT_LOOKS,
-                RunConfig{}.uid_capacity, LOANS_PER_CELL, MAX_HEIRS);
+                RunConfig{}.uid_capacity, LOANS_PER_CELL, MAX_HEIRS, MAX_IMMUNE_BITS, MAX_DISEASES);
     // Flush now: CUDA, started above, can end the process at exit before stdout is flushed (the output was lost
     // in about 1 run in 4, with exit code 0).
     std::fflush(stdout);
@@ -115,6 +120,7 @@ Options parse_args(int argc, const char** argv) {
         else if (arg == "--force-turns") o.force_turns = true;
         else if (arg == "--serial-turns") o.serial_turns = true;
         else if (arg == "--uid-capacity") o.uid_capacity = to_count(arg, value());
+        else if (arg == "--loan-capacity") o.loan_capacity = to_count(arg, value());
         else if (arg == "--print-config") o.print_config = true;
         else if (arg == "--config") o.config = value();
         else if (arg == "--out") o.out = value();
@@ -123,6 +129,8 @@ Options parse_args(int argc, const char** argv) {
         else if (arg == "--dump-landscape") o.dump_landscape = value();
         else if (arg == "--dump-order") o.dump_order = value();
         else if (arg == "--dump-loans") o.dump_loans = value();
+        else if (arg == "--disease-list") o.disease_list = value();
+        else if (arg == "--dump-diseases") o.dump_diseases = value();
         else if (arg == "--timing") o.timing = value();
         else if (arg == "--metrics-every") o.metrics_every = to_int(arg, value());
         else if (arg == "--dump-at") o.dump_at = to_int(arg, value());
@@ -165,6 +173,7 @@ int main(int argc, const char** argv) {
         cfg.force_turns = opts.force_turns;
         cfg.serial_turns = opts.serial_turns;
         if (opts.uid_capacity) cfg.uid_capacity = *opts.uid_capacity;
+        if (opts.loan_capacity) cfg.loan_capacity = *opts.loan_capacity;
         apply_tile(cfg, opts.tile);
         validate(cfg);
         setup_start = std::chrono::steady_clock::now();
@@ -195,6 +204,13 @@ int main(int argc, const char** argv) {
     s.cfg = cfg;
     s.capacity = std::move(capacity);
     s.rng.seed(cfg.seed);
+    try {  // Chapter V's master list, first of the host's draws as in Python's Model.__init__
+        make_disease_list(opts.disease_list, opts.dump_diseases);
+        if (cfg.disease() && !opts.init.empty()) canonical_init_diseases(opts.init, init);
+    } catch (const std::runtime_error& e) {
+        std::fprintf(stderr, "sugarscape_gpu: %s\n", e.what());
+        return 2;
+    }
     s.dump_agents = opts.dump_agents;
     s.dump_landscape = opts.dump_landscape;
     s.dump_order = opts.dump_order;

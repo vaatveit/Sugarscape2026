@@ -1,7 +1,8 @@
 // A turn's footprint: the sites it may read and the sites it may write, fixed for the period from the state at the
 // start of the turns (spec 2026-10-25-gpu-full-parity, section 2). Included by store.cu (the scheduler) only. The
 // --check touch points that test it: 0-2 the move and neighbours, 3-4 and 6 rules S and K, 7-9 combat, 10 T, 11 L's
-// neighbours, 12 friends' rows and 13 lenders' rows (touch_row).
+// neighbours, 12 friends' rows and 13 lenders' rows (touch_row), 14 E's neighbours (disease.cuh). E's partners are the
+// four sites around the target, which every footprint already writes.
 #ifndef SRC_FOOTPRINT_CUH_
 #define SRC_FOOTPRINT_CUH_
 

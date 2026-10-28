@@ -2,10 +2,12 @@
 
 #include <algorithm>
 #include <bitset>
+#include <fstream>
 #include <numeric>
 #include <string>
 #include <utility>
 
+#include "disease.h"
 #include "model.h"
 #include "tribe.h"
 
@@ -114,7 +116,103 @@ std::vector<std::pair<uint32_t, std::string>> founder_sites(std::mt19937_64& rng
     return out;
 }
 
+// Python's infect (p.145): contract a disease (a canonical id) unless already carrying it or immune to it.
+bool infect(std::vector<unsigned int>& diseases, uint64_t immune, unsigned int id) {
+    const RunState& s = state();
+    if (std::find(diseases.begin(), diseases.end(), id) != diseases.end()) return false;
+    if (is_immune(immune, s.cfg.immune_length, s.disease_bits[id], static_cast<int>(s.disease_len[id]))) return false;
+    diseases.push_back(id);
+    return true;
+}
+
+// A citizen's Chapter V state; the diseases array exists only with disease on (model.cu).
+void set_disease_state(flamegpu::AgentVector::Agent a, uint64_t genotype, uint64_t immune,
+                       const std::vector<unsigned int>& diseases) {
+    a.setVariable<uint64_t>("immune_genotype", genotype);
+    a.setVariable<uint64_t>("immune", immune);
+    a.setVariable<unsigned int>("n_diseases", static_cast<unsigned int>(diseases.size()));
+    for (unsigned int k = 0; k < diseases.size(); ++k) {
+        a.setVariable<uint8_t, MAX_DISEASES>("diseases", k, static_cast<uint8_t>(diseases[k]));
+    }
+}
+
+std::string bit_string(uint64_t bits, int length) {
+    std::string out;
+    for (int i = 0; i < length; ++i) out += (bits >> i) & 1u ? '1' : '0';
+    return out;
+}
+
 }  // namespace
+
+void make_disease_list(const std::string& path, const std::string& dump) {
+    RunState& s = state();
+    const RunConfig& cfg = s.cfg;
+    if (!cfg.disease()) return;
+    s.disease_bits.clear();
+    s.disease_len.clear();
+    if (path.empty()) {  // Python: each disease's length from disease_length, then its bits
+        for (int i = 0; i < cfg.disease_list; ++i) {
+            const int len = draw(s.rng, cfg.disease_length);
+            s.disease_len.push_back(static_cast<unsigned int>(len));
+            s.disease_bits.push_back(random_tags(s.rng, len, ""));
+        }
+    } else {  // --disease-list (ruling D1)
+        std::ifstream in(path);
+        if (!in) throw MapError(path + ": cannot open the disease list");
+        std::string line;
+        int number = 0;
+        while (std::getline(in, line)) {
+            ++number;
+            if (!line.empty() && line.back() == '\r') line.pop_back();
+            const std::string where = path + " line " + std::to_string(number) + ": ";
+            if (line.empty() || line.find_first_not_of("01") != std::string::npos) {
+                throw MapError(where + "expected a 0/1 string");
+            }
+            if (static_cast<int>(line.size()) >= cfg.immune_length) {
+                throw MapError(where + "a disease of " + std::to_string(line.size()) +
+                               " bits is not shorter than immune_length = " + std::to_string(cfg.immune_length));
+            }
+            uint64_t bits = 0;
+            for (size_t i = 0; i < line.size(); ++i) bits |= static_cast<uint64_t>(line[i] == '1') << i;
+            s.disease_bits.push_back(bits);
+            s.disease_len.push_back(static_cast<unsigned int>(line.size()));
+        }
+        if (static_cast<int>(s.disease_bits.size()) != cfg.disease_list) {
+            throw MapError(path + ": " + std::to_string(s.disease_bits.size()) + " diseases, but disease_list = " +
+                           std::to_string(cfg.disease_list));
+        }
+    }
+    s.disease_canon.assign(s.disease_bits.size(), 0u);
+    for (size_t i = 0; i < s.disease_bits.size(); ++i) {
+        size_t j = 0;
+        while (s.disease_bits[j] != s.disease_bits[i] || s.disease_len[j] != s.disease_len[i]) ++j;
+        s.disease_canon[i] = static_cast<unsigned int>(j);
+    }
+    if (dump.empty()) return;
+    std::ofstream out(dump);
+    if (!out) throw MapError("cannot write " + dump);
+    out << "index,canonical,bits\n";
+    for (size_t i = 0; i < s.disease_bits.size(); ++i) {
+        out << i << "," << s.disease_canon[i] << "," << bit_string(s.disease_bits[i], static_cast<int>(s.disease_len[i]))
+            << "\n";
+    }
+}
+
+void canonical_init_diseases(const std::string& path, std::vector<InitAgent>& agents) {
+    const RunState& s = state();
+    for (InitAgent& a : agents) {
+        for (size_t k = 0; k < a.diseases.size(); ++k) {
+            const unsigned int id = s.disease_canon[a.diseases[k]];
+            for (size_t j = 0; j < k; ++j) {
+                if (a.diseases[j] == id) {
+                    throw MapError(path + " line " + std::to_string(a.line) + ": diseases carried twice (master " +
+                                   "indices of one string), which infection never gives");
+                }
+            }
+            a.diseases[k] = id;
+        }
+    }
+}
 
 flamegpu::AgentVector make_citizens(flamegpu::ModelDescription& model, const std::vector<InitAgent>* init) {
     RunState& s = state();
@@ -146,6 +244,10 @@ flamegpu::AgentVector make_citizens(flamegpu::ModelDescription& model, const std
             agent.setVariable<double>("initial_spice", a.initial_spice.value_or(a.spice.value_or(0.0)));
             agent.setVariable<int>("spice_metabolism", a.spice_metabolism.value_or(0));
             agent.setVariable<int>("foresight", a.foresight.value_or(0));
+            // Chapter V (ruling D2): the diseases are the column's canonical ids; diseases_per_agent infects no one.
+            if (cfg.disease()) {
+                set_disease_state(agent, a.genotype_count >= 0 ? a.immune_genotype : a.immune, a.immune, a.diseases);
+            }
         }
         s.next_uid = s.agents_ever = static_cast<unsigned int>(init->size());
         return pop;
@@ -154,6 +256,7 @@ flamegpu::AgentVector make_citizens(flamegpu::ModelDescription& model, const std
     const size_t n = sites.size();
     flamegpu::AgentVector pop(model.Agent("citizen"), static_cast<unsigned int>(n));
     std::vector<int> max_ages(n);
+    std::vector<uint64_t> genotypes(n);
     // Each founder's draws in Python's _spawn_at order: Chapter II's, then tags, then sex, each only when on, so
     // Chapter II runs keep their random stream.
     for (size_t i = 0; i < n; ++i) {
@@ -175,8 +278,28 @@ flamegpu::AgentVector make_citizens(flamegpu::ModelDescription& model, const std
             agent.setVariable<double>("initial_spice", spice);
             if (cfg.foresight) agent.setVariable<int>("foresight", draw(s.rng, *cfg.foresight));
         }
+        // Chapter V's draw comes last: the immune genotype, which the phenotype copies (p.146).
+        if (cfg.disease()) {
+            genotypes[i] = random_tags(s.rng, cfg.immune_length, "");
+            agent.setVariable<uint64_t>("immune_genotype", genotypes[i]);
+            agent.setVariable<uint64_t>("immune", genotypes[i]);
+        }
     }
     s.next_uid = s.agents_ever = static_cast<unsigned int>(n);
+    // p.147: once every founder is placed, each is offered diseases_per_agent distinct entries of the master list, in
+    // the order Python's rng.choice(replace=False) picks them (partial Fisher-Yates), and infected by each it can catch.
+    if (cfg.disease() && cfg.diseases_per_agent) {
+        std::vector<unsigned int> pick(s.disease_bits.size()), carried;
+        for (size_t i = 0; i < n; ++i) {
+            std::iota(pick.begin(), pick.end(), 0u);
+            carried.clear();
+            for (size_t k = 0; k < static_cast<size_t>(cfg.diseases_per_agent); ++k) {
+                std::swap(pick[k], pick[std::uniform_int_distribution<size_t>(k, pick.size() - 1)(s.rng)]);
+                infect(carried, genotypes[i], s.disease_canon[pick[k]]);
+            }
+            set_disease_state(pop[static_cast<unsigned int>(i)], genotypes[i], genotypes[i], carried);
+        }
+    }
     // Founders of a society with finite lives start at ages U[0, max age) (Python Config.founder_ages).
     if (cfg.max_age && cfg.founder_ages == "uniform") {
         for (size_t i = 0; i < n; ++i) {
@@ -238,12 +361,18 @@ void write_metrics(flamegpu::CUDASimulation* simulation, flamegpu::AgentVector& 
     c.disp_y = column<int>(pop, "disp_y");
     c.spice = column<double>(pop, "spice");
     c.foresight = column<int>(pop, "foresight");
+    c.n_diseases = column<uint32_t>(pop, "n_diseases");
+    if (s.cfg.disease() && pop.size()) {  // the array exists only with disease on (model.cu)
+        const uint8_t* d = pop.data<uint8_t>("diseases");
+        c.diseases.assign(d, d + pop.size() * MAX_DISEASES);
+    }
     {
         const uint32_t* f = pop.size() ? pop.data<uint32_t>("friend_uid") : nullptr;
         c.friend_uid = f ? std::vector<uint32_t>(f, f + pop.size() * MAX_FRIENDS) : std::vector<uint32_t>();
     }
     const auto row = compute_metrics(c, s.cfg, s.capacity, t, s.agents_ever, t == 0 ? TradeTotals{} : s.trades,
-                                     s.loans ? s.loans->to_host() : std::vector<LoanRecord>{});
+                                     s.loans ? s.loans->to_host() : std::vector<LoanRecord>{},
+                                     t == 0 ? 0u : s.new_infections);
     s.metrics_seconds += std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
     s.csv->write(row);
 }

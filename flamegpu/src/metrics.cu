@@ -81,7 +81,7 @@ const std::vector<std::string>& metric_names() {
 
 MetricsRow compute_metrics(const AgentColumns& a, const RunConfig& cfg, const std::vector<uint32_t>& capacity,
                            unsigned int t, unsigned int agents_ever, const TradeTotals& trade,
-                           const std::vector<LoanRecord>& loans) {
+                           const std::vector<LoanRecord>& loans, unsigned int new_infections) {
     const size_t n = a.x.size();
     const int half_w = cfg.width / 2, half_h = cfg.height / 2;
     double vision = 0, metabolism = 0, neighbors = 0, moved = 0, ne = 0, peak = 0, spice = 0, foresight = 0;
@@ -160,8 +160,24 @@ MetricsRow compute_metrics(const AgentColumns& a, const RunConfig& cfg, const st
     double both = 0;
     for (const uint32_t u : lenders) both += borrowers.count(u) ? 1 : 0;
 
+    // disease_metrics (p.147): the diseases each agent carries (np.std is the population's), the share sick, and the
+    // distinct strings carried, which canonical ids count once each. Without disease every count is 0.
+    double diseases = 0, sick = 0;
+    for (size_t i = 0; i < n; ++i) {
+        diseases += a.n_diseases[i];
+        sick += a.n_diseases[i] > 0 ? 1 : 0;
+    }
+    const double mean_diseases = ratio(diseases, count);
+    double squares = 0;
+    for (size_t i = 0; i < n; ++i) squares += (a.n_diseases[i] - mean_diseases) * (a.n_diseases[i] - mean_diseases);
+    std::set<uint8_t> circulating;
+    if (cfg.disease()) {
+        for (size_t i = 0; i < n; ++i) {
+            for (uint32_t k = 0; k < a.n_diseases[i]; ++k) circulating.insert(a.diseases[i * MAX_DISEASES + k]);
+        }
+    }
+
     const double tagged = n_blue + n_red;
-    const double any = n ? 0.0 : NaN;  // Python's safe_mean of a constant 0 per agent, nan for nobody
     return {t,
             {count, ratio(vision, count), ratio(metabolism, count), ratio(sugar_sum, count), gini(std::move(sugar)),
              ratio(neighbors, count), moved, ratio(ne, count), ratio(peak, count), ratio(high_north, high),
@@ -176,8 +192,9 @@ MetricsRow compute_metrics(const AgentColumns& a, const RunConfig& cfg, const st
              trade.n > 0 ? std::sqrt(trade.m2 / trade.n) : NaN, trade.sugar, trade.spice, ratio(foresight, count),
              static_cast<double>(loans.size()), static_cast<double>(lenders.size()),
              static_cast<double>(borrowers.size()), both, static_cast<double>(longest_chain(edges)),
-             // disease_metrics without disease.
-             any, any, any, 0.0, 0.0}};
+             // disease_metrics.
+             mean_diseases, n ? std::sqrt(squares / count) : NaN, ratio(sick, count), static_cast<double>(new_infections),
+             static_cast<double>(circulating.size())}};
 }
 
 CsvWriter::CsvWriter(const std::string& path) : file_(std::fopen(path.c_str(), "w")) {

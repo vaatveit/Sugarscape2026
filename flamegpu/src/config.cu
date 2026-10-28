@@ -13,10 +13,8 @@
 
 namespace {
 
-// Python Config fields the GPU does not implement yet (spec 2026-10-25-gpu-full-parity, Part D). sugar_map is
-// run.cfg's map path.
-const std::set<std::string> UNSUPPORTED = {
-    "sugar_map", "disease_list", "diseases_per_agent", "disease_length", "immune_length", "disease_fee"};
+// Python Config fields that are not run.cfg keys: sugar_map is run.cfg's map path.
+const std::set<std::string> UNSUPPORTED = {"sugar_map"};
 
 std::string trim(const std::string& s) {
     const auto b = s.find_first_not_of(" \t\r\n");
@@ -160,7 +158,8 @@ const std::set<std::string> KNOWN = {
     "seed", "sex", "fertility_start", "female_fertility_end", "male_fertility_end", "inheritance", "tag_length",
     "culture", "initial_blocks", "fertility_threshold", "child_share", "mate_contact", "child_gift", "child_threshold",
     "gift_rounding", "combat_alpha", "replacement_same_tribe", "spice", "spice_metabolism", "spice_endowment",
-    "foresight", "cultural_preferences", "trade", "trade_rounding", "credit"};
+    "foresight", "cultural_preferences", "trade", "trade_rounding", "credit", "disease_list", "diseases_per_agent",
+    "disease_length", "immune_length", "disease_fee"};
 
 [[noreturn]] void invalid(const std::string& message) { throw ConfigError("invalid configuration: " + message); }
 
@@ -278,6 +277,11 @@ RunConfig parse_config(const std::string& path) {
         if (parts.size() != 2) r.fail("credit", "expected d,r (a duration, then a rate)");
         cfg.credit = std::make_pair(static_cast<int>(r.integer("credit", parts[0])), r.real("credit", parts[1]));
     }
+    r.get("disease_list", cfg.disease_list);
+    r.get("diseases_per_agent", cfg.diseases_per_agent);
+    r.get("disease_length", cfg.disease_length);
+    r.get("immune_length", cfg.immune_length);
+    r.get("disease_fee", cfg.disease_fee);
     r.get("steps", cfg.steps);
     r.get("seed", cfg.seed);
     return cfg;
@@ -407,6 +411,26 @@ void validate(const RunConfig& cfg) {
         }
     }
     check_option("trade_rounding", cfg.trade_rounding, {"exact", "down"});
+    // Chapter V (Python Config.__post_init__).
+    if (cfg.disease_list < 0 || cfg.diseases_per_agent < 0) invalid("disease_list and diseases_per_agent must be >= 0");
+    if (cfg.diseases_per_agent > cfg.disease_list) {
+        invalid("cannot offer " + std::to_string(cfg.diseases_per_agent) + " distinct diseases from a list of " +
+                std::to_string(cfg.disease_list));
+    }
+    if (cfg.disease_length.lo < 1 || cfg.disease_length.lo > cfg.disease_length.hi) {
+        invalid("disease_length " + fmt(cfg.disease_length) + " must be a range starting at >= 1");
+    }
+    if (cfg.disease_length.hi >= cfg.immune_length) invalid("diseases must be shorter than immune systems (p.141)");
+    if (!(cfg.disease_fee >= 0)) invalid("disease_fee must be >= 0, not " + fmt(cfg.disease_fee));
+    // The GPU's limits (spec section 5), only with disease on: Python accepts any immune_length without it.
+    if (cfg.disease() && cfg.immune_length > MAX_IMMUNE_BITS) {
+        invalid("immune_length " + std::to_string(cfg.immune_length) + ": the GPU holds at most " +
+                std::to_string(MAX_IMMUNE_BITS) + " immune bits");
+    }
+    if (cfg.disease_list > MAX_DISEASES) {
+        invalid("disease_list " + std::to_string(cfg.disease_list) + ": the GPU holds at most " +
+                std::to_string(MAX_DISEASES) + " diseases");
+    }
 }
 
 void print_config(std::ostream& out, const RunConfig& cfg) {
@@ -463,6 +487,11 @@ void print_config(std::ostream& out, const RunConfig& cfg) {
         << "trade = " << (cfg.trade ? "true" : "false") << "\n"
         << "trade_rounding = " << cfg.trade_rounding << "\n"
         << "credit = " << (cfg.credit ? std::to_string(cfg.credit->first) + "," + fmt(cfg.credit->second) : "") << "\n"
+        << "disease_list = " << cfg.disease_list << "\n"
+        << "diseases_per_agent = " << cfg.diseases_per_agent << "\n"
+        << "disease_length = " << fmt(cfg.disease_length) << "\n"
+        << "immune_length = " << cfg.immune_length << "\n"
+        << "disease_fee = " << fmt(cfg.disease_fee) << "\n"
         << "steps = " << cfg.steps << "\n"
         << "seed = " << cfg.seed << "\n";
 }

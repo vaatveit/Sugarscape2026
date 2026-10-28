@@ -170,6 +170,10 @@ StoreHost::StoreHost(const RunConfig& cfg, unsigned int uid_capacity, bool check
     alloc(h_.new_amount, rows * LOAN_SLOTS);
     alloc(h_.new_due, rows * LOAN_SLOTS);
     alloc(h_.tags, rows);
+    alloc(h_.immune_genotype, rows);
+    alloc(h_.immune, rows);
+    alloc(h_.n_diseases, rows);
+    alloc(h_.diseases, cfg.disease() ? rows * MAX_DISEASES : 1);
     alloc(h_.key, rows);
     for (unsigned int** p : {&h_.uid, &h_.sex, &h_.n_children, &h_.parent_a, &h_.parent_b, &h_.n_friends, &h_.moved,
                              &h_.neighbors, &h_.start, &h_.target, &h_.rank, &h_.dead, &h_.done, &h_.ran,
@@ -184,6 +188,8 @@ StoreHost::StoreHost(const RunConfig& cfg, unsigned int uid_capacity, bool check
     alloc(h_.errors, 1);
     alloc(h_.ran_count, 1);
     alloc(h_.done_count, 1);
+    alloc(h_.infections, 1);
+    check(cudaMemset(h_.infections, 0, sizeof(unsigned int)), "clearing infections");
     alloc(h_.footprint_miss, 4);
     check(cudaMemset(h_.footprint_miss, 0, 4 * sizeof(unsigned int)), "clearing the footprint check");
     check(cudaMemset(h_.errors, 0, sizeof(unsigned int)), "clearing the store's errors");
@@ -340,6 +346,13 @@ std::vector<unsigned int> StoreHost::footprint_misses() {
     return miss;
 }
 
+unsigned int StoreHost::take_infections() {
+    unsigned int n = 0;
+    check(cudaMemcpy(&n, h_.infections, sizeof(unsigned int), cudaMemcpyDeviceToHost), "reading infections");
+    check(cudaMemset(h_.infections, 0, sizeof(unsigned int)), "clearing infections");
+    return n;
+}
+
 void StoreHost::wave_counts(unsigned int* ran, unsigned int* done) {
     check(cudaMemcpy(ran, h_.ran_count, sizeof(unsigned int), cudaMemcpyDeviceToHost), "reading ran_count");
     check(cudaMemcpy(done, h_.done_count, sizeof(unsigned int), cudaMemcpyDeviceToHost), "reading done_count");
@@ -388,8 +401,8 @@ __global__ void k_fix_friends(unsigned int n, Store s) {
 __global__ void k_fix_loans(Store s) {
     const Loans& b = s.book;
     for (unsigned int e = 0; e < *b.n; ++e) {
-        if (b.lender[e] & 0x80000000u) b.lender[e] = s.uid[b.lender[e] & 0x7FFFFFFFu];
-        if (b.borrower[e] & 0x80000000u) b.borrower[e] = s.uid[b.borrower[e] & 0x7FFFFFFFu];
+        if (b.lender[e] & PROVISIONAL_PARENT) b.lender[e] = s.uid[b.lender[e] & ~PROVISIONAL_PARENT];
+        if (b.borrower[e] & PROVISIONAL_PARENT) b.borrower[e] = s.uid[b.borrower[e] & ~PROVISIONAL_PARENT];
     }
 }
 

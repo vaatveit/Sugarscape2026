@@ -94,7 +94,7 @@ __global__ void k_ledger(Store s, Dying d, int t, int duration, double rate, boo
         }
         n = w;
     }
-    // The re-originated loans wait past the book's end (at n + k, never below the read position), then join it.
+    // The re-originated loans wait in the staging list, then join the book's end.
     unsigned int reborn = 0;
     w = 0;
     for (unsigned int e = 0; e < n; ++e) {
@@ -115,21 +115,21 @@ __global__ void k_ledger(Store s, Dying d, int t, int duration, double rate, boo
         borrower -= paid;
         lender += paid;
         const double rest = b.due[e] - paid;
-        if (book_put(b, n + reborn, b.lender[e], b.borrower[e], rest, rest * (1 + rate / 100 * duration), t + duration)) {
+        if (stage_put(b, reborn, b.lender[e], b.borrower[e], rest, rest * (1 + rate / 100 * duration), t + duration)) {
             ++reborn;
         }
     }
-    for (unsigned int k = 0; k < reborn; ++k, ++w) {
-        const unsigned int e = n + k;
-        book_put(b, w, b.lender[e], b.borrower[e], b.principal[e], b.due[e], b.due_t[e]);
+    for (unsigned int k = 0; k < reborn; ++k) {
+        if (book_from_stage(b, w, k)) ++w;
     }
     *b.n = w;
 }
 
 }  // namespace
 
-LoanBook::LoanBook(unsigned int cells, unsigned int rows) {
-    h_.capacity = LOANS_PER_CELL * cells;
+LoanBook::LoanBook(unsigned int cells, unsigned int rows, unsigned int capacity) {
+    per_cell_ = capacity == 0;
+    h_.capacity = per_cell_ ? LOANS_PER_CELL * cells : capacity;
     auto alloc = [](auto*& p, size_t count) {
         check(cudaMalloc(reinterpret_cast<void**>(&p), sizeof(*p) * (count ? count : 1)), "allocating the loan book");
     };
@@ -142,6 +142,11 @@ LoanBook::LoanBook(unsigned int cells, unsigned int rows) {
     alloc(h_.due_t, h_.capacity);
     alloc(h_.lender_row, h_.capacity);
     alloc(h_.borrower_row, h_.capacity);
+    alloc(h_.stage_lender, h_.capacity);
+    alloc(h_.stage_borrower, h_.capacity);
+    alloc(h_.stage_principal, h_.capacity);
+    alloc(h_.stage_due, h_.capacity);
+    alloc(h_.stage_due_t, h_.capacity);
     alloc(h_.ledger_sugar, rows);
     check(cudaMemset(h_.n, 0, sizeof(unsigned int)), "clearing the loan book");
     check(cudaMemset(h_.errors, 0, sizeof(unsigned int)), "clearing the loan book");
@@ -151,7 +156,9 @@ LoanBook::~LoanBook() {
     for (void* p : {static_cast<void*>(h_.n), static_cast<void*>(h_.errors), static_cast<void*>(h_.lender),
                     static_cast<void*>(h_.borrower), static_cast<void*>(h_.principal), static_cast<void*>(h_.due),
                     static_cast<void*>(h_.due_t), static_cast<void*>(h_.lender_row), static_cast<void*>(h_.borrower_row),
-                    static_cast<void*>(h_.ledger_sugar)}) {
+                    static_cast<void*>(h_.stage_lender), static_cast<void*>(h_.stage_borrower),
+                    static_cast<void*>(h_.stage_principal), static_cast<void*>(h_.stage_due),
+                    static_cast<void*>(h_.stage_due_t), static_cast<void*>(h_.ledger_sugar)}) {
         cudaFree(p);
     }
 }
@@ -178,8 +185,8 @@ void LoanBook::check_errors() const {
     unsigned int errors = 0;
     check(cudaMemcpy(&errors, h_.errors, sizeof(unsigned int), cudaMemcpyDeviceToHost), "reading the loan book");
     if (errors & LOAN_CAPACITY_ERROR) {
-        throw CapacityError("loan book capacity " + std::to_string(h_.capacity) + " exceeded (" +
-                            std::to_string(LOANS_PER_CELL) + " loans per cell)");
+        throw CapacityError("loan book capacity " + std::to_string(h_.capacity) + " exceeded" +
+                            (per_cell_ ? " (" + std::to_string(LOANS_PER_CELL) + " loans per cell)" : std::string()));
     }
 }
 

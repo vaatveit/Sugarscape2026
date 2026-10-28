@@ -61,6 +61,12 @@ DEFAULT_CFG = {
     "trade": "false",
     "trade_rounding": "exact",
     "credit": "",
+    # Chapter V (Part D).
+    "disease_list": "0",
+    "diseases_per_agent": "0",
+    "disease_length": "1,10",
+    "immune_length": "50",
+    "disease_fee": "1.0",
     "steps": "10",
     "seed": "0",
 }
@@ -115,9 +121,12 @@ def capacity_rows(capacity: np.ndarray) -> list[list[int]]:
 INIT_OPTIONAL = ("sex", "fertility_start", "fertility_end", "initial_sugar", "tags", "n_children", "parent_a", "parent_b",
                  "friends",
                  # Chapter IV (Part C). With spice on, an agent given no spice has 0 and starves at its first turn.
-                 "spice", "initial_spice", "spice_metabolism", "foresight")
-# Dump columns read as text, not numbers: tags is a 0/1 string, tag 0 first; friends is "uid:distance|...".
-TEXT_COLUMNS = ("sex", "tags", "friends")
+                 "spice", "initial_spice", "spice_metabolism", "foresight",
+                 # Chapter V (Part D): 0/1 strings, bit 0 first, and master indices joined by "|", in infection order.
+                 "immune_genotype", "immune", "diseases")
+# Dump columns read as text, not numbers: tags is a 0/1 string, tag 0 first; friends is "uid:distance|..."; the immune
+# strings and diseases as --init writes them.
+TEXT_COLUMNS = ("sex", "tags", "friends", "immune_genotype", "immune", "diseases")
 
 
 def write_init(path: Path, agents: list[dict]) -> Path:
@@ -129,6 +138,12 @@ def write_init(path: Path, agents: list[dict]) -> Path:
             writer.writerow([a["x"], a["y"], a["vision"], a["metabolism"], a["sugar"], a.get("age", 0),
                              "" if a.get("max_age") is None else a["max_age"],
                              *("" if a.get(k) is None else a[k] for k in optional)])
+    return Path(path)
+
+
+def write_diseases(path: Path, diseases: list[str]) -> Path:
+    """A master disease list for --disease-list: one 0/1 string per line, bit 0 first."""
+    Path(path).write_text("".join(d + "\n" for d in diseases), encoding="utf-8")
     return Path(path)
 
 
@@ -147,9 +162,10 @@ def read_rows(path: Path) -> list[dict]:
 
 def run_gpu(exe: Path, tmp: Path, cfg: dict | None = None, capacity: np.ndarray | None = None,
             agents: list[dict] | None = None, steps: int = 1, dump_at: int | None = None,
-            extra_args: tuple = ()) -> Dump:
+            extra_args: tuple = (), diseases: list[str] | None = None) -> Dump:
     """Run one scenario: cfg overrides DEFAULT_CFG; capacity (indexed [x, y]) replaces the map; agents replace
-    the random initial population. Dumps are taken at `dump_at` (default: after the last step)."""
+    the random initial population; diseases (0/1 strings, bit 0 first) replace the drawn master list. Dumps are taken
+    at `dump_at` (default: after the last step)."""
     tmp = Path(tmp)
     cfg = dict(cfg or {})
     cfg["steps"] = str(steps)
@@ -161,6 +177,8 @@ def run_gpu(exe: Path, tmp: Path, cfg: dict | None = None, capacity: np.ndarray 
     args = ["--config", write_cfg(tmp, **cfg)]
     if agents is not None:
         args += ["--init", write_init(tmp / "init.csv", agents)]
+    if diseases is not None:
+        args += ["--disease-list", write_diseases(tmp / "diseases.txt", diseases)]
     t = steps if dump_at is None else dump_at
     args += ["--dump-agents", tmp / "agents.csv", "--dump-landscape", tmp / "landscape.csv", "--dump-at", str(t)]
     credit = bool(cfg.get("credit"))
@@ -178,13 +196,13 @@ def run_gpu(exe: Path, tmp: Path, cfg: dict | None = None, capacity: np.ndarray 
 
 
 def period_orders(exe: Path, tmp: Path, cfg: dict | None, capacity: np.ndarray | None, agents: list[dict] | None,
-                  steps: int) -> list[list[int]]:
+                  steps: int, diseases: list[str] | None = None) -> list[list[int]]:
     """Each period's uids in the GPU's turn order (--dump-order), for stepping Python in the same order
     (reference.run_python_in_order) where the order matters."""
     tmp = Path(tmp)
     tmp.mkdir(parents=True, exist_ok=True)
     order_file = tmp / "order.csv"
-    dump = run_gpu(exe, tmp, cfg, capacity, agents, steps, extra_args=("--dump-order", order_file))
+    dump = run_gpu(exe, tmp, cfg, capacity, agents, steps, extra_args=("--dump-order", order_file), diseases=diseases)
     assert dump.returncode == 0, dump.stderr
     orders = [[] for _ in range(steps)]
     for row in read_rows(order_file):
@@ -206,6 +224,9 @@ def compare_dumps(gpu: Dump, py: Dump, pollution: bool = False) -> list[str]:
                 continue
             if not math.isclose(g[k][good], p[k][good], abs_tol=1e-5):
                 problems.append(f"agent {k}: {good} gpu {g[k][good]} python {p[k][good]}")
+        for column in ("immune", "diseases"):  # exactly, wherever both dumps carry them (Part D)
+            if column in g[k] and column in p[k] and (g[k][column] or "") != (p[k][column] or ""):
+                problems.append(f"agent {k}: {column} gpu {g[k][column]!r} python {p[k][column]!r}")
     for site, pc in py.landscape.items():
         gc = gpu.landscape[site]
         for good in ("sugar", "spice"):
