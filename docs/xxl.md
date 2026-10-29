@@ -364,6 +364,10 @@ seasons 8.7–9.0, combat 14.7, `XXL-terrain/IV-A3` 18.5, radius 18.8–20.1 and
 II-7), 4.9 (IV-A3), 3.4 (III-9) and 9.2 (VI-1). The memory runs cost about 1.8× the same speed run without memory
 (below).
 
+The xxl code leaves the xl hot path as fast as before: xl II-4 measured at base 8ae9319 and at this branch,
+interleaved in one session (12 pairs of separate processes pinned to one P-core, each the best of eight 10-period
+runs), had medians of 0.0201 s per period (base) and 0.0202 s (branch).
+
 ### Round vision (`XXL-vision`, II-4)
 
 Disc vision alone, with no speed: agents jump to the best site they see, as in the book.
@@ -412,22 +416,31 @@ a seed (seed 2: 14,020 against 13,932; seed 4: 14,082 against 14,156 in `solo`),
 difference of −5 (`solo`) and +2 (`shared`) agents.
 
 The share of agents whose target is a remembered site *beyond vision*, `share_remembered_target`, is exactly 0 in every
-period of all five seeds of `solo` and `shared`, so that is not how memory acts here. It counts only targets beyond
-vision. The likely path is rule 1, step 4: a remembered site within vision joins the look whenever the period's ring
-draws didn't happen to hit it, so the agent has candidates it would otherwise not have, and tied candidates draw from
-the random stream. The code makes this the only way memory can alter a move other than a beyond-vision target
-(`look!` appends the remembered sites within vision; `solo` has no word of mouth to differ through). I did not trace the
-first diverging agent, so this is likely, not shown. Word of mouth is not what starts the divergence, since `solo` also
-departs at t ≈ 8–12.
+period of all five seeds of `solo` and `shared`, so that is not how memory acts here. The ranking is why, and it follows
+from the spec's rule 3, not from a bug. `rank_pool!` keeps the M = 8 entries of highest rule-2 net value from the
+agent's current position, and that value charges the waiting cost m₁(T − 1): a site beyond the agent's speed takes
+T ≥ 2 periods, so it loses at least m₁ (1–4 sugar here) on top of the travel cost, and ranks below any site within
+speed that has nearly as much sugar. Memory therefore fills with the near disc, which rule 1 looks at every period
+anyway, and almost never holds far food. A diagnostic on one run (`solo`, seed 0, at t = 5, 30, 60 and 200, measured
+on a copy of the model so that the run itself was not disturbed) found 89–91% of the entries within the agent's speed,
+9–11% beyond its speed but within its vision, and at most 9 of the 150,000–320,000 entries beyond vision, none of them
+a target; 3–20% of the entries held no sugar (20% at t = 5, 3% from t = 60). With nothing to pick beyond vision,
+memory's only input to a move is rule 1, step 4: `look!` appends the remembered sites within vision that the period's
+ring draws missed, 0.74–0.89 per agent per period in that run. Each is an extra candidate, or changes a tie count and
+so shifts the reservoir draws that follow, which is enough to part every run from the speed run's same seed by
+t ≈ 8–12. They lie beyond the agent's speed and carry the same waiting cost, so presumably they seldom beat the near
+sites, and the aggregates do not move. Word of mouth is not what starts the divergence, since `solo` also departs at
+t ≈ 8–12. For memory to matter the ranking would have to change, for example to the resources less the travel cost,
+without the waiting term, so that far food can be remembered. That is a possible change, not one tested or
+recommended here.
 
 Beyond-vision remembered targets are rare everywhere: over all five seeds, the share is nonzero in none of the periods
 of `XXL-radius/R1` and `XXL-terrain/II-4`, in 1 period of one seed of `XXL-radius/R1.5` and 3 periods of one seed of
 `XXL-radius/R3`, in 1–2 periods of three seeds of `XXL-terrain/IV-A3`, in 0–7 periods per seed of `XXL-seasons`, 0–19
 of `XXL-society/VI-1` and 0–1 of `XXL-combat/III-9`, at most 4.1 × 10⁻⁴ of the agents in any period (in `XXL-radius/R3`
-seed 0). Why is not tested here. It may be structural: a site can only be a remembered target once it is beyond the
-vision of 10–60 sites that an agent has, but agents move about one site per period and the map has large plateaus of
-equal sites, so a visible site is nearly always as good and closer. Whether other settings (slower growback, smaller
-vision, patchier food, a larger speed) would make memory matter was not tried.
+seed 0). All of these runs have memory, speed and a travel cost, so they rank memory the same way, and the cause is
+presumably the same; the diagnostic above was run on `solo` only. Whether other settings (slower growback, smaller
+vision, patchier food, a larger speed) would change this was not tried.
 
 Memory has a cost: 0.146 and 0.155 s per period against 0.080 for the same run without it (1.8–1.9×); per agent and
 period, 7.8 and 8.3 µs against 4.3.
@@ -524,7 +537,9 @@ sugar and spice landscape (no combat).
   die-off.
 - Round vision without speed changes xl little (2–4% less population) but clusters agents.
 - Memory and word of mouth change every individual run from about t = 10 but have no aggregate effect beyond the seed
-  spread at these settings; beyond-vision targets are almost never chosen. They cost about 1.8× the stepping time.
+  spread at these settings. Memory ranks sites by rule 2's value with its waiting cost, so it keeps the sites within
+  the agent's speed, which it looks at anyway, and beyond-vision targets are almost never chosen (a diagnostic on one
+  run). They cost about 1.8× the stepping time.
 - The interaction radius raises trade volume strongly and survival barely (R = 3 is 3% above R = 1, about 3 seed
   sds); price levels hardly change.
 - The latitude gradient raises population by about 10% and moves agents toward the equators in a small way.
