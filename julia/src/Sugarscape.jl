@@ -82,5 +82,6 @@ include("xxl/radius.jl")
 include("stats.jl")
 include("xxl/metrics.jl")
 include("runner.jl")
+include("xxl/experiments.jl")
 
 end

@@ -7,3 +7,4 @@ __pycache__/
 .pytest_cache/
 results-julia/
 results-julia-xl/
+results-julia-xxl/
