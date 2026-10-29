@@ -7,11 +7,12 @@ using Sugarscape, Test
         xl = to_xl(find_experiment(reg, id).config)
         a = Model(xl)
         b = Model(replace_config(xl; xxl=XXL_BOOK))
-        same = isequal(collect_metrics(a), collect_metrics(b))
+        n = length(METRIC_COLUMNS)  # the xxl side adds nine columns after the 45 the xl run has
+        same = isequal(collect_metrics(a), collect_metrics(b)[1:n])
         for _ in 1:50
             step!(a)
             step!(b)
-            same &= isequal(collect_metrics(a), collect_metrics(b))
+            same &= isequal(collect_metrics(a), collect_metrics(b)[1:n])
         end
         @test same
     end
