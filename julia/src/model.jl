@@ -108,10 +108,17 @@ function Model(
     place_initial_population!(m)
     cfg.diseases_per_agent > 0 && infect_founders!(m)
     # Founders of a society with finite lives start at ages U[0, max age) (Config.founder_ages). Drawn last, and
-    # only with finite lives.
+    # only with finite lives. xxl founder_ages = "young" (revised spec, "Stage 1: survival", change 4) draws U[0, fertility
+    # start] instead, in the same loop and position; it needs sex (the fertility start) as well as finite lives, and it
+    # leaves the book's founder_ages = "zero" alone.
     if cfg.max_age !== nothing && cfg.founder_ages == "uniform"
+        young = cfg.sex && xxl_on(cfg, :young)
         for a in m.agents
-            a.age = rand(m.rng, 0:(Int(a.max_age) - 1))
+            a.age = if young
+                rand(m.rng, 0:Int(a.fertility_start))
+            else
+                rand(m.rng, 0:(Int(a.max_age) - 1))
+            end
         end
     end
     return m
