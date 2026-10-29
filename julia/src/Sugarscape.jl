@@ -36,7 +36,8 @@ export Model,
     random_empty_site,
     new_agent!,
     spawn_random_agent!,
-    spawn_at!
+    spawn_at!,
+    spawn_viable!
 export move_agent!, kill!, die!, deaths_this_step, agents_ever, step!, run!, sample_distinct
 export look!, xxl_move!, disc_in_sight, harvest!
 export travel_periods, net_value, step_site, speed_move!
@@ -65,6 +66,7 @@ include("xxl/transform.jl")
 include("agent.jl")
 include("landscape.jl")
 include("model.jl")
+include("xxl/placement.jl")
 include("xxl/geometry.jl")
 include("rules/movement.jl")
 include("rules/culture.jl")

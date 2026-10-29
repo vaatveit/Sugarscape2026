@@ -42,6 +42,8 @@ mutable struct Model{R<:AbstractRNG}
     threat_looked::Vector{Tuple{Int,Int}}  # xxl scratch: the retaliation look's sites, apart from `looked`
     pool::Vector{Remembered}  # xxl scratch: memory ranking's candidates (rule 3)
     pool_values::Vector{Float64}  # xxl scratch: the kept entries' net values
+    viable_fallbacks::Int  # xxl: new agents placed off viable land because none was free (spawn_viable!)
+    viable_sites::Dict{Tuple{Int,Int},Vector{Int32}}  # xxl: the grid's viable sites by metabolism pair, built lazily
 end
 
 """
@@ -99,6 +101,8 @@ function Model(
         Tuple{Int,Int}[],
         Remembered[],
         Float64[],
+        0,
+        Dict{Tuple{Int,Int},Vector{Int32}}(),
     )
     cfg.disease_list > 0 && init_disease_list!(m)
     place_initial_population!(m)
@@ -159,8 +163,23 @@ function new_agent!(
 )
     x, y = wrap(m, x, y)
     m.grid[x + 1, y + 1] === nothing || throw(ArgumentError("site ($x, $y) is occupied"))
-    a = Agent(m.next_id, x, y, vision, metabolism, Float64(sugar), Float64(max_age))
+    return place_agent!(
+        m, build_agent!(m, vision, metabolism, sugar; max_age=max_age), x, y
+    )
+end
+
+"""An agent with the next id, not yet on the grid: the first half of `new_agent!` (`spawn_viable!` places it later)."""
+function build_agent!(
+    m::Model, vision::Int, metabolism::Int, sugar::Real; max_age::Real=Inf
+)
+    a = Agent(m.next_id, 0, 0, vision, metabolism, Float64(sugar), Float64(max_age))
     m.next_id += 1
+    return a
+end
+
+"""Puts the unplaced agent `a` on the empty site (x, y) and among the living: the second half of `new_agent!`."""
+function place_agent!(m::Model, a::Agent, x::Int, y::Int)
+    a.x, a.y = x, y
     m.grid[x + 1, y + 1] = a
     push!(m.agents, a)
     a.slot = length(m.agents)
@@ -174,6 +193,11 @@ A new agent with random genetics, endowment and max age at a random empty site (
 tags are drawn to belong to that tribe (same-tribe R, p.86).
 """
 function spawn_random_agent!(m::Model; tribe::Symbol=:none)
+    if xxl_on(m.config, :viable)  # xxl: traits first, then a site that feeds them (xxl/placement.jl)
+        length(m.agents) < length(m.grid) ||
+            throw(ArgumentError("no empty site for a new agent: the lattice is full"))
+        return spawn_viable!(m, grid_sites(m), m.viable_sites; tribe=tribe)
+    end
     site = random_empty_site(m)
     site === nothing &&
         throw(ArgumentError("no empty site for a new agent: the lattice is full"))
@@ -381,6 +405,16 @@ function place_initial_population!(m::Model)
     n > length(sites) && throw(
         ArgumentError("$n agents do not fit in $(length(sites)) $(cfg.placement) sites")
     )
+    if xxl_on(cfg, :viable)  # xxl: each founder's traits first, then a site that feeds it (xxl/placement.jl)
+        if cfg.placement == "block"
+            place_viable!(
+                m, site_indices(m, sites), Dict{Tuple{Int,Int},Vector{Int32}}(), n
+            )
+        else
+            place_viable!(m, grid_sites(m), m.viable_sites, n)  # shares the grid's lists with rule R
+        end
+        return nothing
+    end
     for i in sample_distinct(m.rng, length(sites), n)
         spawn_at!(m, sites[i]...)
     end
@@ -394,15 +428,21 @@ A founder or newcomer with random genetics, endowment and max age (Model._spawn_
 earlier ones and only when their rules are on, as in Python.
 """
 function spawn_at!(m::Model, x::Int, y::Int; tribe::Symbol=:none)
+    vision, metabolism, sugar, max_age = spawn_chapter2_draws(m)
+    a = new_agent!(m, x, y, vision, metabolism, sugar; max_age=max_age)
+    spawn_chapter_draws!(m, a, tribe)
+    return a
+end
+
+"""Chapter II draws for a new random agent, in Python's order: vision, metabolism, endowment, max age."""
+function spawn_chapter2_draws(m::Model)
     cfg, rng = m.config, m.rng
     s = cfg.look_stride  # 1 except in xl, where vision is drawn in whole strides: 10, 20, ...
     vision = s * draw(rng, (cfg.vision[1] ÷ s, cfg.vision[2] ÷ s))
     metabolism = draw(rng, capped_range(cfg, cfg.metabolism))
     sugar = draw(rng, cfg.endowment)
     max_age = cfg.max_age === nothing ? Inf : Float64(draw(rng, cfg.max_age))
-    a = new_agent!(m, x, y, vision, metabolism, sugar; max_age=max_age)
-    spawn_chapter_draws!(m, a, tribe)
-    return a
+    return vision, metabolism, sugar, max_age
 end
 
 """Chapter III-V draws for a new random agent, each gated by its rules and in Python's order (III, IV, V), then xxl's speed."""
@@ -445,6 +485,11 @@ function place_blocks!(m::Model)
                 "$n $name agents do not fit in $(length(sites)) empty block sites"
             ),
         )
+        if xxl_on(m.config, :viable)  # xxl: the viable rule within the block (xxl/placement.jl)
+            cache = Dict{Tuple{Int,Int},Vector{Int32}}()
+            place_viable!(m, site_indices(m, sites), cache, n; tribe=Symbol(name))
+            continue
+        end
         for i in sample_distinct(m.rng, length(sites), n)
             spawn_at!(m, sites[i]...; tribe=Symbol(name))
         end
