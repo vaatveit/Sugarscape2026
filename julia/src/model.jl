@@ -59,8 +59,16 @@ function Model(
     cap = capacity === nothing ? load_map(cfg.sugar_map) : Matrix{Int}(capacity)
     size(cap) == (cfg.width, cfg.height) ||
         throw(ArgumentError("capacity shape $(size(cap)) != ($(cfg.width), $(cfg.height))"))
-    # Fig IV-1: spice mountains NW and SE, i.e. the sugar map mirrored east-west.
-    ls = Landscape(cap, cfg.spice ? reverse(cap; dims=1) : nothing)
+    # Fig IV-1: spice mountains NW and SE, i.e. the sugar map mirrored east-west. The generated landscape (xxl rule 6)
+    # has a spice map of its own: the mirror is a fact of the book's map, not a law.
+    spice_cap = if !cfg.spice
+        nothing
+    elseif xxl_on(cfg, :generated)
+        load_map(XXL_SPICE_MAP)
+    else
+        reverse(cap; dims=1)
+    end
+    ls = Landscape(cap, spice_cap)
     m = Model(
         cfg,
         rng,
