@@ -54,10 +54,21 @@ end
 end
 
 @testset "no attack beyond reach" begin
-    m = combat_world(; S=2, V=6)
-    blue = fighter(m, 10, 10, :blue, 20.0; V=6, S=2)
-    red = fighter(m, 13, 12, :red, 8.0; V=6, S=2)   # 3.6 away: seen (or not), but out of reach 2
-    m.landscape.sugar[13 + 1, 12 + 1] = 5.0
+    # Red is 3.6 away, in the ring beyond the near radius 2, so a look holds it only by a random ring draw. Find a seed
+    # whose look does (the probe and the move make the same first draws), so reach is what spares red.
+    build(seed) = begin
+        m = combat_world(; S=2, V=6, seed)
+        blue = fighter(m, 10, 10, :blue, 20.0; V=6, S=2)
+        red = fighter(m, 13, 12, :red, 8.0; V=6, S=2)
+        m.landscape.sugar[13 + 1, 12 + 1] = 5.0
+        (m, blue, red)
+    end
+    seed = findfirst(1:500) do s
+        m, blue, _ = build(s)
+        (13, 12) in look!(m, blue)
+    end
+    @test seed !== nothing
+    m, blue, red = build(seed)
     xxl_combat_move!(m, blue)
     @test red.alive
     @test blue.sugar == 20.0
