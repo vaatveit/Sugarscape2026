@@ -40,6 +40,8 @@ mutable struct Model{R<:AbstractRNG}
     looked::Vector{Tuple{Int,Int}}  # xxl scratch: this move's looked-at sites
     shell_shares::Vector{Float64}  # xxl: the clustering cache, empty until first used
     threat_looked::Vector{Tuple{Int,Int}}  # xxl scratch: the retaliation look's sites, apart from `looked`
+    pool::Vector{Remembered}  # xxl scratch: memory ranking's candidates (rule 3)
+    pool_values::Vector{Float64}  # xxl scratch: the kept entries' net values
 end
 
 """
@@ -87,6 +89,8 @@ function Model(
         Tuple{Int,Int}[],
         Float64[],
         Tuple{Int,Int}[],
+        Remembered[],
+        Float64[],
     )
     cfg.disease_list > 0 && init_disease_list!(m)
     place_initial_population!(m)
@@ -251,6 +255,7 @@ function step!(m::Model)
         metabolize!(m, a)
         a.alive || continue
         set_neighbors!(m, a)
+        xxl_on(cfg, :word_of_mouth) && word_of_mouth!(m, a)  # xxl rule 3
         # The rules below look up neighbours afresh, as Python does: a child born in rule S is already a neighbour
         # for K, T, L and E, but not in `a.neighbors`, which friendship (and the metrics) read.
         cfg.sex && mate!(m, a)

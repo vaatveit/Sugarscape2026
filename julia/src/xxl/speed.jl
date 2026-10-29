@@ -85,10 +85,13 @@ end
 """
     speed_move!(m, a)
 
-[`xxl_move!`](@ref) with speed (spec, rule 2). The candidates are the agent's own site and the empty sites it looks at;
-it targets the one of highest [`net_value`](@ref), ties going to the nearest by torus distance, then at random (a
-reservoir: the c-th tie replaces the choice with probability 1/c, one draw each). It steps toward the target with
-[`step_site`](@ref) and harvests where it lands. [`metabolize!`](@ref) charges the distance moved.
+[`xxl_move!`](@ref) with speed (spec, rule 2). The candidates are the agent's own site and the empty sites it looks at,
+and with memory (rule 3) its remembered sites beyond vision, valued from the resources and pollution remembered and
+with occupancy ignored (it can't see them; [`step_site`](@ref) never lands on an occupied site). It targets the one of
+highest [`net_value`](@ref), ties going to the nearest by torus distance, then at random (a reservoir: the c-th tie
+replaces the choice with probability 1/c, one draw each); `target_remembered` records whether the target is a
+remembered site beyond vision. It steps toward the target with [`step_site`](@ref), harvests where it lands, and with
+memory then [`remember!`](@ref)s. [`metabolize!`](@ref) charges the distance moved.
 """
 function speed_move!(m::Model, a::Agent)
     ls = m.landscape
@@ -101,6 +104,7 @@ function speed_move!(m::Model, a::Agent)
     best_x, best_y, best_d = a.x, a.y, 0.0
     best = site_value(a, sw, spice, c, ls, a.x, a.y, 0.0)
     ties = 1
+    memory = xxl_on(m.config, :memory)
     for (x, y) in look!(m, a)
         @inbounds m.grid[x + 1, y + 1] === nothing || continue  # the agent's own site is occupied by itself
         d = torus_dist(w, h, a.x, a.y, x, y)
@@ -112,10 +116,34 @@ function speed_move!(m::Model, a::Agent)
             rand(m.rng) < 1 / ties && ((best_x, best_y) = (x, y))
         end
     end
+    if memory  # remembered sites beyond vision: valued as remembered, occupancy unseen
+        v = Float64(a.vision)
+        remembered = false
+        for e in a.memory
+            d = torus_dist(w, h, a.x, a.y, e.x, e.y)
+            d > v || continue  # within vision it was looked at afresh
+            devalue = 1.0 + e.pollution
+            val = net_value(
+                a, sw, spice, c, d, e.sugar / devalue, spice ? e.spice / devalue : 0.0
+            )
+            if val > best || (val == best && d < best_d)
+                best, best_x, best_y, best_d, ties = val, e.x, e.y, d, 1
+                remembered = true
+            elseif val == best && d == best_d
+                ties += 1
+                if rand(m.rng) < 1 / ties
+                    best_x, best_y = e.x, e.y
+                    remembered = true
+                end
+            end
+        end
+        a.target_remembered = remembered
+    end
     x, y = step_site(m, a, best_x, best_y)
     a.moved = (x, y) != (a.x, a.y)
     move_agent!(m, a, x, y)
     harvest!(m, a, x, y)
+    memory && remember!(m, a)
     return nothing
 end
 

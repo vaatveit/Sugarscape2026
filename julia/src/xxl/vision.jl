@@ -15,7 +15,9 @@ centre's own site first, then every site within the near radius n (`near_offsets
 agent's speed, or 1.0 without one (the four adjacent sites), then `ring_draws(a.vision)` points drawn uniformly by area
 from the ring n < d ≤ V, each rounded to a site: one whose rounded distance is not in (n, V] is dropped, and a site
 already looked at is looked at once. With the lattice shape, the sites [`move!`](@ref) scans: the own site, then each
-direction in a random order out along its looks. `memory=false` leaves out remembered sites (rule 3).
+direction in a random order out along its looks. With memory on (and `memory=true`), the agent's remembered sites within
+vision (torus distance at most V) of (x, y) that are not looked at yet come last: they are looked at afresh, so they
+count at their current values (rule 3). `memory=false` leaves them out.
 """
 function look!(
     out::Vector{Tuple{Int,Int}}, m::Model, a::Agent, x::Int, y::Int; memory::Bool=true
@@ -30,6 +32,7 @@ function look!(
                 push!(out, wrap(m, x + dx * dist, y + dy * dist))
             end
         end
+        memory && xxl_on(m.config, :memory) && look_remembered!(out, m, a, x, y)
         return out
     end
     n = a.speed > 0 ? Float64(a.speed) : 1.0
@@ -51,6 +54,20 @@ function look!(
             end
             seen || push!(out, site)
         end
+    end
+    memory && xxl_on(m.config, :memory) && look_remembered!(out, m, a, x, y)
+    return out
+end
+
+# Appends the sites `a` remembers within its vision of (x, y) that `out` doesn't hold yet. They can coincide with a near
+# or ring site, so the whole of `out` is checked; there are few of them.
+function look_remembered!(out::Vector{Tuple{Int,Int}}, m::Model, a::Agent, x::Int, y::Int)
+    w, h = m.landscape.width, m.landscape.height
+    v = Float64(a.vision)
+    for e in a.memory
+        torus_dist(w, h, x, y, e.x, e.y) <= v || continue
+        site = (e.x, e.y)
+        site in out || push!(out, site)
     end
     return out
 end
