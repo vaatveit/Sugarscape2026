@@ -397,7 +397,7 @@ function spawn_at!(m::Model, x::Int, y::Int; tribe::Symbol=:none)
     cfg, rng = m.config, m.rng
     s = cfg.look_stride  # 1 except in xl, where vision is drawn in whole strides: 10, 20, ...
     vision = s * draw(rng, (cfg.vision[1] ÷ s, cfg.vision[2] ÷ s))
-    metabolism = draw(rng, cfg.metabolism)
+    metabolism = draw(rng, capped_range(cfg, cfg.metabolism))
     sugar = draw(rng, cfg.endowment)
     max_age = cfg.max_age === nothing ? Inf : Float64(draw(rng, cfg.max_age))
     a = new_agent!(m, x, y, vision, metabolism, sugar; max_age=max_age)
@@ -415,7 +415,7 @@ function spawn_chapter_draws!(m::Model, a::Agent, tribe::Symbol)
     cfg.sex && assign_sex!(m, a, random_sex(rng))
     # Chapter IV draws come after those.
     if cfg.spice
-        a.spice_metabolism = draw(rng, cfg.spice_metabolism)
+        a.spice_metabolism = draw(rng, capped_range(cfg, cfg.spice_metabolism))
         a.spice =
             a.initial_spice = Float64(
                 draw(rng, something(cfg.spice_endowment, cfg.endowment))

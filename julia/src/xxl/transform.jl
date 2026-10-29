@@ -42,3 +42,16 @@ literal feature the hot paths pay only the `nothing` check.
     feature === :young && return r.founder_ages == "young"
     return throw(ArgumentError("unknown xxl feature $(repr(feature))"))
 end
+
+"""
+    capped_range(cfg, r) -> (lo, hi)
+
+The range a metabolism is drawn from: `r` with its top cut to `cfg.xxl.max_metabolism` when `:metabolism_cap` is on,
+otherwise `r` itself (spec, "The changes": a cap on the metabolism drawn for new agents). Validation guarantees the cap
+is not below the experiment's lowest metabolism, so the result is never empty. Founders, rule-R replacements and
+`spawn_viable!` draw through it; children inherit by crossover in rule S and need nothing.
+"""
+@inline function capped_range(cfg::Config, r::Tuple{Int,Int})
+    xxl_on(cfg, :metabolism_cap) || return r
+    return (r[1], min(r[2], cfg.xxl.max_metabolism))
+end
