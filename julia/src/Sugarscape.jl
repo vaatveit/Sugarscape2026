@@ -33,6 +33,7 @@ export move_agent!, kill!, die!, deaths_this_step, agents_ever, step!, run!, sam
 export look!, xxl_move!, disc_in_sight, harvest!
 export travel_periods, net_value, step_site, speed_move!
 export remember!, word_of_mouth!
+export xxl_combat_move!, disc_vulnerable
 export move!, metabolize!, pollution_active, look_distance, look_distances
 export METRIC_COLUMNS, collect_metrics, gini, tribe, closeness
 export random_tags, cross_tags, hamming, culture_transmit!, update_friends!
@@ -66,6 +67,7 @@ include("rules/disease.jl")
 include("xxl/vision.jl")
 include("xxl/speed.jl")
 include("xxl/memory.jl")
+include("xxl/combat.jl")
 include("stats.jl")
 include("runner.jl")
 

@@ -35,8 +35,11 @@ harvesting is our call).
 
 Python checks every candidate for retaliation, then picks; here only a candidate that would replace the best safe
 one so far is checked, which picks the same site.
+
+With xxl round vision or speed on, [`xxl_combat_move!`](@ref) runs instead.
 """
 function combat_move!(m::Model, a::Agent)
+    (xxl_on(m.config, :disc) || xxl_on(m.config, :speed)) && return xxl_combat_move!(m, a)
     ls, alpha = m.landscape, m.config.combat_alpha
     w, h = ls.width, ls.height
     mine = tribe(a)
