@@ -1,0 +1,549 @@
+# Sugarscape xxl
+
+xxl is a rule set for the 500 × 500 world that uses the room instead of hiding it. xl makes the world 10× wider and
+adjusts the rules so its results match the regular run's; xxl is a different model. In Sugarscape an agent fills one
+site and harvests one site, so a site is the agent's own size, and the big world is 10× wider *measured in agents*.
+xxl uses that room to pull apart lengths that the 50 × 50 world forces to be about the same:
+
+| Length, in sites | Book (50 × 50) | xl | xxl |
+|---|---|---|---|
+| Distance moved in a period | up to vision, 1–6 | up to vision, 10–60 | speed, 1–6 |
+| Vision | 1–6 | 10–60 | 10–60 |
+| Interaction (trade, culture, disease, mating, credit) | 1 | 1 | radius R, 1.5 by default |
+| Landscape features (mountain radius) | about 10 | about 100 | about 100 (xl map), or 5–80 (generated) |
+| World | 50 | 500 | 500 |
+
+It is not a recreation of the book and is not scored against the book's targets. It exists in the Julia port only
+(`julia/`); the Python model, runner and viewer don't change. This document is the contract: it defines the rules
+without reference to any one language, as [docs/xl.md](xl.md) does for xl. It builds on xl, whose map, look
+and timing definitions it uses. The design and its reasoning are in
+[docs/superpowers/specs/2026-10-28-xxl-design.md](superpowers/specs/2026-10-28-xxl-design.md).
+
+Each change is a separate switch with a *book setting* that turns it off, so its effect can be measured alone. With
+every switch at its book setting, an xxl run is its Julia xl run, draw for draw.
+
+## Conventions
+
+- **Sites** are whole-number coordinates (x east, y north, 0-based) on the W × H torus, W = H = 500.
+- **Distance** is Euclidean, the shorter way round in each direction: d = √(dx² + dy²), with dx = min(|Δx|, W − |Δx|)
+  and dy likewise. The signed offset used to walk toward a site is the shortest way round in (−W/2, W/2]; a
+  half-width apart goes positive.
+- **Rounding.** Wherever a real coordinate becomes a site, it is rounded to the nearest whole number, **ties to
+  even** (2.5 → 2, 3.5 → 4, −0.5 → 0), and then wrapped onto the torus. There is no other rounding rule.
+- **Sorting by distance** compares the exact integer dx² + dy², so equal distances tie exactly.
+- **Draws.** Every xxl random draw is gated by its feature and comes after every draw of the book rules in the same
+  occasion: per agent (founders and newborns), after the Chapter V draws; per period, inside the rule that makes it.
+  A "uniform draw" is one number uniform on [0, 1) from the model's generator.
+
+## The nine settings
+
+An xxl run is an xl configuration plus these settings. The book column turns each rule off; the default column is
+what `--xxl` and the `XXL-…` experiments start from.
+
+| Setting | Book setting | Default |
+|---|---|---|
+| `vision_shape` | `"lattice"` | `"disc"` |
+| `speed` | none | (1, 6) |
+| `travel_cost` c | 0 | 0.1 sugar per site |
+| `memory` M | 0 | 8 |
+| `memory_span` | 50 | 50 |
+| `word_of_mouth` | false | true |
+| `interaction_radius` R | 1 | 1.5 |
+| `season_gradient` | false | true |
+| `landscape` | `"xl"` | `"xl"` |
+
+The xxl version of a regular experiment is its xl version (docs/xl.md) with these set to the default column. For a
+base experiment without seasons the season gradient is set to false, so a fingerprint never names a rule that can't
+apply.
+
+**Refused combinations.** A configuration xxl doesn't define is refused, not run under book rules:
+- `vision_shape` other than `"lattice"` or `"disc"`; `landscape` other than `"xl"` or `"generated"`;
+- speed that isn't a range lo ≤ hi with lo ≥ 1; travel cost below 0; R below 1; memory below 0; span below 1;
+- memory without speed; travel cost above 0 without speed; word of mouth without memory (> 0);
+- the season gradient without seasons, or with `winter_growback = "pulse"`;
+- speed above the lowest vision (an agent never reaches in one period a site it can't see);
+- `landscape = "generated"` unless the sugar map is `sugar-map-xxl.txt`, and that map unless the landscape is
+  generated;
+- with disc vision, a vision whose limit 2V reaches the shorter side of the grid (a disc can't overlap itself across
+  the torus);
+- combat with spice or with credit, as the book rules refuse them.
+
+## Rule 1: round vision
+
+**Book setting:** `"lattice"`, the look along four lattice lines of docs/xl.md ("Looking": xl's centred look at
+stride 10).
+
+**xxl:** `"disc"`. Agent `a` with vision V and near radius n looks, from a position (x, y), at:
+1. its own site (x, y), first;
+2. every site with 1 ≤ d ≤ n, nearest first (equal distances by dx, then dy, both ascending), where n is the agent's
+   speed S, and n = 1 without speed (the four adjacent sites), so a site next door is never missed;
+3. K = ⌈4V / 10⌉ points drawn uniformly by area from the ring n < d ≤ V (a vision-60 agent draws 24). Only if V > n;
+   otherwise there is no ring and nothing is drawn. Each point takes two uniform draws, u₁ then u₂:
+   ρ = √(n² + u₁(V² − n²)), θ = 2π·u₂, offset (ρ cos θ, ρ sin θ), each coordinate rounded as above. A point whose
+   rounded offset has dx² + dy² not in (n², V²] is dropped. A site already looked at in this step is looked at
+   once. Dropped and repeated points still used their draws;
+4. with memory on, last: each remembered site within V (torus distance) of (x, y) that isn't looked at yet. They
+   are looked at afresh, at their current values (rule 3).
+
+The disc removes the lattice's preference for the four axes. It also removes the reason xl needed random offsets: moves
+along lattice lines in steps of 10 split the world into 100 separate worlds.
+
+**Movement without speed** (`XXL-vision`): the agent scores its own site and each empty site it looked at with rule
+M's score (sugar ÷ (1 + pollution); with spice, the welfare W of the holdings plus the site's devalued resources
+under foresight, as in the book), and jumps to the best. Ties go to the nearest site by distance, then to the first
+looked at; staying wins a tie with the agent's own site. No tie-break draw. It harvests there, as rule M does.
+
+**Mate search within vision** (`mate_contact = "vision"`) takes a fresh disc look from the agent's position after
+moving, without remembered sites. The agents on the looked-at sites are its partners in sight, nearest first and,
+at equal distance, in the order looked at. (With the lattice look it is the book's.)
+
+Speed (rule 2) works with either shape; with the lattice look, the near sites are the lattice's own and the other
+rules below apply to them unchanged.
+
+## Rule 2: speed and travel cost
+
+**Book setting:** no speed. The agent jumps to the best site it sees and pays nothing for the move.
+
+**xxl:** speed S is a genetic trait like vision. It is drawn uniformly from the `speed` range (one draw, the integer
+range lo … hi) when an agent is created, after every book draw, and a child takes its speed from a random parent
+(one draw choosing between the two) after every other draw of its birth, as it does vision. Each period, an agent:
+
+1. **Chooses a target.** Candidates: its own site (d = 0), each empty site it looked at (rule M considers only empty
+   sites, at every distance), and with memory its remembered sites beyond vision (torus distance > V), valued from
+   what is remembered, whose occupancy it can't see. For a candidate at distance d:
+   - T = max(1, ⌈d / S⌉) periods of travel;
+   - the sugar burn m₁ is metabolism plus disease fees, and the spice burn m₂ the spice metabolism;
+   - **Without spice:** h₁ = w₁ − c·d − m₁(T − 1) where w₁ is the sugar held. Value = h₁ + s, where s = sugar ÷
+     (1 + pollution) at the site (remembered values for remembered sites).
+   - **With spice:** b₁ = max(w₁ − φ·m₁, 0), b₂ = max(w₂ − φ·m₂, 0), with foresight φ (the clamp of the book's
+     eq. 6); h₁ = b₁ − c·d − m₁(T − 1), h₂ = b₂ − m₂(T − 1). Value = W(h₁ + s, h₂ + q), the book's welfare function
+     (exponents from the agent's metabolisms or cultural preference, as in rule M), with each term clamped at zero,
+     s and q the site's sugar and spice each ÷ (1 + pollution). The travel terms come off after the clamp, so a
+     poor agent still pays for distance.
+   - **Dropped** (value −∞) when the agent would starve on the way, judged on what it really holds: d > 0 and
+     w₁ − c·d − m₁(T − 1) ≤ 0, or with spice w₂ − m₂(T − 1) ≤ 0. The agent's own site is never dropped.
+
+   With c = 0 and T = 1 this ranks sites exactly as rule M does. The agent targets the highest value. Ties go to the
+   nearest by distance; remaining ties at random as a reservoir: the c-th candidate tied at the best value and
+   distance replaces the choice with probability 1/c, one uniform draw each (no draw when not tied). Values are what
+   the agent sees now; it doesn't predict growback. The target is chosen again every period.
+2. **Steps.** If the target is within S and empty, the agent moves onto it. Otherwise it walks toward it in a
+   straight line: with the signed offsets (Δx, Δy) to the target and d = √(Δx² + Δy²), for k = min(S, ⌊d⌋), …, 1 it
+   takes the site (x + round(k·Δx/d), y + round(k·Δy/d)) wrapped, skips it if it is its own site, and moves to the
+   first that is empty. If none is empty, it stays. (Hence a remembered target within S that turns out occupied is
+   walked toward, not landed on.)
+3. **Harvests and pays.** It harvests the site it ends on, as rule M does. In metabolism it also burns c × the
+   distance it actually moved (torus distance between old and new site), in sugar. This counts as burn for the income
+   credit reads and for consumption pollution. The death check is unchanged.
+
+`travel_cost` defaults to 0.1 sugar per site; `XXL-speed` sweeps it. With S = V and c = 0, every target is reached
+in one period and nothing is charged, which is rule M again.
+
+## Rule 3: memory and word of mouth
+
+**Book setting:** `memory = 0`. Memory needs speed (a remembered site beyond vision couldn't be reached by any other
+rule).
+
+**xxl:** each agent keeps up to M remembered sites (default 8). An entry holds the site, the sugar and spice seen
+there (raw, not devalued; spice only with spice on), the pollution seen there, and the period it was seen. It stores
+resources, not a score, so any agent can value it again from anywhere. Rule 2 devalues the remembered resources by
+the remembered pollution; combat uses the sugar as it is.
+
+**After moving** (and harvesting), the agent builds a pool and keeps the M best:
+- the site it stands on, as it is after harvest, and each site it looked at this move, at their current resources
+  and pollution, all seen this period; one entry per site;
+- its remembered entries not older than `memory_span` periods (an entry seen at period t₀ is dropped when the
+  current period − t₀ > span), except for sites already in the pool;
+- the pool is ranked by rule 2's value from the agent's new position, with the holdings it has now: higher value
+  first, then more recent sighting, then smaller (x, y). An entry the agent couldn't reach alive (value −∞) ranks
+  last, so it is kept only if fewer than M are reachable. The best M are stored, best first.
+
+A remembered site within vision is looked at afresh (rule 1, step 4). Beyond vision, the agent values the remembered
+resources with travel time and cost as in rule 2.
+
+**Word of mouth** (`word_of_mouth`): later in the same agent's turn, after metabolism and finding its neighbours
+(rule 4), the agent copies each neighbour's *first* entry (the one that neighbour ranked highest), if it is within
+the span, into its own pool, with the period it was seen; for a site it already has, the newer sighting stays. Its
+own entries older than the span are dropped. It then keeps the M best by the same ranking.
+
+## Rule 4: interaction radius
+
+**Book setting:** R = 1: an agent's neighbours are its four von Neumann neighbours.
+
+**xxl:** the neighbours are the living agents within distance R of it: those at the offsets 0 < d ≤ R, nearest
+first (equal distances by dx, then dy), wrapped. R = 1.5 is the eight Moore neighbours (the default), R = 3 the 28
+sites within 3. Trade, culture, disease, credit and rule S with `mate_contact = "neighbors"` all use this set, and so
+does `mean_neighbors`. A child is born on a random empty site within R of either parent (a uniform draw among the
+empty sites within R of the first parent, then those of the other not already listed; the book: one of the four
+neighbour sites). At R = 1.0 none of this runs and the book's four sites, in the book's order, are used.
+
+## Rule 5: seasons by latitude
+
+**Book setting:** the world splits into a north half (y ≥ H/2) and a south half, as in rule S_{α,β,γ}. The half in
+summer grows α per period; the other grows α/β (`winter_growback = "fractional"`). The north is in summer while
+t mod 2γ < γ, the south in the other γ periods.
+
+**xxl** (`season_gradient`, with seasons on). On the torus the two halves meet twice, at y = H/2 and at the seam
+y = 0, both boundaries between opposite seasons. Both are treated as equators. Each site's winter weight is
+**λ(y) = |sin(2π·y / H)|**: zero on both equators, one along the middle of each half (y = H/4 and 3H/4). A site in
+the half in summer grows at α, and a site in the half in winter at **α · β^(−λ(y))**, from α at the equators to the
+book's α/β along the middle. Sugar and spice use the same rate, capped at their capacities, as in the book. The rate
+is continuous everywhere. Only the fractional winter is defined with the gradient.
+
+## Rule 6: generated landscape
+
+**Book setting:** the xl map `sugar-map-xl.txt`, with spice its east–west mirror (docs/xl.md).
+
+**xxl** (`landscape = "generated"`, used only by `XXL-terrain`): two committed files in `sugarscape/maps/`, in the xl
+map's format (500 lines of 500 whitespace-separated integers 0–4, northernmost row first, LF endings):
+
+| File | Generator seed | SHA-256 |
+|---|---|---|
+| `sugar-map-xxl.txt` | 1 | `4891fca80ec10b70a8fdddb9e12a0e6c25851eb7493f8baaf4897e9448ef4f30` |
+| `spice-map-xxl.txt` | 1001 | `e5ea6466369a62eeb1ef3a00d76bce5e9fc4dda0dd3f3c1b8e8e9f549eda800d` |
+
+Spice is generated independently, not mirrored: the mirror is a fact of the book's map, not a law. The generated
+maps wrap seamlessly across the torus. `julia/make_xxl_maps.jl` regenerates both and prints the seeds and hashes.
+
+**SplitMix64** (Vigna), used instead of a library generator so that the maps regenerate identically on any language
+version. State and outputs are unsigned 64-bit, and arithmetic wraps modulo 2⁶⁴. The state starts at the seed. To
+draw:
+```
+state ← state + 0x9e3779b97f4a7c15
+z ← state
+z ← (z xor (z >> 30)) × 0xbf58476d1ce4e5b9
+z ← (z xor (z >> 27)) × 0x94d049bb133111eb
+output z xor (z >> 31)
+```
+A unit draw is `(output >> 11) × 2⁻⁵³`, uniform on [0, 1). Test vectors: seed 0 gives 0xe220a8397b1dcdaf,
+0x6e789e6aa1b965f4, 0x06c45d188009454f; seed 1 gives 0x910a2dec89025cc1, 0xbeeb8da1658eec67, 0xf893a2eefb32555e, and
+its first unit draw is 0.5665615751722809.
+
+**The generator,** for a seed:
+1. Draw 400 bumps from the seed's SplitMix64 stream, each with four unit draws in this order: centre x = 500·u,
+   centre y = 500·u, radius r = exp(ln 5 + u·(ln 80 − ln 5)) (log-uniform on 5–80 sites), height h = 1 − u (uniform
+   on (0, 1]). Seed 1's first bump is (283.2808, 372.8909), r = 73.82, h = 0.5556.
+2. The field at site (x, y), 0-based integers, is the sum over the bumps, in draw order starting from 0, of
+   h·exp(−(dx² + dy²) / (2r²)), where dx = min(g, 500 − g) with g = |x − centre x| mod 500, and dy likewise (the real
+   centres, not rounded).
+3. Cut it into capacities by rank, so that every capacity covers exactly as many sites as the xl map's: 43,036 sites
+   of capacity 0, 52,156 of 1, 76,716 of 2, 55,932 of 3 and 22,160 of 4. Sort the sites by field value ascending (ties
+   by site index, y·500 + x, stable); the first 43,036 get capacity 0, the next 52,156 capacity 1, and so on. Total
+   sugar is then the xl map's: differences in results come from geography, not from more food.
+4. Each cut lies between two neighbouring field values: the last value of one class and the first of the next. The
+   generator requires each such gap to be at least 10⁻⁹, far above the rounding a different machine or language could
+   introduce, so the cut is the same however the sum is evaluated. If a gap is smaller, it moves to the next seed
+   (1, 2, … for sugar; 1001, 1002, … for spice). Both maps passed on their first seed, which is the seed in the table.
+
+## Rule 7: combat
+
+**Book setting:** with the lattice look and no speed, combat is the book's rule C_α, as xl runs it.
+
+**xxl:** combat replaces movement, as in the book, and uses the xxl look and step (round vision or speed on). It is
+sugar only: combat with spice or credit is refused.
+- **Look.** One look of the attacker (rule 1) at the start of its turn, before any retaliation check.
+- **Candidates.** The agent's own site, and the looked-at sites that are empty or held by an agent of another tribe
+  with no more sugar than the attacker. Own-tribe and wealthier occupants are passed over. The reward of a site is
+  its sugar, plus min(α, the occupant's sugar) if occupied. With memory, remembered sites beyond vision are candidates
+  as empty sites, with their remembered sugar.
+- **Reach.** With speed, an occupied site is a candidate only within S: the attack happens this period, and an
+  occupant farther away won't stay put. Without speed every candidate is within reach and the agent jumps.
+- **Value.** Rule 2's one-commodity value with the reward in place of the site's sugar: w₁ − c·d − m₁(T − 1) + reward,
+  dropping candidates the agent would starve on the way to. The own site's value is w₁ + its sugar.
+- **Retaliation.** A site the agent would end this period on is unsafe when an agent of another tribe, other than the
+  attacker and the victim, holds more sugar than the attacker's sugar plus that site's reward. Travel cost doesn't
+  count. The check is a fresh look of the attacker's vision from that site (rule 1 centred there, no remembered sites,
+  its own draws), so it consumes random draws; with the lattice look it is the book's check.
+- **Safe candidates.** A candidate within reach is safe when its own site is. A candidate beyond reach is safe when
+  its walk has a landing site that is empty and not vulnerable: rule 2's step, k = min(S, ⌊d⌋), …, 1, takes the first
+  site that is empty and safe, with that site's sugar as the reward. The far target itself isn't checked, since the
+  agent won't be there this period. A candidate with no safe landing site is passed over.
+- **Choice.** The best safe candidate wins: highest value, then nearest, then at random (a reservoir over the safe
+  ties, as in rule 2). A strictly better candidate is checked for safety only when it would replace the best so far;
+  a candidate tied in value and distance is always checked, and only safe ties count in the draw. The own site is
+  checked first; if it is unsafe and nothing else is safe, the agent still stays and harvests.
+- **Attack and harvest.** A defeated occupant loses min(α, its sugar) to the attacker and is killed, before the
+  attacker moves onto the site and harvests its sugar: no production pollution and no income recorded, as in the
+  book. Travel cost is charged by metabolism as in rule 2. With memory, the agent then updates its memory.
+
+## The metrics
+
+Added to xxl runs only, after the 45 columns every Julia result has, so regular and xl CSV layouts are unchanged.
+Where a metric doesn't apply it is `nan`.
+
+| Column | Definition |
+|---|---|
+| `mean_moved` | Mean distance moved this period (torus distance from where the agent started its move), per living agent at the end of the period; newborns count 0. `nan` with no agents. |
+| `share_settled` | Share of living agents that didn't move this period (newborns count as not moved). |
+| `clustering_1`, `clustering_10`, `clustering_50` | The pair correlation of agent positions at r = 1, 10, 50: ordered pairs of agents whose offset (dx, dy), the shorter way round, has r² − r + 1 ≤ dx² + dy² ≤ r² + r (a shell of width 1 around distance r), divided by N(N − 1)·P_r, where N is the number of living agents and P_r the share of ordered pairs of sugar-capacity ≥ 1 sites that are at a shell-r offset: what N agents placed at random on those sites would give. Above 1 is clustered. `nan` with fewer than 2 agents. |
+| `regional_price_sd` | With trade: the population standard deviation of the mean log price over the 50 × 50 regions (100 of them) that hold at least one of this period's trades. A trade sits where its first agent is when the period ends; its region is (x ÷ 50, y ÷ 50). `nan` without trades; 0 with one region. |
+| `price_distance_slope` | With trade: the least-squares slope of \|Δ log price\| on the distance between two trades' first agents, over every unordered pair of the period's first 2,000 trades in log order. `nan` with fewer than 2 trades, or no spread in distance. |
+| `share_remembered_target` | With memory: the share of living agents whose target this period was a remembered site beyond vision. `nan` without memory. |
+| `mean_winter_weight` | With seasons: the mean of λ(y) (rule 5) over living agents. It tracks migration toward the equators in winter. `nan` without seasons. |
+
+## Running
+
+- **The run.** `julia --project=julia julia/run.jl <id> --xxl` runs the xxl version (the default column) of each
+  matching registered sugarscape experiment, with the same seeds and steps, into `results-julia-xxl/`; `--out` still
+  overrides. It refuses Schelling and Ring World, and can't be combined with `--xl`. Timing, `machine.txt` and `--note`
+  work as for xl (docs/xl.md, "Timing"). The `XXL-…` ids and prefixes run without the flag.
+- **The `XXL-…` experiments** have no Python counterpart and are defined in Julia (`julia/src/xxl/experiments.jl`),
+  not in the exported registry. Each is a base registry experiment passed through the xxl transform with its own
+  settings, 5 seeds each (the base's steps). A family prefix runs its members (`XXL-speed`), and `XXL` runs all of them.
+  A result folder is named by the id with `/` replaced by `_`.
+
+  | Id | Base | Settings away from the book |
+  |---|---|---|
+  | `XXL-vision` | II-4 | disc vision |
+  | `XXL-speed/c0`, `/c0.05`, `/c0.1`, `/c0.2` | II-4 | disc vision, speed (1, 6), travel cost c |
+  | `XXL-memory/solo`, `/shared` | II-4 | the above at c = 0.1, memory 8, without and with word of mouth |
+  | `XXL-radius/R1`, `/R1.5`, `/R3` | IV-A3 | the defaults, interaction radius R |
+  | `XXL-seasons/halves`, `/gradient` | II-7 | the defaults, without and with the season gradient |
+  | `XXL-terrain/II-4`, `/IV-A3` | II-4, IV-A3 | the defaults on the generated landscape |
+  | `XXL-society/VI-1` | VI-1 | the defaults (every Chapter VI rule at once) |
+  | `XXL-combat/III-9` | III-9 | the defaults, with combat |
+
+- **Fingerprint** (`fingerprint.txt`): the line `julia`; a line `xxl ` followed by every setting as `name=value`, in
+  the table's order, space separated (strings in double quotes, `speed=nothing` or `speed=(1, 6)`), e.g.
+  `xxl vision_shape="disc" speed=(1, 6) travel_cost=0.1 memory=8 memory_span=50 word_of_mouth=true
+  interaction_radius=1.5 season_gradient=true landscape="xl"` on one line; then the base experiment's xl fingerprint
+  (docs/xl.md); then, for the generated landscape, one line `xxl map <file> sha256=<hex>` per map in use (the spice
+  map only if the experiment has spice). A change to the settings, the base experiment or the maps makes saved
+  xxl results stale.
+- **CSVs.** `seed{k}.csv` has the 45 standard metric columns of the Julia port (after `t`), then the nine above.
+- **Report.** `julia --project=julia julia/xxl_report.jl [prefix]` reads the result folders and prints, per XXL
+  experiment, the mean and the seed standard deviation at t = 50, 100, 200 and over the last 100 periods, xxl above
+  its base's Julia xl run, for population, mean sugar, Gini, trades and price sd (with trade) and every added
+  column, with the stepping seconds per period of both.
+- **Agreement is statistical.** An xxl run's random stream differs from every other run's, in any language.
+
+## Results
+
+First runs of the 16 `XXL-…` experiments (2026-10-28), 5 seeds each, against fresh Julia xl runs of the five base
+experiments (10 seeds for II-4, IV-A3 and III-9; 5 for II-7 and VI-1; all fingerprints current). These are findings,
+not pass/fail thresholds: xxl is a different model, and a difference from xl says what a change does, not that
+something is wrong. Everything below is read from `julia --project=julia julia/xxl_report.jl`; figures are the
+mean across seeds ± the standard deviation across seeds (n − 1), at t = 50, 100, 200 and over the last 100 periods
+("final" below). "xl" means the base experiment's Julia xl run.
+
+**How to read the spreads.** Seed spreads are small next to most differences below (population sd is 0.2–0.7% of the
+mean at the four checkpoints in the II-4 and II-7 families, and 0.7–2.1% in IV-A3's), but five seeds is few, and VI-1 and III-9 at the end are far
+noisier (their final population sds are 8% and 6.5% of the mean). Each experiment was run once.
+
+**Timings.** One job (`--jobs 1`), one thread, an i7-13700K, Julia 1.13.2, stepping only (docs/xl.md, "Timing").
+The machine was not recorded as quiet. It is noisy in absolute terms: this batch's xl II-4 stepped at 0.037 s per
+period, against 0.014 s in [julia/README.md](../julia/README.md)'s earlier measurement of the same run, so compare
+only the ratios inside this table, and treat even those as indicative. Seconds per period are the mean over seeds
+and periods; agents are the mean at the start and end of a run.
+
+| Experiment | Base | xxl s/period | xl s/period | Ratio | Agents, xxl start → end | xl end |
+|---|---|---|---|---|---|---|
+| `XXL-vision` | II-4 | 0.050 | 0.037 | 1.4 | 40,000 → 22,948 | 23,828 |
+| `XXL-speed/c0` | II-4 | 0.094 | 0.037 | 2.6 | 40,000 → 19,075 | 23,828 |
+| `XXL-speed/c0.05` | II-4 | 0.088 | 0.037 | 2.4 | 40,000 → 18,491 | 23,828 |
+| `XXL-speed/c0.1` | II-4 | 0.080 | 0.037 | 2.2 | 40,000 → 13,997 | 23,828 |
+| `XXL-speed/c0.2` | II-4 | 0.072 | 0.037 | 2.0 | 40,000 → 13,461 | 23,828 |
+| `XXL-memory/solo` | II-4 | 0.146 | 0.037 | 4.0 | 40,000 → 13,993 | 23,828 |
+| `XXL-memory/shared` | II-4 | 0.155 | 0.037 | 4.2 | 40,000 → 13,999 | 23,828 |
+| `XXL-radius/R1` | IV-A3 | 0.071 | 0.033 | 2.2 | 20,000 → 2,069 | 3,253 |
+| `XXL-radius/R1.5` | IV-A3 | 0.071 | 0.033 | 2.2 | 20,000 → 2,096 | 3,253 |
+| `XXL-radius/R3` | IV-A3 | 0.078 | 0.033 | 2.4 | 20,000 → 2,139 | 3,253 |
+| `XXL-seasons/halves` | II-7 | 0.120 | 0.030 | 4.0 | 40,000 → 11,196 | 17,621 |
+| `XXL-seasons/gradient` | II-7 | 0.135 | 0.030 | 4.5 | 40,000 → 12,293 | 17,621 |
+| `XXL-terrain/II-4` | II-4 | 0.165 | 0.037 | 4.5 | 40,000 → 14,653 | 23,828 |
+| `XXL-terrain/IV-A3` | IV-A3 | 0.094 | 0.033 | 2.9 | 20,000 → 3,100 | 3,253 |
+| `XXL-combat/III-9` | III-9 | 0.346 | 0.035 | 10.0 | 54,000 → 19,081 | 303 |
+| `XXL-society/VI-1` | VI-1 | 0.934 | 0.515 | 1.8 | 20,000 → 64,279 | 89,367 |
+
+Wall clock for the batch (from the run log, one job): the five xl bases took 39 minutes (VI-1 26 of them); the xxl
+families took 2 h 20 min: `XXL-vision` 4 min, `XXL-speed` 18, `XXL-memory` 15, `XXL-radius` 6, `XXL-seasons` 13,
+`XXL-terrain` 11, `XXL-combat` 32 and `XXL-society` 42. The ratios per period mix the cost per agent with the
+population, which is usually lower in xxl. Per agent and period (stepping seconds over the sum of the population at
+t = 0 … T − 1, mean over seeds), xxl costs: vision 2.1 µs, speed 4.3–4.7, memory 7.8–8.3, `XXL-terrain/II-4` 8.7,
+seasons 8.7–9.0, combat 14.7, `XXL-terrain/IV-A3` 18.5, radius 18.8–20.1 and society 31.2; against xl's 1.5 (II-4 and
+II-7), 4.9 (IV-A3), 3.4 (III-9) and 9.2 (VI-1). The memory runs cost about 1.8× the same speed run without memory
+(below).
+
+The xxl code leaves the xl hot path as fast as before: xl II-4 measured at base 8ae9319 and at this branch,
+interleaved in one session (12 pairs of separate processes pinned to one P-core, each the best of eight 10-period
+runs), had medians of 0.0201 s per period (base) and 0.0202 s (branch).
+
+### Round vision (`XXL-vision`, II-4)
+
+Disc vision alone, with no speed: agents jump to the best site they see, as in the book.
+- **Population is 2–4% below xl** at every checkpoint: 24,832 ± 91 against 25,834 ± 123 at t = 50, and 23,076 ± 89
+  against 23,894 ± 88 final. Mean sugar is 3% above xl at t = 50 (78.7 against 76.2) and 4% below it final (490 against
+  509).
+- **Inequality is higher later:** Gini 0.397 against 0.382 at t = 200 and 0.412 ± 0.001 against 0.390 ± 0.002 final.
+- **Agents move far:** 5.1–6.0 sites per period on average, with 5% staying put.
+- **They cluster.** The pair correlation is 1.7–2.2 at distance 1, 1.9–2.3 at 10 and 1.6–1.8 at 50, rising over the
+  run: long jumps pile agents onto the same peaks. (The speed runs below are at 1.0–1.5.)
+- Stepping costs 1.4× xl's per period.
+
+### Speed and travel cost (`XXL-speed`, II-4)
+
+Disc vision, speed (1, 6), and travel cost c = 0, 0.05, 0.1, 0.2.
+- **Speed alone removes about a quarter of the early population.** At t = 50 all four are at 19.3–19.5k (sd 65–80),
+  against 25.8k for xl (the cause was not examined: presumably agents that can no longer jump to a distant site
+  crowd and starve). This does not depend on c.
+- **Without a travel cost the population then holds:** c = 0 is at 19,459, 19,396, 19,273 and 19,110 ± 66 (final), and
+  c = 0.05 slides slowly to 18,698 ± 63 final.
+- **c = 0.1 and c = 0.2 add a second die-off.** For c = 0.2 it begins just after t = 100 and is well under way by
+  t = 150: 19,069 (t = 100), 17,584 (150), 15,411 (200), 13,587 (250), then it levels off at about 13,460 ± 92 from
+  t ≈ 300. For c = 0.1 it begins at about t = 200–250 and runs for the rest of the run: 19,026 (200), 18,665 (250),
+  17,576 (300), 16,577 (350), 15,583 (400), 14,715 (450), 13,997 (500), still falling at t = 500 (final-window
+  mean 14,703 ± 93). These runs were not examined further
+  for who dies; the travel cost per period is small (mean distance moved is under 1 site, so about 0.09 sugar for
+  c = 0.1, against metabolisms of 1–4), so it presumably tips agents who were barely breaking even.
+- **Survivors are richer and the Gini is not monotone in c.** Final mean sugar is 453 (c = 0), 442, 542 (c = 0.1), 546
+  (c = 0.2), against xl's 509. The Gini at t = 200 is 0.459, 0.475, 0.491, 0.415, against 0.382 for xl, and final 0.493,
+  0.502, 0.386, 0.355 against 0.390: it rises while the population is stable, and falls once the die-off has run
+  (presumably because it removes the poor; who dies was not examined).
+- **Agents barely move.** Mean distance moved is 0.89–1.0 site per period at every c, with 10–15% settled, although
+  the mean speed is 3.5. Presumably, with growback of 1 per period and vision of 10 or more, the best site is usually
+  the nearest one that has regrown, one site away (not tested). The pair correlation is 1.0–1.5, much less clustered than round vision without
+  speed (1.7–2.3).
+- Stepping is 2.0–2.6× xl's, less at high c because there are fewer agents.
+
+### Memory and word of mouth (`XXL-memory`, II-4)
+
+**Memory has no aggregate effect beyond the seed spread, though it changes every individual run.** `solo` and
+`shared` match `XXL-speed/c0.1` within the seed spread at every checkpoint (final population 14,703 ± 89 and
+14,704 ± 92 against 14,703 ± 93; final Gini 0.386 in all three; mean sugar 542 in all three). Only the three 5-seed means
+agree this closely: seed by seed the runs part from t ≈ 8–12 (the first period at which a population differs from
+the speed run's same seed is 8–12 in all ten memory runs), and the populations at t = 500 differ by up to 88 agents in
+a seed (seed 2: 14,020 against 13,932; seed 4: 14,082 against 14,156 in `solo`), in both directions, with a mean
+difference of −5 (`solo`) and +2 (`shared`) agents.
+
+The share of agents whose target is a remembered site *beyond vision*, `share_remembered_target`, is exactly 0 in every
+period of all five seeds of `solo` and `shared`, so that is not how memory acts here. The ranking is why, and it follows
+from the spec's rule 3, not from a bug. `rank_pool!` keeps the M = 8 entries of highest rule-2 net value from the
+agent's current position, and that value charges the waiting cost m₁(T − 1): a site beyond the agent's speed takes
+T ≥ 2 periods, so it loses at least m₁ (1–4 sugar here) on top of the travel cost, and ranks below any site within
+speed that has nearly as much sugar. Memory therefore fills with the near disc, which rule 1 looks at every period
+anyway, and almost never holds far food. A diagnostic on one run (`solo`, seed 0, at t = 5, 30, 60 and 200, measured
+on a copy of the model so that the run itself was not disturbed) found 89–91% of the entries within the agent's speed,
+9–11% beyond its speed but within its vision, and at most 9 of the 150,000–320,000 entries beyond vision, none of them
+a target; 3–20% of the entries held no sugar (20% at t = 5, 3% from t = 60). With nothing to pick beyond vision,
+memory's only input to a move is rule 1, step 4: `look!` appends the remembered sites within vision that the period's
+ring draws missed, 0.74–0.89 per agent per period in that run. Each is an extra candidate, or changes a tie count and
+so shifts the reservoir draws that follow, which is enough to part every run from the speed run's same seed by
+t ≈ 8–12. They lie beyond the agent's speed and carry the same waiting cost, so presumably they seldom beat the near
+sites, and the aggregates do not move. Word of mouth is not what starts the divergence, since `solo` also departs at
+t ≈ 8–12. For memory to matter the ranking would have to change, for example to the resources less the travel cost,
+without the waiting term, so that far food can be remembered. That is a possible change, not one tested or
+recommended here.
+
+Beyond-vision remembered targets are rare everywhere: over all five seeds, the share is nonzero in none of the periods
+of `XXL-radius/R1` and `XXL-terrain/II-4`, in 1 period of one seed of `XXL-radius/R1.5` and 3 periods of one seed of
+`XXL-radius/R3`, in 1–2 periods of three seeds of `XXL-terrain/IV-A3`, in 0–7 periods per seed of `XXL-seasons`, 0–19
+of `XXL-society/VI-1` and 0–1 of `XXL-combat/III-9`, at most 4.1 × 10⁻⁴ of the agents in any period (in `XXL-radius/R3`
+seed 0). All of these runs have memory, speed and a travel cost, so they rank memory the same way, and the cause is
+presumably the same; the diagnostic above was run on `solo` only. Whether other settings (slower growback, smaller
+vision, patchier food, a larger speed) would change this was not tried.
+
+Memory has a cost: 0.146 and 0.155 s per period against 0.080 for the same run without it (1.8–1.9×); per agent and
+period, 7.8 and 8.3 µs against 4.3.
+
+### Interaction radius (`XXL-radius`, IV-A3)
+
+Full xxl defaults on IV-A3 (trade), R = 1, 1.5 and 3.
+- **xxl is far from xl in this experiment, at any R.** Final population is 2,181 ± 23 (R = 1), 2,199 ± 39 (1.5) and
+  2,251 ± 29 (3), against 3,739 ± 72 for xl; at t = 50 it is 3.9–4.1k against 8.7k. Final mean sugar is 198–199
+  against 120.
+- **R makes a small difference to survival** (R = 3 is 3% above R = 1 final, 2,251 against 2,181, seed sds 23–29),
+  and a large one to trade: trades per period rise with R, final 1,034 ± 60, 1,198 ± 46 and 1,508 ± 46, as the
+  number of neighbours grows; xl has 3,894 ± 139 with about 1.7× the population.
+- **Prices spread more than in xl, whatever R.** Final price sd is 0.78, 0.78 and 0.82 against 0.56 for xl.
+  Regional price sd (between the hundred 50 × 50 regions) is 1.13, 1.14 and 1.17, and the slope of |Δ log price| on
+  distance is about 0.0012–0.0013 per site in all three: a trade 100 sites away differs in log price by about 0.12
+  more than a neighbouring one. R barely moves these.
+- **Agents clump hard.** The pair correlation at distance 1 is 11.4–12.0 final (from 1.5 at t = 50) at all three R, at 10 it
+  is 2.9–3.0, and at 50 it is about 1.1: small, dense groups on the best sites. The R = 3 run is slightly less
+  clustered at distance 1 (11.4 against 12.0, about two sds).
+- Stepping is 2.2–2.4× xl's. R barely changes the cost.
+
+### Seasons by latitude (`XXL-seasons`, II-7)
+
+Full xxl defaults on II-7, without and with the gradient.
+- **The gradient makes a difference.** Final population is 12,605 ± 57 with it against 11,282 ± 36 without (+12%), and
+  at t = 50, 17,443 ± 29 against 15,916 ± 28 (+10%). xl has 17,650 ± 81 final and 22,667 at t = 50.
+- **Final mean sugar is 445 against 398** (xl 441). At t = 100 and 200 it is 96 and 176 with the gradient against 89 and
+  175.
+- **Inequality differs in the middle:** Gini 0.389 and 0.425 at t = 100 and 200 with the gradient against 0.364 and 0.359,
+  and the same at the end (0.355 against 0.349). Both are above xl's 0.30.
+- **Migration toward the equators is modest.** The mean winter weight λ is 0.62–0.66 with halves, close to the 2/π ≈ 0.64
+  of agents spread evenly over latitude; with the gradient it is 0.57–0.62, lower at every checkpoint: 0.575, 0.572 and 0.599
+  at t = 100, 200 and final. That is a drift of 0.02–0.07 in λ, not a mass move; the t checkpoints sit at fixed phases
+  of the season cycle, so those figures are not season-averaged (the final column averages the last 100 periods).
+- Stepping is 4.0× (halves) and 4.5× (gradient) xl's per period.
+
+### Generated landscape (`XXL-terrain`, II-4 and IV-A3)
+
+Full xxl defaults on the generated maps (400 Gaussian bumps, radii 5–80, the xl map's capacity counts). The
+control for II-4 is `XXL-memory/shared`, and for IV-A3 `XXL-radius/R1.5`: the same rules on the xl map. The II-4
+control is not exact: it has R = 1, the terrain run R = 1.5. II-4 has no trade, culture or mating, but word of mouth
+copies from the agent's neighbours, which the radius sets (4 neighbours at R = 1, up to 8 at 1.5), so the radius can
+change who an agent hears from.
+- **II-4:** population is 4% above the control final (15,272 ± 37 against 14,704 ± 92), 1.7% above at t = 50 and 1.2%
+  at t = 100.
+  Mean sugar and Gini are close (537 and 0.387 against 542 and 0.386). The pair correlation final is 1.47 against
+  1.25 at distance 1, 1.51 against 1.50 at 10 and 1.25 against 1.35 at 50.
+- **IV-A3:** the population is 49% above the control final: 3,286 ± 49 against 2,199 ± 39, and 41% above it at t = 50
+  (5,545 against 3,933). It is 12% below xl (3,739). Trades per period double (2,591 ± 94 against 1,198 ± 46), price sd
+  is lower (0.58 against 0.78), regional price sd is lower (0.73 against 1.14), and clustering at distance 1 is 8.5
+  against 11.8, and 0.86 at distance 50, below the random 1: agents are spread out at long range. Mean sugar is
+  224 against 199.
+- The same rules cost IV-A3's agents far more on the xl map than on the generated map, and II-4's agents hardly
+  differ. Why was not examined: the maps differ in feature scale, edges (the generated one wraps) and where the
+  food is, and this is one map pair.
+- Stepping is 4.5× xl's per period in II-4 and 2.9× in IV-A3.
+
+### Combat (`XXL-combat`, III-9)
+
+Full xxl defaults on III-9, which is combat (rule C with α = ∞, the reward being the victim's wealth) between tribes
+placed in blocks.
+- **Combat is far less lethal under xxl.** xl III-9 falls from 54,000 to 435 ± 422 by the last 100 periods (Gini 0.80 ±
+  0.10, mean sugar 40,011 ± 17,900 among a few rich survivors). xxl keeps 19,373 ± 1,260 (Gini 0.37 ± 0.03, mean sugar
+  1,365 ± 48). At t = 100 xxl has 27,813 against xl's 27,060, and at t = 200 26,298 against 18,311: the paths diverge
+  after about t = 100.
+- **Agents never rest:** 1% settled, 1.3 sites moved per period.
+- **Agents cluster** at 1.9–2.5 at distances 1, 10 and 50, a flat profile, not the sharp short-range clumps of IV-A3.
+- Stepping is 10× xl's per period (0.346 against 0.035 s), the largest ratio of all. The population over the run
+  is 2.3× xl's on average (about 23,560 against 10,290 agents, because xl's collapses), so per agent and period it
+  is 4.4× (14.7 against 3.4 µs).
+- This experiment exercises rule 7 under speed and memory together; it does not isolate combat's effect, and has no
+  control without combat on the same rules.
+
+### Society (`XXL-society`, VI-1)
+
+Full xxl defaults on VI-1, which has the Chapter VI rules at once: sex, culture, trade, credit and disease on the
+sugar and spice landscape (no combat).
+- **Deeper early trough, then growth.** Population is 1,677 ± 74 at t = 50 and 1,040 ± 153 at t = 100 (xl 4,210 and
+  5,075), 13,144 ± 2,320 at t = 200 (xl 50,613 ± 8,910), and 61,596 ± 4,800 final (xl 89,507 ± 8,880). No seed went
+  extinct: the five end at 58,131–66,507.
+- **Mean sugar and Gini end near xl's:** 28.4 ± 0.7 against 29.2 ± 0.3, and 0.206 in both. At t = 100 mean sugar is 61.6
+  against 43.8.
+- **Trades are fewer** (17,552 ± 1,640 final against 101,940 ± 36,300; about 0.28 per agent against 1.1) and price sd is
+  higher (0.51 against 0.40).
+- **Clustering is extreme at t = 100:** 20.8 ± 10.2 at distance 1 and 15.2 ± 7.2 at 10, with a wide spread across
+  seeds, and falls to 1.9–2.0 by the end (1.8 at 50).
+- Stepping is 1.8× xl's per period (0.93 against 0.52 s) with 28% fewer agents at the end. A full run of five seeds took
+  42 minutes, far less than the several hours expected from the xl timings.
+
+### What the first runs show
+
+- In II-4, speed alone costs about a quarter of the early population, and a travel cost of 0.1 or more adds a second
+  die-off.
+- Round vision without speed changes xl little (2–4% less population) but clusters agents.
+- Memory and word of mouth change every individual run from about t = 10 but have no aggregate effect beyond the seed
+  spread at these settings. Memory ranks sites by rule 2's value with its waiting cost, so it keeps the sites within
+  the agent's speed, which it looks at anyway, and beyond-vision targets are almost never chosen (a diagnostic on one
+  run). They cost about 1.8× the stepping time.
+- The interaction radius raises trade volume strongly and survival barely (R = 3 is 3% above R = 1, about 3 seed
+  sds); price levels hardly change.
+- The latitude gradient raises population by about 10% and moves agents toward the equators in a small way.
+- On the generated landscape IV-A3's population is half as large again as on the xl map, and II-4's differs by
+  4%; each rests on one map pair.
+- Combat survives the xxl rules, and the population does not collapse as in xl.
+- Everything in this section comes from one run per experiment, 5 seeds, on a machine whose load was not recorded.

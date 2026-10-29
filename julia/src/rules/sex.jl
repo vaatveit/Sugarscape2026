@@ -34,6 +34,7 @@ Agents within the agent's vision along the four lattice directions, nearest firs
 `m.sight`, which the next call reuses.
 """
 function in_sight(m::Model, a::Agent)
+    xxl_on(m.config, :disc) && return disc_in_sight(m, a)  # xxl: a fresh round look
     stride = m.config.look_stride
     n = a.vision ÷ stride
     # Each look as 4 dist + (d - 1), kept sorted: nearest first, and at equal distance in VON_NEUMANN order. A
@@ -53,8 +54,12 @@ function in_sight(m::Model, a::Agent)
     return found
 end
 
-"""Adds the empty von Neumann sites around `a` not already listed (Python's dict.fromkeys order)."""
+"""
+Adds the empty von Neumann sites around `a` not already listed (Python's dict.fromkeys order). Under xxl rule 4
+(interaction radius R ≠ 1): the empty sites within R.
+"""
 function add_empty_sites!(sites::Vector{Tuple{Int,Int}}, m::Model, a::Agent)
+    xxl_on(m.config, :radius) && return radius_empty_sites!(sites, m, a)
     for (dx, dy) in VON_NEUMANN
         s = wrap(m, a.x + dx, a.y + dy)
         m.grid[s[1] + 1, s[2] + 1] === nothing && !(s in sites) && push!(sites, s)
@@ -135,6 +140,7 @@ function mate!(m::Model, a::Agent)
             child.immune, child.nimmune = child.immune_genotype, a.nimmune
             child.disease_fee = cfg.disease_fee
         end
+        xxl_on(cfg, :speed) && (child.speed = parents[rand(rng, 1:2)].speed)  # xxl: after every book draw
         push!(a.children, child)
         push!(other.children, child)
         push!(children, child)

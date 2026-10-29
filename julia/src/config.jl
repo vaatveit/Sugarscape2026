@@ -93,6 +93,9 @@ Base.@kwdef struct Config
     immune_length::Int = 50
     disease_fee::Float64 = 1.0
 
+    # xxl: the one Julia-only field, with no Python counterpart (the registry loader never sets it).
+    xxl::Union{Nothing,XxlRules} = nothing
+
     seed::Int = 0
 end
 
@@ -167,11 +170,18 @@ function validate(c::Config)
         bad("vision range $(c.vision) must be in whole look strides of $(c.look_stride)")
     # Agents see only along the four lattice directions; a vision of half the grid or more would let opposite scans
     # reach the same sites (Kehoe: MAXVISION << M). With a look stride s, the farthest look is s - 1 sites past vision.
-    reach = c.vision[2] + c.look_stride - 1
-    reach * 2 >= min(c.width, c.height) && bad(
-        "max vision $(c.vision[2]) (looking up to $reach sites away) must be less than half the grid " *
-        "($(c.width)x$(c.height))",
-    )
+    # xxl's disc vision reaches 2V across, so its limit is 2V < the shorter side instead.
+    if c.xxl !== nothing && c.xxl.vision_shape == "disc"
+        2 * c.vision[2] >= min(c.width, c.height) && bad(
+            "max vision $(c.vision[2]) of a disc must be less than half the grid ($(c.width)x$(c.height))",
+        )
+    else
+        reach = c.vision[2] + c.look_stride - 1
+        reach * 2 >= min(c.width, c.height) && bad(
+            "max vision $(c.vision[2]) (looking up to $reach sites away) must be less than half the grid " *
+            "($(c.width)x$(c.height))",
+        )
+    end
     c.pollution !== nothing &&
         minimum(c.pollution) < 0 &&
         bad("pollution coefficients must be >= 0, not $(c.pollution)")
@@ -248,5 +258,37 @@ function validate(c::Config)
     c.placement == "block" &&
         !(1 <= w <= c.width && 1 <= h <= c.height) &&
         bad("block $(c.block) must have 1 <= w <= $(c.width) and 1 <= h <= $(c.height)")
+    c.xxl === nothing || validate_xxl(c, c.xxl)
+    return c
+end
+
+# The xxl checks: each setting's range, the dependencies between them, and their fit with the rest of the config.
+function validate_xxl(c::Config, r::XxlRules)
+    check_option(:vision_shape, r.vision_shape, VISION_SHAPES)
+    check_option(:landscape, r.landscape, LANDSCAPES)
+    r.speed !== nothing &&
+        (r.speed[1] < 1 || r.speed[1] > r.speed[2]) &&
+        bad("speed $(r.speed) must be a range starting at >= 1")
+    r.travel_cost < 0 && bad("travel_cost must be >= 0, not $(r.travel_cost)")
+    r.interaction_radius < 1 &&
+        bad("interaction_radius must be >= 1, not $(r.interaction_radius)")
+    r.memory < 0 && bad("memory must be >= 0, not $(r.memory)")
+    r.memory_span < 1 && bad("memory_span must be >= 1, not $(r.memory_span)")
+    r.memory > 0 && r.speed === nothing && bad("memory needs a speed range (speed)")
+    r.travel_cost > 0 &&
+        r.speed === nothing &&
+        bad("travel_cost needs a speed range (speed)")
+    r.word_of_mouth && r.memory == 0 && bad("word_of_mouth needs memory > 0")
+    r.season_gradient &&
+        c.seasons === nothing &&
+        bad("season_gradient needs seasons (they give it latitudes to taper)")
+    r.season_gradient &&
+        c.winter_growback == "pulse" &&
+        bad("season_gradient is defined for winter_growback=\"fractional\" only")
+    r.speed !== nothing &&
+        r.speed[2] > c.vision[1] &&
+        bad("speed $(r.speed) must not exceed the lowest vision, $(c.vision[1])")
+    (r.landscape == "generated") == (c.sugar_map == XXL_MAP) ||
+        bad("landscape \"generated\" and sugar_map $(repr(XXL_MAP)) go together")
     return c
 end

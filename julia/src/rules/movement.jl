@@ -71,9 +71,13 @@ comparisons keep the first site encountered on ties. On the sugar-and-spice land
 the site's resources would bring (`welfare_score`, Chapter IV).
 """
 function move!(m::Model, a::Agent)
+    # xxl: round vision (rule 1) or speed (rule 2)
+    (xxl_on(m.config, :disc) || xxl_on(m.config, :speed)) && return xxl_move!(m, a)
     ls = m.landscape
     spice = m.config.spice
     w, h = ls.width, ls.height
+    a.moved_dist = 0.0
+    a.target_remembered = false
     best_x, best_y, best_d = a.x, a.y, 0
     sw = spice ? SiteWelfare(m, a) : NO_WELFARE  # the agent's part of welfare_score, once per move
     best = spice ? score(sw, ls, a.x + 1, a.y + 1) : site_score(ls, a.x + 1, a.y + 1)
@@ -92,13 +96,25 @@ function move!(m::Model, a::Agent)
     end
     a.moved = (best_x, best_y) != (a.x, a.y)
     move_agent!(m, a, best_x, best_y)
+    harvest!(m, a, best_x, best_y)
+    return nothing
+end
 
-    i, j = best_x + 1, best_y + 1
+"""
+    harvest!(m, a, x, y)
+
+Collect all the resources at the site the agent has just moved to (p.25): the sugar into its holdings and income, the
+spice too on the sugar-and-spice landscape, and the production pollution (p.47). Shared by [`move!`](@ref) and the
+xxl movement.
+"""
+function harvest!(m::Model, a::Agent, x::Int, y::Int)
+    ls = m.landscape
+    i, j = x + 1, y + 1
     harvest = ls.sugar[i, j]
     a.sugar += harvest
     ls.sugar[i, j] = 0.0
     a.last_income = harvest  # metabolize! subtracts metabolism
-    if spice
+    if m.config.spice
         a.spice += ls.spice[i, j]
         ls.spice[i, j] = 0.0
     end
@@ -112,10 +128,12 @@ end
     metabolize!(m, a)
 
 Burn sugar (and spice) at the metabolic rates; die when either reaches zero (p.25, p.97). Pollution comes from sugar
-only: spice is a clean good (p.127).
+only: spice is a clean good (p.127). With xxl speed the agent also burns `travel_cost` per site it moved this period
+(spec, rule 2), which counts as burn for its income and for consumption pollution.
 """
 function metabolize!(m::Model, a::Agent)
     burn = sugar_burn(a)  # metabolism plus the fee for each active disease (p.143)
+    xxl_on(m.config, :speed) && (burn += m.config.xxl.travel_cost * a.moved_dist)
     a.sugar -= burn
     a.last_income -= burn
     spice = m.config.spice

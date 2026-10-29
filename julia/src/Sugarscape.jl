@@ -15,8 +15,20 @@ export Config, validate, replace_config
 export Experiment, REGISTRY_PATH, load_registry, find_experiment, config_from_toml
 export MAPS_DIR, load_map, parse_map, map_sha256
 export XL_FACTOR, XL_MAP, to_xl
+export XxlRules, XXL_BOOK, XXL_DEFAULTS, XXL_MAP, replace_rules, to_xxl, xxl_on
+export torus_delta,
+    torus_dist, disc_offsets, near_offsets, ring_point, ring_draws, winter_weight
+export Remembered
+export SplitMix64, bump_field, generate_map, XXL_TERRAIN_SEEDS
 export Agent, Exchange, Loan, sugar_burn
-export Landscape, wrap, growback!, is_summer_north, seasonal_growback!, diffuse!, set_spice!
+export Landscape,
+    wrap,
+    growback!,
+    is_summer_north,
+    seasonal_growback!,
+    seasonal_growback_gradient!,
+    diffuse!,
+    set_spice!
 export Model,
     VON_NEUMANN,
     agent_at,
@@ -26,8 +38,13 @@ export Model,
     spawn_random_agent!,
     spawn_at!
 export move_agent!, kill!, die!, deaths_this_step, agents_ever, step!, run!, sample_distinct
+export look!, xxl_move!, disc_in_sight, harvest!
+export travel_periods, net_value, step_site, speed_move!
+export remember!, word_of_mouth!
+export xxl_combat_move!, disc_vulnerable
 export move!, metabolize!, pollution_active, look_distance, look_distances
-export METRIC_COLUMNS, collect_metrics, gini, tribe, closeness
+export METRIC_COLUMNS,
+    XXL_METRIC_COLUMNS, metric_columns, collect_metrics, gini, tribe, closeness
 export random_tags, cross_tags, hamming, culture_transmit!, update_friends!
 export is_fertile, assign_sex!, in_sight, mate!, combat_move!, vulnerable
 export preference_fraction, welfare, mrs, welfare_score, bargain!, trade_with_neighbors!
@@ -38,13 +55,17 @@ export intern_disease!,
     nearest_substring, is_immune, immune_step!, infect!, immune_response!
 export disease_transmit!
 
+include("xxl/types.jl")
 include("config.jl")
 include("registry.jl")
 include("maps.jl")
+include("xxl/terrain.jl")
 include("xl.jl")
+include("xxl/transform.jl")
 include("agent.jl")
 include("landscape.jl")
 include("model.jl")
+include("xxl/geometry.jl")
 include("rules/movement.jl")
 include("rules/culture.jl")
 include("rules/sex.jl")
@@ -53,7 +74,14 @@ include("rules/welfare.jl")
 include("rules/trade.jl")
 include("rules/credit.jl")
 include("rules/disease.jl")
+include("xxl/vision.jl")
+include("xxl/speed.jl")
+include("xxl/memory.jl")
+include("xxl/combat.jl")
+include("xxl/radius.jl")
 include("stats.jl")
+include("xxl/metrics.jl")
 include("runner.jl")
+include("xxl/experiments.jl")
 
 end

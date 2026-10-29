@@ -86,15 +86,17 @@ end
 """
     collect_metrics(m) -> Vector{Float64}
 
-This period's metrics, aligned with `METRIC_COLUMNS`. The definitions are sugarscape/stats.py's.
+This period's metrics, aligned with `metric_columns(m.config)`: the 45 of `METRIC_COLUMNS`, defined as in sugarscape/stats.py,
+then the nine of `XXL_METRIC_COLUMNS` (`xxl_metrics!`) when the config has xxl rules.
 """
 function collect_metrics(m::Model)
     out = Float64[]
-    sizehint!(out, length(METRIC_COLUMNS))
+    sizehint!(out, length(METRIC_COLUMNS) + length(XXL_METRIC_COLUMNS))
     standard_metrics!(out, m)
     society_metrics!(out, m)
     economic_metrics!(out, m)
     disease_metrics!(out, m)
+    m.config.xxl === nothing || xxl_metrics!(out, m)
     return out
 end
 

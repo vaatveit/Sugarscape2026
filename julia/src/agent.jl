@@ -7,7 +7,9 @@
 Field for field the Python `Agent`. Coordinates are 0-based as in Python. Representations that differ (design,
 "Free to differ"): `sex` is `:none`, `:F` or `:M`; cultural tags are the low `ntags` bits of `tags` (bit i-1 is tag
 i; `ntags == 0` means no tags); immune strings are the low `nimmune` bits of `immune` and `immune_genotype`;
-`diseases` holds interned disease ids in order of infection; `slot` is the agent's index in `Model.agents`.
+`diseases` holds interned disease ids in order of infection; `slot` is the agent's index in `Model.agents`. The
+last four fields are xxl's (`speed`, `memory`, `moved_dist`, `target_remembered`) and stay at their defaults
+without it.
 """
 mutable struct Agent
     id::Int
@@ -45,6 +47,11 @@ mutable struct Agent
     disp_x::Int
     disp_y::Int
     slot::Int
+    # xxl (Julia only): the speed trait (0 = none), the sites remembered, and this move's bookkeeping
+    speed::Int
+    memory::Vector{Remembered}
+    moved_dist::Float64
+    target_remembered::Bool
 end
 
 function Agent(id, x, y, vision, metabolism, sugar, max_age=Inf)
@@ -81,6 +88,10 @@ function Agent(id, x, y, vision, metabolism, sugar, max_age=Inf)
         0,
         0,
         0,
+        0,
+        Remembered[],
+        0.0,
+        false,
     )
 end
 

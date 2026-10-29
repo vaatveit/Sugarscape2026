@@ -62,6 +62,26 @@ Each seed runs single-threaded. `--jobs J` runs seeds in J worker processes, one
 on first use, so each worker first runs the experiment's own path for 2 untimed periods, and `machine.txt` records
 how long that took (`warm_up_s`). The timed setup then covers building the model, as docs/xl.md defines it.
 
+## xxl
+
+xxl is a Julia-only rule set for the 500 × 500 world that uses the room instead of hiding it: round vision, a speed
+trait with a travel cost, memory and word of mouth, an interaction radius, seasons that vary with latitude, and a
+generated landscape (plus combat under them). Each is a separate switch with a book setting, so its effect is
+measured alone. It is not the book, has no Python counterpart, and leaves every regular and xl run, fingerprint and
+random stream unchanged. The rules are defined in [docs/xxl.md](../docs/xxl.md).
+
+```bat
+julia --project=julia julia/run.jl XXL --jobs 1
+julia --project=julia julia/run.jl II-4 --xxl --jobs 1
+julia --project=julia julia/xxl_report.jl [prefix]
+```
+
+The first runs the 16 `XXL-…` experiments (5 seeds each; a family such as `XXL-speed` runs only its members), the
+second the xxl version of any registered sugarscape experiment. Results go to `results-julia-xxl/` (git-ignored), in
+the xl layout plus nine added metric columns; a folder is named by its id with `/` replaced by `_`. The report reads
+those folders and the base experiments' `results-julia-xl/` runs, and prints each metric's mean and seed spread at
+t = 50, 100, 200 and over the last 100 periods, xxl beside xl, with the stepping time per period of both.
+
 ## Comparing with Python
 
 ```bat

@@ -36,6 +36,12 @@ mutable struct Model{R<:AbstractRNG}
     looks::Vector{Int}  # scratch: in_sight's looks across the four lines, nearest first
     sight::Vector{Agent}  # scratch: in_sight's agents, nearest first
     sites::Vector{Tuple{Int,Int}}  # scratch: mate!'s empty sites next to the parents
+    near::Dict{Float64,Vector{Tuple{Int,Int}}}  # xxl: disc offsets by radius (near_offsets)
+    looked::Vector{Tuple{Int,Int}}  # xxl scratch: this move's looked-at sites
+    shell_shares::Vector{Float64}  # xxl: the clustering cache, empty until first used
+    threat_looked::Vector{Tuple{Int,Int}}  # xxl scratch: the retaliation look's sites, apart from `looked`
+    pool::Vector{Remembered}  # xxl scratch: memory ranking's candidates (rule 3)
+    pool_values::Vector{Float64}  # xxl scratch: the kept entries' net values
 end
 
 """
@@ -53,8 +59,16 @@ function Model(
     cap = capacity === nothing ? load_map(cfg.sugar_map) : Matrix{Int}(capacity)
     size(cap) == (cfg.width, cfg.height) ||
         throw(ArgumentError("capacity shape $(size(cap)) != ($(cfg.width), $(cfg.height))"))
-    # Fig IV-1: spice mountains NW and SE, i.e. the sugar map mirrored east-west.
-    ls = Landscape(cap, cfg.spice ? reverse(cap; dims=1) : nothing)
+    # Fig IV-1: spice mountains NW and SE, i.e. the sugar map mirrored east-west. The generated landscape (xxl rule 6)
+    # has a spice map of its own: the mirror is a fact of the book's map, not a law.
+    spice_cap = if !cfg.spice
+        nothing
+    elseif xxl_on(cfg, :generated)
+        load_map(XXL_SPICE_MAP)
+    else
+        reverse(cap; dims=1)
+    end
+    ls = Landscape(cap, spice_cap)
     m = Model(
         cfg,
         rng,
@@ -79,6 +93,12 @@ function Model(
         Int[],
         Agent[],
         Tuple{Int,Int}[],
+        Dict{Float64,Vector{Tuple{Int,Int}}}(),
+        Tuple{Int,Int}[],
+        Float64[],
+        Tuple{Int,Int}[],
+        Remembered[],
+        Float64[],
     )
     cfg.disease_list > 0 && init_disease_list!(m)
     place_initial_population!(m)
@@ -102,9 +122,13 @@ wrap(m::Model, x::Int, y::Int) = wrap(m.landscape, x, y)
     return @inbounds m.grid[x + 1, y + 1]
 end
 
-"""Living agents on the four von Neumann sites around `a` (p.39), in the order E, W, N, S."""
+"""
+Living agents on the four von Neumann sites around `a` (p.39), in the order E, W, N, S. Under xxl rule 4 (interaction
+radius R ≠ 1): those within R, nearest first.
+"""
 function neighbors_of(m::Model, a::Agent)
     found = Agent[]
+    xxl_on(m.config, :radius) && return radius_neighbors!(found, m, a)
     for (dx, dy) in VON_NEUMANN
         other = agent_at(m, a.x + dx, a.y + dy)
         other === nothing || push!(found, other)
@@ -158,13 +182,20 @@ end
 
 function move_agent!(m::Model, a::Agent, x::Int, y::Int)
     x, y = wrap(m, x, y)
-    (x, y) == (a.x, a.y) && return nothing
+    if (x, y) == (a.x, a.y)
+        a.moved_dist = 0.0
+        return nothing
+    end
     m.grid[x + 1, y + 1] === nothing || throw(ArgumentError("site ($x, $y) is occupied"))
     m.grid[a.x + 1, a.y + 1] = nothing
     m.grid[x + 1, y + 1] = a
     w, h = m.config.width, m.config.height
-    a.disp_x += mod(x - a.x + w ÷ 2, w) - w ÷ 2  # shortest way round the torus
-    a.disp_y += mod(y - a.y + h ÷ 2, h) - h ÷ 2
+    dx = mod(x - a.x + w ÷ 2, w) - w ÷ 2  # shortest way round the torus
+    dy = mod(y - a.y + h ÷ 2, h) - h ÷ 2
+    a.disp_x += dx
+    a.disp_y += dy
+    # xxl's travel cost and movement metric read the distance (torus_dist from the same offsets); the book never does
+    m.config.xxl === nothing || (a.moved_dist = sqrt(Float64(dx * dx + dy * dy)))
     a.x, a.y = x, y
     return nothing
 end
@@ -239,6 +270,7 @@ function step!(m::Model)
         metabolize!(m, a)
         a.alive || continue
         set_neighbors!(m, a)
+        xxl_on(cfg, :word_of_mouth) && word_of_mouth!(m, a)  # xxl rule 3
         # The rules below look up neighbours afresh, as Python does: a child born in rule S is already a neighbour
         # for K, T, L and E, but not in `a.neighbors`, which friendship (and the metrics) read.
         cfg.sex && mate!(m, a)
@@ -281,7 +313,11 @@ function step!(m::Model)
     ls = m.landscape
     if cfg.seasons !== nothing
         beta, gamma = cfg.seasons
-        seasonal_growback!(ls, m.t, cfg.growback_rate, beta, gamma, cfg.winter_growback)
+        if xxl_on(cfg, :gradient)
+            seasonal_growback_gradient!(ls, m.t, cfg.growback_rate, beta, gamma)
+        else
+            seasonal_growback!(ls, m.t, cfg.growback_rate, beta, gamma, cfg.winter_growback)
+        end
     else
         growback!(ls, cfg.growback_rate)
     end
@@ -296,6 +332,7 @@ function step!(m::Model)
 end
 
 function set_neighbors!(m::Model, a::Agent)
+    xxl_on(m.config, :radius) && return radius_neighbors!(a.neighbors, m, a)
     empty!(a.neighbors)
     for (dx, dy) in VON_NEUMANN
         other = agent_at(m, a.x + dx, a.y + dy)
@@ -368,7 +405,7 @@ function spawn_at!(m::Model, x::Int, y::Int; tribe::Symbol=:none)
     return a
 end
 
-"""Chapter III-V draws for a new random agent, each gated by its rules and in Python's order (III, IV, V)."""
+"""Chapter III-V draws for a new random agent, each gated by its rules and in Python's order (III, IV, V), then xxl's speed."""
 function spawn_chapter_draws!(m::Model, a::Agent, tribe::Symbol)
     cfg, rng = m.config, m.rng
     # Chapter III draws come after the Chapter II ones.
@@ -391,6 +428,8 @@ function spawn_chapter_draws!(m::Model, a::Agent, tribe::Symbol)
         a.immune, a.nimmune = a.immune_genotype, cfg.immune_length  # the phenotype trains on a copy (p.146)
         a.disease_fee = cfg.disease_fee
     end
+    # xxl's draws come after every book draw.
+    xxl_on(cfg, :speed) && (a.speed = draw(rng, cfg.xxl.speed))
     return a
 end
 
