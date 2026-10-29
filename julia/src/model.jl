@@ -45,6 +45,10 @@ mutable struct Model{R<:AbstractRNG}
     viable_fallbacks::Int  # xxl: new agents placed off viable land because none was free (spawn_viable!)
     viable_sites::Dict{Tuple{Int,Int},Vector{Int32}}  # xxl: the grid's viable sites by metabolism pair, built lazily
     killed::Set{Int}  # xxl: ids of the agents killed in combat this period (xxl_combat_move!), for the scorecard
+    # Rule L's loan flows so far, counted by step! for the scorecard (xxl/scorecard_metrics.jl); credit runs only.
+    loans_made::Int  # loans made by seek_credit!
+    loans_due::Int  # loans that came due and were settled by settle_loans!
+    loans_rolled::Int  # of those, the ones whose unpaid rest rolled into a new loan
 end
 
 """
@@ -105,6 +109,9 @@ function Model(
         0,
         Dict{Tuple{Int,Int},Vector{Int32}}(),
         Set{Int}(),
+        0,
+        0,
+        0,
     )
     cfg.disease_list > 0 && init_disease_list!(m)
     place_initial_population!(m)
@@ -313,7 +320,7 @@ function step!(m::Model)
             update_friends!(a, a.neighbors)
         end
         cfg.trade && trade_with_neighbors!(m, a)
-        cfg.credit !== nothing && seek_credit!(m, a)
+        cfg.credit !== nothing && (m.loans_made += length(seek_credit!(m, a)))
         if cfg.disease_list > 0
             # E: transmission, then immune response (design, Scheduling).
             disease_transmit!(m, a)
@@ -337,7 +344,15 @@ function step!(m::Model)
             die!(m, a; excluded_heirs=batch, loans=false)
         end
     end
-    cfg.credit !== nothing && settle_loans!(m)
+    if cfg.credit !== nothing
+        # settle_loans! takes every due loan off the book and adds one new loan per unpaid rest, so the change in the
+        # book's length, with the due loans put back, is the period's rollovers.
+        before, now = length(m.loans), m.t
+        due = count(loan -> loan.due_t == now, m.loans)
+        settle_loans!(m)
+        m.loans_due += due
+        m.loans_rolled += length(m.loans) - (before - due)
+    end
     if cfg.replacement
         for dead in copy(m.dead_this_step)
             spawn_random_agent!(m; tribe=cfg.replacement_same_tribe ? tribe(dead) : :none)

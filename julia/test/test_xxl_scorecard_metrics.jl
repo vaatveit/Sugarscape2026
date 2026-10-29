@@ -211,22 +211,48 @@ end
     @test isempty(m.loans)
     @test (c["loans_started"], c["loans_rolled"], c["loans_repaid"], c["loans_voided"]) ==
         (0, 0, 1, 0)
-    # A borrower of childbearing age short of sugar next to a lender beyond it: seek_credit! lends.
-    lender.sex, lender.fertility_start, lender.fertility_end, lender.initial_sugar = :F,
-    12, 40,
-    10.0
-    lender.age = 50
+end
+
+# A lender past childbearing age at (1, 1), and next to it a borrower of childbearing age short of sugar, on the one
+# site with sugar: its harvest (income 9 a period) makes it creditworthy, so in the next step! seek_credit! lends 16.
+# Nobody moves, since no site in view beats its own.
+function lending_pair(; lender_max_age=Inf)
+    capacity = zeros(Int, 9, 9)
+    capacity[2 + 1, 1 + 1] = 10
+    m = tiny_model(capacity; sex=true, credit=(5, 0.0))
+    lender = put_agent(m, 1, 1; sugar=100.0, max_age=lender_max_age)
+    lender.sex, lender.fertility_start, lender.fertility_end = :F, 12, 40
+    lender.initial_sugar, lender.age = 10.0, 50
     b = put_agent(m, 2, 1; sugar=5.0)
     b.sex, b.fertility_start, b.fertility_end, b.initial_sugar = :M, 12, 50, 30.0
-    b.age, b.last_income = 20, 100.0
+    b.age = 20
+    return m, lender, b
+end
+
+function loan_counts(c)
+    return (c["loans_started"], c["loans_rolled"], c["loans_repaid"], c["loans_voided"])
+end
+
+@testset "a loan started by seek_credit! in step!" begin
+    m, lender, b = lending_pair()
     tr = ScorecardTracker(m)
     card(m, tr)
-    made = seek_credit!(m, b)
-    @test length(made) == 1
-    m.t += 1
+    step!(m)
+    @test length(m.loans) == 1 && m.loans[1].lender === lender && m.loans[1].borrower === b
+    @test m.loans_made == 1
+    @test loan_counts(card(m, tr)) == (1, 0, 0, 0)
+end
+
+@testset "a loan made and voided in one period: the lender reaches its max age" begin
+    m, lender, b = lending_pair(; lender_max_age=51)  # 50 + 1 at the period's end
+    tr = ScorecardTracker(m)
+    card(m, tr)
+    step!(m)
+    @test !lender.alive && b.alive && isempty(m.loans)
+    @test m.loans_made == 1
     c = card(m, tr)
-    @test (c["loans_started"], c["loans_rolled"], c["loans_repaid"], c["loans_voided"]) ==
-        (1, 0, 0, 0)
+    @test loan_counts(c) == (1, 0, 0, 1)
+    @test c["deaths_old_age"] == 1
 end
 
 @testset "a 30-period VI-1 run: births and loans against the standard columns" begin
@@ -251,8 +277,10 @@ end
     for i in 2:length(rows)
         @test births[i] == ever[i] - ever[i - 1]  # no replacement in VI-1
         @test pop[i] - pop[i - 1] == births[i] - deaths[i]
-        # A rollover replaces its loan; every other new loan adds one, every other ending removes one.
+        # A rollover replaces its loan; every other new loan adds one, every other ending removes one. Voided is
+        # defined by this balance, so its being a count (never negative, no inheritance in VI-1) is the check.
         @test loans[i] - loans[i - 1] == started[i] - repaid[i] - voided[i]
+        @test started[i] >= 0 && rolled[i] >= 0 && repaid[i] >= 0 && voided[i] >= 0
     end
     @test sum(births) > 0 && sum(started) > 0 && sum(repaid) + sum(rolled) > 0
     @test all(col("tag_flips_per_agent")[2:end] .> 0)

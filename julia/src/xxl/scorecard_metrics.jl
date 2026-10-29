@@ -24,33 +24,36 @@ const TRADE_WINDOW = 10  # share_traded_10: agents with a trade in the last this
     ScorecardTracker(m)
 
 What the scorecard columns need from the previous period, taken from `m` as it is now: each living agent's tags by
-id, the id the next agent will get, and the loan book by object identity; and, kept across periods, each agent's last
-trade period by id. Build it with the model and pass it to [`scorecard_metrics!`](@ref) once per period, t = 0
-included.
+id, the id the next agent will get, the size of the loan book and the model's loan counters; and, kept across
+periods, each agent's last trade period by id. Build it with the model and pass it to [`scorecard_metrics!`](@ref)
+once per period, t = 0 included.
 """
 mutable struct ScorecardTracker
     t::Int  # the period last seen
     next_id::Int  # m.next_id then: ids from here on are new agents
     tags::Dict{Int,UInt64}  # the living agents' tags then, by id
     last_trade::Dict{Int,Int}  # each agent's last period with a trade, by id, within the trade window
-    loans::Set{Loan}  # the loan book then; Loan is mutable, so the set is by identity
+    n_loans::Int  # length(m.loans) then
+    loans_made::Int  # m.loans_made, m.loans_due and m.loans_rolled then
+    loans_due::Int
+    loans_rolled::Int
 end
 
 function ScorecardTracker(m::Model)
-    tr = ScorecardTracker(m.t, m.next_id, Dict{Int,UInt64}(), Dict{Int,Int}(), Set{Loan}())
+    tr = ScorecardTracker(m.t, m.next_id, Dict{Int,UInt64}(), Dict{Int,Int}(), 0, 0, 0, 0)
     remember_period!(tr, m)
     return tr
 end
 
-"""Takes this period's tags, next id and loan book as the tracker's previous period."""
+"""Takes this period's tags, next id, loan book size and loan counters as the tracker's previous period."""
 function remember_period!(tr::ScorecardTracker, m::Model)
     tr.t, tr.next_id = m.t, m.next_id
     empty!(tr.tags)
     for a in m.agents
         tr.tags[a.id] = a.tags
     end
-    empty!(tr.loans)
-    union!(tr.loans, m.loans)
+    tr.n_loans = length(m.loans)
+    tr.loans_made, tr.loans_due, tr.loans_rolled = m.loans_made, m.loans_due, m.loans_rolled
     return tr
 end
 
@@ -70,14 +73,14 @@ logs (`dead_this_step`, `trade_log`) are still in place.
   other sex among [`neighbors_of`](@ref) (X2).
 - **Tag flips:** the bits changed between the periods, summed over the agents alive in both, per living agent (X4).
 - **Trade:** the share of the living agents with a trade, as either side of an exchange, in periods t - 9 .. t (X5).
-- **Loans,** by identity between the periods. A loan gone from the book is voided if its borrower or lender is dead
-  (no death follows `settle_loans!` in a period, so this is exact); otherwise it was settled. A settled loan rolled
-  over if a new loan between the same lender and borrower appeared, as [`settle_loans!`](@ref) rolls an unpaid rest
-  into one, and was repaid otherwise; those continuations are not started loans, so `loans_started` counts
-  [`seek_credit!`](@ref)'s loans. Each chain of a loan and its rollovers thus ends once, repaid or voided (X8).
-  Matching is per pair: a loan repaid in the period its pair took out a fresh loan counts as rolled, with the fresh
-  loan not started. Under inheritance a dead lender's loans count as voided and their heirs' as started; a loan both
-  made and voided within one period is in neither.
+- **Loans,** from the counters `step!` keeps on the model in credit runs (`m.loans_made`, `m.loans_due`,
+  `m.loans_rolled`). `loans_started` is the loans [`seek_credit!`](@ref) made; `loans_rolled` the due loans whose
+  unpaid rest [`settle_loans!`](@ref) rolled into a new loan, which is not a started loan; `loans_repaid` the other
+  due loans; and `loans_voided` the rest of the change in the book, the loans removed by a borrower's or lender's
+  death: started − repaid − (the change in `length(m.loans)`). Each chain of a loan and its rollovers thus ends once,
+  repaid or voided (X8), a loan made and voided within one period included. This is exact without inheritance. Under
+  inheritance a dead lender's loan passes as copies to its k living heirs, which the book gains without a start, so
+  it counts as 1 − k voided: none for one heir, fewer than none for more.
 - **Placement:** `m.viable_fallbacks`, cumulative.
 
 A column whose rule is off is `NaN`: births and fertility without sex, tag flips without culture, the trade share
@@ -159,26 +162,12 @@ function share_traded(m::Model, tr::ScorecardTracker)
     return count(a -> haskey(last, a.id), m.agents) / length(m.agents)
 end
 
-"""(started, rolled, repaid, voided) for this period, from the loan book against the previous period's."""
+"""(started, rolled, repaid, voided) for this period, from the model's loan counters against the previous period's."""
 function loan_flows(m::Model, tr::ScorecardTracker)
-    pair(loan) = (loan.lender.id, loan.borrower.id)
-    settled = Dict{Tuple{Int,Int},Int}()  # loans settled this period, by (lender, borrower)
-    fresh = Dict{Tuple{Int,Int},Int}()  # loans new this period, by (lender, borrower)
-    voided = 0
-    now = Set{Loan}(m.loans)
-    for loan in tr.loans
-        loan in now && continue
-        if loan.borrower.alive && loan.lender.alive
-            settled[pair(loan)] = get(settled, pair(loan), 0) + 1
-        else
-            voided += 1
-        end
-    end
-    for loan in m.loans
-        loan in tr.loans || (fresh[pair(loan)] = get(fresh, pair(loan), 0) + 1)
-    end
-    rolled = sum((min(k, get(fresh, p, 0)) for (p, k) in settled); init=0)
-    repaid = sum(values(settled); init=0) - rolled
-    started = sum(values(fresh); init=0) - rolled
+    started = m.loans_made - tr.loans_made
+    rolled = m.loans_rolled - tr.loans_rolled
+    repaid = m.loans_due - tr.loans_due - rolled
+    # The book gains the started loans and the rollovers, and loses the due loans and the voided ones.
+    voided = started - repaid - (length(m.loans) - tr.n_loans)
     return started, rolled, repaid, voided
 end
