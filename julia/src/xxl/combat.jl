@@ -65,11 +65,12 @@ the one-commodity form. The best safe candidate wins: highest value, then neares
 safe ties). A strictly better candidate is checked for retaliation only when it would replace the best so far, a
 candidate tied in value and distance always, so only safe ties count in the draw. With none safe the agent stays. A
 defeated occupant loses min(alpha, its sugar) to the attacker and dies before the attacker moves onto its site and
-harvests the site's sugar, with no production pollution and no income recorded, as in the book.
+harvests the site's sugar, with no production pollution and no income recorded, as in the book. `travel_free` records
+whether the target is within `free_step`, as in [`speed_move!`](@ref).
 """
 function xxl_combat_move!(m::Model, a::Agent)
     ls, alpha = m.landscape, m.config.combat_alpha
-    c = m.config.xxl.travel_cost
+    c, free = m.config.xxl.travel_cost, m.config.xxl.free_step
     w, h = ls.width, ls.height
     mine = tribe(a)
     reach = a.speed > 0 ? Float64(a.speed) : Inf  # without speed every looked-at site is within reach (a jump)
@@ -77,7 +78,7 @@ function xxl_combat_move!(m::Model, a::Agent)
     a.target_remembered = false
     looked = look!(m, a)  # first, so the look's draws don't depend on the retaliation checks
     own = ls.sugar[a.x + 1, a.y + 1]
-    best_v = net_value(a, NO_WELFARE, false, c, 0.0, own, 0.0)
+    best_v = net_value(a, NO_WELFARE, false, c, free, 0.0, own, 0.0)
     best_d, best_land, best_victim, best_remembered = 0.0, (a.x, a.y), nothing, false
     found = !disc_vulnerable(m, a, a.x, a.y, own, nothing)
     ties = found ? 1 : 0
@@ -93,7 +94,7 @@ function xxl_combat_move!(m::Model, a::Agent)
         else
             continue
         end
-        v = net_value(a, NO_WELFARE, false, c, d, reward, 0.0)
+        v = net_value(a, NO_WELFARE, false, c, free, d, reward, 0.0)
         v == -Inf && continue  # it would starve on the way
         better = !found || v > best_v || (v == best_v && d < best_d)
         tie = found && v == best_v && d == best_d
@@ -116,7 +117,7 @@ function xxl_combat_move!(m::Model, a::Agent)
         for e in a.memory
             d = torus_dist(w, h, a.x, a.y, e.x, e.y)
             d > vision || continue  # within vision it was looked at afresh
-            v = net_value(a, NO_WELFARE, false, c, d, e.sugar, 0.0)
+            v = net_value(a, NO_WELFARE, false, c, free, d, e.sugar, 0.0)
             v == -Inf && continue
             better = !found || v > best_v || (v == best_v && d < best_d)
             tie = found && v == best_v && d == best_d
@@ -145,6 +146,7 @@ function xxl_combat_move!(m::Model, a::Agent)
     x, y = best_land
     a.moved = (x, y) != (a.x, a.y)
     a.target_remembered = best_remembered
+    a.travel_free = best_d <= free
     move_agent!(m, a, x, y)
     a.sugar += ls.sugar[x + 1, y + 1]
     ls.sugar[x + 1, y + 1] = 0.0

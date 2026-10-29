@@ -129,11 +129,13 @@ end
 
 Burn sugar (and spice) at the metabolic rates; die when either reaches zero (p.25, p.97). Pollution comes from sugar
 only: spice is a clean good (p.127). With xxl speed the agent also burns `travel_cost` per site it moved this period
-(spec, rule 2), which counts as burn for its income and for consumption pollution.
+(spec, rule 2), nothing when its target was within `free_step` (`travel_free`; revised spec, stage 1, item 3), which
+counts as burn for its income and for consumption pollution.
 """
 function metabolize!(m::Model, a::Agent)
     burn = sugar_burn(a)  # metabolism plus the fee for each active disease (p.143)
-    xxl_on(m.config, :speed) && (burn += m.config.xxl.travel_cost * a.moved_dist)
+    xxl_on(m.config, :speed) &&
+        (burn += m.config.xxl.travel_cost * (a.travel_free ? 0.0 : a.moved_dist))
     a.sugar -= burn
     a.last_income -= burn
     spice = m.config.spice

@@ -40,7 +40,7 @@ export Model,
     spawn_viable!
 export move_agent!, kill!, die!, deaths_this_step, agents_ever, step!, run!, sample_distinct
 export look!, xxl_move!, disc_in_sight, harvest!
-export travel_periods, net_value, step_site, speed_move!
+export travel_periods, trip_cost, net_value, step_site, speed_move!
 export remember!, word_of_mouth!
 export xxl_combat_move!, disc_vulnerable
 export move!, metabolize!, pollution_active, look_distance, look_distances

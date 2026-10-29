@@ -10,32 +10,42 @@ is reached in one period.
 travel_periods(d::Real, S::Integer) = S == 0 ? 1 : max(1, ceil(Int, d / S))
 
 """
-    net_value(a, sw, two, c, d, sugar, spice) -> Float64
+    trip_cost(c, free, d) -> Float64
+
+The travel cost counted for a target `d` away at `c` per site with the free step `free` (revised spec, stage 1, item 3):
+nothing for a target within the free step, c·d otherwise. With `free == 0` it is c·d for every d.
+"""
+trip_cost(c::Float64, free::Float64, d::Float64) = d <= free ? 0.0 : c * d
+
+"""
+    net_value(a, sw, two, c, free, d, sugar, spice) -> Float64
 
 The core of [`net_value`](@ref)`(m, a, x, y, d, sugar, spice)`, with the agent's part of welfare (`sw`), whether spice is
-on (`two`) and the travel cost per site (`c`) already in hand, so a move builds them once.
+on (`two`), the travel cost per site (`c`) and the free step (`free`) already in hand, so a move builds them once.
 """
 function net_value(
     a::Agent,
     sw::SiteWelfare,
     two::Bool,
     c::Float64,
+    free::Float64,
     d::Float64,
     sugar::Float64,
     spice::Float64,
 )
     wait = travel_periods(d, a.speed) - 1  # periods spent on the way beyond the first
     m1 = sugar_burn(a)
+    trip = trip_cost(c, free, d)
     if !two
-        h1 = a.sugar - c * d - m1 * wait  # without spice the book has no foresight: b is the holding itself
+        h1 = a.sugar - trip - m1 * wait  # without spice the book has no foresight: b is the holding itself
         d > 0 && h1 <= 0 && return -Inf
         return h1 + sugar
     end
     m2 = a.spice_metabolism
-    if d > 0 && (a.sugar - c * d - m1 * wait <= 0 || a.spice - m2 * wait <= 0)
+    if d > 0 && (a.sugar - trip - m1 * wait <= 0 || a.spice - m2 * wait <= 0)
         return -Inf  # starves on the way, judged on what the agent really holds
     end
-    h1 = sw.base1 - c * d - m1 * wait  # travel comes off after the foresight clamp
+    h1 = sw.base1 - trip - m1 * wait  # travel comes off after the foresight clamp
     h2 = sw.base2 - m2 * wait
     left = sw.use1 ? max(h1 + sugar, 0.0)^sw.e1 : 1.0
     right = sw.use2 ? max(h2 + spice, 0.0)^sw.e2 : 1.0
@@ -48,14 +58,15 @@ end
 What it is worth to agent `a` to arrive at site (x, y), `d` away, finding `sugar` and `spice` there (already devalued
 by pollution; `spice` is ignored without spice): h₁ + sugar with one commodity, W(h₁ + sugar, h₂ + spice) with two,
 where h₁ = b₁ − c·d − m₁(T − 1), h₂ = b₂ − m₂(T − 1) and b is what the holding counts for now (spec, rule 2: the clamp
-of eq. 6 with spice, the holding itself without). `-Inf` if the agent would starve on the way (d > 0 only; the own site
-is never dropped). With c = 0 and T = 1 this ranks sites as rule M does.
+of eq. 6 with spice, the holding itself without). The c·d is [`trip_cost`](@ref): 0 for d ≤ `free_step` (revised spec,
+stage 1, item 3). `-Inf` if the agent would starve on the way (d > 0 only; the own site is never dropped). With c = 0
+and T = 1 this ranks sites as rule M does.
 """
 function net_value(m::Model, a::Agent, x::Int, y::Int, d::Real, sugar::Real, spice::Real)
     two = m.config.spice
     sw = two ? SiteWelfare(m, a) : NO_WELFARE
-    c = m.config.xxl.travel_cost
-    return net_value(a, sw, two, c, Float64(d), Float64(sugar), Float64(spice))
+    c, free = m.config.xxl.travel_cost, m.config.xxl.free_step
+    return net_value(a, sw, two, c, free, Float64(d), Float64(sugar), Float64(spice))
 end
 
 """
@@ -91,24 +102,25 @@ with occupancy ignored (it can't see them; [`step_site`](@ref) never lands on an
 highest [`net_value`](@ref), ties going to the nearest by torus distance, then at random (a reservoir: the c-th tie
 replaces the choice with probability 1/c, one draw each); `target_remembered` records whether the target is a
 remembered site beyond vision. It steps toward the target with [`step_site`](@ref), harvests where it lands, and with
-memory then [`remember!`](@ref)s. [`metabolize!`](@ref) charges the distance moved.
+memory then [`remember!`](@ref)s. `travel_free` records whether the target is within `free_step` (revised spec, stage 1,
+item 3); [`metabolize!`](@ref) charges the distance moved unless it is.
 """
 function speed_move!(m::Model, a::Agent)
     ls = m.landscape
     spice = m.config.spice
-    c = m.config.xxl.travel_cost
+    c, free = m.config.xxl.travel_cost, m.config.xxl.free_step
     w, h = ls.width, ls.height
     a.moved_dist = 0.0
     a.target_remembered = false
     sw = spice ? SiteWelfare(m, a) : NO_WELFARE
     best_x, best_y, best_d = a.x, a.y, 0.0
-    best = site_value(a, sw, spice, c, ls, a.x, a.y, 0.0)
+    best = site_value(a, sw, spice, c, free, ls, a.x, a.y, 0.0)
     ties = 1
     memory = xxl_on(m.config, :memory)
     for (x, y) in look!(m, a)
         @inbounds m.grid[x + 1, y + 1] === nothing || continue  # the agent's own site is occupied by itself
         d = torus_dist(w, h, a.x, a.y, x, y)
-        v = site_value(a, sw, spice, c, ls, x, y, d)
+        v = site_value(a, sw, spice, c, free, ls, x, y, d)
         if v > best || (v == best && d < best_d)
             best, best_x, best_y, best_d, ties = v, x, y, d, 1
         elseif v == best && d == best_d
@@ -124,7 +136,7 @@ function speed_move!(m::Model, a::Agent)
             d > v || continue  # within vision it was looked at afresh
             devalue = 1.0 + e.pollution
             val = net_value(
-                a, sw, spice, c, d, e.sugar / devalue, spice ? e.spice / devalue : 0.0
+                a, sw, spice, c, free, d, e.sugar / devalue, spice ? e.spice / devalue : 0.0
             )
             if val > best || (val == best && d < best_d)
                 best, best_x, best_y, best_d, ties = val, e.x, e.y, d, 1
@@ -139,6 +151,7 @@ function speed_move!(m::Model, a::Agent)
         end
         a.target_remembered = remembered
     end
+    a.travel_free = best_d <= free
     x, y = step_site(m, a, best_x, best_y)
     a.moved = (x, y) != (a.x, a.y)
     move_agent!(m, a, x, y)
@@ -153,6 +166,7 @@ end
     sw::SiteWelfare,
     two::Bool,
     c::Float64,
+    free::Float64,
     ls::Landscape,
     x::Int,
     y::Int,
@@ -161,5 +175,5 @@ end
     devalue = 1.0 + @inbounds ls.pollution[x + 1, y + 1]
     sugar = @inbounds ls.sugar[x + 1, y + 1] / devalue
     spice = two ? @inbounds(ls.spice[x + 1, y + 1]) / devalue : 0.0
-    return net_value(a, sw, two, c, d, sugar, spice)
+    return net_value(a, sw, two, c, free, d, sugar, spice)
 end

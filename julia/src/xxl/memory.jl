@@ -24,7 +24,7 @@ entries are reachable. The pool is not changed; `m.pool_values` holds the kept e
 function rank_pool!(m::Model, a::Agent)
     cfg = m.config
     two = cfg.spice
-    c = cfg.xxl.travel_cost
+    c, free = cfg.xxl.travel_cost, cfg.xxl.free_step
     cap = cfg.xxl.memory
     w, h = m.landscape.width, m.landscape.height
     sw = two ? SiteWelfare(m, a) : NO_WELFARE
@@ -32,7 +32,9 @@ function rank_pool!(m::Model, a::Agent)
     for e in m.pool
         d = torus_dist(w, h, a.x, a.y, e.x, e.y)
         devalue = 1.0 + e.pollution
-        v = net_value(a, sw, two, c, d, e.sugar / devalue, two ? e.spice / devalue : 0.0)
+        v = net_value(
+            a, sw, two, c, free, d, e.sugar / devalue, two ? e.spice / devalue : 0.0
+        )
         n = length(mem)
         n == cap && !ranks_above(v, e, @inbounds(vals[n]), @inbounds(mem[n])) && continue
         if n < cap  # room: a new last slot; otherwise the new entry replaces the last
