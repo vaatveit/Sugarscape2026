@@ -19,9 +19,10 @@ end
     xxl_on(cfg, feature) -> Bool
 
 Whether `feature` (`:disc`, `:speed`, `:memory`, `:word_of_mouth`, `:radius`, `:gradient` or `:generated`) is away
-from its book setting. False for every feature when `cfg.xxl` is `nothing`.
+from its book setting. False for every feature when `cfg.xxl` is `nothing`. Inlined, so that at a call site with a
+literal feature the hot paths pay only the `nothing` check.
 """
-function xxl_on(cfg::Config, feature::Symbol)
+@inline function xxl_on(cfg::Config, feature::Symbol)
     r = cfg.xxl
     r === nothing && return false
     feature === :disc && return r.vision_shape == "disc"

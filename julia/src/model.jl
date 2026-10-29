@@ -190,9 +190,12 @@ function move_agent!(m::Model, a::Agent, x::Int, y::Int)
     m.grid[a.x + 1, a.y + 1] = nothing
     m.grid[x + 1, y + 1] = a
     w, h = m.config.width, m.config.height
-    a.disp_x += mod(x - a.x + w ÷ 2, w) - w ÷ 2  # shortest way round the torus
-    a.disp_y += mod(y - a.y + h ÷ 2, h) - h ÷ 2
-    a.moved_dist = torus_dist(w, h, a.x, a.y, x, y)  # xxl's travel cost reads it; draws nothing
+    dx = mod(x - a.x + w ÷ 2, w) - w ÷ 2  # shortest way round the torus
+    dy = mod(y - a.y + h ÷ 2, h) - h ÷ 2
+    a.disp_x += dx
+    a.disp_y += dy
+    # xxl's travel cost and movement metric read the distance (torus_dist from the same offsets); the book never does
+    m.config.xxl === nothing || (a.moved_dist = sqrt(Float64(dx * dx + dy * dy)))
     a.x, a.y = x, y
     return nothing
 end
