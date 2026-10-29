@@ -4,11 +4,14 @@
 const XXL_MAP = "sugar-map-xxl.txt"
 const VISION_SHAPES = ("lattice", "disc")
 const LANDSCAPES = ("xl", "generated")
+const FOUNDER_PLACEMENTS = ("random", "viable")
+const XXL_FOUNDER_AGES = ("book", "young")
 
 """
     XxlRules(; kw...)
 
-The nine xxl settings (spec, "The rules"). The defaults are the book's settings, so `XxlRules()` changes nothing;
+The thirteen xxl settings: the nine of the first spec ("The rules") and the four stage-1 survival switches of the
+revised spec ("The changes"), each at the book's value by default. The defaults are the book's settings, so `XxlRules()` changes nothing;
 [`XXL_DEFAULTS`](@ref) is the xxl column of the spec's table. `Config.xxl` holds one, or `nothing` for the plain
 book rules.
 """
@@ -22,6 +25,10 @@ Base.@kwdef struct XxlRules
     interaction_radius::Float64 = 1.0
     season_gradient::Bool = false
     landscape::String = "xl"
+    max_metabolism::Union{Nothing,Int} = nothing
+    founder_placement::String = "random"
+    free_step::Float64 = 0.0
+    founder_ages::String = "book"
 end
 
 function Base.:(==)(a::XxlRules, b::XxlRules)

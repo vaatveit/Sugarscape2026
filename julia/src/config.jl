@@ -266,6 +266,8 @@ end
 function validate_xxl(c::Config, r::XxlRules)
     check_option(:vision_shape, r.vision_shape, VISION_SHAPES)
     check_option(:landscape, r.landscape, LANDSCAPES)
+    check_option(:founder_placement, r.founder_placement, FOUNDER_PLACEMENTS)
+    check_option(:founder_ages, r.founder_ages, XXL_FOUNDER_AGES)
     r.speed !== nothing &&
         (r.speed[1] < 1 || r.speed[1] > r.speed[2]) &&
         bad("speed $(r.speed) must be a range starting at >= 1")
@@ -279,6 +281,19 @@ function validate_xxl(c::Config, r::XxlRules)
         r.speed === nothing &&
         bad("travel_cost needs a speed range (speed)")
     r.word_of_mouth && r.memory == 0 && bad("word_of_mouth needs memory > 0")
+    r.free_step < 0 && bad("free_step must be >= 0, not $(r.free_step)")
+    r.free_step > 0 && r.speed === nothing && bad("free_step needs a speed range (speed)")
+    if r.max_metabolism !== nothing
+        r.max_metabolism < 1 && bad("max_metabolism must be >= 1, not $(r.max_metabolism)")
+        r.max_metabolism < c.metabolism[1] && bad(
+            "max_metabolism $(r.max_metabolism) is below the lowest sugar metabolism, $(c.metabolism[1])",
+        )
+        c.spice &&
+            r.max_metabolism < c.spice_metabolism[1] &&
+            bad(
+                "max_metabolism $(r.max_metabolism) is below the lowest spice metabolism, $(c.spice_metabolism[1])",
+            )
+    end
     r.season_gradient &&
         c.seasons === nothing &&
         bad("season_gradient needs seasons (they give it latitudes to taper)")

@@ -2,17 +2,27 @@
 # counterpart, so they are defined here rather than in the exported registry.toml: each is a registered sugarscape
 # experiment passed through `to_xxl` with its own rules.
 
+# The nine fields of the first rules: `rules_line` always prints these.
+const FIRST_RULE_FIELDS = fieldnames(XxlRules)[1:9]
+
+# Whether a field is away from the book's setting (XXL_BOOK holds the book value of every field).
+_off_book(rules::XxlRules, f::Symbol) = getfield(rules, f) != getfield(XXL_BOOK, f)
+
 """
     rules_line(rules) -> String
 
-Every `XxlRules` field as `name=value`, in field order, separated by spaces. Strings print with `repr`, the rest with
-`string`: `vision_shape="disc" speed=(1, 6) travel_cost=0.1 ...`.
+The original nine `XxlRules` fields as `name=value`, in field order, separated by spaces, then each stage-1 field
+only when it is off its book setting (so every first-rules fingerprint stays as it was). Strings print with `repr`,
+the rest with `string`: `vision_shape="disc" speed=(1, 6) travel_cost=0.1 ... free_step=1.5`.
 """
 function rules_line(rules::XxlRules)
+    shown = [
+        f for f in fieldnames(XxlRules) if f in FIRST_RULE_FIELDS || _off_book(rules, f)
+    ]
     return join(
         (
             "$f=" * (v isa AbstractString ? repr(v) : string(v)) for
-            (f, v) in ((f, getfield(rules, f)) for f in fieldnames(XxlRules))
+            (f, v) in ((f, getfield(rules, f)) for f in shown)
         ),
         " ",
     )
@@ -21,7 +31,7 @@ end
 """
     xxl_fingerprint(exp, rules) -> String
 
-What a saved xxl result was produced from: `julia`, an `xxl` line with every rule (those actually applied, so a season
+What a saved xxl result was produced from: `julia`, an `xxl` line with the rules (those actually applied, so a season
 gradient the base experiment has no seasons for reads `false`), the base experiment's xl fingerprint, then one
 `xxl map <file> sha256=<hex>` line per generated map in use (the spice map only when the config has spice). A change to
 the rules, the base experiment or the maps makes saved xxl results stale.
