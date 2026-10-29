@@ -392,18 +392,61 @@ Disc vision, speed (1, 6), and travel cost c = 0, 0.05, 0.1, 0.2.
   t = 150: 19,069 (t = 100), 17,584 (150), 15,411 (200), 13,587 (250), then it levels off at about 13,460 ± 92 from
   t ≈ 300. For c = 0.1 it begins at about t = 200–250 and runs for the rest of the run: 19,026 (200), 18,665 (250),
   17,576 (300), 16,577 (350), 15,583 (400), 14,715 (450), 13,997 (500), still falling at t = 500 (final-window
-  mean 14,703 ± 93). These runs were not examined further
-  for who dies; the travel cost per period is small (mean distance moved is under 1 site, so about 0.09 sugar for
-  c = 0.1, against metabolisms of 1–4), so it presumably tips agents who were barely breaking even.
+  mean 14,703 ± 93). The travel cost per period is small (mean distance moved is under 1 site, so about 0.09 sugar
+  for c = 0.1, against metabolisms of 1–4), and it kills the agents who were exactly breaking even: see "Who dies in
+  the second die-off" below.
 - **Survivors are richer and the Gini is not monotone in c.** Final mean sugar is 453 (c = 0), 442, 542 (c = 0.1), 546
   (c = 0.2), against xl's 509. The Gini at t = 200 is 0.459, 0.475, 0.491, 0.415, against 0.382 for xl, and final 0.493,
   0.502, 0.386, 0.355 against 0.390: it rises while the population is stable, and falls once the die-off has run
-  (presumably because it removes the poor; who dies was not examined).
+  (the die-off removes the poor: those who die after t = 100 had a median 16–26 sugar at t = 100, the survivors
+  121–130; see below).
 - **Agents barely move.** Mean distance moved is 0.89–1.0 site per period at every c, with 10–15% settled, although
   the mean speed is 3.5. Presumably, with growback of 1 per period and vision of 10 or more, the best site is usually
   the nearest one that has regrown, one site away (not tested). The pair correlation is 1.0–1.5, much less clustered than round vision without
   speed (1.7–2.3).
 - Stepping is 2.0–2.6× xl's, less at high c because there are fewer agents.
+
+**Who dies in the second die-off.** It kills the agents whose metabolism equals the capacity of the land they live
+on. This comes from tracing every founder in seeds 0–2 of c = 0, 0.1 and 0.2 (120,000 founders per c), recording
+each one's traits, harvest, distance moved and time of death. The traced runs reproduce the recorded populations
+exactly. II-4 has no aging, births or replacement, so every death is starvation.
+1. **Harvest is capped by capacity.** A site holds at most its capacity, so an agent that steps to a full
+   neighbouring site each period harvests that capacity. At t = 100 the mean harvest per period over periods 81–100
+   is 1.00, 2.00, 2.99 and 3.93–3.98 on capacity 1, 2, 3 and 4 land (seed 0, at each c), whatever the agent's
+   metabolism.
+2. **Many agents live at a zero margin.** After the first die-off the richer land is full, and about 6,000 agents
+   per seed live on land whose capacity equals their metabolism (2 on 2, 3 on 3, 4 on 4). Their harvest less their
+   metabolism over periods 1–100 is 0.000 at the median.
+3. **They can't avoid the travel cost.** Staying put yields only the growback of 1, so an agent with metabolism 2 or
+   more must keep stepping to a full site, about one site per period, at a cost of about c. The margin becomes −c.
+4. **They starve when their savings run out.** For the agents dying after t = 100 whose income over periods 1–100 was
+   negative, their sugar at t = 100 divided by that loss predicts when they die. The median predicted and actual
+   death times are 343 and 346 for c = 0.1 (correlation 0.90), and 178.5 and 180 for c = 0.2 (0.74). Halving the
+   loss doubles the time, which is why c = 0.1's die-off comes later and lasts longer. Those who die were also the
+   poor: their median sugar at t = 100 was 16–26, against 121–130 for the survivors.
+
+Share of the agents alive at t = 100 that die by t = 500 (three seeds pooled):
+
+| Metabolism | c = 0 | c = 0.1 | c = 0.2 |
+|---|---|---|---|
+| 1 | 0% | 0% | 0% |
+| 2 | 0% | 38% | 42% |
+| 3 | 1% | 55% | 61% |
+| 4 | 27% | 100% | 100% |
+
+- **Metabolism 1 is safe.** Staying put and living on the growback already covers it.
+- **Metabolism 4 always dies under a cost.** There is no richer land to move up to. Even at c = 0 a capacity-4 site
+  is sometimes not full when it is reached, so these agents harvest about 3.95 and slowly starve. This is c = 0's
+  slow decline: 971 of the 58,172 alive at t = 100 die by t = 500, 19,211 at t = 200 against 18,613 at t = 1000 in
+  seed 0.
+- **Metabolism 2 and 3 die in part.** As others die, room opens on richer land, and some agents move up before their
+  savings run out.
+- **Vision, speed and place make no difference.** The death rate is 26–31% across every band of vision and every
+  speed, and those who die stood on land of the same mean capacity at t = 100 as the survivors (2.64–2.68 against
+  2.70–2.71 in an 11 × 11 box). Every agent moves about one site per period, whatever its speed.
+- **How the die-off ends.** Run on to t = 1000 (seed 0), c = 0.1 levels off just after t = 500 at about 13,840, and
+  c = 0.2 at about 13,370. The slower drain leaves more time to find room on richer land, so c = 0.1 does not fall as
+  far as c = 0.2.
 
 ### Memory and word of mouth (`XXL-memory`, II-4)
 
@@ -534,7 +577,9 @@ sugar and spice landscape (no combat).
 ### What the first runs show
 
 - In II-4, speed alone costs about a quarter of the early population, and a travel cost of 0.1 or more adds a second
-  die-off.
+  die-off. The second die-off kills the agents whose metabolism equals the capacity of their land: they must step
+  about one site per period to eat, the travel cost turns their zero margin negative, and they starve when their
+  savings run out.
 - Round vision without speed changes xl little (2–4% less population) but clusters agents.
 - Memory and word of mouth change every individual run from about t = 10 but have no aggregate effect beyond the seed
   spread at these settings. Memory ranks sites by rule 2's value with its waiting cost, so it keeps the sites within
