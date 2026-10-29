@@ -255,7 +255,7 @@ sugar only: combat with spice or credit is refused.
   count. The check is a fresh look of the attacker's vision from that site (rule 1 centred there, no remembered sites,
   its own draws), so it consumes random draws; with the lattice look it is the book's check.
 - **Safe candidates.** A candidate within reach is safe when its own site is. A candidate beyond reach is safe when
-  its walk has a landing site that is empty and not vulnerable: rule 2's step, k = S, S − 1, …, 1, takes the first
+  its walk has a landing site that is empty and not vulnerable: rule 2's step, k = min(S, ⌊d⌋), …, 1, takes the first
   site that is empty and safe, with that site's sugar as the reward. The far target itself isn't checked, since the
   agent won't be there this period. A candidate with no safe landing site is passed over.
 - **Choice.** The best safe candidate wins: highest value, then nearest, then at random (a reservoir over the safe
@@ -326,8 +326,8 @@ something is wrong. Everything below is read from `julia --project=julia julia/x
 mean across seeds ± the standard deviation across seeds (n − 1), at t = 50, 100, 200 and over the last 100 periods
 ("final" below). "xl" means the base experiment's Julia xl run.
 
-**How to read the spreads.** Seed spreads are small next to most differences below (population sd is 0.3–1% of the
-mean in the II-4 family and up to 2% in IV-A3's), but five seeds is few, and VI-1 and III-9 at the end are far
+**How to read the spreads.** Seed spreads are small next to most differences below (population sd is 0.2–0.7% of the
+mean at the four checkpoints in the II-4 and II-7 families, and 0.7–2.1% in IV-A3's), but five seeds is few, and VI-1 and III-9 at the end are far
 noisier (their final population sds are 8% and 6.5% of the mean). Each experiment was run once.
 
 **Timings.** One job (`--jobs 1`), one thread, an i7-13700K, Julia 1.13.2, stepping only (docs/xl.md, "Timing").
@@ -357,9 +357,12 @@ and periods; agents are the mean at the start and end of a run.
 
 Wall clock for the batch (from the run log, one job): the five xl bases took 39 minutes (VI-1 26 of them); the xxl
 families took 2 h 20 min: `XXL-vision` 4 min, `XXL-speed` 18, `XXL-memory` 15, `XXL-radius` 6, `XXL-seasons` 13,
-`XXL-terrain` 11, `XXL-combat` 32 and `XXL-society` 42. Part of each ratio is the population (a run with fewer
-agents steps faster), so the ratios understate the per-agent cost where xxl ends with fewer agents (most of them).
-The memory runs cost the most per agent, about twice the same speed run without memory (below).
+`XXL-terrain` 11, `XXL-combat` 32 and `XXL-society` 42. The ratios per period mix the cost per agent with the
+population, which is usually lower in xxl. Per agent and period (stepping seconds over the sum of the population at
+t = 0 … T − 1, mean over seeds), xxl costs: vision 2.1 µs, speed 4.3–4.7, memory 7.8–8.3, `XXL-terrain/II-4` 8.7,
+seasons 8.7–9.0, combat 14.7, `XXL-terrain/IV-A3` 18.5, radius 18.8–20.1 and society 31.2; against xl's 1.5 (II-4 and
+II-7), 4.9 (IV-A3), 3.4 (III-9) and 9.2 (VI-1). The memory runs cost about 1.8× the same speed run without memory
+(below).
 
 ### Round vision (`XXL-vision`, II-4)
 
@@ -381,15 +384,17 @@ Disc vision, speed (1, 6), and travel cost c = 0, 0.05, 0.1, 0.2.
   crowd and starve). This does not depend on c.
 - **Without a travel cost the population then holds:** c = 0 is at 19,459, 19,396, 19,273 and 19,110 ± 66 (final), and
   c = 0.05 slides slowly to 18,698 ± 63 final.
-- **c = 0.1 and c = 0.2 add a second die-off** after t ≈ 150–200, over a few hundred periods. Population at t = 50,
-  150, 250, 350 and 500: c = 0.1: 19.4k, 19.2k, 18.7k, 16.6k, 14.0k, still falling at t = 500 (final 14,703 ± 93); c = 0.2:
-  19.3k, 17.6k, 13.6k, 13.5k, 13.5k, levelling off at about 13,460 ± 92 from t ≈ 250. These runs were not examined further
+- **c = 0.1 and c = 0.2 add a second die-off.** For c = 0.2 it begins just after t = 100 and is well under way by
+  t = 150: 19,069 (t = 100), 17,584 (150), 15,411 (200), 13,587 (250), then it levels off at about 13,460 ± 92 from
+  t ≈ 300. For c = 0.1 it begins at about t = 200–250 and runs for the rest of the run: 19,026 (200), 18,665 (250),
+  17,576 (300), 16,577 (350), 15,583 (400), 14,715 (450), 13,997 (500), still falling at t = 500 (final-window
+  mean 14,703 ± 93). These runs were not examined further
   for who dies; the travel cost per period is small (mean distance moved is under 1 site, so about 0.09 sugar for
   c = 0.1, against metabolisms of 1–4), so it presumably tips agents who were barely breaking even.
 - **Survivors are richer and the Gini is not monotone in c.** Final mean sugar is 453 (c = 0), 442, 542 (c = 0.1), 546
   (c = 0.2), against xl's 509. The Gini at t = 200 is 0.459, 0.475, 0.491, 0.415, against 0.382 for xl, and final 0.493,
-  0.502, 0.386, 0.355 against 0.390: it rises while the population is stable, and falls when the die-off removes the
-  poor.
+  0.502, 0.386, 0.355 against 0.390: it rises while the population is stable, and falls once the die-off has run
+  (presumably because it removes the poor; who dies was not examined).
 - **Agents barely move.** Mean distance moved is 0.89–1.0 site per period at every c, with 10–15% settled, although
   the mean speed is 3.5. Presumably, with growback of 1 per period and vision of 10 or more, the best site is usually
   the nearest one that has regrown, one site away (not tested). The pair correlation is 1.0–1.5, much less clustered than round vision without
@@ -398,19 +403,34 @@ Disc vision, speed (1, 6), and travel cost c = 0, 0.05, 0.1, 0.2.
 
 ### Memory and word of mouth (`XXL-memory`, II-4)
 
-**A null result: memory changes nothing here.** `solo` and `shared` match `XXL-speed/c0.1` within the seed spread at
-every checkpoint (final population 14,703 ± 89 and 14,704 ± 92 against 14,703 ± 93; final Gini 0.386 in all three; mean
-sugar 542 in all three). The seeds agree with the speed run even in the fourth digit, because neither memory nor word
-of mouth draws random numbers, so the runs differ only where an agent acts on a memory. That almost never happens: the
-share of agents whose target is a remembered site beyond vision is exactly 0 in every period of the two seeds
-checked (0 and 3) of `XXL-memory/solo`, `/shared`, `XXL-radius/R1.5` and `XXL-terrain/IV-A3`, and in `XXL-seasons/halves`, `XXL-society/VI-1` and
-`XXL-combat/III-9` it is nonzero in only 1 to 19 periods of 500 or 1000, at most about 9 × 10⁻⁵ of the agents.
-Why is not tested here. It looks structural: a site can only be a remembered
-target once it is beyond the vision of 10–60 sites that an agent has, but agents move about one site per period and
-the map has large plateaus of equal sites, so a visible site is nearly always as good and closer. A different setting
-(slower growback, smaller vision, patchier food, a larger speed) would be needed for memory to matter.
+**Memory has no aggregate effect beyond the seed spread, though it changes every individual run.** `solo` and
+`shared` match `XXL-speed/c0.1` within the seed spread at every checkpoint (final population 14,703 ± 89 and
+14,704 ± 92 against 14,703 ± 93; final Gini 0.386 in all three; mean sugar 542 in all three). Only the three 5-seed means
+agree this closely: seed by seed the runs part from t ≈ 8–12 (the first period at which a population differs from
+the speed run's same seed is 8–12 in all ten memory runs), and the populations at t = 500 differ by up to 88 agents in
+a seed (seed 2: 14,020 against 13,932; seed 4: 14,082 against 14,156 in `solo`), in both directions, with a mean
+difference of −5 (`solo`) and +2 (`shared`) agents.
 
-Memory has a cost: 0.146 and 0.155 s per period against 0.080 for the same run without it (1.8–1.9×), for no change.
+The share of agents whose target is a remembered site *beyond vision*, `share_remembered_target`, is exactly 0 in every
+period of all five seeds of `solo` and `shared`, so that is not how memory acts here. It counts only targets beyond
+vision. The likely path is rule 1, step 4: a remembered site within vision joins the look whenever the period's ring
+draws didn't happen to hit it, so the agent has candidates it would otherwise not have, and tied candidates draw from
+the random stream. The code makes this the only way memory can alter a move other than a beyond-vision target
+(`look!` appends the remembered sites within vision; `solo` has no word of mouth to differ through). I did not trace the
+first diverging agent, so this is likely, not shown. Word of mouth is not what starts the divergence, since `solo` also
+departs at t ≈ 8–12.
+
+Beyond-vision remembered targets are rare everywhere: over all five seeds, the share is nonzero in none of the periods
+of `XXL-radius/R1` and `XXL-terrain/II-4`, in 1 period of one seed of `XXL-radius/R1.5` and 3 periods of one seed of
+`XXL-radius/R3`, in 1–2 periods of three seeds of `XXL-terrain/IV-A3`, in 0–7 periods per seed of `XXL-seasons`, 0–19
+of `XXL-society/VI-1` and 0–1 of `XXL-combat/III-9`, at most 4.1 × 10⁻⁴ of the agents in any period (in `XXL-radius/R3`
+seed 0). Why is not tested here. It may be structural: a site can only be a remembered target once it is beyond the
+vision of 10–60 sites that an agent has, but agents move about one site per period and the map has large plateaus of
+equal sites, so a visible site is nearly always as good and closer. Whether other settings (slower growback, smaller
+vision, patchier food, a larger speed) would make memory matter was not tried.
+
+Memory has a cost: 0.146 and 0.155 s per period against 0.080 for the same run without it (1.8–1.9×); per agent and
+period, 7.8 and 8.3 µs against 4.3.
 
 ### Interaction radius (`XXL-radius`, IV-A3)
 
@@ -448,9 +468,12 @@ Full xxl defaults on II-7, without and with the gradient.
 ### Generated landscape (`XXL-terrain`, II-4 and IV-A3)
 
 Full xxl defaults on the generated maps (400 Gaussian bumps, radii 5–80, the xl map's capacity counts). The
-control for II-4 is `XXL-memory/shared`, and for IV-A3 `XXL-radius/R1.5`: the same rules on the xl map. (For II-4
-the control differs only by R = 1 against 1.5, which II-4 doesn't use.)
-- **II-4:** population is 4% above the control final (15,272 ± 37 against 14,704 ± 92), 2% above at t = 50 and 100.
+control for II-4 is `XXL-memory/shared`, and for IV-A3 `XXL-radius/R1.5`: the same rules on the xl map. The II-4
+control is not exact: it has R = 1, the terrain run R = 1.5. II-4 has no trade, culture or mating, but word of mouth
+copies from the agent's neighbours, which the radius sets (4 neighbours at R = 1, up to 8 at 1.5), so the radius can
+change who an agent hears from.
+- **II-4:** population is 4% above the control final (15,272 ± 37 against 14,704 ± 92), 1.7% above at t = 50 and 1.2%
+  at t = 100.
   Mean sugar and Gini are close (537 and 0.387 against 542 and 0.386). The pair correlation final is 1.47 against
   1.25 at distance 1, 1.51 against 1.50 at 10 and 1.25 against 1.35 at 50.
 - **IV-A3:** the population is 49% above the control final: 3,286 ± 49 against 2,199 ± 39, and 41% above it at t = 50
@@ -473,8 +496,9 @@ placed in blocks.
   after about t = 100.
 - **Agents never rest:** 1% settled, 1.3 sites moved per period.
 - **Agents cluster** at 1.9–2.5 at distances 1, 10 and 50, a flat profile, not the sharp short-range clumps of IV-A3.
-- Stepping is 10× xl's per period (0.346 against 0.035 s), the largest ratio of all, with 63× the final population
-  (19,081 against 303), which accounts for most of it.
+- Stepping is 10× xl's per period (0.346 against 0.035 s), the largest ratio of all. The population over the run
+  is 2.3× xl's on average (about 23,560 against 10,290 agents, because xl's collapses), so per agent and period it
+  is 4.4× (14.7 against 3.4 µs).
 - This experiment exercises rule 7 under speed and memory together; it does not isolate combat's effect, and has no
   control without combat on the same rules.
 
@@ -499,8 +523,10 @@ sugar and spice landscape (no combat).
 - In II-4, speed alone costs about a quarter of the early population, and a travel cost of 0.1 or more adds a second
   die-off.
 - Round vision without speed changes xl little (2–4% less population) but clusters agents.
-- Memory and word of mouth are inert at these settings.
-- The interaction radius changes trade volume, not survival or price levels.
+- Memory and word of mouth change every individual run from about t = 10 but have no aggregate effect beyond the seed
+  spread at these settings; beyond-vision targets are almost never chosen. They cost about 1.8× the stepping time.
+- The interaction radius raises trade volume strongly and survival barely (R = 3 is 3% above R = 1, about 3 seed
+  sds); price levels hardly change.
 - The latitude gradient raises population by about 10% and moves agents toward the equators in a small way.
 - On the generated landscape IV-A3's population is half as large again as on the xl map, and II-4's differs by
   4%; each rests on one map pair.
