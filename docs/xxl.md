@@ -594,8 +594,44 @@ placed in blocks.
 - Stepping is 10× xl's per period (0.346 against 0.035 s), the largest ratio of all. The population over the run
   is 2.3× xl's on average (about 23,560 against 10,290 agents, because xl's collapses), so per agent and period it
   is 4.4× (14.7 against 3.4 µs).
-- This experiment exercises rule 7 under speed and memory together; it does not isolate combat's effect, and has no
-  control without combat on the same rules.
+- This experiment runs rule 7 together with the other xxl rules. The controls below separate combat's own effect and
+  find which rule tames it.
+
+**What combat itself does.** III-9 has no aging, so every death is either a kill or a starvation. The source is a run
+of III-9 with combat on and off (`combat_alpha = nothing`) under four rule sets, seeds 0–2 each, 1000 periods, with
+starvations told from kills by recording the deaths inside `metabolize!` (a copy of the method that draws nothing; the
+xl and xxl runs reproduce the recorded populations exactly). The four rule sets are xl, round vision alone, round
+vision with speed (1, 6) and travel cost 0.1, and the full xxl defaults. Means over the three seeds:
+
+| Rules | Population at t = 100, on / off | t = 300 | t = 1000 | Gini at t = 1000, on / off | Kills by t = 1000 |
+|---|---|---|---|---|---|
+| xl | 27,113 / 30,672 | 11,147 / 28,288 | 383 / 27,747 | 0.82 / 0.26 | 31,000 |
+| round vision | 4,881 / 30,173 | 953 / 28,519 | 705 / 27,695 | 0.48 / 0.27 | 38,011 |
+| round vision + speed | 27,809 / 28,276 | 24,502 / 25,974 | 19,081 / 24,428 | 0.38 / 0.25 | 5,504 |
+| full xxl | 27,797 / 28,283 | 24,471 / 25,969 | 19,037 / 24,424 | 0.38 / 0.25 | 5,536 |
+
+- **Speed is what tames combat.** With speed an occupied site can be attacked only within the attacker's speed (1–6
+  sites), where without it any occupied site in sight (10–60 sites) can be taken in one jump. Adding speed cuts the
+  kills from 38,011 to 5,504, and the other xxl rules then change almost nothing (19,037 against 19,081 at
+  t = 1000).
+- **Round vision alone makes combat deadlier than xl.** It has 33,836 kills by t = 100, against xl's 4,836, and the
+  population falls to 4,881. Presumably a disc finds more targets than four lines of sight do (not tested). It then
+  settles at about 350 agents per tribe.
+- **Under xxl, combat costs 22% of the population by t = 1000** (19,037 against 24,424), and the gap is still
+  widening: 486 agents at t = 100, 1,498 at t = 300, 5,387 at t = 1000. Kills run at a steady 4–6 per period
+  throughout (5.2 over t = 51–100, 5.7 over t = 501–1000), so the gap grows as they accumulate; the run is not at
+  equilibrium at t = 1000.
+- **Kills add to starvation, not replace it.** Under xxl, 29,427 starve with combat against 29,576 without, so the
+  victims are not mostly agents who would have starved anyway. Kills are about 16% of all deaths, and both tribes
+  survive (8,083–11,240 agents each at t = 1000). Combat raises the Gini by 0.13, against 0.56 in xl.
+- **xl collapses in two phases,** the same in all three seeds. Up to t = 300 blue destroys red: about 15,000 red
+  victims against 4,000–6,000 blue. Over t = 301–1000 the 170–910 reds left fall to about 20, yet kill about 10,000
+  blues. With α = ∞ each kill takes the victim's whole wealth, so the last reds grow too rich for any blue to
+  retaliate against: mean wealth at t = 1000 is 17,000–55,000 sugar. Why blue wins the first phase was not examined;
+  it is not the land, since the red block is the richer (mean capacity 3.15 against 2.76).
+- **First contact.** The two blocks touch only at a corner, across the torus seam. The first kill is at t = 1 under
+  the xxl rules and at t = 12–14 under xl, presumably because xl's lines of sight do not cover the diagonal (not
+  tested).
 
 ### Society (`XXL-society`, VI-1)
 
@@ -630,5 +666,7 @@ sugar and spice landscape (no combat).
 - On the generated landscape IV-A3's population is half as large again as on the xl map, and II-4's differs by
   4%; each rests on one map pair. The xl map puts sugar and spice in opposite places, so few IV-A3 founders start
   near land that feeds both metabolisms. II-4 gains only from shorter climbs to richer land.
-- Combat survives the xxl rules, and the population does not collapse as in xl.
+- Combat survives the xxl rules, and the population does not collapse as in xl. Against the same rules without
+  combat, it costs 22% of the population by t = 1000, against 99% in xl. Speed is what makes the difference: it
+  limits attacks to within 1–6 sites. Round vision alone makes combat deadlier than xl.
 - Everything in this section comes from one run per experiment, 5 seeds, on a machine whose load was not recorded.
