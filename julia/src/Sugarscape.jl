@@ -93,6 +93,7 @@ include("stats.jl")
 include("xxl/metrics.jl")
 include("xxl/scorecard_metrics.jl")
 include("runner.jl")
+include("xxl/scorecard.jl")
 include("xxl/experiments.jl")
 
 end
