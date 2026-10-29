@@ -38,13 +38,18 @@ function look!(
         push!(out, wrap(m, x + dx, y + dy))
     end
     if v > n  # a vision no longer than the near radius leaves no ring (and draws nothing)
+        ring_start = length(out) + 1  # near sites never repeat a ring site: their distances differ
         for _ in 1:ring_draws(a.vision)
             rx, ry = ring_point(m.rng, n, v)
             dx, dy = round(Int, rx), round(Int, ry)
             r2 = dx * dx + dy * dy
             (r2 > n * n && r2 <= v * v) || continue
             site = wrap(m, x + dx, y + dy)
-            site in out || push!(out, site)
+            seen = false
+            for i in ring_start:length(out)
+                @inbounds seen |= out[i] == site
+            end
+            seen || push!(out, site)
         end
     end
     return out
@@ -58,9 +63,11 @@ look!(m::Model, a::Agent) = look!(m.looked, m, a, a.x, a.y)
 
 Rule M with round vision (spec, rule 1): the agent scores its own site and every empty site it looks at with the same
 score as [`move!`](@ref), and jumps to the best. Ties go to the nearest site by torus distance, then to the first
-looked at; staying wins a tie with the own site. It harvests as `move!` does.
+looked at; staying wins a tie with the own site. It harvests as `move!` does. With speed on it is
+[`speed_move!`](@ref) instead (rule 2).
 """
 function xxl_move!(m::Model, a::Agent)
+    xxl_on(m.config, :speed) && return speed_move!(m, a)
     ls = m.landscape
     spice = m.config.spice
     w, h = ls.width, ls.height

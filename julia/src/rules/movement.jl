@@ -71,7 +71,8 @@ comparisons keep the first site encountered on ties. On the sugar-and-spice land
 the site's resources would bring (`welfare_score`, Chapter IV).
 """
 function move!(m::Model, a::Agent)
-    xxl_on(m.config, :disc) && return xxl_move!(m, a)  # xxl: round vision (the speed rules join it later)
+    # xxl: round vision (rule 1) or speed (rule 2)
+    (xxl_on(m.config, :disc) || xxl_on(m.config, :speed)) && return xxl_move!(m, a)
     ls = m.landscape
     spice = m.config.spice
     w, h = ls.width, ls.height
@@ -127,10 +128,12 @@ end
     metabolize!(m, a)
 
 Burn sugar (and spice) at the metabolic rates; die when either reaches zero (p.25, p.97). Pollution comes from sugar
-only: spice is a clean good (p.127).
+only: spice is a clean good (p.127). With xxl speed the agent also burns `travel_cost` per site it moved this period
+(spec, rule 2), which counts as burn for its income and for consumption pollution.
 """
 function metabolize!(m::Model, a::Agent)
     burn = sugar_burn(a)  # metabolism plus the fee for each active disease (p.143)
+    xxl_on(m.config, :speed) && (burn += m.config.xxl.travel_cost * a.moved_dist)
     a.sugar -= burn
     a.last_income -= burn
     spice = m.config.spice
