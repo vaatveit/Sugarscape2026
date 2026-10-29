@@ -302,7 +302,11 @@ function step!(m::Model)
     ls = m.landscape
     if cfg.seasons !== nothing
         beta, gamma = cfg.seasons
-        seasonal_growback!(ls, m.t, cfg.growback_rate, beta, gamma, cfg.winter_growback)
+        if xxl_on(cfg, :gradient)
+            seasonal_growback_gradient!(ls, m.t, cfg.growback_rate, beta, gamma)
+        else
+            seasonal_growback!(ls, m.t, cfg.growback_rate, beta, gamma, cfg.winter_growback)
+        end
     else
         growback!(ls, cfg.growback_rate)
     end

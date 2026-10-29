@@ -70,6 +70,31 @@ function seasonal_growback!(
     return ls
 end
 
+"""
+    seasonal_growback_gradient!(ls, t, alpha, beta, gamma)
+
+Rule 5 of the xxl set (spec, "Seasons by latitude"): the halves and their summers are those of
+[`seasonal_growback!`](@ref), but a row `j` in winter grows `alpha * beta^(-winter_weight(j - 1, height))` per period,
+so the rate runs from alpha at the equators (y = 0 and y = H/2) to the book's alpha/beta along the middle of each half.
+Only the fractional winter is defined. Spice follows the same rule.
+"""
+function seasonal_growback_gradient!(
+    ls::Landscape, t::Int, alpha::Float64, beta::Int, gamma::Int
+)
+    north_summer = is_summer_north(t, gamma)
+    h = ls.height
+    half = h ÷ 2
+    @inbounds for j in 1:h
+        north = j - 1 >= half
+        rate = north == north_summer ? alpha : alpha * beta^(-winter_weight(j - 1, h))
+        for i in 1:ls.width
+            ls.sugar[i, j] = min(ls.sugar[i, j] + rate, ls.capacity[i, j])
+            ls.spice[i, j] = min(ls.spice[i, j] + rate, ls.spice_capacity[i, j])
+        end
+    end
+    return ls
+end
+
 """D_alpha (p.48): each site's new pollution is the mean over its von Neumann neighbours, on the torus."""
 function diffuse!(ls::Landscape)
     p, out = ls.pollution, ls.scratch

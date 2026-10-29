@@ -20,7 +20,14 @@ export torus_delta,
     torus_dist, disc_offsets, near_offsets, ring_point, ring_draws, winter_weight
 export Remembered
 export Agent, Exchange, Loan, sugar_burn
-export Landscape, wrap, growback!, is_summer_north, seasonal_growback!, diffuse!, set_spice!
+export Landscape,
+    wrap,
+    growback!,
+    is_summer_north,
+    seasonal_growback!,
+    seasonal_growback_gradient!,
+    diffuse!,
+    set_spice!
 export Model,
     VON_NEUMANN,
     agent_at,
