@@ -538,9 +538,48 @@ change who an agent hears from.
   against 11.8, and 0.86 at distance 50, below the random 1: agents are spread out at long range. Mean sugar is
   224 against 199.
 - The same rules cost IV-A3's agents far more on the xl map than on the generated map, and II-4's agents hardly
-  differ. Why was not examined: the maps differ in feature scale, edges (the generated one wraps) and where the
-  food is, and this is one map pair.
+  differ. IV-A3 needs sugar and spice, and the xl map puts them in opposite places. II-4 eats only sugar, and gains
+  only from shorter climbs to richer land: see "Why the map matters" below.
 - Stepping is 4.5× xl's per period in II-4 and 2.9× in IV-A3.
+
+**Why the map matters.** This comes from tracing every founder of IV-A3 and II-4 under the full xxl defaults on each
+map, so the map is the only difference (seeds 0–2 each, 12 runs that reproduce the recorded populations exactly), and
+from measuring the maps. The two map pairs have the same number of sites at each capacity; only the layout differs.
+
+| | xl map | generated map |
+|---|---|---|
+| Correlation of sugar and spice capacity per site | −0.57 | −0.12 |
+| Sites with sugar ≥ 3 and spice ≥ 3 | 1,796 | 21,437 |
+| Sites with sugar ≥ 4 and spice ≥ 4 | 0 | 1,951 |
+
+- **IV-A3: where a founder starts decides whether it lives.**
+  - *The land near the start is the best predictor.* Score each founder by the best min(sugar, spice) capacity
+    within 20 sites of where it starts. Survival to t = 300 by that score is about the same on both maps: 0% at 0,
+    4–8% at 1, 15–19% at 2, 31–32% at 3 and 60% at 4 (the xl map has no land scoring 4).
+  - *The generated map starts far more founders near good land.* 13,319 of 60,000 score 3 or 4, against 1,789 on
+    the xl map, and 6,609 score 0, against 15,560.
+  - *That more than explains the gain.* The xl map's survival rates applied to the generated map's founders predict
+    10,900 survivors, against 9,344 actual and 6,290 on the xl map. The weaker scores survive a little less on the
+    generated map (4% against 8% at 1, 15% against 19% at 2), presumably from competition with the extra survivors
+    (not tested).
+  - *Survivors mostly feed themselves.* About 80% of the agents alive at t = 100 stand on a site that covers both
+    their metabolisms by itself (84% on the xl map, 79% on the generated one).
+  - *Metabolism matters; vision and speed barely do.* Survival rises for every pair of metabolisms, most for the
+    harder ones: sugar 1 with spice 3 goes from 16% to 31%, and sugar 2 with spice 2 from 24% to 36%. Across vision
+    and speed it varies by a few points at most.
+- **II-4: a gain of 4.5%, almost all from metabolism 2.** On the same rules, the generated map keeps 43,879 of
+  120,000 founders against 41,983 (so the inexact control above was not hiding a larger effect).
+  - *Who gains:* metabolism-2 survival rises from 40% to 46%, 1,930 of the 1,896 extra survivors. Metabolism 1
+    barely changes (+92), and metabolism 3 is slightly worse off (−126).
+  - *Why metabolism 2 gains:* under the travel-cost die-off (`XXL-speed` above), an agent on land whose capacity
+    equals its metabolism survives only by moving up to richer land as room opens. On the generated map,
+    capacity-2 land is about twice as close to capacity-3 land (a median of 12 steps against 23). So 75% of the
+    metabolism-2 agents on capacity-2 land at t = 100 die later, against 86% on the xl map.
+  - *Why metabolism 3 doesn't:* capacity-3 land is farther from capacity-4 land on the generated map (a mean of 38
+    steps against 24), so 86% of the metabolism-3 agents on capacity-3 land die later, against 84%.
+  - *The net is small* because these partly cancel, and II-4 never uses spice, where the maps differ most.
+- **Caveat.** This rests on one generated map pair. Its −0.12 correlation is that draw's chance, not a property of
+  the generator, so another pair would shift the numbers but not the mechanism.
 
 ### Combat (`XXL-combat`, III-9)
 
@@ -589,6 +628,7 @@ sugar and spice landscape (no combat).
   sds); price levels hardly change.
 - The latitude gradient raises population by about 10% and moves agents toward the equators in a small way.
 - On the generated landscape IV-A3's population is half as large again as on the xl map, and II-4's differs by
-  4%; each rests on one map pair.
+  4%; each rests on one map pair. The xl map puts sugar and spice in opposite places, so few IV-A3 founders start
+  near land that feeds both metabolisms. II-4 gains only from shorter climbs to richer land.
 - Combat survives the xxl rules, and the population does not collapse as in xl.
 - Everything in this section comes from one run per experiment, 5 seeds, on a machine whose load was not recorded.
