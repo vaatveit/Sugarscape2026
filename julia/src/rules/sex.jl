@@ -54,8 +54,12 @@ function in_sight(m::Model, a::Agent)
     return found
 end
 
-"""Adds the empty von Neumann sites around `a` not already listed (Python's dict.fromkeys order)."""
+"""
+Adds the empty von Neumann sites around `a` not already listed (Python's dict.fromkeys order). Under xxl rule 4
+(interaction radius R ≠ 1): the empty sites within R.
+"""
 function add_empty_sites!(sites::Vector{Tuple{Int,Int}}, m::Model, a::Agent)
+    xxl_on(m.config, :radius) && return radius_empty_sites!(sites, m, a)
     for (dx, dy) in VON_NEUMANN
         s = wrap(m, a.x + dx, a.y + dy)
         m.grid[s[1] + 1, s[2] + 1] === nothing && !(s in sites) && push!(sites, s)

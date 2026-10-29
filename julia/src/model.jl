@@ -114,9 +114,13 @@ wrap(m::Model, x::Int, y::Int) = wrap(m.landscape, x, y)
     return @inbounds m.grid[x + 1, y + 1]
 end
 
-"""Living agents on the four von Neumann sites around `a` (p.39), in the order E, W, N, S."""
+"""
+Living agents on the four von Neumann sites around `a` (p.39), in the order E, W, N, S. Under xxl rule 4 (interaction
+radius R ≠ 1): those within R, nearest first.
+"""
 function neighbors_of(m::Model, a::Agent)
     found = Agent[]
+    xxl_on(m.config, :radius) && return radius_neighbors!(found, m, a)
     for (dx, dy) in VON_NEUMANN
         other = agent_at(m, a.x + dx, a.y + dy)
         other === nothing || push!(found, other)
@@ -313,6 +317,7 @@ function step!(m::Model)
 end
 
 function set_neighbors!(m::Model, a::Agent)
+    xxl_on(m.config, :radius) && return radius_neighbors!(a.neighbors, m, a)
     empty!(a.neighbors)
     for (dx, dy) in VON_NEUMANN
         other = agent_at(m, a.x + dx, a.y + dy)

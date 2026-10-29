@@ -68,6 +68,7 @@ include("xxl/vision.jl")
 include("xxl/speed.jl")
 include("xxl/memory.jl")
 include("xxl/combat.jl")
+include("xxl/radius.jl")
 include("stats.jl")
 include("runner.jl")
 
