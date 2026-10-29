@@ -3,20 +3,18 @@ using Sugarscape, Test
 
 @testset "XxlRules" begin
     @test XXL_BOOK == XxlRules()
-    @test XXL_DEFAULTS.speed == (1, 6) &&
-        XXL_DEFAULTS.memory == 8 &&
-        XXL_DEFAULTS.vision_shape == "disc"
+    @test XXL_V1.speed == (1, 6) && XXL_V1.memory == 8 && XXL_V1.vision_shape == "disc"
     @test Config().xxl === nothing
     reg = load_registry()
     ii4 = find_experiment(reg, "II-4")
-    c = to_xxl(ii4.config)
-    @test c.xxl == replace_rules(XXL_DEFAULTS; season_gradient=false)  # II-4 has no seasons
+    c = to_xxl(ii4.config, XXL_V1)
+    @test c.xxl == replace_rules(XXL_V1; season_gradient=false)  # II-4 has no seasons
     @test c.width == 500 && c.sugar_map == "sugar-map-xl.txt"
-    @test to_xxl(find_experiment(reg, "II-7").config).xxl.season_gradient
+    @test to_xxl(find_experiment(reg, "II-7").config, XXL_V1).xxl.season_gradient
     @test replace_config(c; xxl=nothing) == to_xl(ii4.config)
     @test to_xxl(ii4.config, XxlRules(; landscape="generated")).sugar_map ==
         "sugar-map-xxl.txt"
-    @test to_xxl(find_experiment(reg, "III-9").config).combat_alpha == Inf  # combat is supported
+    @test to_xxl(find_experiment(reg, "III-9").config, XXL_V1).combat_alpha == Inf  # combat is supported
     @test_throws ArgumentError to_xxl(to_xl(ii4.config))                     # to_xl refuses
     x = to_xl(ii4.config)
     for bad in (

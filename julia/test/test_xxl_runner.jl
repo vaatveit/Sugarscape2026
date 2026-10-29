@@ -27,7 +27,8 @@ const XTINY = find_experiment(XREG, "TEST-tiny")
         end
         fp = read(joinpath(folder, "fingerprint.txt"), String)
         @test startswith(
-            fp, "julia\nxxl vision_shape=\"disc\" speed=(1, 6) travel_cost=0.1 "
+            Sugarscape.xxl_fingerprint(XTINY, XXL_V1),
+            "julia\nxxl vision_shape=\"disc\" speed=(1, 6) travel_cost=0.1 ",
         )
         @test fp == Sugarscape.xxl_fingerprint(XTINY, XXL_DEFAULTS)
         timing = readlines(joinpath(folder, "timing.csv"))
@@ -35,14 +36,14 @@ const XTINY = find_experiment(XREG, "TEST-tiny")
     end
 
     @testset "the fingerprint" begin
-        line = Sugarscape.rules_line(XXL_DEFAULTS)
+        line = Sugarscape.rules_line(XXL_V1)
         @test line ==
             "vision_shape=\"disc\" speed=(1, 6) travel_cost=0.1 memory=8 memory_span=50 " *
               "word_of_mouth=true interaction_radius=1.5 season_gradient=true landscape=\"xl\""
         @test startswith(
             Sugarscape.rules_line(XXL_BOOK), "vision_shape=\"lattice\" speed=nothing "
         )
-        fp = Sugarscape.xxl_fingerprint(XTINY, XXL_DEFAULTS)
+        fp = Sugarscape.xxl_fingerprint(XTINY, XXL_V1)
         # TEST-tiny has no seasons, so the gradient that did not apply is not named.
         @test startswith(fp, "julia\nxxl ") && occursin("season_gradient=false", fp)
         @test occursin("\n" * XTINY.xl_fingerprint, fp)
@@ -115,17 +116,17 @@ const XTINY = find_experiment(XREG, "TEST-tiny")
             ("II-4", replace_rules(disc_speed(0.1); memory=8, word_of_mouth=true))
         for (id, r) in (("R1", 1.0), ("R1.5", 1.5), ("R3", 3.0))
             @test table["XXL-radius/$id"] ==
-                ("IV-A3", replace_rules(XXL_DEFAULTS; interaction_radius=r))
+                ("IV-A3", replace_rules(XXL_V1; interaction_radius=r))
         end
         @test table["XXL-seasons/halves"] ==
-            ("II-7", replace_rules(XXL_DEFAULTS; season_gradient=false))
-        @test table["XXL-seasons/gradient"] == ("II-7", XXL_DEFAULTS)
+            ("II-7", replace_rules(XXL_V1; season_gradient=false))
+        @test table["XXL-seasons/gradient"] == ("II-7", XXL_V1)
         @test table["XXL-terrain/II-4"] ==
-            ("II-4", replace_rules(XXL_DEFAULTS; landscape="generated"))
+            ("II-4", replace_rules(XXL_V1; landscape="generated"))
         @test table["XXL-terrain/IV-A3"] ==
-            ("IV-A3", replace_rules(XXL_DEFAULTS; landscape="generated"))
-        @test table["XXL-society/VI-1"] == ("VI-1", XXL_DEFAULTS)
-        @test table["XXL-combat/III-9"] == ("III-9", XXL_DEFAULTS)
+            ("IV-A3", replace_rules(XXL_V1; landscape="generated"))
+        @test table["XXL-society/VI-1"] == ("VI-1", XXL_V1)
+        @test table["XXL-combat/III-9"] == ("III-9", XXL_V1)
 
         # Every one of them is a valid config over its base.
         for id in ids

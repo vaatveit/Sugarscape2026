@@ -36,8 +36,8 @@ end
 "Every xxl setting at the book's value (the book column of the spec's table)."
 const XXL_BOOK = XxlRules()
 
-"The xxl default column of the spec's table."
-const XXL_DEFAULTS = XxlRules(;
+"The first xxl rules, frozen: the xxl column of the first spec's table. Later changes to the defaults leave these alone."
+const XXL_V1 = XxlRules(;
     vision_shape="disc",
     speed=(1, 6),
     travel_cost=0.1,
@@ -48,6 +48,9 @@ const XXL_DEFAULTS = XxlRules(;
     season_gradient=true,
     landscape="xl",
 )
+
+"The xxl default column of the spec's table; for now the first rules."
+const XXL_DEFAULTS = XXL_V1
 
 """
     replace_rules(rules; kw...) -> XxlRules
