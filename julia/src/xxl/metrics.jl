@@ -18,12 +18,15 @@ const REGION_SIZE = 50  # regional prices: regions are 50 x 50 sites
 const SLOPE_EXCHANGES = 2_000  # price_distance_slope reads this many of the period's exchanges, in log order
 
 """
-    metric_columns(cfg) -> Vector{String}
+    metric_columns(cfg; scorecard=false) -> Vector{String}
 
-The metric names, in order: the 45 of [`METRIC_COLUMNS`](@ref), then [`XXL_METRIC_COLUMNS`](@ref) for an xxl config.
+The metric names, in order: the 45 of [`METRIC_COLUMNS`](@ref), then [`XXL_METRIC_COLUMNS`](@ref) for an xxl config,
+then the scorecard's [`SCORECARD_COLUMNS`](@ref) when `scorecard` is true (xxl/scorecard_metrics.jl).
 """
-function metric_columns(cfg::Config)
-    return cfg.xxl === nothing ? METRIC_COLUMNS : vcat(METRIC_COLUMNS, XXL_METRIC_COLUMNS)
+function metric_columns(cfg::Config; scorecard::Bool=false)
+    columns =
+        cfg.xxl === nothing ? METRIC_COLUMNS : vcat(METRIC_COLUMNS, XXL_METRIC_COLUMNS)
+    return scorecard ? vcat(columns, SCORECARD_COLUMNS) : columns
 end
 
 """

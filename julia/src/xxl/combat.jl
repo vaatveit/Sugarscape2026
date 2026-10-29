@@ -141,6 +141,7 @@ function xxl_combat_move!(m::Model, a::Agent)
         take = min(alpha, best_victim.sugar)
         best_victim.sugar -= take
         a.sugar += take
+        push!(m.killed, best_victim.id)  # for the scorecard's deaths by cause
         die!(m, best_victim)
     end
     x, y = best_land

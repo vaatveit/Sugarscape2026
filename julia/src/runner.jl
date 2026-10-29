@@ -27,16 +27,24 @@ end
 seconds_since(t0::UInt64) = (time_ns() - t0) / 1e9
 
 """
-    timed_seed(exp, k; xl=false, xxl=nothing) -> (rows, timing)
+    timed_seed(exp, k; xl=false, xxl=nothing, scorecard=false) -> (rows, timing)
 
 Seed k of an experiment (or its xl version, or its xxl version under the given `XxlRules`), timed as `experiments.run.timed_seed` divides the work (docs/xl.md,
 "Timing"): building the model, the model's own steps, and collecting each period's metrics, t = 0 included. Each
 row is `t` followed by the metrics in `metric_columns` order (the 45 of `METRIC_COLUMNS`, plus the xxl nine for xxl).
+With `scorecard` (xxl only) each row also carries [`SCORECARD_COLUMNS`](@ref), timed as metrics.
 """
 function timed_seed(
-    exp::Experiment, k::Int; xl::Bool=false, xxl::Union{Nothing,XxlRules}=nothing
+    exp::Experiment,
+    k::Int;
+    xl::Bool=false,
+    xxl::Union{Nothing,XxlRules}=nothing,
+    scorecard::Bool=false,
 )
     xl && xxl !== nothing && throw(ArgumentError("xxl and xl runs are separate"))
+    scorecard &&
+        xxl === nothing &&
+        throw(ArgumentError("the scorecard columns are for xxl runs"))
     cfg = if xxl !== nothing
         to_xxl(exp.config, xxl)
     else
@@ -48,6 +56,7 @@ function timed_seed(
     agents_start = length(m.agents)
     rows = Vector{Vector{Float64}}()
     stepping = measuring = 0.0
+    tracker = scorecard ? ScorecardTracker(m) : nothing
     for period in 0:(exp.steps)
         if period > 0
             t0 = time_ns()
@@ -55,7 +64,9 @@ function timed_seed(
             stepping += seconds_since(t0)
         end
         t0 = time_ns()
-        push!(rows, pushfirst!(collect_metrics(m), m.t))
+        row = pushfirst!(collect_metrics(m), m.t)
+        tracker === nothing || scorecard_metrics!(row, m, tracker)
+        push!(rows, row)
         measuring += seconds_since(t0)
     end
     timing = (
@@ -105,7 +116,7 @@ end
 
 """
 One seed in a worker: warm up first, name the experiment and seed in any error. `run_seed` gets `xxl` only when it is
-set, so a stand-in taking just `xl` still works.
+set, and `scorecard` only when it is true, so a stand-in taking just `xl` still works.
 """
 function seed_job(
     exp::Experiment,
@@ -113,10 +124,13 @@ function seed_job(
     xl::Bool,
     run_seed=timed_seed;
     xxl::Union{Nothing,XxlRules}=nothing,
+    scorecard::Bool=false,
 )
     try
         warm = warm_up!(exp; xxl=xxl)
-        rows, timing = if xxl === nothing
+        rows, timing = if scorecard
+            run_seed(exp, k; xl=xl, xxl=xxl, scorecard=true)
+        elseif xxl === nothing
             run_seed(exp, k; xl=xl)
         else
             run_seed(exp, k; xl=xl, xxl=xxl)
@@ -128,44 +142,64 @@ function seed_job(
 end
 
 """
-    run_experiment(exp; seeds=exp.seeds, jobs=1, out=RESULTS, xl=false, xxl=nothing, note="", run_seed=timed_seed)
+    run_experiment(exp; seeds=exp.seeds, first_seed=0, jobs=1, out=RESULTS, xl=false, xxl=nothing, scorecard=false,
+                   note="", run_seed=timed_seed)
 
-Runs seeds 0..seeds-1 and only then replaces the folder's results, so a failed run leaves the old ones. With
-`jobs > 1`, seeds run in that many worker processes, one seed at a time each (one core per seed). With `xxl` rules the
-run is the experiment's xxl version: the CSVs carry the xxl metric columns and the fingerprint is
-[`xxl_fingerprint`](@ref).
+Runs seed indices first_seed..first_seed+seeds-1 and only then replaces the folder's results, so a failed run leaves
+the old ones: with the default first seed every old seed file goes, otherwise only those it rewrites, so that seed
+sets can share a folder. Each seed k is written to `seed<k>.csv`. With `jobs > 1`, seeds run in that many worker
+processes, one seed at a time each (one core per seed). With `xxl` rules the run is the experiment's xxl version: the
+CSVs carry the xxl metric columns and the fingerprint is [`xxl_fingerprint`](@ref). `scorecard` (xxl only) appends
+[`SCORECARD_COLUMNS`](@ref).
 """
 function run_experiment(
     exp::Experiment;
     seeds::Int=exp.seeds,
+    first_seed::Int=0,
     jobs::Int=1,
     out::AbstractString=RESULTS,
     xl::Bool=false,
     xxl::Union{Nothing,XxlRules}=nothing,
+    scorecard::Bool=false,
     note::AbstractString="",
     run_seed=timed_seed,
 )
+    scorecard &&
+        xxl === nothing &&
+        throw(ArgumentError("the scorecard columns are for xxl runs: pass xxl rules"))
+    indices = first_seed:(first_seed + seeds - 1)
     if jobs > 1 && seeds > 1
         workers = addprocs(min(jobs, seeds))
         try
             remotecall_eval(Main, workers, :(using Sugarscape))
             pool = WorkerPool(workers)
             results = pmap(
-                k -> Sugarscape.seed_job(exp, k, xl, run_seed; xxl=xxl), pool, 0:(seeds - 1)
+                k ->
+                    Sugarscape.seed_job(exp, k, xl, run_seed; xxl=xxl, scorecard=scorecard),
+                pool,
+                indices,
             )
         finally
             rmprocs(workers)
         end
     else
-        results = [seed_job(exp, k, xl, run_seed; xxl=xxl) for k in 0:(seeds - 1)]
+        results = [
+            seed_job(exp, k, xl, run_seed; xxl=xxl, scorecard=scorecard) for k in indices
+        ]
     end
-    columns = xxl === nothing ? METRIC_COLUMNS : metric_columns(to_xxl(exp.config, xxl))
+    columns = if xxl === nothing
+        METRIC_COLUMNS
+    else
+        metric_columns(to_xxl(exp.config, xxl); scorecard=scorecard)
+    end
     folder = mkpath(result_dir(out, exp.id))
+    rewritten = Set("seed$k.csv" for k in indices)
     for old in readdir(folder)
-        occursin(r"^seed\d+\.csv$", old) && rm(joinpath(folder, old))
+        occursin(r"^seed\d+\.csv$", old) || continue
+        (first_seed == 0 || old in rewritten) && rm(joinpath(folder, old))
     end
-    for (k, (rows, _, _)) in enumerate(results)
-        write_seed_csv(joinpath(folder, "seed$(k - 1).csv"), rows; columns=columns)
+    for (k, (rows, _, _)) in zip(indices, results)
+        write_seed_csv(joinpath(folder, "seed$k.csv"), rows; columns=columns)
     end
     write_timing_csv(joinpath(folder, "timing.csv"), [timing for (_, timing, _) in results])
     write(

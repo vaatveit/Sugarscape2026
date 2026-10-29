@@ -44,6 +44,7 @@ mutable struct Model{R<:AbstractRNG}
     pool_values::Vector{Float64}  # xxl scratch: the kept entries' net values
     viable_fallbacks::Int  # xxl: new agents placed off viable land because none was free (spawn_viable!)
     viable_sites::Dict{Tuple{Int,Int},Vector{Int32}}  # xxl: the grid's viable sites by metabolism pair, built lazily
+    killed::Set{Int}  # xxl: ids of the agents killed in combat this period (xxl_combat_move!), for the scorecard
 end
 
 """
@@ -103,6 +104,7 @@ function Model(
         Float64[],
         0,
         Dict{Tuple{Int,Int},Vector{Int32}}(),
+        Set{Int}(),
     )
     cfg.disease_list > 0 && init_disease_list!(m)
     place_initial_population!(m)
@@ -280,6 +282,7 @@ aging and old-age death, loan settlement, replacement, growback (or seasons), an
 function step!(m::Model)
     cfg = m.config
     empty!(m.dead_this_step)
+    isempty(m.killed) || empty!(m.killed)
     empty!(m.trade_log)
     empty!(m.infection_log)
     for a in m.agents
