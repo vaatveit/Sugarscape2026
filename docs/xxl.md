@@ -319,4 +319,190 @@ Where a metric doesn't apply it is `nan`.
 
 ## Results
 
-Results follow.
+First runs of the 16 `XXL-…` experiments (2026-10-28), 5 seeds each, against fresh Julia xl runs of the five base
+experiments (10 seeds for II-4, IV-A3 and III-9; 5 for II-7 and VI-1; all fingerprints current). These are findings,
+not pass/fail thresholds: xxl is a different model, and a difference from xl says what a change does, not that
+something is wrong. Everything below is read from `julia --project=julia julia/xxl_report.jl`; figures are the
+mean across seeds ± the standard deviation across seeds (n − 1), at t = 50, 100, 200 and over the last 100 periods
+("final" below). "xl" means the base experiment's Julia xl run.
+
+**How to read the spreads.** Seed spreads are small next to most differences below (population sd is 0.3–1% of the
+mean in the II-4 family and up to 2% in IV-A3's), but five seeds is few, and VI-1 and III-9 at the end are far
+noisier (their final population sds are 8% and 6.5% of the mean). Each experiment was run once.
+
+**Timings.** One job (`--jobs 1`), one thread, an i7-13700K, Julia 1.13.2, stepping only (docs/xl.md, "Timing").
+The machine was not recorded as quiet. It is noisy in absolute terms: this batch's xl II-4 stepped at 0.037 s per
+period, against 0.014 s in [julia/README.md](../julia/README.md)'s earlier measurement of the same run, so compare
+only the ratios inside this table, and treat even those as indicative. Seconds per period are the mean over seeds
+and periods; agents are the mean at the start and end of a run.
+
+| Experiment | Base | xxl s/period | xl s/period | Ratio | Agents, xxl start → end | xl end |
+|---|---|---|---|---|---|---|
+| `XXL-vision` | II-4 | 0.050 | 0.037 | 1.4 | 40,000 → 22,948 | 23,828 |
+| `XXL-speed/c0` | II-4 | 0.094 | 0.037 | 2.6 | 40,000 → 19,075 | 23,828 |
+| `XXL-speed/c0.05` | II-4 | 0.088 | 0.037 | 2.4 | 40,000 → 18,491 | 23,828 |
+| `XXL-speed/c0.1` | II-4 | 0.080 | 0.037 | 2.2 | 40,000 → 13,997 | 23,828 |
+| `XXL-speed/c0.2` | II-4 | 0.072 | 0.037 | 2.0 | 40,000 → 13,461 | 23,828 |
+| `XXL-memory/solo` | II-4 | 0.146 | 0.037 | 4.0 | 40,000 → 13,993 | 23,828 |
+| `XXL-memory/shared` | II-4 | 0.155 | 0.037 | 4.2 | 40,000 → 13,999 | 23,828 |
+| `XXL-radius/R1` | IV-A3 | 0.071 | 0.033 | 2.2 | 20,000 → 2,069 | 3,253 |
+| `XXL-radius/R1.5` | IV-A3 | 0.071 | 0.033 | 2.2 | 20,000 → 2,096 | 3,253 |
+| `XXL-radius/R3` | IV-A3 | 0.078 | 0.033 | 2.4 | 20,000 → 2,139 | 3,253 |
+| `XXL-seasons/halves` | II-7 | 0.120 | 0.030 | 4.0 | 40,000 → 11,196 | 17,621 |
+| `XXL-seasons/gradient` | II-7 | 0.135 | 0.030 | 4.5 | 40,000 → 12,293 | 17,621 |
+| `XXL-terrain/II-4` | II-4 | 0.165 | 0.037 | 4.5 | 40,000 → 14,653 | 23,828 |
+| `XXL-terrain/IV-A3` | IV-A3 | 0.094 | 0.033 | 2.9 | 20,000 → 3,100 | 3,253 |
+| `XXL-combat/III-9` | III-9 | 0.346 | 0.035 | 10.0 | 54,000 → 19,081 | 303 |
+| `XXL-society/VI-1` | VI-1 | 0.934 | 0.515 | 1.8 | 20,000 → 64,279 | 89,367 |
+
+Wall clock for the batch (from the run log, one job): the five xl bases took 39 minutes (VI-1 26 of them); the xxl
+families took 2 h 20 min: `XXL-vision` 4 min, `XXL-speed` 18, `XXL-memory` 15, `XXL-radius` 6, `XXL-seasons` 13,
+`XXL-terrain` 11, `XXL-combat` 32 and `XXL-society` 42. Part of each ratio is the population (a run with fewer
+agents steps faster), so the ratios understate the per-agent cost where xxl ends with fewer agents (most of them).
+The memory runs cost the most per agent, about twice the same speed run without memory (below).
+
+### Round vision (`XXL-vision`, II-4)
+
+Disc vision alone, with no speed: agents jump to the best site they see, as in the book.
+- **Population is 2–4% below xl** at every checkpoint: 24,832 ± 91 against 25,834 ± 123 at t = 50, and 23,076 ± 89
+  against 23,894 ± 88 final. Mean sugar is 3% above xl at t = 50 (78.7 against 76.2) and 4% below it final (490 against
+  509).
+- **Inequality is higher later:** Gini 0.397 against 0.382 at t = 200 and 0.412 ± 0.001 against 0.390 ± 0.002 final.
+- **Agents move far:** 5.1–6.0 sites per period on average, with 5% staying put.
+- **They cluster.** The pair correlation is 1.7–2.2 at distance 1, 1.9–2.3 at 10 and 1.6–1.8 at 50, rising over the
+  run: long jumps pile agents onto the same peaks. (The speed runs below are at 1.0–1.5.)
+- Stepping costs 1.4× xl's per period.
+
+### Speed and travel cost (`XXL-speed`, II-4)
+
+Disc vision, speed (1, 6), and travel cost c = 0, 0.05, 0.1, 0.2.
+- **Speed alone removes about a quarter of the early population.** At t = 50 all four are at 19.3–19.5k (sd 65–80),
+  against 25.8k for xl (the cause was not examined: presumably agents that can no longer jump to a distant site
+  crowd and starve). This does not depend on c.
+- **Without a travel cost the population then holds:** c = 0 is at 19,459, 19,396, 19,273 and 19,110 ± 66 (final), and
+  c = 0.05 slides slowly to 18,698 ± 63 final.
+- **c = 0.1 and c = 0.2 add a second die-off** after t ≈ 150–200, over a few hundred periods. Population at t = 50,
+  150, 250, 350 and 500: c = 0.1: 19.4k, 19.2k, 18.7k, 16.6k, 14.0k, still falling at t = 500 (final 14,703 ± 93); c = 0.2:
+  19.3k, 17.6k, 13.6k, 13.5k, 13.5k, levelling off at about 13,460 ± 92 from t ≈ 250. These runs were not examined further
+  for who dies; the travel cost per period is small (mean distance moved is under 1 site, so about 0.09 sugar for
+  c = 0.1, against metabolisms of 1–4), so it presumably tips agents who were barely breaking even.
+- **Survivors are richer and the Gini is not monotone in c.** Final mean sugar is 453 (c = 0), 442, 542 (c = 0.1), 546
+  (c = 0.2), against xl's 509. The Gini at t = 200 is 0.459, 0.475, 0.491, 0.415, against 0.382 for xl, and final 0.493,
+  0.502, 0.386, 0.355 against 0.390: it rises while the population is stable, and falls when the die-off removes the
+  poor.
+- **Agents barely move.** Mean distance moved is 0.89–1.0 site per period at every c, with 10–15% settled, although
+  the mean speed is 3.5. Presumably, with growback of 1 per period and vision of 10 or more, the best site is usually
+  the nearest one that has regrown, one site away (not tested). The pair correlation is 1.0–1.5, much less clustered than round vision without
+  speed (1.7–2.3).
+- Stepping is 2.0–2.6× xl's, less at high c because there are fewer agents.
+
+### Memory and word of mouth (`XXL-memory`, II-4)
+
+**A null result: memory changes nothing here.** `solo` and `shared` match `XXL-speed/c0.1` within the seed spread at
+every checkpoint (final population 14,703 ± 89 and 14,704 ± 92 against 14,703 ± 93; final Gini 0.386 in all three; mean
+sugar 542 in all three). The seeds agree with the speed run even in the fourth digit, because neither memory nor word
+of mouth draws random numbers, so the runs differ only where an agent acts on a memory. That almost never happens: the
+share of agents whose target is a remembered site beyond vision is exactly 0 in every period of the two seeds
+checked (0 and 3) of `XXL-memory/solo`, `/shared`, `XXL-radius/R1.5` and `XXL-terrain/IV-A3`, and in `XXL-seasons/halves`, `XXL-society/VI-1` and
+`XXL-combat/III-9` it is nonzero in only 1 to 19 periods of 500 or 1000, at most about 9 × 10⁻⁵ of the agents.
+Why is not tested here. It looks structural: a site can only be a remembered
+target once it is beyond the vision of 10–60 sites that an agent has, but agents move about one site per period and
+the map has large plateaus of equal sites, so a visible site is nearly always as good and closer. A different setting
+(slower growback, smaller vision, patchier food, a larger speed) would be needed for memory to matter.
+
+Memory has a cost: 0.146 and 0.155 s per period against 0.080 for the same run without it (1.8–1.9×), for no change.
+
+### Interaction radius (`XXL-radius`, IV-A3)
+
+Full xxl defaults on IV-A3 (trade), R = 1, 1.5 and 3.
+- **xxl is far from xl in this experiment, at any R.** Final population is 2,181 ± 23 (R = 1), 2,199 ± 39 (1.5) and
+  2,251 ± 29 (3), against 3,739 ± 72 for xl; at t = 50 it is 3.9–4.1k against 8.7k. Final mean sugar is 198–199
+  against 120.
+- **R makes a small difference to survival** (R = 3 is 3% above R = 1 final, 2,251 against 2,181, seed sds 23–29),
+  and a large one to trade: trades per period rise with R, final 1,034 ± 60, 1,198 ± 46 and 1,508 ± 46, as the
+  number of neighbours grows; xl has 3,894 ± 139 with about 1.7× the population.
+- **Prices spread more than in xl, whatever R.** Final price sd is 0.78, 0.78 and 0.82 against 0.56 for xl.
+  Regional price sd (between the hundred 50 × 50 regions) is 1.13, 1.14 and 1.17, and the slope of |Δ log price| on
+  distance is about 0.0012–0.0013 per site in all three: a trade 100 sites away differs in log price by about 0.12
+  more than a neighbouring one. R barely moves these.
+- **Agents clump hard.** The pair correlation at distance 1 is 11.4–12.0 final (from 1.5 at t = 50) at all three R, at 10 it
+  is 2.9–3.0, and at 50 it is about 1.1: small, dense groups on the best sites. The R = 3 run is slightly less
+  clustered at distance 1 (11.4 against 12.0, about two sds).
+- Stepping is 2.2–2.4× xl's. R barely changes the cost.
+
+### Seasons by latitude (`XXL-seasons`, II-7)
+
+Full xxl defaults on II-7, without and with the gradient.
+- **The gradient makes a difference.** Final population is 12,605 ± 57 with it against 11,282 ± 36 without (+12%), and
+  at t = 50, 17,443 ± 29 against 15,916 ± 28 (+10%). xl has 17,650 ± 81 final and 22,667 at t = 50.
+- **Final mean sugar is 445 against 398** (xl 441). At t = 100 and 200 it is 96 and 176 with the gradient against 89 and
+  175.
+- **Inequality differs in the middle:** Gini 0.389 and 0.425 at t = 100 and 200 with the gradient against 0.364 and 0.359,
+  and the same at the end (0.355 against 0.349). Both are above xl's 0.30.
+- **Migration toward the equators is modest.** The mean winter weight λ is 0.62–0.66 with halves, close to the 2/π ≈ 0.64
+  of agents spread evenly over latitude; with the gradient it is 0.57–0.62, lower at every checkpoint: 0.575, 0.572 and 0.599
+  at t = 100, 200 and final. That is a drift of 0.02–0.07 in λ, not a mass move; the t checkpoints sit at fixed phases
+  of the season cycle, so those figures are not season-averaged (the final column averages the last 100 periods).
+- Stepping is 4.0× (halves) and 4.5× (gradient) xl's per period.
+
+### Generated landscape (`XXL-terrain`, II-4 and IV-A3)
+
+Full xxl defaults on the generated maps (400 Gaussian bumps, radii 5–80, the xl map's capacity counts). The
+control for II-4 is `XXL-memory/shared`, and for IV-A3 `XXL-radius/R1.5`: the same rules on the xl map. (For II-4
+the control differs only by R = 1 against 1.5, which II-4 doesn't use.)
+- **II-4:** population is 4% above the control final (15,272 ± 37 against 14,704 ± 92), 2% above at t = 50 and 100.
+  Mean sugar and Gini are close (537 and 0.387 against 542 and 0.386). The pair correlation final is 1.47 against
+  1.25 at distance 1, 1.51 against 1.50 at 10 and 1.25 against 1.35 at 50.
+- **IV-A3:** the population is 49% above the control final: 3,286 ± 49 against 2,199 ± 39, and 41% above it at t = 50
+  (5,545 against 3,933). It is 12% below xl (3,739). Trades per period double (2,591 ± 94 against 1,198 ± 46), price sd
+  is lower (0.58 against 0.78), regional price sd is lower (0.73 against 1.14), and clustering at distance 1 is 8.5
+  against 11.8, and 0.86 at distance 50, below the random 1: agents are spread out at long range. Mean sugar is
+  224 against 199.
+- The same rules cost IV-A3's agents far more on the xl map than on the generated map, and II-4's agents hardly
+  differ. Why was not examined: the maps differ in feature scale, edges (the generated one wraps) and where the
+  food is, and this is one map pair.
+- Stepping is 4.5× xl's per period in II-4 and 2.9× in IV-A3.
+
+### Combat (`XXL-combat`, III-9)
+
+Full xxl defaults on III-9, which is combat (rule C with α = ∞, the reward being the victim's wealth) between tribes
+placed in blocks.
+- **Combat is far less lethal under xxl.** xl III-9 falls from 54,000 to 435 ± 422 by the last 100 periods (Gini 0.80 ±
+  0.10, mean sugar 40,011 ± 17,900 among a few rich survivors). xxl keeps 19,373 ± 1,260 (Gini 0.37 ± 0.03, mean sugar
+  1,365 ± 48). At t = 100 xxl has 27,813 against xl's 27,060, and at t = 200 26,298 against 18,311: the paths diverge
+  after about t = 100.
+- **Agents never rest:** 1% settled, 1.3 sites moved per period.
+- **Agents cluster** at 1.9–2.5 at distances 1, 10 and 50, a flat profile, not the sharp short-range clumps of IV-A3.
+- Stepping is 10× xl's per period (0.346 against 0.035 s), the largest ratio of all, with 63× the final population
+  (19,081 against 303), which accounts for most of it.
+- This experiment exercises rule 7 under speed and memory together; it does not isolate combat's effect, and has no
+  control without combat on the same rules.
+
+### Society (`XXL-society`, VI-1)
+
+Full xxl defaults on VI-1, which has the Chapter VI rules at once: sex, culture, trade, credit and disease on the
+sugar and spice landscape (no combat).
+- **Deeper early trough, then growth.** Population is 1,677 ± 74 at t = 50 and 1,040 ± 153 at t = 100 (xl 4,210 and
+  5,075), 13,144 ± 2,320 at t = 200 (xl 50,613 ± 8,910), and 61,596 ± 4,800 final (xl 89,507 ± 8,880). No seed went
+  extinct: the five end at 58,131–66,507.
+- **Mean sugar and Gini end near xl's:** 28.4 ± 0.7 against 29.2 ± 0.3, and 0.206 in both. At t = 100 mean sugar is 61.6
+  against 43.8.
+- **Trades are fewer** (17,552 ± 1,640 final against 101,940 ± 36,300; about 0.28 per agent against 1.1) and price sd is
+  higher (0.51 against 0.40).
+- **Clustering is extreme at t = 100:** 20.8 ± 10.2 at distance 1 and 15.2 ± 7.2 at 10, with a wide spread across
+  seeds, and falls to 1.9–2.0 by the end (1.8 at 50).
+- Stepping is 1.8× xl's per period (0.93 against 0.52 s) with 28% fewer agents at the end. A full run of five seeds took
+  42 minutes, far less than the several hours expected from the xl timings.
+
+### What the first runs show
+
+- In II-4, speed alone costs about a quarter of the early population, and a travel cost of 0.1 or more adds a second
+  die-off.
+- Round vision without speed changes xl little (2–4% less population) but clusters agents.
+- Memory and word of mouth are inert at these settings.
+- The interaction radius changes trade volume, not survival or price levels.
+- The latitude gradient raises population by about 10% and moves agents toward the equators in a small way.
+- On the generated landscape IV-A3's population is half as large again as on the xl map, and II-4's differs by
+  4%; each rests on one map pair.
+- Combat survives the xxl rules, and the population does not collapse as in xl.
+- Everything in this section comes from one run per experiment, 5 seeds, on a machine whose load was not recorded.
