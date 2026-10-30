@@ -20,7 +20,7 @@ The work goes in stages, each with its own spec (my call, following the recommen
 |---|---|---|
 | 0 | The scorecard: how "well-functioning" is measured | this one |
 | 1 | Survival: founding and the travel-cost trap | this one |
-| 2 | Contact and demography: meeting, mating, births | later |
+| 2 | Extinction risk | `docs/superpowers/specs/2026-10-30-xxl-extinction-risk-design.md` |
 | 3 | Economy: trade and credit | later |
 | 4 | Disease | later |
 
@@ -124,7 +124,7 @@ artifact.
 | Check | Passes when | Aspect |
 |---|---|---|
 | X1 Births keep up | Over the last 200 periods of VI-1, births ÷ deaths is within 0.9–1.1 (mean over seeds) | Sex |
-| X2 Mates in reach | At VI-1's trough, ≥ 50% of fertile agents have a fertile agent of the other sex in mating reach (revised 2026-10-30, the user's call: the reach `mate_contact` sets, in sight under `"vision"`, VI-1's setting, else the interaction radius) | Sex |
+| X2 Mates in reach | Reported only, no threshold (the user's call, 2026-10-30; see the stage-2 spec, "X2 stops being a target"): at VI-1's trough, the share of fertile agents with a fertile agent of the other sex in mating reach, the reach `mate_contact` sets (in sight under `"vision"`, VI-1's setting, else the interaction radius). Stage 1 asked ≥ 50% | Sex |
 | X3 Both cultures live | In ≥ 80% of VI-1 seeds both tribes hold ≥ 5% of the population at t = 200 | Culture |
 | X4 Culture moves | Tag flips per agent per period > 0 throughout VI-1 (culture transmission is happening) | Culture |
 | X5 Agents trade | At VI-1's end, ≥ 50% of agents traded in the last 10 periods | Trade |

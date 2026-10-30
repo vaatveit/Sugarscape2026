@@ -116,12 +116,6 @@ const SCD_PAIRS = [
             scd_set!(x["VI-1"], "births", 1.11; when=scd_after(300))
         ),
     ),
-    # Mates everywhere but the trough, which alone decides.
-    (
-        "X2",
-        (x, _) -> scd_set!(x["VI-1"], "n_fertile_with_mate", 51.0; when=scd_at(250)),
-        (x, _) -> scd_set!(x["VI-1"], "n_fertile_with_mate", 49.0; when=scd_at(250)),
-    ),
     # Five seeds: one failing seed leaves 80%, two leave 60%; seed 3 sits just inside at 6%.
     (
         "X3",
@@ -207,7 +201,7 @@ const SCD_PAIRS = [
         "X9",
         "X10",
     ]
-    @test all(c -> c.pass, checks)
+    @test all(c -> c.pass || c.reported_only, checks)
     @test [c.aspect for c in checks] == [
         fill("Survival", 5)
         "Sex"
@@ -273,12 +267,39 @@ end
     @test !scd_check(checks, "S1").pass && scd_check(checks, "S1").value == 1
     @test occursin("extinct in seed 1", scd_check(checks, "S1").detail)
     @test !scd_check(checks, "S2").pass
-    for id in ("X1", "X2", "X5", "X6", "X10")
+    for id in ("X1", "X5", "X6", "X10")
         c = scd_check(checks, id)
         @test isnan(c.value) && !c.pass
         @test occursin("extinct in seed 1", c.detail)
     end
+    x2 = scd_check(checks, "X2")
+    @test isnan(x2.value) && x2.reported_only
+    @test occursin("extinct in seed 1", x2.detail)
     @test all(c -> c.pass || occursin("seed 1", c.detail), checks)
+end
+
+@testset "X2 is reported only" begin
+    xxl, xl, columns = scd_data()
+    scd_set!(xxl["VI-1"], "n_fertile_with_mate", 1.0; when=scd_at(250))  # far below the old 0.5
+    checks = Sugarscape.score(xxl, xl, columns)
+    x2 = scd_check(checks, "X2")
+    @test x2.reported_only && !x2.pass && x2.value > 0
+    @test count(c -> c.reported_only, checks) == 1
+    report = Sugarscape.scorecard_report(
+        checks;
+        label="t",
+        rules=XXL_V1,
+        seeds=1,
+        first_seed=0,
+        steps=Dict(id => 1 for id in Sugarscape.SCORECARD_EXPERIMENTS),
+        jobs=1,
+        wall=1.0,
+        times=Dict(
+            (k, id) => 1.0 for k in (:xxl, :xl) for id in Sugarscape.SCORECARD_EXPERIMENTS
+        ),
+    )
+    @test occursin("Passing: 14 of 14 checks", report)
+    @test occursin(r"\| X2 Mates in reach \| [^|]+ \| — \| reported only \|", report)
 end
 
 @testset "run_scorecard on seeds 20 and 21" begin

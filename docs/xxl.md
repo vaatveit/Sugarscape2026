@@ -420,14 +420,15 @@ The first rules (`XXL_V1`) nearly killed VI-1's society: on the baseline scoreca
 2–6% of their number before the population recovered, II-4 and IV-A3 kept only about 60% of xl's survivors, and
 disease died out in every seed ("Results of the first rules" has the analysis behind the first two). The goal is now
 a well-functioning simulation: the population rarely goes extinct, and sex, culture, trade, credit and disease each
-work. The work goes in stages, each scored by the same scorecard: stage 1 survival, stage 2 contact and demography,
+work. The work goes in stages, each scored by the same scorecard: stage 1 survival, stage 2 extinction risk,
 stage 3 trade and credit, stage 4 disease. This section is stage 1's record.
 
 **Outcome.** The defaults are now the first rules with three changes and a higher travel cost: the generated map
 (rule 6), viable founder placement (rule 9), a free step of 1.5 (rule 10), and c = 0.2. On 20 seeds that were not
 used to choose them (seeds 20–39) they pass 13 of the 15 checks, every survival check among them, against 7 of 15 for
 the first rules. The two that still fail, mates in reach (X2) and loans voided by death (X8), failed in every setting
-tried; with the other X checks they are the baseline for stages 2–4.
+tried. X2 has since become a reported value with no threshold (stage 2's spec, "X2 stops being a target"); X8 and the
+other X checks are the baseline for stages 3 and 4, and X2 is read beside them.
 
 ### The scorecard
 
@@ -464,7 +465,7 @@ tables below report.
 | S4 Survivors, one good | Survival | II-4's end population ÷ xl's, means over seeds | ≥ 0.9 |
 | S5 Survivors, two goods | Survival | IV-A3's end population ÷ xl's, means over seeds | ≥ 0.9 |
 | X1 Births keep up | Sex | Births ÷ deaths over VI-1's last 200 periods, mean over seeds | 0.9–1.1 |
-| X2 Mates in reach | Sex | At VI-1's trough, the share of fertile agents with a mate in reach, mean over seeds | ≥ 0.5 |
+| X2 Mates in reach | Sex | At VI-1's trough, the share of fertile agents with a mate in reach, mean over seeds | none, reported only |
 | X3 Both cultures live | Culture | The share of VI-1 seeds where both tribes hold ≥ 5% at t = 200 | ≥ 0.8 |
 | X4 Culture moves | Culture | The fewest tag flips per agent in any period of any VI-1 seed | > 0 |
 | X5 Agents trade | Trade | VI-1's end share of agents who traded in the last 10 periods, mean over seeds | ≥ 0.5 |
@@ -479,6 +480,10 @@ fall, and xl's free movement, as far as the agent sees, is the level reached whe
 Under the stage-1 defaults the two sides run on different landscapes (the defaults on the generated map, the xl
 reference on the xl map), so S4 and S5 compare across maps there.
 Only the S checks gate stage 1; the X checks are reported from the start so each later stage knows its baseline.
+X2 had a threshold of 0.5 in stage 1 and has none from stage 2 on: the scorecard still reports its value and per-seed
+detail, with "reported only" as its result, and it no longer counts among the checks passed. The counts of checks
+passed in the tables below are out of 15; from stage 2 on 14 apply. The counts don't change, because X2 failed in
+every setting scored. The past scorecards were not re-run.
 
 X2 counts partners in mating reach, the reach `mate_contact` sets: VI-1 mates within vision (`mate_contact =
 "vision"`), which under xxl is a round look, so X2 takes a fresh look from each fertile agent. The look draws its own
@@ -518,7 +523,8 @@ defaults). Failing values are in bold.
 
 The one-at-a-time rows are at the first rules' travel cost, 0.1. "All" is the cap, viable placement, the free step
 and the generated map, with founder ages as named. The X checks failing are from the earlier X2 count (within the
-interaction radius); re-scored with mating reach, X2 still fails under the first rules and the defaults (below).
+interaction radius); re-scored with mating reach, X2 still reads far below the old 0.5 under the first rules and the
+defaults (below). The "X checks failing" column lists X2 as it failed its old threshold.
 
 **What each change does alone.**
 - **The metabolism cap** removes the founders of IV-A3 and VI-1 with a metabolism of 5, sugar or spice, whom no
@@ -583,7 +589,7 @@ the first rules. On seeds 20–39 it passes the same 13 checks as on seeds 0–1
 | S4 Survivors, one good | ≥ 0.9 | **0.617** | 1.179 | 1.178 |
 | S5 Survivors, two goods | ≥ 0.9 | **0.586** | 1.967 | 1.972 |
 | X1 Births keep up | 0.9–1.1 | **1.131** | 1.051 | 1.044 |
-| X2 Mates in reach | ≥ 0.5 | **0.108** | **0.160** | **0.163** |
+| X2 Mates in reach | — | 0.108 | 0.160 | 0.163 |
 | X3 Both cultures live | ≥ 0.8 | 1 | 1 | 1 |
 | X4 Culture moves | > 0 | 0.012 | 0.167 | 0.187 |
 | X5 Agents trade | ≥ 0.5 | 0.920 | 0.979 | 0.981 |
@@ -609,12 +615,12 @@ IV-A3 at 7,231–7,412 against 3,621–3,825.
 ### The baseline for stages 2–4
 
 Under the defaults, on seeds 20–39:
-- **X2 fails: at the trough few fertile agents can see a mate.** At VI-1's trough 16.3% of fertile agents
-  (12.3–19.3% per seed) have a fertile agent of the other sex in sight, against the 50% asked; under the first rules
-  10.8% (5.0–17.1%). Stage 1's changes raised it by half but left it far short. Counted within the interaction
-  radius, as X2 was until 2026-10-30, the share is 2.3% and failed in every setting tried (0.011–0.026). Births still
-  keep up with deaths (X1 1.044), so the shortage bites at the trough, not at the end. Stage 2 (contact and
-  demography) covers it.
+- **X2 is low: at the trough few fertile agents can see a mate.** At VI-1's trough 16.3% of fertile agents
+  (12.3–19.3% per seed) have a fertile agent of the other sex in sight; under the first rules 10.8% (5.0–17.1%).
+  Stage 1's changes raised it by half. The 50% it was once asked to reach is gone: X2 is reported only, with no
+  threshold. Counted within the interaction radius, as X2 was until 2026-10-30, the share is 2.3% (0.011–0.026 in
+  every setting tried). Births still keep up with deaths (X1 1.044). Stage 2 (extinction risk) reads X2 as a
+  measure, not a target.
 - **X8 fails narrowly: a quarter of loans end voided by a death** (0.249; 0.236–0.276 per seed) against the 20%
   allowed. It also failed in every setting (0.235–0.313). Stage 3 covers credit.
 - **Births now keep up with deaths** (X1 1.044; under the first rules 1.131, births far ahead of deaths as the

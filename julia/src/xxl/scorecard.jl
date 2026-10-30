@@ -1,6 +1,7 @@
 # xxl: the scorecard (revised spec, "The scorecard"). It runs II-4, IV-A3 and VI-1 under one xxl rule set, with the
 # scorecard columns, and their xl versions over the same seeds as the reference level; scores the fifteen checks S1-S5
-# and X1-X10; and writes a markdown report. julia/xxl_scorecard.jl is its command line.
+# and X1-X10 (X2 is reported only, with no threshold); and writes a markdown report. julia/xxl_scorecard.jl is its
+# command line.
 
 const SCORECARD_EXPERIMENTS = ["II-4", "IV-A3", "VI-1"]
 
@@ -9,7 +10,7 @@ const SCORECARD_EXPERIMENTS = ["II-4", "IV-A3", "VI-1"]
 
 One scorecard check: its `id` (S1 ... X10), the `aspect` it measures, the `value` its threshold applies to, the
 bounds `low` and `high` (inclusive, except X4's strict `low`), whether it passes, and a `detail`: the per-seed range,
-or the failing seeds and why.
+or the failing seeds and why. A `reported_only` check has no threshold: it never passes or fails.
 """
 struct Check
     id::String
@@ -19,6 +20,11 @@ struct Check
     high::Float64
     pass::Bool
     detail::String
+    reported_only::Bool
+end
+
+function Check(id, aspect, value, low, high, pass, detail)
+    return Check(id, aspect, value, low, high, pass, detail, false)
 end
 
 # The spec's names for the checks, for the report.
@@ -118,7 +124,7 @@ population reaches 0. Per check:
   0.9.
 - X1: per seed, births ÷ deaths (the four causes) over the last 200 periods; their mean, 0.9-1.1.
 - X2: per seed, `n_fertile_with_mate ÷ n_fertile` at the trough (the first period of the lowest population); their
-  mean, ≥ 0.5.
+  mean. Reported only: no threshold, no pass or fail.
 - X3: the share of seeds where both tribes hold ≥ 5% of the population at t = 200, ≥ 0.8.
 - X4: the lowest tag flips per agent in any period of any seed, > 0.
 - X5: per seed, the end share of agents who traded in the last 10 periods; their mean, ≥ 0.5.
@@ -202,7 +208,7 @@ function score(
         return M[r, mated] / M[r, fertile]
     end
     v, d = over_seeds(gate(at_trough), ids, extinct; why="no fertile agent at the trough")
-    push!(checks, check("X2", "Sex", v, 0.5, Inf, d))
+    push!(checks, Check("X2", "Sex", v, -Inf, Inf, false, d, true))
 
     # Culture.
     blue, red = c("n_blue"), c("n_red")
@@ -353,6 +359,7 @@ end
 
 """The threshold as the report prints it."""
 function threshold_text(c::Check)
+    c.reported_only && return "—"
     c.id == "X4" && return "> $(fmt(c.low))"
     c.low == c.high && return "= $(fmt(c.low))"
     c.high == Inf && return "≥ $(fmt(c.low))"
@@ -372,7 +379,7 @@ end
 
 The markdown report: a header with the label, the rules line, the seeds, the periods and the wall time (`times`
 gives each run's seconds, `nothing` for a reused xl run), then one table per aspect with each check's value, its
-threshold, PASS or FAIL, and the detail.
+threshold, PASS or FAIL (`reported only` for X2), and the detail.
 """
 function scorecard_report(checks; label, rules, seeds, first_seed, steps, jobs, wall, times)
     run_text(kind) = join(
@@ -395,7 +402,8 @@ function scorecard_report(checks; label, rules, seeds, first_seed, steps, jobs, 
         "- Periods: " * join(("$id $(steps[id])" for id in SCORECARD_EXPERIMENTS), ", "),
         "- Wall time: $(round(Int, wall)) s with --jobs $jobs on $(Sys.CPU_THREADS) threads " *
         "(xxl: $(run_text(:xxl)); xl: $(run_text(:xl)))",
-        "- Passing: $(count(c -> c.pass, checks)) of $(length(checks)) checks",
+        "- Passing: $(count(c -> c.pass && !c.reported_only, checks)) of " *
+        "$(count(c -> !c.reported_only, checks)) checks",
     ]
     for aspect in SCORECARD_ASPECTS
         push!(
@@ -408,10 +416,11 @@ function scorecard_report(checks; label, rules, seeds, first_seed, steps, jobs, 
         )
         for c in checks
             c.aspect == aspect || continue
+            result = c.reported_only ? "reported only" : c.pass ? "PASS" : "FAIL"
             push!(
                 lines,
                 "| $(c.id) $(CHECK_TITLES[c.id]) | $(fmt(c.value)) | $(threshold_text(c)) | " *
-                "$(c.pass ? "PASS" : "FAIL") | $(c.detail) |",
+                "$result | $(c.detail) |",
             )
         end
     end
