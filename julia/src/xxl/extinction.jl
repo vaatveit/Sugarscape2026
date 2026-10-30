@@ -180,11 +180,30 @@ function extinction_name(label, first_seed, seeds, periods)
 end
 
 """
-What an extinction run was produced from: the xxl fingerprint and the periods (`with_steps` keeps the original `steps=`
-in the text).
+    source_sha256(dir) -> String
+
+The sha256 over every `.jl` file under `dir`, recursively, in order of path relative to `dir`: each file's relative path
+(with `/` separators) and its bytes. Any edit, addition, removal or rename of a source file changes it.
+"""
+function source_sha256(dir::AbstractString)
+    paths = String[]
+    for (root, _, names) in walkdir(dir)
+        append!(paths, join(splitpath(relpath(joinpath(root, n), dir)), '/') for n in names if endswith(n, ".jl"))
+    end
+    sort!(paths)
+    io = IOBuffer()
+    for path in paths
+        write(io, path, '\0', read(joinpath(dir, path)), '\0')
+    end
+    return bytes2hex(sha256(take!(io)))
+end
+
+"""
+What an extinction run was produced from: the xxl fingerprint, the checksum of the package's source (so that a change
+to the code is a different run) and the periods (`with_steps` keeps the original `steps=` in the text).
 """
 function extinction_fingerprint(exp::Experiment, rules::XxlRules, periods::Int)
-    return xxl_fingerprint(exp, rules) * "periods=$periods\n"
+    return xxl_fingerprint(exp, rules) * "code sha256=$(source_sha256(dirname(@__DIR__)))\nperiods=$periods\n"
 end
 
 function check_extinction_size(; seeds, first_seed, periods, jobs)

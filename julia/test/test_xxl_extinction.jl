@@ -9,6 +9,7 @@ using Sugarscape:
     extinction_report,
     SeedOutcome,
     extinction_name,
+    source_sha256,
     run_extinction,
     rebuild_extinction_report,
     same_run,
@@ -227,6 +228,38 @@ end
     @test ext_times(folder) == times
     fp = joinpath(folder, "fingerprint.txt")
     write(fp, replace(read(fp, String), "periods=12" => "periods=13"))
+    @test_throws ArgumentError ext_go(EXT_FED, out)
+    @test ext_times(folder) == times
+end
+
+@testset "xxl extinction: the code is part of the fingerprint" begin
+    tree(dir) = (mkpath(joinpath(dir, "sub")); write(joinpath(dir, "a.jl"), "x = 1
+"); write(joinpath(dir, "sub", "b.jl"), "y = 2
+"); dir)
+    a, b = tree(mktempdir()), tree(mktempdir())
+    base = source_sha256(a)
+    @test length(base) == 64
+    @test source_sha256(b) == base  # an identical copy elsewhere
+    write(joinpath(b, "a.jl"), "x = 2
+")
+    @test source_sha256(b) != base  # a file's content
+    write(joinpath(b, "a.jl"), "x = 1
+")
+    write(joinpath(b, "sub", "c.jl"), "")
+    @test source_sha256(b) != base  # a file added in a subfolder
+    rm(joinpath(b, "sub", "c.jl"))
+    @test source_sha256(b) == base
+    mv(joinpath(b, "sub", "b.jl"), joinpath(b, "sub", "d.jl"))
+    @test source_sha256(b) != base  # a file renamed
+    write(joinpath(a, "notes.txt"), "not code")
+    @test source_sha256(a) == base  # only .jl files count
+    out = mktempdir()
+    ext_go(EXT_FED, out)
+    folder = ext_dir(out)
+    @test occursin(r"^code sha256=[0-9a-f]{64}$"m, read(joinpath(folder, "fingerprint.txt"), String))
+    times = ext_times(folder)
+    fp = joinpath(folder, "fingerprint.txt")
+    write(fp, replace(read(fp, String), r"code sha256=[0-9a-f]" => "code sha256=x"))
     @test_throws ArgumentError ext_go(EXT_FED, out)
     @test ext_times(folder) == times
 end
