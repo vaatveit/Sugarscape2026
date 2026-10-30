@@ -139,6 +139,22 @@ end
     @test c["viable_fallbacks"] == 3
 end
 
+@testset "mates in reach follow mate_contact" begin
+    # A fertile pair three sites apart, both seeing three: in reach by sight, not as neighbours.
+    for (contact, with_mate) in (("vision", 2), ("neighbors", 0))
+        m = tiny_model(fill(4, 9, 9); sex=true, mate_contact=contact)
+        f = put_agent(m, 2, 2; vision=3, sugar=60.0)
+        h = put_agent(m, 2, 5; vision=3, sugar=60.0)
+        f.sex, f.fertility_start, f.fertility_end = :F, 12, 40
+        h.sex, h.fertility_start, h.fertility_end = :M, 12, 50
+        f.initial_sugar = h.initial_sugar = 60.0
+        f.age = h.age = 20
+        c = card(m, ScorecardTracker(m))
+        @test c["n_fertile"] == 2
+        @test c["n_fertile_with_mate"] == with_mate
+    end
+end
+
 @testset "a tag flip forced by culture_transmit!" begin
     m = tiny_model(zeros(Int, 9, 9); tag_length=5, culture=true)
     a = tag!(put_agent(m, 2, 2), [1, 1, 1, 1, 1])

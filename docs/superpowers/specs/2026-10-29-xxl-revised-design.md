@@ -124,7 +124,7 @@ artifact.
 | Check | Passes when | Aspect |
 |---|---|---|
 | X1 Births keep up | Over the last 200 periods of VI-1, births ÷ deaths is within 0.9–1.1 (mean over seeds) | Sex |
-| X2 Mates in reach | At VI-1's trough, ≥ 50% of fertile agents have a fertile agent of the other sex within the interaction radius | Sex |
+| X2 Mates in reach | At VI-1's trough, ≥ 50% of fertile agents have a fertile agent of the other sex in mating reach (revised 2026-10-30, the user's call: the reach `mate_contact` sets, in sight under `"vision"`, VI-1's setting, else the interaction radius) | Sex |
 | X3 Both cultures live | In ≥ 80% of VI-1 seeds both tribes hold ≥ 5% of the population at t = 200 | Culture |
 | X4 Culture moves | Tag flips per agent per period > 0 throughout VI-1 (culture transmission is happening) | Culture |
 | X5 Agents trade | At VI-1's end, ≥ 50% of agents traded in the last 10 periods | Trade |
@@ -143,7 +143,8 @@ are. Each period:
 - **Deaths by cause:** sugar starvation, spice starvation, old age, killed in combat. Starvation by both goods counts
   as sugar.
 - **Births.**
-- **Fertile agents, and those with a fertile agent of the other sex within the interaction radius** (X2).
+- **Fertile agents, and those with a fertile agent of the other sex in mating reach** (X2): the partners mating
+  itself considers under `mate_contact`. The scorecard's looks must not change the run.
 - **Tag flips** (X4).
 - **Agents who traded this period** (X5; the scorecard counts distinct traders over 10 periods from a per-agent
   record the builder chooses).

@@ -447,7 +447,7 @@ per-seed detail. The label is the base and the `--set`s joined by `+` unless `--
 
 The scorecard's runs write 14 more columns, which ordinary `--xxl` runs don't: deaths by cause (`deaths_sugar`,
 `deaths_spice`, `deaths_old_age`, `deaths_killed`; starving of both goods counts as sugar), `births`, `n_fertile` and
-`n_fertile_with_mate` (a fertile agent of the other sex within the interaction radius, 1.5; see X2 below),
+`n_fertile_with_mate` (a fertile agent of the other sex in mating reach, as `mate_contact` sets it; see X2 below),
 `tag_flips_per_agent`,
 `share_traded_10` (the share of agents who traded in the last 10 periods), the loan flows `loans_started`,
 `loans_rolled`, `loans_repaid` and `loans_voided` (ended by the borrower's or lender's death), and
@@ -480,9 +480,10 @@ Under the stage-1 defaults the two sides run on different landscapes (the defaul
 reference on the xl map), so S4 and S5 compare across maps there.
 Only the S checks gate stage 1; the X checks are reported from the start so each later stage knows its baseline.
 
-X2 counts partners within the interaction radius, as the spec defines it. VI-1 itself mates within vision
-(`mate_contact = "vision"`), which under xxl is a round look, so X2 understates the partners mating can use. Whether
-X2 should follow `mate_contact` is open, to be settled before stage 2.
+X2 counts partners in mating reach, the reach `mate_contact` sets: VI-1 mates within vision (`mate_contact =
+"vision"`), which under xxl is a round look, so X2 takes a fresh look from each fertile agent. The look draws its own
+random numbers (the scorecard tracker's copy of the RNG), so scoring leaves the run unchanged. Until 2026-10-30 X2
+counted only partners within the interaction radius, 1.5; the tables below say where a value is from that count.
 
 ### The tuning
 
@@ -516,7 +517,8 @@ defaults). Failing values are in bold.
 | All, c = 0.2, young | 5 | 0.780 | 0.622 | 1.179 | 2.694 | 12 | X2, X8, X10 |
 
 The one-at-a-time rows are at the first rules' travel cost, 0.1. "All" is the cap, viable placement, the free step
-and the generated map, with founder ages as named.
+and the generated map, with founder ages as named. The X checks failing are from the earlier X2 count (within the
+interaction radius); re-scored with mating reach, X2 still fails under the first rules and the defaults (below).
 
 **What each change does alone.**
 - **The metabolism cap** removes the founders of IV-A3 and VI-1 with a metabolism of 5, sugar or spice, whom no
@@ -581,7 +583,7 @@ the first rules. On seeds 20–39 it passes the same 13 checks as on seeds 0–1
 | S4 Survivors, one good | ≥ 0.9 | **0.617** | 1.179 | 1.178 |
 | S5 Survivors, two goods | ≥ 0.9 | **0.586** | 1.967 | 1.972 |
 | X1 Births keep up | 0.9–1.1 | **1.131** | 1.051 | 1.044 |
-| X2 Mates in reach | ≥ 0.5 | **0.015** | **0.024** | **0.023** |
+| X2 Mates in reach | ≥ 0.5 | **0.108** | **0.160** | **0.163** |
 | X3 Both cultures live | ≥ 0.8 | 1 | 1 | 1 |
 | X4 Culture moves | > 0 | 0.012 | 0.167 | 0.187 |
 | X5 Agents trade | ≥ 0.5 | 0.920 | 0.979 | 0.981 |
@@ -607,12 +609,12 @@ IV-A3 at 7,231–7,412 against 3,621–3,825.
 ### The baseline for stages 2–4
 
 Under the defaults, on seeds 20–39:
-- **X2 fails badly, but it measures a narrower reach than mating uses.** At VI-1's trough only 2.3% of fertile
-  agents (1.2–3.6% per seed) have a fertile agent of the other sex within the interaction radius, against the 50%
-  asked. It failed in every setting tried (0.011–0.026), so stage 1's changes don't touch it. VI-1 mates within
-  vision, not the interaction radius, so X2 understates the partners mating can use, and its failure does not by
-  itself show that mating lacks partners: X1, births keeping up with deaths, passes (1.044). Whether X2 should follow
-  `mate_contact` is open, to be settled before stage 2 (contact and demography).
+- **X2 fails: at the trough few fertile agents can see a mate.** At VI-1's trough 16.3% of fertile agents
+  (12.3–19.3% per seed) have a fertile agent of the other sex in sight, against the 50% asked; under the first rules
+  10.8% (5.0–17.1%). Stage 1's changes raised it by half but left it far short. Counted within the interaction
+  radius, as X2 was until 2026-10-30, the share is 2.3% and failed in every setting tried (0.011–0.026). Births still
+  keep up with deaths (X1 1.044), so the shortage bites at the trough, not at the end. Stage 2 (contact and
+  demography) covers it.
 - **X8 fails narrowly: a quarter of loans end voided by a death** (0.249; 0.236–0.276 per seed) against the 20%
   allowed. It also failed in every setting (0.235–0.313). Stage 3 covers credit.
 - **Births now keep up with deaths** (X1 1.044; under the first rules 1.131, births far ahead of deaths as the

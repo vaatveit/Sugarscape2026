@@ -30,6 +30,12 @@ end
 random_sex(rng::AbstractRNG) = rand(rng, 0:1) == 0 ? :F : :M
 
 """
+The agents `a` may mate with: [`in_sight`](@ref) under mate_contact="vision", else [`neighbors_of`](@ref). The
+scorecard's X2 counts mates in the same reach.
+"""
+mate_reach(m::Model, a::Agent) = m.config.mate_contact == "vision" ? in_sight(m, a) : neighbors_of(m, a)
+
+"""
 Agents within the agent's vision along the four lattice directions, nearest first (mate_contact="vision"). Returns
 `m.sight`, which the next call reuses.
 """
@@ -85,7 +91,7 @@ function mate!(m::Model, a::Agent)
     capped, redraw = cfg.child_gift == "capped", cfg.child_threshold == "redraw"
     down = cfg.gift_rounding == "down"
     children = Agent[]
-    partners = cfg.mate_contact == "vision" ? in_sight(m, a) : neighbors_of(m, a)
+    partners = mate_reach(m, a)
     sites = m.sites
     for other in shuffle!(rng, partners)
         (other.sex === :none || other.sex === a.sex) && continue

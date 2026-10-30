@@ -25,8 +25,9 @@ const TRADE_WINDOW = 10  # share_traded_10: agents with a trade in the last this
 
 What the scorecard columns need from the previous period, taken from `m` as it is now: each living agent's tags by
 id, the id the next agent will get, the size of the loan book and the model's loan counters; and, kept across
-periods, each agent's last trade period by id. Build it with the model and pass it to [`scorecard_metrics!`](@ref)
-once per period, t = 0 included.
+periods, each agent's last trade period by id; and its own copy of the model's RNG, for X2's looks under
+mate_contact="vision", so scoring never moves the model's random numbers. Build it with the model and pass it to
+[`scorecard_metrics!`](@ref) once per period, t = 0 included.
 """
 mutable struct ScorecardTracker
     t::Int  # the period last seen
@@ -37,10 +38,11 @@ mutable struct ScorecardTracker
     loans_made::Int  # m.loans_made, m.loans_due and m.loans_rolled then
     loans_due::Int
     loans_rolled::Int
+    rng::AbstractRNG  # a copy of m.rng when built: X2's looks draw from it, not from the model's
 end
 
 function ScorecardTracker(m::Model)
-    tr = ScorecardTracker(m.t, m.next_id, Dict{Int,UInt64}(), Dict{Int,Int}(), 0, 0, 0, 0)
+    tr = ScorecardTracker(m.t, m.next_id, Dict{Int,UInt64}(), Dict{Int,Int}(), 0, 0, 0, 0, copy(m.rng))
     remember_period!(tr, m)
     return tr
 end
@@ -70,7 +72,8 @@ logs (`dead_this_step`, `trade_log`) are still in place.
   starvation.
 - **Births:** the agents created this period, less one for each death when rule R replaces it.
 - **Fertility:** the fertile agents (`is_fertile` with `fertility_threshold`), and those with a fertile agent of the
-  other sex among [`neighbors_of`](@ref) (X2).
+  other sex in mating reach, [`mate_reach`](@ref): in sight under mate_contact="vision", else among
+  [`neighbors_of`](@ref) (X2).
 - **Tag flips:** the bits changed between the periods, summed over the agents alive in both, per living agent (X4).
 - **Trade:** the share of the living agents with a trade, as either side of an exchange, in periods t - 9 .. t (X5).
 - **Loans,** from the counters `step!` keeps on the model in credit runs (`m.loans_made`, `m.loans_due`,
@@ -110,7 +113,7 @@ function scorecard_metrics!(out, m::Model, tr::ScorecardTracker)
         born = first ? 0 : m.next_id - tr.next_id
         cfg.replacement && !first && (born -= length(m.dead_this_step))
         push!(out, born)
-        push_fertility!(out, m)
+        push_fertility!(out, m, tr)
     else
         push!(out, NaN, NaN, NaN)
     end
@@ -128,14 +131,19 @@ function scorecard_metrics!(out, m::Model, tr::ScorecardTracker)
     return out
 end
 
-function push_fertility!(out, m::Model)
+function push_fertility!(out, m::Model, tr::ScorecardTracker)
     threshold = m.config.fertility_threshold
     fertile = with_mate = 0
-    for a in m.agents
-        is_fertile(a, threshold) || continue
-        fertile += 1
-        any(o -> o.sex !== a.sex && is_fertile(o, threshold), neighbors_of(m, a)) &&
-            (with_mate += 1)
+    own, m.rng = m.rng, tr.rng  # a look in sight draws random numbers: the tracker's, so the run is unchanged
+    try
+        for a in m.agents
+            is_fertile(a, threshold) || continue
+            fertile += 1
+            any(o -> o.sex !== a.sex && is_fertile(o, threshold), mate_reach(m, a)) &&
+                (with_mate += 1)
+        end
+    finally
+        m.rng = own
     end
     return push!(out, fertile, with_mate)
 end
