@@ -12,6 +12,16 @@ isdefined(@__MODULE__, :tiny_model) || include("helpers.jl")
     @test [k.sugar for k in kids[1:2]] == [25.0, 25.0] && !p.alive
 end
 
+@testset "test_old_age_parent_pays_both_living_children" begin
+    m = tiny_model(zeros(Int, 5, 5); inheritance=true)  # no harvest: sugar only falls by 1
+    p = put_agent(m, 0, 0; sugar=40.0, max_age=1)
+    kids = [put_agent(m, 2, 2), put_agent(m, 4, 4)]
+    append!(p.children, kids)
+    step!(m)
+    @test !p.alive && isempty(p.children)
+    @test [k.sugar for k in kids] == [9.0 + 19.5, 9.0 + 19.5]
+end
+
 @testset "test_no_inheritance_when_off" begin
     m = tiny_model(ones(Int, 5, 5))
     p = put_agent(m, 0, 0; sugar=30.0)

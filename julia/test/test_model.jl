@@ -82,6 +82,21 @@ end
     @test m.agents == [h] && h.slot == 1
 end
 
+@testset "test_kill_frees_the_dead_agents_lists" begin
+    m = tiny_model(ones(Int, 5, 5))
+    p, c, o = put_agent(m, 0, 0), put_agent(m, 2, 2), put_agent(m, 4, 4)
+    push!(p.children, c)
+    push!(c.children, o)
+    push!(c.neighbors, o)
+    push!(c.friends, (o, 3))
+    push!(c.memory, Remembered(1, 2, 3.0, 0.0, 0.0, 4))
+    kill!(m, c)
+    @test isempty(c.neighbors) && isempty(c.children) && isempty(c.friends)
+    @test c.neighbors isa Vector{Agent} && c.children isa Vector{Agent} && c.friends isa Vector{Tuple{Agent,Int}}
+    @test c.memory == [Remembered(1, 2, 3.0, 0.0, 0.0, 4)]  # a neighbour's word of mouth may still read it
+    @test p.children == [c] && !c.alive  # a living parent keeps its dead child
+end
+
 @testset "test_move_agent_updates_occupancy" begin
     m = tiny_model(ones(Int, 3, 3))
     g = put_agent(m, 0, 0)

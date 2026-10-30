@@ -250,6 +250,8 @@ function kill!(m::Model, a::Agent)
     end
     a.slot = 0
     push!(m.dead_this_step, a)
+    # Empty lists: a living parent holds its dead child, whose lists would otherwise keep every older dead agent alive.
+    a.neighbors, a.children, a.friends = Agent[], Agent[], Tuple{Agent,Int}[]
     return nothing
 end
 
