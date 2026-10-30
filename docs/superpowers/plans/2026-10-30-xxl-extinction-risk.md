@@ -278,6 +278,8 @@ git commit -m "julia xxl: the extinction test's resumable run and command line"
 
 - [ ] **Step 1: The seed-20 gate**
 
+Run this on the final commit, after the whole-branch review's fixes: the code hash makes the folder specific to that commit.
+
 Run: `julia --project=julia julia/xxl_extinction.jl --seeds 1 --first-seed 20 --periods 500 --jobs 1 --label check`
 Then: `julia --project=julia -e "using Sugarscape; exit(Sugarscape.same_run(\"results-julia-xxl/extinction-check-s20-1-p500/seed20.csv\", \"results-julia-xxl/scorecard-defaults-x2sight-s20-20/VI-1/seed20.csv\"; periods=500) ? 0 : 1)"`
 Expected: exit 0. A failure stops here: the long run does not start, and the user hears why.
@@ -286,7 +288,7 @@ Expected: exit 0. A failure stops here: the long run does not start, and the use
 
 Ask the host to keep the machine awake, then run in the background:
 `julia --project=julia julia/xxl_extinction.jl --rules defaults --seeds 60 --first-seed 20 --periods 2000 --jobs 10`, with output to a log file.
-Expected: progress lines per seed. If it stops, the same command resumes it. Note the real seconds per period once the first batch finishes.
+Expected: progress lines per seed. Note the real seconds per period once the first batch finishes, and watch free memory through the first batch: the fix to `kill!` should hold each worker well under 1 GB past t = 500. If free memory runs low, stop and resume with fewer workers, and tell the user. If it stops with a non-zero exit, the same command resumes it; stop for good if the same seed fails twice. Nothing under `julia/src` may change until the run ends, and the checkout stays on this commit.
 
 - [ ] **Step 3: Read the report**
 

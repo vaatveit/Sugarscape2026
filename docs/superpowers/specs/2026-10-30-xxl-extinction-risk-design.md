@@ -111,9 +111,9 @@ julia --project=julia julia/xxl_extinction.jl --rules defaults --seeds 60 --firs
   rules, periods and code fingerprint. How this reuses the runner's existing fingerprint is left to the builder.
 - **The report can be rebuilt from the CSVs** without running anything.
 
-**Run time.** About 4.2 hours at the measured pace (1.25 s per period per seed with 10 workers, seeds 20–39 over 500
-periods). Possibly up to about 8, if the later periods, at 50,000–70,000 agents, cost up to twice the 500-period
-average. This is an estimate. The first finished batch gives a real figure, and the script prints it.
+**Run time.** About 8–10 hours or more, an estimate (revised 2026-10-30: 4–8 hours assumed 1.25 s per period per seed,
+but the reference runs took about 1.68 s including metrics, and later periods cost more). The first finished batch gives
+a real figure, and the script prints it.
 
 ## X2 stops being a target
 
@@ -145,7 +145,7 @@ The check stays and keeps its value and per-seed detail, but it has no threshold
 ## When the test has to be repeated
 
 Any later stage that changes `XXL_DEFAULTS` re-runs this test before it is called done, because the claim is about
-the rules as they stand (*my call*). At 4–8 hours per run, the test isn't repeated while tuning, only on a final
+the rules as they stand (*my call*). At 8–10 hours or more per run, the test isn't repeated while tuning, only on a final
 choice.
 
 ## Who runs it
