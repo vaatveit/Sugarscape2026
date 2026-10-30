@@ -120,10 +120,12 @@ nothing. Seeds go to `results-julia-xxl/extinction-<label>-s<first>-<seeds>-p<pe
 the pace and the hours left, so a stopped or crashed run resumes by running the same command: it runs only the seeds
 without a whole CSV, and refuses a folder made under other rules, code or periods (choose another `--label`). The code
 is checked by a checksum of every `.jl` file under `julia/src`, so any edit there, even a comment, means a stopped run
-must restart under a new `--label`. A `FAIL` verdict is a result, so the exit code is still 0.
+must restart under a new `--label`; `--report-only` rebuilds the report from the CSVs all the same, with a warning
+when only the code differs. A `FAIL` verdict is a result, so the exit code is still 0.
 
-Estimated time for the 60 seeds with `--jobs 10`: 4–8 hours (about 1.25 s per period per seed at the measured pace,
-more in the later periods, when the population is largest). The first finished seeds give the real figure.
+Estimated time for the 60 seeds with `--jobs 10`: about 8–10 hours or more (an estimate: about 1.68 s per period per
+seed at the reference pace, metrics included, and more in the later periods, when the population is largest). The
+first finished seeds give the real figure.
 
 ## Comparing with Python
 
