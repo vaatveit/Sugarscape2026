@@ -104,6 +104,26 @@ of it). The xl reference runs once per seed range and is reused after that: the 
 took 1,753 s (29 minutes), and the 15 tuning scorecards that reused it took 1,373–2,209 s. VI-1 dominates, at
 1,126–1,731 s of each.
 
+The extinction test asks whether VI-1 under a rule set has under a 5% chance of going extinct in 2,000 periods. It runs
+only VI-1, with the standard columns and no scorecard ones, and reports the upper 95% limit on that chance:
+
+```bat
+julia --project=julia julia/xxl_extinction.jl --jobs 10
+julia --project=julia julia/xxl_extinction.jl --rules v1 --seeds 20 --periods 500 --jobs 10
+julia --project=julia julia/xxl_extinction.jl --report-only
+```
+
+The first runs the defaults over seeds 20–79 (`--seeds 60 --first-seed 20 --periods 2000`, the defaults of those
+options); the second a shorter trial of the first rules; the third rewrites the report from the seeds finished, running
+nothing. Seeds go to `results-julia-xxl/extinction-<label>-s<first>-<seeds>-p<periods>/` and the report beside them as
+`.md`; `--label` defaults to the `--rules` value. Each seed's CSV is written when it ends and the progress line shows
+the pace and the hours left, so a stopped or crashed run resumes by running the same command: it runs only the seeds
+without a whole CSV, and refuses a folder made under other rules, code or periods (choose another `--label`). A `FAIL`
+verdict is a result, so the exit code is still 0.
+
+Estimated time for the 60 seeds with `--jobs 10`: 4–8 hours (about 1.25 s per period per seed at the measured pace,
+more in the later periods, when the population is largest). The first finished seeds give the real figure.
+
 ## Comparing with Python
 
 ```bat

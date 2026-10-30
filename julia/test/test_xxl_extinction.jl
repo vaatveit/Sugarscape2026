@@ -2,7 +2,20 @@
 isdefined(@__MODULE__, :tiny_model) || include("helpers.jl")
 using Sugarscape, Test
 using Sugarscape:
-    extinction_limit, seed_outcome, is_falling, extinction_verdict, extinction_report, SeedOutcome
+    extinction_limit,
+    seed_outcome,
+    is_falling,
+    extinction_verdict,
+    extinction_report,
+    SeedOutcome,
+    extinction_name,
+    run_extinction,
+    rebuild_extinction_report,
+    same_run,
+    extinction_main,
+    read_seed_csv,
+    with_steps,
+    run_experiment
 
 # A run from population per period (t = 0 on), with agents_ever given or constant.
 function ext_run(pops; ever=fill(100.0, length(pops)))
@@ -111,4 +124,189 @@ end
 
     # jobs and wall are optional.
     @test extinction_report([ext_outcome(pops)]; seeds=1, kw..., jobs=nothing, wall=nothing) isa String
+end
+
+const EXT_REG = load_registry()
+const EXT_TINY = find_experiment(EXT_REG, "TEST-tiny")
+function ext_exp(e::Experiment=EXT_TINY; kw...)
+    return Experiment(
+        e.id, e.title, e.rules, e.steps, e.seeds, replace_config(e.config; kw...),
+        e.fingerprint, e.xl_config, e.xl_fingerprint,
+    )
+end
+const EXT_DOOMED = ext_exp(; max_age=(2, 2))  # all dead of old age within a few periods
+const EXT_FED = ext_exp(; metabolism=(1, 1), endowment=(50, 50))  # all alive throughout
+
+# A small run into `out`: two seeds from 5 over 12 periods, in this process, quietly.
+function ext_go(exp, out; rules=XXL_V1, kw...)
+    return run_extinction(
+        rules; label="t", seeds=2, first_seed=5, periods=12, jobs=1, out=out, experiment=exp, io=devnull, kw...
+    )
+end
+function ext_dir(out; label="t", first=5, seeds=2, periods=12)
+    return joinpath(out, extinction_name(label, first, seeds, periods))
+end
+ext_report(out; kw...) = read(ext_dir(out; kw...) * ".md", String)
+ext_rows(text) = [l for l in split(text, "\n") if startswith(l, "| ")]  # the table: its header and the seed rows
+ext_wall(folder) = parse(Float64, read(joinpath(folder, "elapsed.txt"), String))
+ext_times(folder) = [mtime(joinpath(folder, "seed$k.csv")) for k in (5, 6)]
+
+@testset "xxl extinction: the name" begin
+    @test extinction_name("defaults", 20, 60, 2000) == "extinction-defaults-s20-60-p2000"
+end
+
+@testset "xxl extinction: an extinct world fails, and its CSV reads back" begin
+    out = mktempdir()
+    v = ext_go(EXT_DOOMED, out)
+    @test v.verdict == "FAIL"
+    @test v.extinct == 2
+    header, M = read_seed_csv(joinpath(ext_dir(out), "seed5.csv"))
+    @test size(M, 1) == 13
+    @test M[end, findfirst(==("population"), header)] == 0
+    @test occursin("- Extinct: 2 of 2 seeds", ext_report(out))
+end
+
+@testset "xxl extinction: VI-1 runs on with nobody left" begin
+    out = mktempdir()
+    doomed = ext_exp(find_experiment(EXT_REG, "VI-1"); max_age=(2, 2))
+    v = run_extinction(
+        XXL_DEFAULTS; label="vi", seeds=1, first_seed=5, periods=10, jobs=1, out=out, experiment=doomed, io=devnull
+    )
+    @test v.extinct == 1
+    _, M = read_seed_csv(joinpath(ext_dir(out; label="vi", seeds=1, periods=10), "seed5.csv"))
+    @test size(M, 1) == 11
+end
+
+@testset "xxl extinction: a fed world has too few seeds" begin
+    out = mktempdir()
+    v = ext_go(EXT_FED, out)
+    @test v.verdict == "TOO FEW SEEDS"
+    @test v.extinct == 0
+    folder = ext_dir(out)
+    @test sort(readdir(folder)) == sort([
+        "elapsed.txt", "fingerprint.txt", "machine.txt", "seed5.csv", "seed6.csv", "seed5.timing.csv",
+        "seed6.timing.csv",
+    ])
+    header, _ = read_seed_csv(joinpath(folder, "seed5.csv"))
+    @test "population" in header
+    @test !("n_fertile" in header)
+    @test occursin("- Verdict: TOO FEW SEEDS", ext_report(out))
+end
+
+@testset "xxl extinction: a re-run skips finished seeds" begin
+    out = mktempdir()
+    ext_go(EXT_FED, out)
+    folder = ext_dir(out)
+    times, report, wall = ext_times(folder), ext_report(out), ext_wall(folder)
+    ext_go(EXT_FED, out)
+    @test ext_times(folder) == times
+    @test ext_rows(ext_report(out)) == ext_rows(report)
+    @test ext_wall(folder) >= wall
+end
+
+@testset "xxl extinction: a seed cut short runs again" begin
+    out = mktempdir()
+    ext_go(EXT_FED, out)
+    folder = ext_dir(out)
+    path6 = joinpath(folder, "seed6.csv")
+    whole, seed5_time = read(path6), mtime(joinpath(folder, "seed5.csv"))
+    write(path6, join(readlines(path6)[1:3], "\n") * "\n")
+    write(joinpath(folder, "seed5.csv.tmp"), "stray")
+    ext_go(EXT_FED, out)
+    @test countlines(path6) == 14
+    @test read(path6) == whole
+    @test mtime(joinpath(folder, "seed5.csv")) == seed5_time
+end
+
+@testset "xxl extinction: other rules or periods are refused" begin
+    out = mktempdir()
+    ext_go(EXT_FED, out)
+    folder = ext_dir(out)
+    times = ext_times(folder)
+    @test_throws ArgumentError ext_go(EXT_FED, out; rules=replace_rules(XXL_V1; travel_cost=0.05))
+    @test ext_times(folder) == times
+    fp = joinpath(folder, "fingerprint.txt")
+    write(fp, replace(read(fp, String), "periods=12" => "periods=13"))
+    @test_throws ArgumentError ext_go(EXT_FED, out)
+    @test ext_times(folder) == times
+end
+
+@testset "xxl extinction: the report can be rebuilt" begin
+    out = mktempdir()
+    kw = (label="t", seeds=2, first_seed=5, periods=12, out=out, experiment=EXT_FED, io=devnull)
+    ext_go(EXT_FED, out)
+    md = ext_dir(out) * ".md"
+    verdict_line(text) = only(filter(startswith("- Verdict"), split(text, "\n")))
+    verdict = verdict_line(read(md, String))
+    rm(md)
+    v = rebuild_extinction_report(XXL_V1; kw...)
+    @test v.verdict == "TOO FEW SEEDS"
+    @test verdict_line(read(md, String)) == verdict
+    text = read(md, String)
+    @test occursin("- Run time: ", text)
+    @test_throws ArgumentError rebuild_extinction_report(XXL_V1; kw..., out=mktempdir())
+    @test_throws ArgumentError rebuild_extinction_report(replace_rules(XXL_V1; travel_cost=0.05); kw...)
+    @test read(md, String) == text
+    path6 = joinpath(ext_dir(out), "seed6.csv")
+    whole = read(path6, String)
+    rm(path6)
+    rebuild_extinction_report(XXL_V1; kw...)
+    @test occursin("- Seeds finished: 1 of 2", read(md, String))
+    write(path6, join(split(whole, "\n")[1:3], "\n") * "\n")  # cut short
+    rebuild_extinction_report(XXL_V1; kw...)
+    @test occursin("- Seeds finished: 1 of 2", read(md, String))
+end
+
+@testset "xxl extinction: two workers give the same seeds" begin
+    one, two = mktempdir(), mktempdir()
+    ext_go(EXT_FED, one)
+    ext_go(EXT_FED, two; jobs=2)
+    for k in (5, 6)
+        @test read(joinpath(ext_dir(one), "seed$k.csv")) == read(joinpath(ext_dir(two), "seed$k.csv"))
+    end
+    @test occursin("- Seeds finished: 2 of 2", ext_report(two))
+end
+
+@testset "xxl extinction: the runs are VI-1's runs" begin
+    out, out2 = mktempdir(), mktempdir()
+    run_extinction(XXL_DEFAULTS; label="vi", seeds=1, first_seed=20, periods=10, jobs=1, out=out, io=devnull)
+    a = joinpath(ext_dir(out; label="vi", first=20, seeds=1, periods=10), "seed20.csv")
+    run_experiment(
+        with_steps(find_experiment(EXT_REG, "VI-1"), 10);
+        seeds=1, first_seed=20, out=out2, xxl=XXL_DEFAULTS, scorecard=true,
+    )
+    b = joinpath(out2, "VI-1", "seed20.csv")
+    @test same_run(a, b; periods=10)
+    header, _ = read_seed_csv(a)
+    pop = findfirst(==("population"), header)
+    lines = readlines(a)
+    function derived(change, name)  # a copy of `a` with its lines changed
+        path = joinpath(out, name)
+        write(path, join(change(lines), "\n") * "\n")
+        return path
+    end
+    edited = derived("edited.csv") do ls  # population at t = 3
+        cells = split(ls[5], ",")
+        cells[pop] = string(parse(Float64, cells[pop]) + 1)
+        return [ls[1:4]; join(cells, ","); ls[6:end]]
+    end
+    @test !same_run(a, edited; periods=10)
+    @test same_run(a, edited; periods=2)
+    lacking = derived("lacking.csv") do ls
+        return [join(split(l, ",")[setdiff(eachindex(header), pop)], ",") for l in ls]
+    end
+    @test !same_run(a, lacking; periods=10)
+    short = derived(ls -> ls[1:6], "short.csv")
+    @test !same_run(a, short; periods=10)
+    @test !same_run(short, a; periods=10)
+end
+
+@testset "xxl extinction: the command line" begin
+    usage(args) = redirect_stderr(() -> extinction_main(args), devnull)
+    for args in (
+        ["--seeds", "0"], ["--jobs", "0"], ["--periods", "3"], ["--first-seed", "-1"], ["--nope"], ["--rules", "x"],
+        ["--seeds"], ["--seeds", "many"], ["--report-only", "--out", mktempdir()],
+    )
+        @test usage(args) == 2
+    end
 end

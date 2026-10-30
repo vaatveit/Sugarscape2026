@@ -6,7 +6,7 @@ of docs/xl.md. The Python model is the specification; see docs/superpowers/specs
 """
 module Sugarscape
 
-using Distributed: WorkerPool, addprocs, pmap, remotecall_eval, rmprocs
+using Distributed: WorkerPool, addprocs, pmap, remotecall_eval, remotecall_fetch, rmprocs
 using Random: AbstractRNG, Xoshiro, shuffle!
 using SHA: sha256
 using TOML
