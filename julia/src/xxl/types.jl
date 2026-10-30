@@ -12,8 +12,8 @@ const XXL_FOUNDER_AGES = ("book", "young")
 
 The thirteen xxl settings: the nine of the first spec ("The rules") and the four stage-1 survival switches of the
 revised spec ("The changes"), each at the book's value by default. The defaults are the book's settings, so `XxlRules()` changes nothing;
-[`XXL_DEFAULTS`](@ref) is the xxl column of the spec's table. `Config.xxl` holds one, or `nothing` for the plain
-book rules.
+[`XXL_V1`](@ref) is the xxl column of the first spec's table and [`XXL_DEFAULTS`](@ref) the defaults stage 1 chose.
+`Config.xxl` holds one, or `nothing` for the plain book rules.
 """
 Base.@kwdef struct XxlRules
     vision_shape::String = "lattice"
@@ -56,9 +56,6 @@ const XXL_V1 = XxlRules(;
     landscape="xl",
 )
 
-"The xxl default column of the spec's table; for now the first rules."
-const XXL_DEFAULTS = XXL_V1
-
 """
     replace_rules(rules; kw...) -> XxlRules
 
@@ -73,6 +70,20 @@ function replace_rules(r::XxlRules; kw...)
     end
     return XxlRules(; values...)
 end
+
+"""
+The xxl defaults: [`XXL_V1`](@ref) with the stage-1 changes the scorecard chose (revised spec, "Tuning protocol";
+docs/xxl.md, "Stage 1: the scorecard and survival"): the generated landscape, a free step of 1.5, viable founder
+placement and a travel cost of 0.2. The metabolism cap and young founders were not needed and stay at their book
+settings. `--xxl` and the scorecard's `--rules defaults` run these; the `XXL-…` experiments stay on `XXL_V1`.
+"""
+const XXL_DEFAULTS = replace_rules(
+    XXL_V1;
+    landscape="generated",
+    free_step=1.5,
+    founder_placement="viable",
+    travel_cost=0.2,
+)
 
 """
     Remembered

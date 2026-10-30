@@ -65,8 +65,9 @@ how long that took (`warm_up_s`). The timed setup then covers building the model
 ## xxl
 
 xxl is a Julia-only rule set for the 500 × 500 world that uses the room instead of hiding it: round vision, a speed
-trait with a travel cost, memory and word of mouth, an interaction radius, seasons that vary with latitude, and a
-generated landscape (plus combat under them). Each is a separate switch with a book setting, so its effect is
+trait with a travel cost, memory and word of mouth, an interaction radius, seasons that vary with latitude, a
+generated landscape (plus combat under them), and four survival switches: a metabolism cap, viable founder
+placement, a free step and young founders. Each is a separate switch with a book setting, so its effect is
 measured alone. It is not the book, has no Python counterpart, and leaves every regular and xl run, fingerprint and
 random stream unchanged. The rules are defined in [docs/xxl.md](../docs/xxl.md).
 
@@ -81,6 +82,27 @@ second the xxl version of any registered sugarscape experiment. Results go to `r
 the xl layout plus nine added metric columns; a folder is named by its id with `/` replaced by `_`. The report reads
 those folders and the base experiments' `results-julia-xl/` runs, and prints each metric's mean and seed spread at
 t = 50, 100, 200 and over the last 100 periods, xxl beside xl, with the stepping time per period of both.
+
+`--xxl` runs the defaults, which stage 1 of the revised design chose with the scorecard: the first rules (`XXL_V1`,
+which the `XXL-…` experiments keep) with the generated map, viable founder placement, a free step of 1.5 and a
+travel cost of 0.2. The scorecard scores one rule set on II-4, IV-A3 and VI-1 over 20 seeds, against their xl runs,
+with 15 pass/fail checks of survival, sex, culture, trade, credit and disease:
+
+```bat
+julia --project=julia julia/xxl_scorecard.jl --jobs 10
+julia --project=julia julia/xxl_scorecard.jl --rules v1 --set free_step=1.5 --jobs 10
+julia --project=julia julia/xxl_scorecard.jl --first-seed 20 --jobs 10
+```
+
+The first scores the defaults on seeds 0–19, the second the first rules with one change, the third the defaults on
+seeds 20–39. The report goes to `results-julia-xxl/scorecard-<label>-s<first>-<seeds>.md`, beside the runs. The
+checks, the tuning and its results are in [docs/xxl.md](../docs/xxl.md) ("Stage 1: the scorecard and survival").
+
+Wall time for 20 seeds with `--jobs 10` on the i7-13700K's 24 threads (machine load not recorded): 2,196 s
+(37 minutes) for the defaults on seeds 20–39, which included running the xl reference for that seed range (583 s
+of it). The xl reference runs once per seed range and is reused after that: the defaults on seeds 0–19, reusing it,
+took 1,753 s (29 minutes), and the 15 tuning scorecards that reused it took 1,373–2,209 s. VI-1 dominates, at
+1,126–1,731 s of each.
 
 ## Comparing with Python
 

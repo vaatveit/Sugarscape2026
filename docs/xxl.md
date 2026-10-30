@@ -17,7 +17,10 @@ It is not a recreation of the book and is not scored against the book's targets.
 (`julia/`); the Python model, runner and viewer don't change. This document is the contract: it defines the rules
 without reference to any one language, as [docs/xl.md](xl.md) does for xl. It builds on xl, whose map, look
 and timing definitions it uses. The design and its reasoning are in
-[docs/superpowers/specs/2026-10-28-xxl-design.md](superpowers/specs/2026-10-28-xxl-design.md).
+[docs/superpowers/specs/2026-10-28-xxl-design.md](superpowers/specs/2026-10-28-xxl-design.md) (the first rules,
+rules 1–7) and
+[docs/superpowers/specs/2026-10-29-xxl-revised-design.md](superpowers/specs/2026-10-29-xxl-revised-design.md) (the
+scorecard and the stage-1 survival switches, rules 8–11).
 
 Each change is a separate switch with a *book setting* that turns it off, so its effect can be measured alone. With
 every switch at its book setting, an xxl run is its Julia xl run, draw for draw.
@@ -33,33 +36,55 @@ every switch at its book setting, an xxl run is its Julia xl run, draw for draw.
 - **Sorting by distance** compares the exact integer dx² + dy², so equal distances tie exactly.
 - **Draws.** Every xxl random draw is gated by its feature and comes after every draw of the book rules in the same
   occasion: per agent (founders and newborns), after the Chapter V draws; per period, inside the rule that makes it.
-  A "uniform draw" is one number uniform on [0, 1) from the model's generator.
+  The one exception is viable placement (rule 9), which draws a new agent's site after its traits instead of
+  before. A "uniform draw" is one number uniform on [0, 1) from the model's generator.
 
-## The nine settings
+## The settings
 
-An xxl run is an xl configuration plus these settings. The book column turns each rule off; the default column is
-what `--xxl` and the `XXL-…` experiments start from.
+An xxl run is an xl configuration plus these settings. The book column turns each rule off. The first-rules column
+is `XXL_V1`, the rules of the first design, which the `XXL-…` experiments and the results of "Results of the first
+rules" use. The default column is `XXL_DEFAULTS`, what `--xxl` and the scorecard start from: the first rules with
+the changes stage 1 chose ("Stage 1: the scorecard and survival").
 
-| Setting | Book setting | Default |
-|---|---|---|
-| `vision_shape` | `"lattice"` | `"disc"` |
-| `speed` | none | (1, 6) |
-| `travel_cost` c | 0 | 0.1 sugar per site |
-| `memory` M | 0 | 8 |
-| `memory_span` | 50 | 50 |
-| `word_of_mouth` | false | true |
-| `interaction_radius` R | 1 | 1.5 |
-| `season_gradient` | false | true |
-| `landscape` | `"xl"` | `"xl"` |
+| Setting | Book setting | First rules (`XXL_V1`) | Default | Rule |
+|---|---|---|---|---|
+| `vision_shape` | `"lattice"` | `"disc"` | `"disc"` | 1 |
+| `speed` | none | (1, 6) | (1, 6) | 2 |
+| `travel_cost` c | 0 | 0.1 sugar per site | **0.2** sugar per site | 2 |
+| `memory` M | 0 | 8 | 8 | 3 |
+| `memory_span` | 50 | 50 | 50 | 3 |
+| `word_of_mouth` | false | true | true | 3 |
+| `interaction_radius` R | 1 | 1.5 | 1.5 | 4 |
+| `season_gradient` | false | true | true | 5 |
+| `landscape` | `"xl"` | `"xl"` | **`"generated"`** | 6 |
+| `max_metabolism` | none | none | none | 8 |
+| `founder_placement` | `"random"` | `"random"` | **`"viable"`** | 9 |
+| `free_step` | 0 | 0 | **1.5** sites | 10 |
+| `founder_ages` | `"book"` | `"book"` | `"book"` | 11 |
+
+The last four are the stage-1 survival switches. Each was tried at a candidate setting, and the scorecard decided
+which to keep:
+
+| Setting | Candidate | What the candidate does | Chosen by stage 1 |
+|---|---|---|---|
+| `max_metabolism` | 4 | Caps the sugar and spice metabolism drawn for a new agent | No |
+| `founder_placement` | `"viable"` | Places founders and newcomers on land that feeds them | Yes |
+| `free_step` | 1.5 | Charges no travel cost for a move whose target is within 1.5 sites | Yes |
+| `founder_ages` | `"young"` | Starts founders no older than the start of their fertile years | No |
+| `landscape` | `"generated"` | Makes the generated map the default | Yes |
 
 The xxl version of a regular experiment is its xl version (docs/xl.md) with these set to the default column. For a
-base experiment without seasons the season gradient is set to false, so a fingerprint never names a rule that can't
-apply.
+base experiment without seasons the season gradient is set to false, and for one without sex or without finite lives
+`founder_ages` is set to `"book"`, so a fingerprint never names a rule that can't apply.
 
 **Refused combinations.** A configuration xxl doesn't define is refused, not run under book rules:
 - `vision_shape` other than `"lattice"` or `"disc"`; `landscape` other than `"xl"` or `"generated"`;
+  `founder_placement` other than `"random"` or `"viable"`; `founder_ages` other than `"book"` or `"young"`;
 - speed that isn't a range lo ≤ hi with lo ≥ 1; travel cost below 0; R below 1; memory below 0; span below 1;
-- memory without speed; travel cost above 0 without speed; word of mouth without memory (> 0);
+  a free step below 0; a metabolism cap below 1, below the lowest sugar metabolism, or (with spice) below the
+  lowest spice metabolism;
+- memory without speed; travel cost above 0 without speed; a free step above 0 without speed; word of mouth without
+  memory (> 0);
 - the season gradient without seasons, or with `winter_growback = "pulse"`;
 - speed above the lowest vision (an agent never reaches in one period a site it can't see);
 - `landscape = "generated"` unless the sugar map is `sugar-map-xxl.txt`, and that map unless the landscape is
@@ -133,11 +158,12 @@ range lo … hi) when an agent is created, after every book draw, and a child ta
    first that is empty. If none is empty, it stays. (Hence a remembered target within S that turns out occupied is
    walked toward, not landed on.)
 3. **Harvests and pays.** It harvests the site it ends on, as rule M does. In metabolism it also burns c × the
-   distance it actually moved (torus distance between old and new site), in sugar. This counts as burn for the income
-   credit reads and for consumption pollution. The death check is unchanged.
+   distance it actually moved (torus distance between old and new site), in sugar, unless its target was within the
+   free step (rule 10). This counts as burn for the income credit reads and for consumption pollution. The death
+   check is unchanged.
 
-`travel_cost` defaults to 0.1 sugar per site; `XXL-speed` sweeps it. With S = V and c = 0, every target is reached
-in one period and nothing is charged, which is rule M again.
+`travel_cost` was 0.1 sugar per site in the first rules and is 0.2 in the defaults; `XXL-speed` sweeps it. With
+S = V and c = 0, every target is reached in one period and nothing is charged, which is rule M again.
 
 ## Rule 3: memory and word of mouth
 
@@ -194,8 +220,9 @@ is continuous everywhere. Only the fractional winter is defined with the gradien
 
 **Book setting:** the xl map `sugar-map-xl.txt`, with spice its east–west mirror (docs/xl.md).
 
-**xxl** (`landscape = "generated"`, used only by `XXL-terrain`): two committed files in `sugarscape/maps/`, in the xl
-map's format (500 lines of 500 whitespace-separated integers 0–4, northernmost row first, LF endings):
+**xxl** (`landscape = "generated"`, the default since stage 1; among the `XXL-…` experiments only `XXL-terrain` uses
+it): two committed files in `sugarscape/maps/`, in the xl map's format (500 lines of 500 whitespace-separated
+integers 0–4, northernmost row first, LF endings):
 
 | File | Generator seed | SHA-256 |
 |---|---|---|
@@ -266,6 +293,70 @@ sugar only: combat with spice or credit is refused.
   attacker moves onto the site and harvests its sugar: no production pollution and no income recorded, as in the
   book. Travel cost is charged by metabolism as in rule 2. With memory, the agent then updates its memory.
 
+## Rule 8: a cap on metabolism
+
+**Book setting:** none (`max_metabolism = nothing`): metabolisms are drawn from the experiment's ranges.
+
+**xxl** (`max_metabolism = M`, candidate 4): a new random agent's sugar metabolism is drawn uniformly from
+lo … min(hi, M) instead of lo … hi, and with spice its spice metabolism likewise. This applies wherever the
+experiment draws a metabolism: founders and rule R's replacements. Children inherit their parents' metabolisms
+(rule S), so the cap holds for them without a change. It is the same number of draws over a narrower range. The cap
+may not be below the lowest metabolism of either range. M = 4 is the highest capacity on both maps, so with it no
+agent is drawn that no single site can feed.
+
+**Stage 1:** not chosen. The other changes pass every survival check without it (below), so the default stays at the
+book setting.
+
+## Rule 9: viable founder placement
+
+**Book setting:** `founder_placement = "random"`: a founder goes to a uniformly random empty site of its placement
+area, and then its traits are drawn. The area is the experiment's: the whole grid, the placement block, or with
+tribal blocks its tribe's block; for a rule-R replacement it is the whole grid.
+
+**xxl** (`"viable"`): a founder or a rule-R replacement draws all its traits first, exactly as random placement draws
+them (the Chapter II–V draws, then speed), and only then its site: a uniformly random empty site of its area whose
+sugar capacity is at least its sugar metabolism and, with spice, whose spice capacity is at least its spice
+metabolism. Such a site feeds the agent on its own. If none of those is empty, the agent goes to a
+uniformly random empty site of the area, and the run counts it as a fallback (the scorecard's `viable_fallbacks`
+column, a running total). Births are untouched: a child is born next to its parents, as in rule 4.
+
+A founder whose metabolism exceeds every capacity always falls back. In IV-A3 and VI-1, where both metabolisms are
+drawn from 1–5 and no site has a capacity above 4, that is the 36% of founders with a metabolism of 5, sugar or spice
+(7,044–7,313 of 20,000 per seed under the defaults, seeds 20–39); II-4 draws metabolisms 1–4 and has none.
+
+**Stage 1:** chosen. It has the largest effect on II-4 of any change, and II-4 fails without it.
+
+## Rule 10: the free step
+
+**Book setting:** `free_step = 0`: every move pays the travel cost of rule 2.
+
+**xxl** (`free_step = f`, candidate 1.5; it needs speed): a move whose *target* is within f of the agent (d ≤ f)
+costs nothing. A move toward a farther target costs c × the distance moved, as in rule 2. The agent's valuation agrees
+with what it pays: wherever rule 2 charges c·d for a candidate at distance d (its value and its starve-on-the-way
+cutoff), and in memory's ranking (rule 3) and combat's valuation (rule 7), that term is 0 when d ≤ f.
+
+With f = 1.5, a step to any of the eight Moore neighbours (d ≤ √2) is free, while a trip to a site 2 or more away pays
+for every site moved, each period. The target is chosen afresh each period, so the last step of a longer trip, once
+the target is within f, is free too. It removes the travel-cost trap of the first rules (see "Who dies in the second
+die-off"): an agent that steps to a full neighbouring site each period to eat no longer runs a deficit, while long
+trips still cost at every speed. (Discounting each period's step instead would make every move of a speed-1 agent
+free.)
+
+**Stage 1:** chosen. II-4 fails without it.
+
+## Rule 11: young founders
+
+**Book setting:** `founder_ages = "book"`: founders start at the experiment's own ages (VI-1: uniform on
+0 … max age − 1; under the first rules 26–39% of VI-1's founders died of old age by t = 50).
+
+**xxl** (`"young"`): each founder's age is drawn uniformly from the whole numbers 0 … its fertility start, in the same
+position as the book's draw, so founders start before or at the start of their fertile years. It applies only to
+experiments with sex and finite lives whose founders start at uniform ages; for an experiment without sex or without
+finite lives the transform sets it back to `"book"`. Newcomers and children are untouched.
+
+**Stage 1:** not chosen. It does the most for VI-1's trough of any change, but the survival checks pass without it,
+and with it the share sick ends above the scorecard's bound (below). It stays available for stage 2.
+
 ## The metrics
 
 Added to xxl runs only, after the 45 columns every Julia result has, so regular and xl CSV layouts are unchanged.
@@ -290,34 +381,247 @@ Where a metric doesn't apply it is `nan`.
 - **The `XXL-…` experiments** have no Python counterpart and are defined in Julia (`julia/src/xxl/experiments.jl`),
   not in the exported registry. Each is a base registry experiment passed through the xxl transform with its own
   settings, 5 seeds each (the base's steps). A family prefix runs its members (`XXL-speed`), and `XXL` runs all of them.
-  A result folder is named by the id with `/` replaced by `_`.
+  A result folder is named by the id with `/` replaced by `_`. They are defined from the first rules, `XXL_V1`, not
+  from the defaults, so their settings, fingerprints and recorded results did not change with stage 1.
 
   | Id | Base | Settings away from the book |
   |---|---|---|
   | `XXL-vision` | II-4 | disc vision |
   | `XXL-speed/c0`, `/c0.05`, `/c0.1`, `/c0.2` | II-4 | disc vision, speed (1, 6), travel cost c |
   | `XXL-memory/solo`, `/shared` | II-4 | the above at c = 0.1, memory 8, without and with word of mouth |
-  | `XXL-radius/R1`, `/R1.5`, `/R3` | IV-A3 | the defaults, interaction radius R |
-  | `XXL-seasons/halves`, `/gradient` | II-7 | the defaults, without and with the season gradient |
-  | `XXL-terrain/II-4`, `/IV-A3` | II-4, IV-A3 | the defaults on the generated landscape |
-  | `XXL-society/VI-1` | VI-1 | the defaults (every Chapter VI rule at once) |
-  | `XXL-combat/III-9` | III-9 | the defaults, with combat |
+  | `XXL-radius/R1`, `/R1.5`, `/R3` | IV-A3 | the first rules, interaction radius R |
+  | `XXL-seasons/halves`, `/gradient` | II-7 | the first rules, without and with the season gradient |
+  | `XXL-terrain/II-4`, `/IV-A3` | II-4, IV-A3 | the first rules on the generated landscape |
+  | `XXL-society/VI-1` | VI-1 | the first rules (every Chapter VI rule at once) |
+  | `XXL-combat/III-9` | III-9 | the first rules, with combat |
 
-- **Fingerprint** (`fingerprint.txt`): the line `julia`; a line `xxl ` followed by every setting as `name=value`, in
-  the table's order, space separated (strings in double quotes, `speed=nothing` or `speed=(1, 6)`), e.g.
+- **Fingerprint** (`fingerprint.txt`): the line `julia`; a line `xxl ` followed by the first nine settings as
+  `name=value`, in the table's order, then each of the four stage-1 settings only when it is off its book setting
+  (so a first-rules fingerprint is as it was before they existed), space separated (strings in double quotes,
+  `speed=nothing` or `speed=(1, 6)`). For the first rules it is
   `xxl vision_shape="disc" speed=(1, 6) travel_cost=0.1 memory=8 memory_span=50 word_of_mouth=true
-  interaction_radius=1.5 season_gradient=true landscape="xl"` on one line; then the base experiment's xl fingerprint
-  (docs/xl.md); then, for the generated landscape, one line `xxl map <file> sha256=<hex>` per map in use (the spice
+  interaction_radius=1.5 season_gradient=true landscape="xl"` on one line, and for the defaults
+  `xxl vision_shape="disc" speed=(1, 6) travel_cost=0.2 memory=8 memory_span=50 word_of_mouth=true
+  interaction_radius=1.5 season_gradient=true landscape="generated" founder_placement="viable" free_step=1.5`;
+  then the base experiment's xl fingerprint (docs/xl.md); then, for the generated landscape, one line `xxl map <file> sha256=<hex>` per map in use (the spice
   map only if the experiment has spice). A change to the settings, the base experiment or the maps makes saved
   xxl results stale.
-- **CSVs.** `seed{k}.csv` has the 45 standard metric columns of the Julia port (after `t`), then the nine above.
+- **CSVs.** `seed{k}.csv` has the 45 standard metric columns of the Julia port (after `t`), then the nine above. A
+  scorecard run adds 14 more (next section); ordinary `--xxl` runs never write them.
 - **Report.** `julia --project=julia julia/xxl_report.jl [prefix]` reads the result folders and prints, per XXL
   experiment, the mean and the seed standard deviation at t = 50, 100, 200 and over the last 100 periods, xxl above
   its base's Julia xl run, for population, mean sugar, Gini, trades and price sd (with trade) and every added
   column, with the stepping seconds per period of both.
 - **Agreement is statistical.** An xxl run's random stream differs from every other run's, in any language.
 
-## Results
+## Stage 1: the scorecard and survival
+
+The first rules (`XXL_V1`) nearly killed VI-1's society: on the baseline scorecard below, its 20,000 founders fell to
+2–6% of their number before the population recovered, II-4 and IV-A3 kept only about 60% of xl's survivors, and
+disease died out in every seed ("Results of the first rules" has the analysis behind the first two). The goal is now
+a well-functioning simulation: the population rarely goes extinct, and sex, culture, trade, credit and disease each
+work. The work goes in stages, each scored by the same scorecard: stage 1 survival, stage 2 contact and demography,
+stage 3 trade and credit, stage 4 disease. This section is stage 1's record.
+
+**Outcome.** The defaults are now the first rules with three changes and a higher travel cost: the generated map
+(rule 6), viable founder placement (rule 9), a free step of 1.5 (rule 10), and c = 0.2. On 20 seeds that were not
+used to choose them (seeds 20–39) they pass 13 of the 15 checks, every survival check among them, against 7 of 15 for
+the first rules. The two that still fail, mates in reach (X2) and loans voided by death (X8), failed in every setting
+tried; with the other X checks they are the baseline for stages 2–4.
+
+### The scorecard
+
+```bat
+julia --project=julia julia/xxl_scorecard.jl [--rules v1|defaults] [--set field=value]... [--label NAME]
+    [--seeds N] [--first-seed K] [--jobs J] [--out DIR]
+```
+
+It runs II-4 (500 periods; sugar only, no births), IV-A3 (300; sugar, spice and trade, no births) and VI-1 (500;
+sex, culture, trade, credit and disease at once) under one rule set, by default the defaults, on 20 seeds starting
+at seed index 0. `--rules v1` starts from the first rules instead, and each `--set` changes one field
+(`--set free_step=1.5`). It also runs the xl version of each experiment on the same seeds as the reference level,
+once per seed range: a later scorecard on the same seeds reuses it. Results go to
+`results-julia-xxl/scorecard-<label>-s<first>-<seeds>/` (the per-seed CSVs, so a scorecard can be re-scored without
+re-running) and its report to the `.md` file of the same name, with each check's value, threshold, result and
+per-seed detail. The label is the base and the `--set`s joined by `+` unless `--label` names it.
+
+The scorecard's runs write 14 more columns, which ordinary `--xxl` runs don't: deaths by cause (`deaths_sugar`,
+`deaths_spice`, `deaths_old_age`, `deaths_killed`; starving of both goods counts as sugar), `births`, `n_fertile` and
+`n_fertile_with_mate` (a fertile agent of the other sex within the interaction radius), `tag_flips_per_agent`,
+`share_traded_10` (the share of agents who traded in the last 10 periods), the loan flows `loans_started`,
+`loans_rolled`, `loans_repaid` and `loans_voided` (ended by the borrower's or lender's death), and
+`viable_fallbacks` (rule 9).
+
+**The checks.** Every threshold is provisional. "End" is the mean over the last 100 periods; a "value" is what the
+tables below report.
+
+| Check | Aspect | Value | Passes when |
+|---|---|---|---|
+| S1 No extinction | Survival | VI-1 seeds that reach population 0 | = 0 |
+| S2 No near-extinction | Survival | The lowest VI-1 seed's minimum population ÷ its 20,000 founders | ≥ 0.1 |
+| S3 Recovery | Survival | VI-1's end population ÷ xl's, means over seeds | ≥ 0.5 |
+| S4 Survivors, one good | Survival | II-4's end population ÷ xl's, means over seeds | ≥ 0.9 |
+| S5 Survivors, two goods | Survival | IV-A3's end population ÷ xl's, means over seeds | ≥ 0.9 |
+| X1 Births keep up | Sex | Births ÷ deaths over VI-1's last 200 periods, mean over seeds | 0.9–1.1 |
+| X2 Mates in reach | Sex | At VI-1's trough, the share of fertile agents with a mate in reach, mean over seeds | ≥ 0.5 |
+| X3 Both cultures live | Culture | The share of VI-1 seeds where both tribes hold ≥ 5% at t = 200 | ≥ 0.8 |
+| X4 Culture moves | Culture | The fewest tag flips per agent in any period of any VI-1 seed | > 0 |
+| X5 Agents trade | Trade | VI-1's end share of agents who traded in the last 10 periods, mean over seeds | ≥ 0.5 |
+| X6 Prices agree | Trade | VI-1's end price sd ÷ xl's, means over seeds | ≤ 1.5 |
+| X7 Credit persists | Credit | The fewest loans outstanding in any period after t = 100 of any VI-1 seed | ≥ 1 |
+| X8 Loans are repaid | Credit | The share of VI-1's loans voided by a death (of those voided or repaid), mean over seeds | ≤ 0.2 |
+| X9 Disease is endemic | Disease | The share of VI-1 seeds with a disease circulating at t = 500 | ≥ 0.9 |
+| X10 Disease is bounded | Disease | VI-1's end share of agents sick, mean over seeds | 0.01–0.2 |
+
+S4 and S5 compare with xl because an experiment without births has no extinction to avoid: its population can only
+fall, and xl's free movement, as far as the agent sees, is the level reached when no agent dies of a model artifact.
+Only the S checks gate stage 1; the X checks are reported from the start so each later stage knows its baseline.
+
+### The tuning
+
+All tuning scorecards ran on seeds 0–19, and the choice was then confirmed on seeds 20–39.
+1. **Baseline:** the first rules.
+2. **One at a time:** the first rules plus each change alone, at their candidate settings (the four switches of
+   rules 8–11 and the generated map).
+3. **Together:** all five, at travel costs 0.05, 0.1 and 0.2, with book or young founder ages: six settings.
+4. **Trim:** no single change passed S1–S5, so the trim started from the passing setting of step 3 with the fewest
+   changes, then the higher travel cost. It dropped each change in turn, kept any drop that still passed S1–S5, and
+   repeated until no change could be dropped.
+5. **Choose and confirm:** the trim's result, confirmed on the 20 further seeds.
+
+The switches and the landscape count as changes; the travel cost does not. Every scorecard below passed S1: no seed
+of any setting went extinct (the lowest population of any VI-1 seed was 410 under the first rules and 3,578 under the
+defaults). Failing values are in bold.
+
+| Setting (seeds 0–19) | Changes | S2 | S3 | S4 | S5 | Checks passed | X checks failing |
+|---|---|---|---|---|---|---|---|
+| First rules | 0 | **0.021** | 0.683 | **0.617** | **0.586** | 7 | X1, X2, X8, X9, X10 |
+| + metabolism cap 4 | 1 | **0.051** | 0.720 | **0.617** | **0.893** | 9 | X2, X8, X9 |
+| + viable placement | 1 | **0.062** | 0.752 | **0.874** | 1.363 | 9 | X2, X8, X9, X10 |
+| + free step 1.5 | 1 | **0.037** | 0.767 | **0.799** | **0.641** | 8 | X2, X8, X9, X10 |
+| + generated map | 1 | 0.105 | 0.687 | **0.640** | **0.879** | 10 | X2, X8, X9 |
+| + young founders | 1 | 0.158 | 0.692 | **0.617** | **0.586** | 10 | X2, X8, X9 |
+| All, c = 0.05, book ages | 4 | 0.263 | 0.676 | 1.181 | 2.660 | 12 | X2, X8, X10 |
+| All, c = 0.05, young | 5 | 0.778 | 0.632 | 1.181 | 2.660 | 12 | X2, X8, X10 |
+| All, c = 0.1, book ages | 4 | 0.263 | 0.687 | 1.180 | 2.687 | 13 | X2, X8 |
+| All, c = 0.1, young | 5 | 0.783 | 0.625 | 1.180 | 2.687 | 12 | X2, X8, X10 |
+| All, c = 0.2, book ages | 4 | 0.258 | 0.660 | 1.179 | 2.694 | 13 | X2, X8 |
+| All, c = 0.2, young | 5 | 0.780 | 0.622 | 1.179 | 2.694 | 12 | X2, X8, X10 |
+
+The one-at-a-time rows are at the first rules' travel cost, 0.1. "All" is the cap, viable placement, the free step
+and the generated map, with founder ages as named.
+
+**What each change does alone.**
+- **The metabolism cap** removes the founders of IV-A3 and VI-1 with a metabolism of 5, sugar or spice, whom no
+  single site can feed (36% of them). IV-A3 rises to 89% of xl's population, just short of the bar, and VI-1's
+  trough is 2.5 times as high, still half the bar. II-4 already draws metabolisms 1–4, so it does not move at all.
+- **Viable placement** does the most for II-4 (S4 from 0.617 to 0.874) and lifts IV-A3 past xl (S5 1.363): a founder
+  that starts on land that feeds it does not starve looking for it. VI-1's trough rises only to 0.062, and disease
+  still dies out in every seed.
+- **The free step** removes II-4's travel-cost trap (S4 0.799) and gives the best VI-1 recovery (S3 0.767), but
+  helps IV-A3 little (S5 0.641) and VI-1's trough less (0.037).
+- **The generated map**, the only change to the land itself, passes S2 alone, just (0.105). IV-A3 rises to 88%
+  of xl, II-4 barely (0.640). It also keeps disease alive: one circulates at t = 500 in 17 of 20 seeds, against none
+  under the first rules.
+- **Young founders** pass S2 alone (0.158), presumably because fewer founders die of old age in the early famine
+  (not traced). II-4 and
+  IV-A3 have no aging, so the switch does nothing there and S4 and S5 are the first rules'. Disease survives in 8 of
+  20 seeds.
+
+No single change passes S1–S5. S4 is the hardest: only viable placement and the free step move it much.
+
+**Together.** All five pass S1–S5 at every travel cost and with either founder ages. The travel cost barely changes
+survival (S4 1.179–1.181, S5 2.660–2.694). Young founders raise VI-1's trough from about 0.26 to about 0.78 of the
+founders, but cost recovery (S3 0.622–0.632 against 0.660–0.687), and with them the share sick ends above 20% at
+every travel cost (X10 0.224–0.259). With book ages X10 passes at c = 0.1 and 0.2 (0.167, 0.148) and fails at 0.05
+(0.204). The fewest changes (four, book ages), then the higher travel cost, put the trim's start at c = 0.2 with book
+ages.
+
+**The trim.** From that start, at c = 0.2, each change was dropped in turn, the one with the least effect on S4 alone
+first: the cap, the generated map, the free step, then viable placement.
+
+| Setting (seeds 0–19, c = 0.2, book ages) | S2 | S3 | S4 | S5 | Checks passed | X checks failing | Drop |
+|---|---|---|---|---|---|---|---|
+| Start: all four | 0.258 | 0.660 | 1.179 | 2.694 | 13 | X2, X8 | |
+| Without the cap | 0.179 | 0.682 | 1.179 | 1.967 | 13 | X2, X8 | accepted |
+| Without the cap and the generated map | **0.072** | 0.756 | 1.205 | 1.593 | 10 | X2, X8, X9, X10 | refused |
+| Without the cap and the free step | 0.127 | 0.616 | **0.807** | 1.210 | 11 | X2, X8, X9 | refused |
+| Without the cap and viable placement | 0.112 | 0.685 | **0.796** | 0.914 | 12 | X2, X8 | refused |
+
+- **Without the cap** every survival check still passes. Its 36% of founders with a metabolism of 5 now go to a
+  random site (rule 9's fallback), so IV-A3 keeps fewer (S5 from 2.69 to 1.97 of xl) and VI-1's trough is lower
+  (0.258 to 0.179), with room to spare on both.
+- **Without the generated map** VI-1's trough fails (0.072; 5 seeds of 20 below 0.1), and disease dies out in every
+  seed.
+- **Without the free step**, or **without viable placement**, II-4 fails (0.807, 0.796).
+
+Each of the three remaining changes was dropped from the final set and each drop failed, so nothing more can be
+dropped: the trim ends at three changes. The trim is greedy, so another order could in principle reach a different
+smallest set. At c = 0.2, II-4 passed only with viable placement and the free step together, and those two alone fail
+S2, which suggests that no two changes suffice, but not every pair was scored.
+
+### The choice and its confirmation
+
+The trim's result is the new default: `landscape = "generated"`, `founder_placement = "viable"`, `free_step = 1.5`
+and `travel_cost = 0.2`, with `max_metabolism` and `founder_ages` at their book settings and every other field as in
+the first rules. On seeds 20–39 it passes the same 13 checks as on seeds 0–19, with nearly the same values:
+
+| Check | Threshold | First rules, seeds 0–19 | Defaults, seeds 0–19 | Defaults, seeds 20–39 |
+|---|---|---|---|---|
+| S1 No extinction | = 0 | 0 | 0 | 0 |
+| S2 No near-extinction | ≥ 0.1 | **0.021** | 0.179 | 0.198 |
+| S3 Recovery | ≥ 0.5 | 0.683 | 0.682 | 0.684 |
+| S4 Survivors, one good | ≥ 0.9 | **0.617** | 1.179 | 1.178 |
+| S5 Survivors, two goods | ≥ 0.9 | **0.586** | 1.967 | 1.972 |
+| X1 Births keep up | 0.9–1.1 | **1.131** | 1.051 | 1.044 |
+| X2 Mates in reach | ≥ 0.5 | **0.015** | **0.024** | **0.023** |
+| X3 Both cultures live | ≥ 0.8 | 1 | 1 | 1 |
+| X4 Culture moves | > 0 | 0.012 | 0.167 | 0.187 |
+| X5 Agents trade | ≥ 0.5 | 0.920 | 0.979 | 0.981 |
+| X6 Prices agree | ≤ 1.5 | 1.297 | 1.223 | 1.202 |
+| X7 Credit persists | ≥ 1 | 14 | 990 | 1,134 |
+| X8 Loans are repaid | ≤ 0.2 | **0.276** | **0.253** | **0.249** |
+| X9 Disease is endemic | ≥ 0.9 | **0** | 0.95 | 0.95 |
+| X10 Disease is bounded | 0.01–0.2 | **0** | 0.112 | 0.107 |
+| Checks passed | | 7 | 13 | 13 |
+
+The per-seed detail, on seeds 20–39: VI-1's lowest population is 3,956–8,476 (S2 0.198–0.424 of the founders), and
+it ends at 47,990–71,020 against xl's 67,670–103,800. II-4 ends at 27,940–28,280 against xl's 23,760–24,000, and
+IV-A3 at 7,231–7,412 against 3,621–3,825.
+
+- **II-4 and IV-A3 now keep more agents than xl.** The checks ask for 90% of xl, and xl is a reference, not a
+  ceiling. xl places founders at random, where viable placement starts every II-4 founder, and every IV-A3 founder
+  it can, on land that feeds it; that is presumably the difference (not traced).
+- **VI-1's trough is now 18–42% of the founders**, against 2–6% under the first rules, and its recovery is unchanged
+  at about 68% of xl.
+
+### The baseline for stages 2–4
+
+Under the defaults, on seeds 20–39:
+- **X2 fails badly: mates are rarely in reach.** At VI-1's trough only 2.3% of fertile agents (1.2–3.6% per seed)
+  have a fertile agent of the other sex within the interaction radius, against the 50% asked. It failed in every
+  setting tried (0.011–0.026), so stage 1's changes don't touch it. This is stage 2's problem: contact and
+  demography.
+- **X8 fails narrowly: a quarter of loans end voided by a death** (0.249; 0.236–0.276 per seed) against the 20%
+  allowed. It also failed in every setting (0.235–0.313). Stage 3 covers credit.
+- **Births now keep up with deaths** (X1 1.044; under the first rules 1.131, births far ahead of deaths as the
+  population refilled after its deep trough).
+- **Disease is now endemic but near its bounds.** A disease circulates at t = 500 in 19 of 20 seeds in both seed sets
+  (X9 0.95 against 0.9, so two more seeds without disease would fail it). The mean share sick passes (0.107), but per
+  seed it runs from 0 to 0.25, so some seeds lie outside the 1–20% bounds.
+- **Culture, trade and credit pass:** both tribes live in every seed, culture moves throughout (fewest tag flips per
+  agent 0.187, against 0.012 under the first rules), 98% of agents trade, the price spread is 1.2 times xl's, and at
+  least 1,134 loans are outstanding in every period after t = 100.
+
+**Run time.** VI-1 dominates. With `--jobs 10` on the 24 threads of an i7-13700K (machine load not recorded), the
+confirmation scorecard took 2,196 s, of which the xl reference runs for the new seed range took 583 s (VI-1 512 s).
+Scorecards that reused an existing xl reference took 1,373–2,209 s (the defaults on seeds 0–19: 1,753 s).
+
+## Results of the first rules (`XXL_V1`)
+
+This section is the record of the first rules, `XXL_V1`, as the 16 `XXL-…` experiments still run them. Where it says
+"the defaults" or "the xxl defaults", it means those rules (the first-rules column of "The settings"), not today's
+defaults.
 
 First runs of the 16 `XXL-…` experiments (2026-10-28), 5 seeds each, against fresh Julia xl runs of the five base
 experiments (10 seeds for II-4, IV-A3 and III-9; 5 for II-7 and VI-1; all fingerprints current). These are findings,
