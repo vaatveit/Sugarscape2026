@@ -447,7 +447,8 @@ per-seed detail. The label is the base and the `--set`s joined by `+` unless `--
 
 The scorecard's runs write 14 more columns, which ordinary `--xxl` runs don't: deaths by cause (`deaths_sugar`,
 `deaths_spice`, `deaths_old_age`, `deaths_killed`; starving of both goods counts as sugar), `births`, `n_fertile` and
-`n_fertile_with_mate` (a fertile agent of the other sex within the interaction radius), `tag_flips_per_agent`,
+`n_fertile_with_mate` (a fertile agent of the other sex within the interaction radius, 1.5; see X2 below),
+`tag_flips_per_agent`,
 `share_traded_10` (the share of agents who traded in the last 10 periods), the loan flows `loans_started`,
 `loans_rolled`, `loans_repaid` and `loans_voided` (ended by the borrower's or lender's death), and
 `viable_fallbacks` (rule 9).
@@ -475,7 +476,13 @@ tables below report.
 
 S4 and S5 compare with xl because an experiment without births has no extinction to avoid: its population can only
 fall, and xl's free movement, as far as the agent sees, is the level reached when no agent dies of a model artifact.
+Under the stage-1 defaults the two sides run on different landscapes (the defaults on the generated map, the xl
+reference on the xl map), so S4 and S5 compare across maps there.
 Only the S checks gate stage 1; the X checks are reported from the start so each later stage knows its baseline.
+
+X2 counts partners within the interaction radius, as the spec defines it. VI-1 itself mates within vision
+(`mate_contact = "vision"`), which under xxl is a round look, so X2 understates the partners mating can use. Whether
+X2 should follow `mate_contact` is open, to be settled before stage 2.
 
 ### The tuning
 
@@ -591,17 +598,21 @@ IV-A3 at 7,231–7,412 against 3,621–3,825.
 
 - **II-4 and IV-A3 now keep more agents than xl.** The checks ask for 90% of xl, and xl is a reference, not a
   ceiling. xl places founders at random, where viable placement starts every II-4 founder, and every IV-A3 founder
-  it can, on land that feeds it; that is presumably the difference (not traced).
+  it can, on land that feeds it. For IV-A3 the generated map counts too: it alone lifts S5 from 0.586 to 0.879, and
+  dropping it in the trim takes S5 from 1.967 to 1.593. Placement and map are presumably the difference (not
+  traced). The xl reference stays on the xl map, so these ratios compare across maps.
 - **VI-1's trough is now 18–42% of the founders**, against 2–6% under the first rules, and its recovery is unchanged
   at about 68% of xl.
 
 ### The baseline for stages 2–4
 
 Under the defaults, on seeds 20–39:
-- **X2 fails badly: mates are rarely in reach.** At VI-1's trough only 2.3% of fertile agents (1.2–3.6% per seed)
-  have a fertile agent of the other sex within the interaction radius, against the 50% asked. It failed in every
-  setting tried (0.011–0.026), so stage 1's changes don't touch it. This is stage 2's problem: contact and
-  demography.
+- **X2 fails badly, but it measures a narrower reach than mating uses.** At VI-1's trough only 2.3% of fertile
+  agents (1.2–3.6% per seed) have a fertile agent of the other sex within the interaction radius, against the 50%
+  asked. It failed in every setting tried (0.011–0.026), so stage 1's changes don't touch it. VI-1 mates within
+  vision, not the interaction radius, so X2 understates the partners mating can use, and its failure does not by
+  itself show that mating lacks partners: X1, births keeping up with deaths, passes (1.044). Whether X2 should follow
+  `mate_contact` is open, to be settled before stage 2 (contact and demography).
 - **X8 fails narrowly: a quarter of loans end voided by a death** (0.249; 0.236–0.276 per seed) against the 20%
   allowed. It also failed in every setting (0.235–0.313). Stage 3 covers credit.
 - **Births now keep up with deaths** (X1 1.044; under the first rules 1.131, births far ahead of deaths as the
