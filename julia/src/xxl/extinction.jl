@@ -107,6 +107,7 @@ function percent_text(x::Real)
 end
 
 seconds_text(s) = isnan(s) ? "—" : string(round(Int, s))
+whole_text(x) = string(round(Int, x))  # a population, exact: `fmt` keeps four significant figures
 
 """
     extinction_report(outcomes; label, rules, first_seed, seeds, periods, jobs, wall) -> String
@@ -164,10 +165,10 @@ function extinction_report(outcomes; label, rules, first_seed, seeds, periods, j
     for o in sort(collect(outcomes); by=o -> o.seed)
         push!(
             lines,
-            "| $(o.seed) | $(fmt(o.lowest)) | $(o.lowest_t) | " *
-            join((fmt(x) for x in o.at_quarters), " | ") *
+            "| $(o.seed) | $(whole_text(o.lowest)) | $(o.lowest_t) | " *
+            join((whole_text(x) for x in o.at_quarters), " | ") *
             " | $(o.extinct_t === nothing ? "—" : o.extinct_t) | $(o.births_last) | $(o.deaths_last) | " *
-            "$(fmt(o.mean_third)) | $(fmt(o.mean_fourth)) | $(is_falling(o) ? "yes" : "no") | " *
+            "$(whole_text(o.mean_third)) | $(whole_text(o.mean_fourth)) | $(is_falling(o) ? "yes" : "no") | " *
             "$(seconds_text(o.seconds)) |",
         )
     end
@@ -221,8 +222,14 @@ function write_atomic(path::AbstractString, text::AbstractString)
     return nothing
 end
 
-"""Whether a seed's CSV is whole: its header and periods + 1 rows, t = 0 to `periods`."""
-seed_done(path::AbstractString, periods::Int) = isfile(path) && countlines(path) == periods + 2
+"""Whether a seed's CSV is whole: its header and periods + 1 rows, t = 0 to `periods`, the last row ended."""
+function seed_done(path::AbstractString, periods::Int)
+    isfile(path) && countlines(path) == periods + 2 || return false
+    return open(path) do io  # countlines counts an unended last line too
+        seek(io, filesize(path) - 1)
+        return read(io, UInt8) == UInt8('\n')
+    end
+end
 
 """Setup, stepping and metrics seconds of a seed's timing file; NaN if it is absent or unreadable."""
 function timing_seconds(path::AbstractString)
@@ -257,14 +264,25 @@ function extinction_seed!(exp::Experiment, k::Int, rules::XxlRules, folder::Abst
     return seed_outcome(stack(rows; dims=1), ["t"; columns], k; seconds=seconds)
 end
 
+const CODE_LINE = r"^code sha256=[^\n]*\n"m
+
 """
 Makes sure `folder` holds the run of `fingerprint`: creates it (writing the fingerprint) when new, otherwise throws
-`ArgumentError` if its fingerprint differs or is missing. With `create` false, a missing folder is an error too.
+`ArgumentError` if its fingerprint differs or is missing. With `create` false, a missing folder is an error too. With
+`warn_io` given, a fingerprint that differs only in its code line is let through, after a warning to `warn_io`.
 """
-function check_extinction_folder(folder::AbstractString, fingerprint::AbstractString; create::Bool)
+function check_extinction_folder(
+    folder::AbstractString, fingerprint::AbstractString; create::Bool, warn_io::Union{Nothing,IO}=nothing
+)
     path = joinpath(folder, "fingerprint.txt")
     if isfile(path)
-        read(path, String) == fingerprint && return nothing
+        stored = read(path, String)
+        stored == fingerprint && return nothing
+        if warn_io !== nothing && occursin(CODE_LINE, stored) &&
+           replace(stored, CODE_LINE => "") == replace(fingerprint, CODE_LINE => "")
+            println(warn_io, "warning: the code differs from the code that made $folder; its seeds are reported anyway")
+            return nothing
+        end
         throw(ArgumentError("$folder was made under other rules, code or periods; choose another --label"))
     end
     create || throw(ArgumentError("$folder has no results to report"))
@@ -308,8 +326,15 @@ function extinction_progress(o::SeedOutcome, fresh, periods, done, total, worker
     left = (total - done) * mean_of([f.seconds for f in fresh]) / workers / 3600
     extinct = o.extinct_t === nothing ? "" : ", EXTINCT at t = $(o.extinct_t)"
     return "seed $(o.seed): $(seconds_text(o.seconds)) s ($(fmt(o.seconds / periods)) s per period), " *
-           "lowest $(fmt(o.lowest)), end $(fmt(o.at_quarters[4]))$extinct; $done of $total done, " *
+           "lowest $(whole_text(o.lowest)), end $(whole_text(o.at_quarters[4]))$extinct; $done of $total done, " *
            "about $(round(left; digits=1)) h left"
+end
+
+"""The experiment of an extinction run (VI-1 over `periods`, or `experiment`), its folder and its fingerprint."""
+function extinction_plan(rules::XxlRules, experiment, out, label, first_seed, seeds, periods)
+    exp = with_steps(experiment === nothing ? find_experiment(load_registry(), "VI-1") : experiment, periods)
+    folder = joinpath(out, extinction_name(label, first_seed, seeds, periods))
+    return (; exp, folder, fingerprint=extinction_fingerprint(exp, rules, periods))
 end
 
 """
@@ -334,9 +359,8 @@ function run_extinction(
     io::IO=stdout,
 )
     check_extinction_size(; seeds=seeds, first_seed=first_seed, periods=periods, jobs=jobs)
-    exp = with_steps(experiment === nothing ? find_experiment(load_registry(), "VI-1") : experiment, periods)
-    folder = joinpath(out, extinction_name(label, first_seed, seeds, periods))
-    check_extinction_folder(folder, extinction_fingerprint(exp, rules, periods); create=true)
+    exp, folder, fingerprint = extinction_plan(rules, experiment, out, label, first_seed, seeds, periods)
+    check_extinction_folder(folder, fingerprint; create=true)
     indices = first_seed:(first_seed + seeds - 1)
     todo = [k for k in indices if !seed_done(joinpath(folder, "seed$k.csv"), periods)]
     if !isempty(todo)
@@ -380,7 +404,8 @@ end
                               jobs=nothing, io=stdout) -> (; verdict, extinct, limit)
 
 Writes the report of an extinction run from the seeds it has finished, running nothing. `ArgumentError` if the folder is
-absent or was made under other rules, code or periods, so a report cannot be rewritten under the wrong ones.
+absent or was made under other rules or periods, so a report cannot be rewritten under the wrong ones. Code that has
+changed since is only warned of (to `io`): the report is of the CSVs, whatever wrote them.
 """
 function rebuild_extinction_report(
     rules::XxlRules;
@@ -394,9 +419,8 @@ function rebuild_extinction_report(
     io::IO=stdout,
 )
     check_extinction_size(; seeds=seeds, first_seed=first_seed, periods=periods, jobs=something(jobs, 1))
-    exp = with_steps(experiment === nothing ? find_experiment(load_registry(), "VI-1") : experiment, periods)
-    folder = joinpath(out, extinction_name(label, first_seed, seeds, periods))
-    check_extinction_folder(folder, extinction_fingerprint(exp, rules, periods); create=false)
+    _, folder, fingerprint = extinction_plan(rules, experiment, out, label, first_seed, seeds, periods)
+    check_extinction_folder(folder, fingerprint; create=false, warn_io=io)
     return write_extinction_report(rules, folder; label=label, seeds=seeds, first_seed=first_seed, periods=periods,
                                    jobs=jobs, io=io)
 end
@@ -469,25 +493,31 @@ end
 
 The command line of julia/xxl_extinction.jl: runs [`run_extinction`](@ref), or with `--report-only`
 [`rebuild_extinction_report`](@ref). Returns 2 on a usage error, a missing folder or a folder made under other rules; a
-`FAIL` verdict is a result, so 0.
+`FAIL` verdict is a result, so 0. Only the arguments and the folder check are usage errors: anything that goes wrong
+after (a malformed CSV, say) is thrown with its stack trace.
 """
 function extinction_main(args::Vector{String})
-    try
+    a = try
         a = extinction_args(args)
-        if a.report_only
-            rebuild_extinction_report(
-                a.rules; label=a.label, seeds=a.seeds, first_seed=a.first_seed, periods=a.periods, out=a.out,
-            )
-        else
-            run_extinction(
-                a.rules; label=a.label, seeds=a.seeds, first_seed=a.first_seed, periods=a.periods, jobs=a.jobs,
-                out=a.out,
-            )
-        end
-        return 0
+        # The run and the rebuild check the folder again; checking it here makes a refusal a usage error.
+        _, folder, fingerprint = extinction_plan(a.rules, nothing, a.out, a.label, a.first_seed, a.seeds, a.periods)
+        warn_io = a.report_only ? devnull : nothing  # the rebuild says so itself when only the code differs
+        check_extinction_folder(folder, fingerprint; create=!a.report_only, warn_io=warn_io)
+        a
     catch e
         e isa ArgumentError || rethrow()
         println(stderr, EXTINCTION_USAGE, "\n", e.msg)
         return 2
     end
+    if a.report_only
+        rebuild_extinction_report(
+            a.rules; label=a.label, seeds=a.seeds, first_seed=a.first_seed, periods=a.periods, out=a.out,
+        )
+    else
+        run_extinction(
+            a.rules; label=a.label, seeds=a.seeds, first_seed=a.first_seed, periods=a.periods, jobs=a.jobs,
+            out=a.out,
+        )
+    end
+    return 0
 end

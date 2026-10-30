@@ -14,6 +14,7 @@ using Sugarscape:
     rebuild_extinction_report,
     same_run,
     extinction_main,
+    extinction_fingerprint,
     read_seed_csv,
     with_steps,
     run_experiment
@@ -123,6 +124,12 @@ end
     @test occursin("**Most living seeds were falling at the end", r)
     @test occursin("- Falling at the end: 60 of 60 living seeds", r)
 
+    # Populations are exact: four significant figures would show 62989 as 62990.
+    big = [63000, 63000, 62989, 63000, 63000, 62980, 62990, 63000, 63000]
+    r = extinction_report([ext_outcome(big)]; label="x", rules=XXL_DEFAULTS, first_seed=0, seeds=1, periods=8,
+                          jobs=nothing, wall=nothing)
+    @test occursin("| 0 | 62980 | 5 | 62989 | 63000 | 62990 | 63000 | — | 0 | 0 | 62985 | 63000 | no |", r)
+
     # jobs and wall are optional.
     @test extinction_report([ext_outcome(pops)]; seeds=1, kw..., jobs=nothing, wall=nothing) isa String
 end
@@ -219,6 +226,18 @@ end
     @test mtime(joinpath(folder, "seed5.csv")) == seed5_time
 end
 
+@testset "xxl extinction: a seed cut inside its last row runs again" begin
+    out = mktempdir()
+    ext_go(EXT_FED, out)
+    folder = ext_dir(out)
+    path6 = joinpath(folder, "seed6.csv")
+    whole = read(path6)
+    write(path6, whole[1:(end - 4)])  # the right number of lines, the last cut mid-cell, no final newline
+    @test countlines(path6) == 14
+    ext_go(EXT_FED, out)
+    @test read(path6) == whole
+end
+
 @testset "xxl extinction: other rules or periods are refused" begin
     out = mktempdir()
     ext_go(EXT_FED, out)
@@ -280,6 +299,20 @@ end
     @test_throws ArgumentError rebuild_extinction_report(XXL_V1; kw..., out=mktempdir())
     @test_throws ArgumentError rebuild_extinction_report(replace_rules(XXL_V1; travel_cost=0.05); kw...)
     @test read(md, String) == text
+    # Edited code is a warning, not a refusal; other rules or periods alongside it still refuse.
+    fp = joinpath(ext_dir(out), "fingerprint.txt")
+    original = read(fp, String)
+    write(fp, replace(original, r"code sha256=[0-9a-f]+" => "code sha256=edited"))
+    rm(md)
+    said = IOBuffer()
+    @test rebuild_extinction_report(XXL_V1; kw..., io=said).verdict == "TOO FEW SEEDS"
+    @test occursin("warning: the code differs", String(take!(said)))
+    @test read(md, String) == text
+    @test_throws ArgumentError rebuild_extinction_report(replace_rules(XXL_V1; travel_cost=0.05); kw...)
+    @test_throws ArgumentError ext_go(EXT_FED, out)
+    write(fp, replace(original, r"code sha256=[0-9a-f]+" => "code sha256=edited", "periods=12" => "periods=13"))
+    @test_throws ArgumentError rebuild_extinction_report(XXL_V1; kw...)
+    write(fp, original)
     path6 = joinpath(ext_dir(out), "seed6.csv")
     whole = read(path6, String)
     rm(path6)
@@ -332,6 +365,26 @@ end
     short = derived(ls -> ls[1:6], "short.csv")
     @test !same_run(a, short; periods=10)
     @test !same_run(short, a; periods=10)
+end
+
+@testset "xxl extinction: a malformed CSV is an error, not a usage error" begin
+    out = mktempdir()
+    args = ["--rules", "v1", "--label", "bad", "--seeds", "1", "--first-seed", "5", "--periods", "12", "--out", out]
+    folder = joinpath(out, extinction_name("bad", 5, 1, 12))
+    mkpath(folder)
+    exp = with_steps(find_experiment(EXT_REG, "VI-1"), 12)
+    write(joinpath(folder, "fingerprint.txt"), extinction_fingerprint(exp, XXL_V1, 12))
+    rows = ["t,population,agents_ever"; ["$t,100,100" for t in 0:12]]
+    rows[6] = "4,100"  # too few cells
+    write(joinpath(folder, "seed5.csv"), join(rows, "\n") * "\n")
+    @test_throws ArgumentError redirect_stderr(() -> extinction_main([args; "--report-only"]), devnull)
+    # Whole again, and the code edited since: a warning, not a usage error.
+    rows[6] = "4,100,100"
+    write(joinpath(folder, "seed5.csv"), join(rows, "\n") * "\n")
+    fp = joinpath(folder, "fingerprint.txt")
+    write(fp, replace(read(fp, String), r"code sha256=[0-9a-f]+" => "code sha256=edited"))
+    @test redirect_stdout(() -> extinction_main([args; "--report-only"]), devnull) == 0
+    @test isfile(folder * ".md")
 end
 
 @testset "xxl extinction: the command line" begin
