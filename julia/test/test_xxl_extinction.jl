@@ -80,7 +80,7 @@ end
 @testset "xxl extinction: the report" begin
     kw = (label="defaults", rules=XXL_DEFAULTS, first_seed=20, periods=2000, jobs=10, wall=3600.0)
     # 60 seeds over 2,000 periods: the quarters are 500, 1,000, 1,500 and 2,000.
-    pops = [fill(100, 2001);]
+    pops = fill(100, 2001)
     r = extinction_report([seed_outcome(ext_run(pops)..., 19 + i; seconds=60.0) for i in 1:60]; seeds=60, kw...)
     @test occursin("# Extinction test: defaults", r)
     @test occursin("- Verdict: PASS", r)
