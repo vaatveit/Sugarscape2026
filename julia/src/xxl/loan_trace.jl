@@ -24,7 +24,8 @@
 # the living every `census_every` periods, each in its state groups and age band, and follows them for `term + 1`
 # periods, to see who has a child and who dies of what. Its tables, by (window of the census, group, band), are
 # `census_n`, `census_children`, `census_old_age`, `census_sugar`, `census_spice` and `census_killed`; read a row with
-# `census_row`. A cohort enters them only once its follow-up is complete, and then adds 1 to `cohorts` (by window).
+# `census_row`. A cohort enters them only once its follow-up is complete, and then adds 1 to `cohorts` (by window). A
+# `could_borrow` agent also counts in `could_borrow_took` or `could_borrow_none`, by what it did next (`closed_groups`).
 
 # The columns of a sampled chain's row, `received` and `weight` as the chain stands (per unit of weight, see `Chain`).
 const TRACE_SAMPLE_COLUMNS = [
@@ -71,7 +72,9 @@ end
 
 function take_chain!(tr::LoanTrace, loan::Loan)
     chain = get(tr.chains, loan, nothing)
-    chain === nothing && error("the loan trace never saw this loan start: $(loan.lender) lends to $(loan.borrower)")
+    chain === nothing && error(
+        "the loan trace never saw this loan start: agent $(loan.lender.id) lends to agent $(loan.borrower.id)",
+    )
     delete!(tr.chains, loan)
     return chain
 end
@@ -271,15 +274,26 @@ end
 function take_census!(tr::LoanTrace, m::Model)
     tr.cohort_window, tr.cohort_end = window_index(m.t), m.t + tr.term + 1
     for a in m.agents
-        tr.cohort[a.id] = CensusEntry(a, census_group(m, a), age_band(a.age), length(a.children), false, :open)
+        tr.cohort[a.id] = CensusEntry(a, census_group(m, a), age_band(a.age), length(a.children), false, false, :open)
     end
     return nothing
 end
 
 """
+The groups a followed entry counts in: its state groups, `all`, and for a `could_borrow` agent `could_borrow_took` if it
+was seen owing a loan during the follow-up, else `could_borrow_none`.
+"""
+function closed_groups(entry::CensusEntry)
+    "could_borrow" in entry.groups || return (entry.groups..., "all")
+    return (entry.groups..., entry.owed ? "could_borrow_took" : "could_borrow_none", "all")
+end
+
+"""
 A period of the open cohort's follow-up: the dead among it are closed with their cause, the living are noted for a new
-child. A child born in the period its parent dies isn't seen (`kill!` empties the list), in every group alike. At the
-last period the rest are closed as survivors and the cohort enters the tables.
+child and for owing a loan. A child born in the period its parent dies isn't seen (`kill!` empties the list), in every
+group alike. A loan made and ended between two checks isn't seen either, as a death clears its party's debts: an agent
+that borrows and dies within one period counts as `could_borrow_none`. At the last period the rest are closed as
+survivors and the cohort enters the tables.
 """
 function follow_cohort!(tr::LoanTrace, m::Model)
     isempty(tr.cohort) && return nothing
@@ -291,11 +305,12 @@ function follow_cohort!(tr::LoanTrace, m::Model)
     for entry in values(tr.cohort)
         entry.fate === :open || continue
         length(entry.agent.children) > entry.children && (entry.had_child = true)
+        haskey(m.debts, entry.agent.id) && (entry.owed = true)
         final && (entry.fate = :survived)
     end
     final || return nothing
     add!(tr, tr.cohort_window, "cohorts", 1)
-    for entry in values(tr.cohort), group in (entry.groups..., "all")
+    for entry in values(tr.cohort), group in closed_groups(entry)
         add!(tr, tr.cohort_window, "census_n", 1, group, entry.band)
         entry.had_child && add!(tr, tr.cohort_window, "census_children", 1, group, entry.band)
         entry.fate === :survived || add!(tr, tr.cohort_window, "census_$(entry.fate)", 1, group, entry.band)

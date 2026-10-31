@@ -30,7 +30,8 @@ end
     CensusEntry
 
 A living agent the census follows: its state `groups` and age `band` when taken, whether it has had a child since
-(`children` is the length of its `children` then), and `fate`: `:open`, `:survived`, or the cause of its death.
+(`children` is the length of its `children` then), whether it has been seen owing a loan since, and `fate`: `:open`,
+`:survived`, or the cause of its death.
 """
 mutable struct CensusEntry
     agent::Agent
@@ -38,6 +39,7 @@ mutable struct CensusEntry
     band::String
     children::Int
     had_child::Bool
+    owed::Bool
     fate::Symbol
 end
 

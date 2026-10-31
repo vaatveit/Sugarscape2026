@@ -162,7 +162,7 @@ julia --project=julia julia/xxl_loan_trace.jl --compare loans-defaults-s20-10-p2
 The first runs the xxl defaults over seeds 20–29 for 2,000 periods (`--world defaults --seeds 10 --first-seed 20
 --periods 2000 --jobs 5`, the defaults of those options). `--world` is `defaults`, `xl` (the xl VI-1, no xxl rules) or
 `book` (the registry's 50 × 50 VI-1); `--term D` changes the loan term with the rate at 10, `--no-credit` turns credit
-off and `--inheritance` passes a dead lender's loans to its heirs. The third rewrites a report from the seeds finished,
+off and `--inheritance` passes a dead lender's loans to its heirs. The fourth rewrites a report from the seeds finished,
 running nothing. Seeds go to `results-julia-xxl/loans-<label>-s<first>-<seeds>-p<periods>/` (a CSV, a timing file and
 `.tally.csv`, `.census.csv` and `.loans.csv` per seed) and the report beside them as `.md`; `--label` defaults to the
 world's name. `--compare BASE,A,B,…` tabulates folders of `--out`, a row each, over the seeds finished in all of them and

@@ -9,6 +9,7 @@ using Sugarscape:
     trace_xl,
     trace_experiment,
     trace_config,
+    trace_term,
     trace_fingerprint,
     loan_name,
     trace_seed_done,
@@ -18,6 +19,8 @@ using Sugarscape:
     loan_compare,
     loan_trace_main,
     read_census,
+    read_tally,
+    age_ratios,
     read_seed_csv,
     credit_off_reading,
     source_sha256,
@@ -65,6 +68,12 @@ lrun_usage(args) = redirect_stderr(() -> loan_trace_main(args), devnull)
     @test trace_rules(TraceWorld("book", nothing, false)) === nothing
     @test trace_xl(TraceWorld("xl", nothing, false)) && !trace_xl(TraceWorld("book", nothing, false))
     @test_throws ArgumentError TraceWorld("x", nothing, false)
+    # The term the report adjusts by is the one the seeds run: 10 with credit off, as the census follow-up needs one.
+    for name in ("defaults", "xl", "book")
+        w = TraceWorld(name, (5, 10.0), false)
+        @test trace_term(w) == 5 == first(trace_config(w, trace_experiment(w, 12)).credit)
+        @test trace_term(TraceWorld(name, nothing, false)) == 10
+    end
     exp = trace_experiment(LRUN_DEFAULTS, 12)
     @test exp.steps == 12 && exp.id == "VI-1"
     @test loan_name("defaults", 20, 10, 2000) == "loans-defaults-s20-10-p2000"
@@ -253,6 +262,32 @@ end
     @test occursin("# Loan trace: t", report)
 end
 
+@testset "loan run: the report adjusts by the world's term" begin
+    out = mktempdir()
+    # 70 periods: the census of t = 50 is whole by the end, so the age ratios can be read.
+    w = TraceWorld("defaults", (5, 10.0), false)
+    s = lrun_go(w, out; label="five", seeds=1, periods=70)
+    folder = lrun_dir(out; label="five", seeds=1, periods=70)
+    t = read_tally(joinpath(folder, "seed5.tally.csv"))
+    census = read_census(joinpath(folder, "seed5.census.csv"))
+    five, ten = age_ratios(t, census, [1]; term=5), age_ratios(t, census, [1]; term=10)
+    @test !isnan(five.lender) && !isnan(five.borrower)
+    @test five.borrower != ten.borrower
+    @test isequal(s.check.age, five)
+    report = read(folder * ".md", String)
+    @test occursin("5/6", report) && occursin("| Age ratio, borrowers: all | $(fmt(five.borrower)) |", report)
+    kw = (label="five", seeds=1, first_seed=5, periods=70, out=out, io=devnull)
+    @test isequal(rebuild_loan_report(w; kw...).check.age, five)
+    # A comparison takes each folder's own term from its fingerprint.
+    name = loan_name("five", 5, 1, 70)
+    text = loan_compare(out, name, String[]; periods=70)
+    row = split(only(filter(l -> startswith(l, "| $name "), split(text, "\n"))), " | ")
+    @test row[4] == fmt(five.borrower) && row[5] == fmt(five.lender)
+    @test Sugarscape.compare_folder(out, name).term == 5
+    lrun_go(TraceWorld("defaults", nothing, false), out; label="off", seeds=1)
+    @test Sugarscape.compare_folder(out, loan_name("off", 5, 1, 12)).term == 10
+end
+
 # A hand reading of a folder's seeds: mean births, trough and end population over `seeds`, cut to `periods`.
 function lrun_read(out, name, seeds, periods)
     births, trough, ends = Float64[], Float64[], Float64[]
@@ -320,6 +355,18 @@ end
     )
         @test lrun_usage(args) == 2
     end
+end
+
+@testset "loan run: the xl world from the command line" begin
+    out = mktempdir()
+    args = ["--world", "xl", "--seeds", "2", "--first-seed", "5", "--periods", "12", "--jobs", "1", "--out", out]
+    @test redirect_stdout(() -> loan_trace_main(args), devnull) == 0
+    folder = lrun_dir(out; label="xl")
+    for k in (5, 6)
+        @test isfile(joinpath(folder, "seed$k.tally.csv")) && isfile(joinpath(folder, "seed$k.census.csv"))
+        @test trace_seed_done(folder, k, 12)
+    end
+    @test occursin("- World: xl, credit term 10, rate 10.0, inheritance false", read(folder * ".md", String))
 end
 
 @testset "loan run: a successful main" begin

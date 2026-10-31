@@ -74,6 +74,19 @@ end
     @test death_cause(m, a) === :killed
 end
 
+@testset "loan trace: a loan it never saw" begin
+    m = lt_model()
+    lender, borrower = lt_pair(m)
+    err = try
+        Sugarscape.take_chain!(m.loan_trace, Loan(lender, borrower, 1.0, 1.0, 5))
+    catch e
+        e
+    end
+    @test err isa ErrorException
+    @test occursin("agent $(lender.id) lends to agent $(borrower.id)", err.msg)
+    @test !occursin("Agent(", err.msg)
+end
+
 @testset "loan trace: repaid" begin
     m = lt_model(; term=2)
     lender, borrower = lt_pair(m)
@@ -468,6 +481,37 @@ end
     for (group, n) in (("borrowing", 2), ("lending", 2), ("all", 3), ("could_borrow", 0), ("other", 0))
         @test census_row(tr, 1, group, "20") == (n=n, children=0, old_age=0, sugar=0, spice=0, killed=0)
     end
+end
+
+@testset "census: could-borrow agents by what they did next" begin
+    m = census_model()
+    tr = m.loan_trace
+    lender = put_agent(m, 8, 8; metabolism=0)  # no sex, so it lends nothing by itself: the only loans are these
+    took, none, dying, unseen, late = (lt_person(m, c, c; sugar=5.0) for c in (1, 3, 5, 7, 2))
+    already = lt_person(m, 1, 7; sugar=5.0)
+    lt_loan!(m, lender, already, 1.0, 1.0, 50)
+    lt_step!(m, 3)
+    step!(m)  # t = 4, and the income a census reads: nothing grows here
+    for a in (took, none, dying, unseen, late)
+        a.last_income = 2.0
+    end
+    trace_period!(tr, m)
+    @test tr.cohort_end == 7
+    lt_loan!(m, lender, took, 1.0, 1.0, 5)  # owed at the end of t = 5, repaid in t = 6, gone when the cohort closes
+    push!(took.children, put_agent(m, 2, 6))
+    dying.metabolism = 10  # starves at t = 5 without a loan
+    lt_loan!(m, lender, unseen, 1.0, 1.0, 50)  # made and ended between two checks: not seen
+    unseen.metabolism = 10
+    lt_step!(m, 2)
+    @test took.alive && !haskey(m.debts, took.id) && !dying.alive && !unseen.alive
+    lt_loan!(m, lender, late, 1.0, 1.0, 50)  # owed at the last check of the follow-up
+    lt_step!(m)
+    @test isempty(tr.cohort)
+    row(group) = census_row(tr, 1, group, "20")
+    @test row("could_borrow") == (n=5, children=1, old_age=0, sugar=2, spice=0, killed=0)
+    @test row("could_borrow_took") == (n=2, children=1, old_age=0, sugar=0, spice=0, killed=0)
+    @test row("could_borrow_none") == (n=3, children=0, old_age=0, sugar=2, spice=0, killed=0)
+    @test row("borrowing").n == 1  # in neither of the two
 end
 
 @testset "census: a cohort unfinished at the end" begin

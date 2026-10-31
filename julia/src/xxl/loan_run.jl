@@ -25,6 +25,8 @@ struct TraceWorld
     end
 end
 
+"""The loan term a world's seeds are traced under and its report adjusts by: its credit's, or 10 with credit off."""
+trace_term(w::TraceWorld) = w.credit === nothing ? TRACE_TERM : first(w.credit)
 trace_rules(w::TraceWorld) = w.name == "defaults" ? XXL_DEFAULTS : nothing
 trace_xl(w::TraceWorld) = w.name == "xl"
 
@@ -78,7 +80,7 @@ function loan_trace_seed!(
     exp::Experiment, k::Int, w::TraceWorld, folder::AbstractString; write_files=write_trace_files
 )
     cfg = trace_config(w, exp)
-    tr = LoanTrace(cfg.credit === nothing ? TRACE_TERM : first(cfg.credit))
+    tr = LoanTrace(trace_term(w))
     rows, timing, _ = seed_job(exp, k, trace_xl(w); xxl=trace_rules(w), loan_trace=tr)
     write_files(folder, k, tr)
     write_timing_csv(joinpath(folder, "seed$k.timing.csv"), [timing])
@@ -108,10 +110,11 @@ end
 
 """Reads the finished seeds, writes the report beside the folder and prints it to `io`. Returns the summary."""
 function write_loan_report(w::TraceWorld, folder; label, seeds, first_seed, periods, jobs, io)
-    s = loan_summary(folder, first_seed:(first_seed + seeds - 1), periods)
+    term = trace_term(w)
+    s = loan_summary(folder, first_seed:(first_seed + seeds - 1), periods; term)
     report = loan_report(
         s; label=label, world=world_text(w), first_seed=first_seed, seeds=seeds, periods=periods, jobs=jobs,
-        wall=read_elapsed(folder),
+        wall=read_elapsed(folder), term,
     )
     path = folder * ".md"
     write_atomic(path, report)
@@ -216,7 +219,10 @@ end
 
 const LOAN_FOLDER = r"^loans-.+-s(\d+)-(\d+)-p(\d+)$"
 
-"""A loan trace folder of `out` for the comparison: its seeds that are done, its periods and whether credit was off."""
+"""
+A loan trace folder of `out` for the comparison: its seeds that are done, its periods, whether credit was off and its
+loan term, the last two from the line of its fingerprint that the loan trace added (`credit=`).
+"""
 function compare_folder(out::AbstractString, name::AbstractString)
     folder = joinpath(out, name)
     m = match(LOAN_FOLDER, name)
@@ -225,7 +231,11 @@ function compare_folder(out::AbstractString, name::AbstractString)
     isfile(path) || throw(ArgumentError("$folder has no results to compare"))
     first_seed, seeds, periods = parse.(Int, m.captures)
     done = Set(k for k in first_seed:(first_seed + seeds - 1) if trace_seed_done(folder, k, periods))
-    return (; name, folder, periods, done, credit_off=occursin(r"^credit=nothing$"m, read(path, String)))
+    credit = match(r"^credit=(nothing|\((\d+), )"m, read(path, String))
+    credit === nothing && throw(ArgumentError("$folder has no credit in its fingerprint"))
+    credit_off = credit.captures[1] == "nothing"
+    term = credit_off ? TRACE_TERM : parse(Int, credit.captures[2])
+    return (; name, folder, periods, done, credit_off, term)
 end
 
 """The figures of the seeds `shared` of a compared folder, cut to its first `periods` periods and the windows `ws`."""
@@ -243,7 +253,7 @@ function compare_figures(f, shared, periods::Int, ws)
         push!(troughs, minimum(M[2:end, pop]))
         push!(ends, M[end, pop])
     end
-    age = age_ratios(t, census, ws)
+    age = age_ratios(t, census, ws; term=f.term)
     return (;
         x8=isempty(x8s) ? NaN : mean_of(x8s),
         started=tsum(t, ws, "started"),
@@ -259,11 +269,12 @@ end
     loan_compare(out, base, others; periods) -> String
 
 One table of the loan trace folders `base` and `others` (names under `out`), a row each, over the seeds finished in all
-of them and the first `periods` periods: X8 over t = 1–500, the loans started, the age ratios, the births (the change in
-`agents_ever`), the trough and the end population, the last three from each seed's CSV and averaged over seeds. The loan
-figures are by whole window (so t = 1–500 for any `periods` up to 500: the windows from 501 on are left out); a folder
-that ran more periods is cut, one that ran fewer is refused. For a folder with credit off the table is followed by
-[`credit_off_reading`](@ref) against `base`, where it fires. Written to `<out>/loans-compare.md`.
+of them and the first `periods` periods: X8 over t = 1–500, the loans started, the age ratios (adjusted, each by its own
+folder's term), the births (the change in `agents_ever`), the trough and the end population, the last three from each
+seed's CSV and averaged over seeds. The loan figures are by whole window (so t = 1–500 for any `periods` up to 500: the
+windows from 501 on are left out); a folder that ran more periods is cut, one that ran fewer is refused. For a folder
+with credit off the table is followed by [`credit_off_reading`](@ref) against `base`, where it fires. Written to
+`<out>/loans-compare.md`.
 """
 function loan_compare(out::AbstractString, base::AbstractString, others; periods::Int)
     folders = [compare_folder(out, n) for n in (base, others...)]
