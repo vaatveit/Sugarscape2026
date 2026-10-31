@@ -144,33 +144,49 @@ end
 census_deaths(r) = r.old_age + r.sugar + r.spice + r.killed
 
 """
-    age_ratios(t, census, windows) -> (; borrower, lender)
+    age_ratios(t, census, windows) -> (; borrower, lender, by_cause)
 
 Observed voids on each side ÷ the voids that mortality at the parties' ages predicts. Per window, the death rate `q` of
 each band is the census's `all` group's deaths ÷ `n` (0 with no census); a side expects the started chains × `q` at its
 band, × ended ÷ started, since the chains still open haven't had their chance to die. Windows add before dividing, and a
 window with no census at all is left out of both sides. A borrower's side observes `voided_borrower` + `voided_both`, a
-lender's `voided_lender` + `voided_both`. NaN with nothing expected.
+lender's `voided_lender` + `voided_both`. `by_cause` gives the same ratio for each cause of death, the observed deaths
+from `void_cause` and the expected from that cause's `q`. NaN with nothing expected.
 """
 function age_ratios(t, census, windows)
-    expected = Dict("borrower" => 0.0, "lender" => 0.0)
-    observed = Dict("borrower" => 0.0, "lender" => 0.0)
+    sides = ("borrower", "lender")
+    expected = Dict(s => 0.0 for s in sides)
+    observed = Dict(s => 0.0 for s in sides)
+    expected_by = Dict(s => Dict(c => 0.0 for c in CENSUS_CAUSES) for s in sides)
+    observed_by = Dict(s => Dict(c => 0.0 for c in CENSUS_CAUSES) for s in sides)
     for w in windows
         started = tget(t, w, "started")
-        started > 0 && any(true for _ in census_rows(census, [w], "all")) || continue
+        rows = collect(census_rows(census, [w], "all"))
+        started > 0 && !isempty(rows) || continue
         ended = sum(tget(t, w, "ended", o) for o in TRACE_OUTCOMES)
-        q = Dict(r.band => census_deaths(r) / r.n for r in census_rows(census, [w], "all") if r.n > 0)
+        q = Dict(r.band => census_deaths(r) / r.n for r in rows if r.n > 0)
+        q_by = Dict(c => Dict(r.band => getfield(r, Symbol(c)) / r.n for r in rows if r.n > 0) for c in CENSUS_CAUSES)
         for (lender_band, borrower_band, count) in trace_rows(t, [w], "started_bands")
-            expected["lender"] += count * get(q, lender_band, 0.0) * ended / started
-            expected["borrower"] += count * get(q, borrower_band, 0.0) * ended / started
+            for (side, band) in (("lender", lender_band), ("borrower", borrower_band))
+                expected[side] += count * get(q, band, 0.0) * ended / started
+                for c in CENSUS_CAUSES
+                    expected_by[side][c] += count * get(q_by[c], band, 0.0) * ended / started
+                end
+            end
         end
         both = tget(t, w, "ended", "voided_both")
         observed["borrower"] += tget(t, w, "ended", "voided_borrower") + both
         observed["lender"] += tget(t, w, "ended", "voided_lender") + both
+        for side in sides, c in CENSUS_CAUSES
+            observed_by[side][c] += tget(t, w, "void_cause", side, c)
+        end
     end
+    ratio(side) = share_of(observed[side], expected[side])
+    by_cause(side) = Dict(c => share_of(observed_by[side][c], expected_by[side][c]) for c in CENSUS_CAUSES)
     return (;
-        borrower=share_of(observed["borrower"], expected["borrower"]),
-        lender=share_of(observed["lender"], expected["lender"]),
+        borrower=ratio("borrower"),
+        lender=ratio("lender"),
+        by_cause=(; borrower=by_cause("borrower"), lender=by_cause("lender")),
     )
 end
 
@@ -240,7 +256,8 @@ end
 
 """
 Every figure of the report for the chains that ended in `windows` and the censuses taken in them, from the tally `t` and
-the `census`. `age`, `lender_only`, `doomed`, `matched` and `child` are what [`trace_readings`](@ref) reads.
+the `census`. `age`, `lender_only`, `doomed`, `matched` and `child` are what [`trace_readings`](@ref) reads. X8 is not
+here: it is the mean over seeds of each seed's share, so `summarize_trace` adds it.
 """
 function window_stats(t, census, windows)
     ws = collect(windows)
@@ -277,7 +294,6 @@ function window_stats(t, census, windows)
         ended,
         outcomes,
         voids,
-        x8=x8_share(t, ws),
         causes,
         dead,
         median_age=Dict(s => weighted_median(dead_ages[s]) for s in sides),
@@ -303,6 +319,7 @@ function window_stats(t, census, windows)
         age=age_ratios(t, census, ws),
         matched=matched_ratios(census, ws),
         child=child_shares(census, ws),
+        cohorts=n("cohorts"),
         census_n=sum(r.n for r in census_rows(census, ws, "all"); init=0.0),
     )
 end
@@ -415,8 +432,8 @@ end
 
 The figures of the seeds `seeds`, given each one's tally, census and run time: `seeds`, `per_seed` (seed, loans started,
 X8 over t = 1–500, seconds), `started`, `x8` (the mean over seeds of each seed's `x8_share`, as the scorecard takes it)
-`check` (the `window_stats` of t = 1–500, which the readings use) and `windows`, one `window_stats` with a `label` for
-each column of the report's tables.
+`check` (the `window_stats` of t = 1–500) and `windows`, one `window_stats` with a `label` for each column of the
+report's tables. Each has `x8`, the mean over seeds of each seed's share in those windows, as the scorecard takes it.
 """
 function summarize_trace(seeds, tallies, censuses, seconds)
     t, census = merge_tallies(tallies), merge_census(censuses)
@@ -426,6 +443,10 @@ function summarize_trace(seeds, tallies, censuses, seconds)
     )
     shown = [p for p in REPORT_WINDOWS if present(p.first) && (p.first != [1, 2] || (present([1]) && present([2])))]
     isempty(shown) && (shown = [REPORT_WINDOWS[3]])
+    function seed_mean_x8(ws)
+        shares = filter(!isnan, [x8_share(tl, ws) for tl in tallies])
+        return isempty(shares) ? NaN : mean_of(shares)
+    end
     per_seed = [
         (; seed=k, started=tsum(tl, 1:3, "started"), x8=x8_share(tl, 1:2), seconds=s) for
         (k, tl, s) in zip(seeds, tallies, seconds)
@@ -436,8 +457,10 @@ function summarize_trace(seeds, tallies, censuses, seconds)
         per_seed,
         started=tsum(t, 1:3, "started"),
         x8=isempty(x8s) ? NaN : mean_of(x8s),
-        check=window_stats(t, census, 1:2),
-        windows=[merge((; label=p.second), window_stats(t, census, p.first)) for p in shown],
+        check=merge(window_stats(t, census, 1:2), (; x8=seed_mean_x8(1:2))),
+        windows=[
+            merge((; label=p.second), window_stats(t, census, p.first), (; x8=seed_mean_x8(p.first))) for p in shown
+        ],
     )
 end
 
@@ -538,7 +561,7 @@ function loan_report(s; label, world, first_seed, seeds, periods, jobs, wall)
             "Voided by the lender, of ended" => outcome_share("voided_lender"),
             "Voided by the borrower, of ended" => outcome_share("voided_borrower"),
             "Voided by both, of ended" => outcome_share("voided_both"),
-            "X8, voided ÷ (voided + repaid)" => c -> num(c.x8),
+            "X8, mean over seeds" => c -> num(c.x8),
             (
                 "Dead $side: $cause" => cause_share(side, cause) for side in ("lender", "borrower") for
                 cause in CENSUS_CAUSES
@@ -551,13 +574,17 @@ function loan_report(s; label, world, first_seed, seeds, periods, jobs, wall)
     )
 
     matched(side, cause) = c -> num(getfield(c.matched, side)[cause])
+    age(side, cause) = c -> num(cause == "all" ? getfield(c.age, side) : getfield(c.age.by_cause, side)[cause])
     push!(lines, "", "## 2. Is a loan riskier than its parties' ages explain?", "")
     append!(
         lines,
         window_table(cols, [
-            "Agents followed" => c -> count_text(c.census_n),
-            "Age ratio, borrowers" => c -> num(c.age.borrower),
-            "Age ratio, lenders" => c -> num(c.age.lender),
+            "Census cohorts" => c -> count_text(c.cohorts),
+            "Agents followed, counted once per census" => c -> count_text(c.census_n),
+            (
+                "Age ratio, $(side)s: $cause" => age(side, cause) for side in (:borrower, :lender) for
+                cause in ("all", CENSUS_CAUSES...)
+            )...,
             (
                 "Matched ratio, $(side)s: $cause" => matched(side, cause) for side in (:borrower, :lender) for
                 cause in ("all", CENSUS_CAUSES...)
@@ -566,7 +593,8 @@ function loan_report(s; label, world, first_seed, seeds, periods, jobs, wall)
         ]),
         [
             "",
-            "The age ratio is observed voids over those predicted from the death rates of agents of the same age; " *
+            "The age ratio is observed voids over those predicted from the death rates of agents of the same age, " *
+            "for all deaths and for each cause; " *
             "the matched ratio is the death rate of borrowing (lending) agents over that of could-borrow " *
             "(could-lend) agents of the same age band.",
             "",
@@ -592,7 +620,8 @@ function loan_report(s; label, world, first_seed, seeds, periods, jobs, wall)
     append!(
         lines,
         window_table(cols, [
-            "Agents followed" => c -> count_text(c.census_n),
+            "Census cohorts" => c -> count_text(c.cohorts),
+            "Agents followed, counted once per census" => c -> count_text(c.census_n),
             "Lenders past childbearing age" => c -> num(c.lender_past_fertile),
             "Borrowers of childbearing age" => c -> num(c.borrower_fertile),
             "Lenders who are female" => c -> num(c.lender_female),
@@ -604,8 +633,13 @@ function loan_report(s; label, world, first_seed, seeds, periods, jobs, wall)
         ]),
     )
 
-    push!(lines, "", "## Reading", "", "For t = 1–500, X8's own window.", "")
+    push!(lines, "", "## Reading", "", "### t = 1–500, X8's own window", "")
     append!(lines, ("- $l" for l in trace_readings(s.check)))
+    late = findfirst(c -> c.label == "501–end", s.windows)
+    if late !== nothing
+        push!(lines, "", "### t = 501–end", "")
+        append!(lines, ("- $l" for l in trace_readings(s.windows[late])))
+    end
 
     push!(lines, "", "## Seeds", "", "| Seed | Loans started | X8, t = 1–500 | Seconds |", "|---|---|---|---|")
     for p in sort(s.per_seed; by=p -> p.seed)

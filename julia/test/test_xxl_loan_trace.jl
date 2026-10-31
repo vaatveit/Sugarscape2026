@@ -490,6 +490,16 @@ end
     @test census_row(tr, 1, "all", "20") == (n=0, children=0, old_age=0, sugar=0, spice=0, killed=0)
 end
 
+@testset "census: the cohorts are counted" begin
+    m = census_model()
+    tr = m.loan_trace
+    put_agent(m, 1, 1; metabolism=0)
+    lt_step!(m, 14)  # the cohorts of t = 4 and t = 8 are followed through, that of t = 12 not yet
+    @test length(tr.cohort) == 1 && tally(tr, 1, "cohorts") == 2
+    trace_finish!(tr, m)
+    @test tally(tr, 1, "cohorts") == 2 && tally(tr, 2, "cohorts") == 0  # the one cut short is dropped, uncounted
+end
+
 @testset "census: the run is the same" begin
     vi1 = with_steps(find_experiment(LT_REG, "VI-1"), 60)
     plain, _ = Sugarscape.timed_seed(vi1, 0; xxl=XXL_DEFAULTS)

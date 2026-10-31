@@ -24,7 +24,7 @@
 # the living every `census_every` periods, each in its state groups and age band, and follows them for `term + 1`
 # periods, to see who has a child and who dies of what. Its tables, by (window of the census, group, band), are
 # `census_n`, `census_children`, `census_old_age`, `census_sugar`, `census_spice` and `census_killed`; read a row with
-# `census_row`. A cohort enters them only once its follow-up is complete.
+# `census_row`. A cohort enters them only once its follow-up is complete, and then adds 1 to `cohorts` (by window).
 
 # The columns of a sampled chain's row, `received` and `weight` as the chain stands (per unit of weight, see `Chain`).
 const TRACE_SAMPLE_COLUMNS = [
@@ -294,6 +294,7 @@ function follow_cohort!(tr::LoanTrace, m::Model)
         final && (entry.fate = :survived)
     end
     final || return nothing
+    add!(tr, tr.cohort_window, "cohorts", 1)
     for entry in values(tr.cohort), group in (entry.groups..., "all")
         add!(tr, tr.cohort_window, "census_n", 1, group, entry.band)
         entry.had_child && add!(tr, tr.cohort_window, "census_children", 1, group, entry.band)

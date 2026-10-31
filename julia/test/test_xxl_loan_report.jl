@@ -83,10 +83,25 @@ end
     @test age_ratios(t2, c2, 1:2).lender ≈ 20 / 30
     # A window with loans and voids but no census at all is left out of both sides.
     t3 = merge(lr_tally(), Dict(("2", k[2], k[3], k[4]) => v for (k, v) in lr_tally()))
-    @test age_ratios(t3, lr_census(), [1, 2]) == age_ratios(t3, lr_census(), [1])
+    @test isequal(age_ratios(t3, lr_census(), [1, 2]), age_ratios(t3, lr_census(), [1]))
     @test isnan(age_ratios(t3, lr_census(), [2]).lender)
     # No census to give a death rate: nothing to compare with.
     @test isnan(age_ratios(lr_tally(), [], [1]).lender)
+end
+
+@testset "loan report: the age ratio by cause" begin
+    t = lr_tally()
+    t[("1", "void_cause", "lender", "old_age")] = 20.0
+    t[("1", "void_cause", "lender", "spice")] = 10.0
+    c = [lr_row("1", "all", "60"; n=100.0, old_age=30.0, spice=10.0), lr_row("1", "all", "20"; n=200.0, sugar=10.0)]
+    r = age_ratios(t, c, [1])
+    @test r.by_cause.lender["old_age"] ≈ 20 / 30 && r.by_cause.lender["spice"] ≈ 1.0
+    @test isnan(r.by_cause.lender["killed"]) && isnan(r.by_cause.borrower["old_age"])
+    t[("1", "void_cause", "borrower", "sugar")] = 5.0
+    @test age_ratios(t, c, [1]).by_cause.borrower["sugar"] ≈ 1.0
+    # A window with no census is left out here too.
+    t2 = merge(t, Dict(("2", k[2], k[3], k[4]) => v for (k, v) in t))
+    @test isequal(age_ratios(t2, c, [1, 2]).by_cause, age_ratios(t, c, [1]).by_cause)
 end
 
 @testset "loan report: the matched ratio" begin
@@ -211,7 +226,8 @@ end
 @testset "loan report: nothing to divide by" begin
     empty = Dict{NTuple{4,String},Float64}()
     s = summarize_trace(Int[], [], [], Float64[])
-    @test all(isnan, (x8_share(empty, 1:2), age_ratios(empty, [], 1:2)...))
+    ages = age_ratios(empty, [], 1:2)
+    @test all(isnan, (x8_share(empty, 1:2), ages.borrower, ages.lender, values(ages.by_cause.borrower)..., values(ages.by_cause.lender)...))
     reading = join(trace_readings(s.check), " ")
     @test occursin("Could not be read", reading) && occursin("the age ratio", reading) && !occursin("NaN", reading)
     @test occursin("checked", reading) && !lr_fires(s.check, "defect")
@@ -306,6 +322,42 @@ end
     @test occursin("**Unfinished: 1 of 2 seeds have not run", report)
     @test occursin("- X8, t = 1–500: 0.2\n", report) && occursin("# Loan trace: x", report)
     @test occursin("The groups aren't randomized, so the matched figures are evidence, not proof.", report)
+end
+
+@testset "loan report: X8 is the mean over seeds in every column" begin
+    seed(started, repaid, voided) = Dict{NTuple{4,String},Float64}(
+        ("$w", k, o, "") => v for w in 1:2 for (k, o, v) in
+        (("started", "", started), ("ended", "repaid", repaid), ("ended", "voided_lender", voided))
+    )
+    a, b = seed(10.0, 80.0, 20.0), seed(20.0, 140.0, 60.0)  # X8 0.2 and 0.3; pooled it is 0.2667
+    s = summarize_trace([20, 21], [a, b], [[], []], [1.0, 2.0])
+    @test [c.label for c in s.windows] == ["1–100", "101–500", "1–500"]
+    @test all(c.x8 ≈ 0.25 for c in s.windows) && s.check.x8 ≈ 0.25 && s.x8 ≈ 0.25
+    report = loan_report(s; label="x", world="w", first_seed=20, seeds=2, periods=500, jobs=nothing, wall=nothing)
+    @test occursin("- X8, t = 1–500: 0.25
+", report) && occursin("| 0.25 | 0.25 | 0.25 |", report)
+    @test occursin("| X8, mean over seeds | 0.25 | 0.25 | 0.25 |", report)
+end
+
+@testset "loan report: the cohorts and the agents followed" begin
+    seed(cohorts) = Dict{NTuple{4,String},Float64}(("1", "started", "", "") => 5.0, ("1", "cohorts", "", "") => cohorts)
+    census = [lr_row("1", "all", "20"; n=10.0)]
+    s = summarize_trace([20, 21], [seed(2.0), seed(3.0)], [census, census], [1.0, 2.0])
+    @test s.windows[1].cohorts == 5 && s.windows[1].census_n == 20
+    report = loan_report(s; label="x", world="w", first_seed=20, seeds=2, periods=500, jobs=nothing, wall=nothing)
+    @test occursin("| Census cohorts | 5 |", report) && occursin("| Agents followed, counted once per census | 20 |", report)
+    @test !occursin("| Agents followed |", report)
+end
+
+@testset "loan report: the reading of a later window" begin
+    early = Dict{NTuple{4,String},Float64}(("1", "started", "", "") => 5.0, ("1", "ended", "repaid", "") => 5.0)
+    late = merge(early, Dict(("3", "started", "", "") => 5.0, ("3", "ended", "repaid", "") => 5.0))
+    kw = (; label="x", world="w", first_seed=20, seeds=1, periods=600, jobs=nothing, wall=nothing)
+    short = loan_report(summarize_trace([20], [early], [[]], [1.0]); kw...)
+    long = loan_report(summarize_trace([20], [late], [[]], [1.0]); kw...)
+    @test occursin("### t = 1–500", short) && !occursin("### t = 501–end", short)
+    @test occursin("### t = 1–500", long) && occursin("### t = 501–end", long)
+    @test findfirst("### t = 1–500", long).start < findfirst("### t = 501–end", long).start
 end
 
 @testset "loan report: a seed counts only with all its files" begin
