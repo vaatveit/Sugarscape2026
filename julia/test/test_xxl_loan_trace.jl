@@ -277,8 +277,10 @@ end
     lender, borrower = lt_pair(m)
     push!(borrower.children, put_agent(m, 4, 4))
     lt_loan!(m, lender, borrower, 5.0, 5.0, 5)
-    lt_step!(m)
-    @test tally(m.loan_trace, 1, "child", "repaid", "no") == 0 && length(m.loan_trace.chains) == 1
+    lt_step!(m, 6)  # settled at the end of the sixth period
+    @test tally(m.loan_trace, 1, "ended", "repaid") == 1
+    @test tally(m.loan_trace, 1, "child", "repaid", "no") == 1
+    @test tally(m.loan_trace, 1, "child", "repaid", "yes") == 0
     m = lt_model(; term=5)
     lender, borrower = lt_pair(m)
     borrower.metabolism, borrower.sugar = 5, 3.0
