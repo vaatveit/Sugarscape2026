@@ -148,7 +148,17 @@ That gives two ratios for question 2, each by side and by cause:
 - **The matched ratio:** the death rate of borrowing agents ÷ could-borrow agents of the same band, and of lending ÷
   could-lend. It is the nearer reading of what the loan itself does.
 
-It also gives question 4 its comparison: the share with a child among borrowing agents against could-borrow agents.
+**The age ratio is adjusted for how a loan ends** (*my call*, changed 2026-10-31, see below). A void is seen only if the
+other party hasn't already voided the loan, and a party faces d sweeps of the lattice but d + 1 old-age checks, where a
+census agent faces d + 1 of each. So in the expected deaths, `q` for sugar, spice and killed is scaled by d / (d + 1), and
+each side's `q` is multiplied by 1 − (the other side's `q`) / 2. The report prints the unadjusted ratio beside it.
+
+**Could-borrow agents are split by what they did next** (*my call*, changed 2026-10-31). Most could-borrow agents take a
+loan during the follow-up, so as one group they don't stand for agents without a loan. They are also counted as
+`could_borrow_took` and `could_borrow_none`. Question 4's comparison is the child share of those two, standardized by
+window and band as the matched ratio is. The stock comparison, borrowing against could-borrow, is printed too and
+labelled as contaminated. Agents who took a loan had to live long enough to take one, so this comparison leans toward
+credit, and the report says so.
 
 **The groups aren't randomized.** A could-borrow agent may have no lender nearby, or income too low to qualify, so the
 matched figures are evidence and not proof, and the report says so. The no-credit probe is the check on them.
@@ -235,11 +245,19 @@ Set out now so the result can't pick its own reading (*my call*). The lines are 
 |---|---|---|
 | Age ratio within 0.9–1.1 on both sides | X8 measures lifespan; loans carry no extra risk | Replace or rescope X8, using question 3's sugar figures and the xl and book readings. No rule change |
 | Lender-only deaths are over half of voids, or doomed loans over a quarter of voids | X8 mostly reflects the book's rule that the old lend | The same, or ask whether the old should lend at all; inheritance is the book's own answer, and the probe prices it |
-| Borrowers' matched ratio above 1.1 for sugar or spice deaths | Agents starve more with a loan than similar agents without one: a real credit defect | Look at the creditworthiness test, or at sugar-only loans in a two-good world, under a new spec |
-| Borrowing agents' share with a child is within 1.1× could-borrow agents', or with credit off births and end population stay within 5% | Credit isn't doing its job, whatever X8 says | The bigger finding: stage 3 is about that, not about X8 |
+| Borrowers' matched ratio above 1.1 for sugar or spice deaths | Agents starve more with a loan than similar agents without one: a real credit defect, to be weighed by the counts printed with it | Look at the creditworthiness test, or at sugar-only loans in a two-good world, under a new spec |
+| Lenders' matched ratio above 1.1 for sugar or spice deaths | Lending may be starving the lender, and those deaths void its loans | Look at how much agents may lend, under a new spec |
+| Agents who took a loan have a child within 1.1× those who didn't, or with credit off births and end population stay within 5% | Credit isn't doing its job, whatever X8 says | The bigger finding: stage 3 is about that, not about X8 |
 
 An age ratio above 1.1 with a matched ratio near 1 means the extra deaths come from who borrows, not from the loan. That
 is not a credit defect.
+
+**Changed on 2026-10-31, before any long run.** The whole-branch review ran short tests of one seed, up to t = 260, and
+found that two readings as first written couldn't work: the stock child comparison fired whatever credit did, as 62% of
+could-borrow agents took a loan during the follow-up, and the age ratio read about 0.82 for borrowers where the true value
+was 1. It also found the table had no row for lenders starving. So these rows and the two definitions under "A census"
+were changed after seeing that much of one seed's data, and the findings must say so. The lines themselves, 0.9–1.1, 1.1
+and 5%, did not move.
 
 If xl and the book read far above 0.2 as well, the limit never described a healthy society, and the report says so.
 
