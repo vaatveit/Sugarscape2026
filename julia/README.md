@@ -123,6 +123,24 @@ is checked by a checksum of every `.jl` file under `julia/src`, so any edit ther
 must restart under a new `--label`; `--report-only` rebuilds the report from the CSVs all the same, with a warning
 when only the code differs. A `FAIL` verdict is a result, so the exit code is still 0.
 
+To pause a run, for instance to free the machine's memory, create a file named `stop` in its folder:
+
+```bat
+type nul > results-julia-xxl\extinction-defaults-s20-60-p2000\stop
+```
+
+Every worker saves its seed at the end of the period it is in and exits, no waiting seed starts, and the run ends without
+a report. Running the same command again deletes the file and carries on, and `--jobs` may differ, so a run can shrink or
+grow to fit the machine. Each seed also saves every 100 periods, keeping only the latest save (`seed<k>.ckpt`, gone once
+the seed's CSV is written), so a crash or a kill costs a seed at most 100 periods. A resumed seed's CSV is byte-identical
+to an unbroken run's: the save holds the whole model, its random stream included, and the rows so far. A save at t = 800,
+with 73,574 agents living, was 79 MiB and took about 1.4 s, some 0.5% of the time between saves; reading it back took
+about 3 s. With `--jobs 10` that is about 800 MiB of disk at any one time.
+
+Each save is checked when read. One cut short or damaged can't be used, so that seed starts again, with a message; one
+that is whole but made under other rules, code, periods or Julia is refused before anything runs, and kept: delete it to
+start that seed again. Its code check is the run's own, so a save does not survive an edit under `julia/src` either.
+
 Estimated time for the 60 seeds with `--jobs 10`: about 8–10 hours or more (an estimate: about 1.68 s per period per
 seed at the reference pace, metrics included, and more in the later periods, when the population is largest). The
 first finished seeds give the real figure.

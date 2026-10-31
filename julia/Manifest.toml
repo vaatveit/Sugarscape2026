@@ -2,7 +2,7 @@
 
 julia_version = "1.13.2"
 manifest_format = "2.1"
-project_hash = "3fe1a821ee03b1e3fc7b8d6f0af2b897210cc7f5"
+project_hash = "a0533f0bd5bbbf11e2cfa1c6356efe3620a44265"
 
 [[deps.Dates]]
 deps = ["Printf"]
@@ -37,7 +37,7 @@ uuid = "6462fe0b-24de-5631-8697-dd941f90decc"
 version = "1.11.0"
 
 [[deps.Sugarscape]]
-deps = ["Distributed", "Random", "SHA", "TOML"]
+deps = ["Distributed", "Random", "SHA", "Serialization", "TOML"]
 path = "."
 uuid = "af944ad9-ffe8-4bd8-b111-8e976965001f"
 version = "0.1.0"

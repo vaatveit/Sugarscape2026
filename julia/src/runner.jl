@@ -33,6 +33,11 @@ Seed k of an experiment (or its xl version, or its xxl version under the given `
 "Timing"): building the model, the model's own steps, and collecting each period's metrics, t = 0 included. Each
 row is `t` followed by the metrics in `metric_columns` order (the 45 of `METRIC_COLUMNS`, plus the xxl nine for xxl).
 With `scorecard` (xxl only) each row also carries [`SCORECARD_COLUMNS`](@ref), timed as metrics.
+
+With `checkpoint` the seed can be paused (not with `scorecard`, whose tracker is not saved). `checkpoint.restore()` gives a
+saved `(; model, rows, clock)` to carry on from, or `nothing` to start afresh; `checkpoint.period_done(m, rows, clock)` is
+called after each period but the last, `clock` being `(; setup_s, stepping_s, metrics_s, agents_start)` so far, and
+returning true ends the seed there, with `(rows, nothing)` as the result.
 """
 function timed_seed(
     exp::Experiment,
@@ -40,24 +45,36 @@ function timed_seed(
     xl::Bool=false,
     xxl::Union{Nothing,XxlRules}=nothing,
     scorecard::Bool=false,
+    checkpoint=nothing,
 )
     xl && xxl !== nothing && throw(ArgumentError("xxl and xl runs are separate"))
     scorecard &&
         xxl === nothing &&
         throw(ArgumentError("the scorecard columns are for xxl runs"))
+    scorecard &&
+        checkpoint !== nothing &&
+        throw(ArgumentError("a seed with the scorecard columns can't be paused"))
     cfg = if xxl !== nothing
         to_xxl(exp.config, xxl)
     else
         xl ? to_xl(exp.config) : exp.config
     end
     t0 = time_ns()
-    m = Model(replace_config(cfg; seed=cfg.seed + k))
+    saved = checkpoint === nothing ? nothing : checkpoint.restore()
+    m = saved === nothing ? Model(replace_config(cfg; seed=cfg.seed + k)) : saved.model
     setup = seconds_since(t0)
     agents_start = length(m.agents)
     rows = Vector{Vector{Float64}}()
     stepping = measuring = 0.0
+    if saved !== nothing
+        rows = saved.rows
+        setup += saved.clock.setup_s
+        stepping = saved.clock.stepping_s
+        measuring = saved.clock.metrics_s
+        agents_start = saved.clock.agents_start
+    end
     tracker = scorecard ? ScorecardTracker(m) : nothing
-    for period in 0:(exp.steps)
+    for period in (saved === nothing ? 0 : m.t + 1):(exp.steps)
         if period > 0
             t0 = time_ns()
             step!(m)
@@ -68,6 +85,10 @@ function timed_seed(
         tracker === nothing || scorecard_metrics!(row, m, tracker)
         push!(rows, row)
         measuring += seconds_since(t0)
+        if checkpoint !== nothing && period < exp.steps
+            clock = (; setup_s=setup, stepping_s=stepping, metrics_s=measuring, agents_start=agents_start)
+            checkpoint.period_done(m, rows, clock) && return rows, nothing
+        end
     end
     timing = (
         seed=k,
@@ -116,7 +137,7 @@ end
 
 """
 One seed in a worker: warm up first, name the experiment and seed in any error. `run_seed` gets `xxl` only when it is
-set, and `scorecard` only when it is true, so a stand-in taking just `xl` still works.
+set, and `scorecard` and `checkpoint` only when they are, so a stand-in taking just `xl` still works.
 """
 function seed_job(
     exp::Experiment,
@@ -125,10 +146,13 @@ function seed_job(
     run_seed=timed_seed;
     xxl::Union{Nothing,XxlRules}=nothing,
     scorecard::Bool=false,
+    checkpoint=nothing,
 )
     try
         warm = warm_up!(exp; xxl=xxl)
-        rows, timing = if scorecard
+        rows, timing = if checkpoint !== nothing
+            run_seed(exp, k; xl=xl, xxl=xxl, scorecard=scorecard, checkpoint=checkpoint)
+        elseif scorecard
             run_seed(exp, k; xl=xl, xxl=xxl, scorecard=true)
         elseif xxl === nothing
             run_seed(exp, k; xl=xl)
