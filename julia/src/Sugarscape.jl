@@ -99,6 +99,7 @@ include("runner.jl")
 include("xxl/scorecard.jl")
 include("xxl/checkpoint.jl")
 include("xxl/extinction.jl")
+include("xxl/loan_report.jl")
 include("xxl/experiments.jl")
 
 end
