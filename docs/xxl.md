@@ -670,7 +670,8 @@ of extinction is below 5%.
 - Survival is the only thing it tests. The scorecard still fails X8, loans voided by death (0.249 against 0.2).
 
 **Run time.** On the 24 threads of an i7-13700K with 31.8 GB, shared with other work, the run took 14 h 40 min by the
-clock, from 14:40 to 05:20. It was stopped three times for low memory and resumed each time: 10 workers, then 5 from
+clock, from 14:40 to 05:20. It was stopped three times and resumed each time: for low memory at 16:39 and 00:32, and
+at 17:17 by a false alarm, when the memory watcher's limit was set too tight. It ran with 10 workers, then 5 from
 16:40, then 4 from 00:34. The report gives `--jobs 4` and 47,766 s of wall time, but the first is only the last
 resume's setting and the second leaves out work lost in the stops. Each stop kept the finished seeds and lost those in
 progress, 20 in all and roughly 13 CPU-hours; they reran in full, and none was chosen by its outcome. The finished
