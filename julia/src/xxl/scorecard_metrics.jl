@@ -97,11 +97,12 @@ function scorecard_metrics!(out, m::Model, tr::ScorecardTracker)
     sugar = spice = old = killed = 0
     if !first
         for a in m.dead_this_step
-            if a.id in m.killed
+            cause = death_cause(m, a)
+            if cause === :killed
                 killed += 1
-            elseif a.age >= a.max_age
+            elseif cause === :old_age
                 old += 1
-            elseif a.sugar <= 0
+            elseif cause === :sugar
                 sugar += 1
             else
                 spice += 1
@@ -129,6 +130,19 @@ function scorecard_metrics!(out, m::Model, tr::ScorecardTracker)
     push!(out, m.viable_fallbacks)
     remember_period!(tr, m)
     return out
+end
+
+"""
+    death_cause(m, a) -> Symbol
+
+How `a` died, as the scorecard counts deaths: `:killed`, `:old_age`, `:sugar` or `:spice`, the first that holds in that
+order. Read it while `m.killed` and `a`'s age and goods are as they were at its death, i.e. before the next `step!`.
+"""
+function death_cause(m::Model, a::Agent)
+    a.id in m.killed && return :killed
+    a.age >= a.max_age && return :old_age
+    a.sugar <= 0 && return :sugar
+    return :spice
 end
 
 function push_fertility!(out, m::Model, tr::ScorecardTracker)

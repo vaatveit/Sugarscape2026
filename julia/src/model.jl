@@ -49,6 +49,7 @@ mutable struct Model{R<:AbstractRNG}
     loans_made::Int  # loans made by seek_credit!
     loans_due::Int  # loans that came due and were settled by settle_loans!
     loans_rolled::Int  # of those, the ones whose unpaid rest rolled into a new loan
+    loan_trace::Union{Nothing,LoanTrace}  # xxl: the opt-in record of every loan's life (xxl/loan_trace.jl)
 end
 
 """
@@ -112,6 +113,7 @@ function Model(
         0,
         0,
         0,
+        nothing,
     )
     cfg.disease_list > 0 && init_disease_list!(m)
     place_initial_population!(m)

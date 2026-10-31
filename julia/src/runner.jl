@@ -27,7 +27,7 @@ end
 seconds_since(t0::UInt64) = (time_ns() - t0) / 1e9
 
 """
-    timed_seed(exp, k; xl=false, xxl=nothing, scorecard=false) -> (rows, timing)
+    timed_seed(exp, k; xl=false, xxl=nothing, scorecard=false, checkpoint=nothing, loan_trace=nothing) -> (rows, timing)
 
 Seed k of an experiment (or its xl version, or its xxl version under the given `XxlRules`), timed as `experiments.run.timed_seed` divides the work (docs/xl.md,
 "Timing"): building the model, the model's own steps, and collecting each period's metrics, t = 0 included. Each
@@ -38,6 +38,9 @@ With `checkpoint` the seed can be paused (not with `scorecard`, whose tracker is
 saved `(; model, rows, clock)` to carry on from, or `nothing` to start afresh; `checkpoint.period_done(m, rows, clock)` is
 called after each period but the last, `clock` being `(; setup_s, stepping_s, metrics_s, agents_start)` so far, and
 returning true ends the seed there, with `(rows, nothing)` as the result.
+
+With `loan_trace` (a [`LoanTrace`](@ref)) the run follows every loan on it, timed as metrics; the rows are the same. It
+can't be paused: a resume would lose the trace's state.
 """
 function timed_seed(
     exp::Experiment,
@@ -46,6 +49,7 @@ function timed_seed(
     xxl::Union{Nothing,XxlRules}=nothing,
     scorecard::Bool=false,
     checkpoint=nothing,
+    loan_trace=nothing,
 )
     xl && xxl !== nothing && throw(ArgumentError("xxl and xl runs are separate"))
     scorecard &&
@@ -54,6 +58,9 @@ function timed_seed(
     scorecard &&
         checkpoint !== nothing &&
         throw(ArgumentError("a seed with the scorecard columns can't be paused"))
+    loan_trace !== nothing &&
+        checkpoint !== nothing &&
+        throw(ArgumentError("a seed with a loan trace can't be paused"))
     cfg = if xxl !== nothing
         to_xxl(exp.config, xxl)
     else
@@ -62,6 +69,7 @@ function timed_seed(
     t0 = time_ns()
     saved = checkpoint === nothing ? nothing : checkpoint.restore()
     m = saved === nothing ? Model(replace_config(cfg; seed=cfg.seed + k)) : saved.model
+    m.loan_trace = loan_trace
     setup = seconds_since(t0)
     agents_start = length(m.agents)
     rows = Vector{Vector{Float64}}()
@@ -79,6 +87,11 @@ function timed_seed(
             t0 = time_ns()
             step!(m)
             stepping += seconds_since(t0)
+            if loan_trace !== nothing
+                t0 = time_ns()
+                trace_period!(loan_trace, m)
+                measuring += seconds_since(t0)
+            end
         end
         t0 = time_ns()
         row = pushfirst!(collect_metrics(m), m.t)
@@ -89,6 +102,11 @@ function timed_seed(
             clock = (; setup_s=setup, stepping_s=stepping, metrics_s=measuring, agents_start=agents_start)
             checkpoint.period_done(m, rows, clock) && return rows, nothing
         end
+    end
+    if loan_trace !== nothing
+        t0 = time_ns()
+        trace_finish!(loan_trace, m)
+        measuring += seconds_since(t0)
     end
     timing = (
         seed=k,
@@ -137,7 +155,7 @@ end
 
 """
 One seed in a worker: warm up first, name the experiment and seed in any error. `run_seed` gets `xxl` only when it is
-set, and `scorecard` and `checkpoint` only when they are, so a stand-in taking just `xl` still works.
+set, and `scorecard`, `checkpoint` and `loan_trace` only when they are, so a stand-in taking just `xl` still works.
 """
 function seed_job(
     exp::Experiment,
@@ -147,11 +165,13 @@ function seed_job(
     xxl::Union{Nothing,XxlRules}=nothing,
     scorecard::Bool=false,
     checkpoint=nothing,
+    loan_trace=nothing,
 )
     try
         warm = warm_up!(exp; xxl=xxl)
-        rows, timing = if checkpoint !== nothing
-            run_seed(exp, k; xl=xl, xxl=xxl, scorecard=scorecard, checkpoint=checkpoint)
+        extra = (; (n => v for (n, v) in (:checkpoint => checkpoint, :loan_trace => loan_trace) if v !== nothing)...)
+        rows, timing = if !isempty(extra)
+            run_seed(exp, k; xl=xl, xxl=xxl, scorecard=scorecard, extra...)
         elseif scorecard
             run_seed(exp, k; xl=xl, xxl=xxl, scorecard=true)
         elseif xxl === nothing

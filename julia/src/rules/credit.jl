@@ -85,6 +85,7 @@ function seek_credit!(m::Model, a::Agent)
         lender.sugar -= amount
         a.sugar += amount
         loan = add_loan!(m, Loan(lender, a, amount, amount_due(m, amount), m.t + d))
+        m.loan_trace === nothing || trace_start!(m.loan_trace, m, loan)
         push!(made, loan)
         need -= amount
         need <= 0 && break
@@ -110,13 +111,15 @@ function settle_loans!(m::Model)
         if borrower.sugar >= loan.due
             borrower.sugar -= loan.due
             lender.sugar += loan.due
+            m.loan_trace === nothing || trace_repaid!(m.loan_trace, m, loan)
             continue
         end
         paid = max(borrower.sugar, 0.0) / 2
         borrower.sugar -= paid
         lender.sugar += paid
         rest = loan.due - paid
-        add_loan!(m, Loan(lender, borrower, rest, amount_due(m, rest), m.t + d))
+        rolled = add_loan!(m, Loan(lender, borrower, rest, amount_due(m, rest), m.t + d))
+        m.loan_trace === nothing || trace_rolled!(m.loan_trace, m, loan, rolled, paid)
     end
     return nothing
 end
@@ -141,6 +144,7 @@ function credit_on_deaths!(m::Model, dying, excluded_heirs)
     for loan in m.loans
         if loan.borrower in dying
             count_lender!(m, loan.lender.id, -1)
+            m.loan_trace === nothing || trace_void!(m.loan_trace, m, loan)
             continue
         end
         if loan.lender in dying
@@ -152,6 +156,7 @@ function credit_on_deaths!(m::Model, dying, excluded_heirs)
             ]
             if m.config.inheritance && !isempty(heirs)
                 k = length(heirs)
+                first_copy = length(keep) + 1
                 for h in heirs
                     push!(
                         keep,
@@ -161,6 +166,10 @@ function credit_on_deaths!(m::Model, dying, excluded_heirs)
                     )
                     count_lender!(m, h.id, 1)
                 end
+                m.loan_trace === nothing ||
+                    trace_inherit!(m.loan_trace, m, loan, view(keep, first_copy:length(keep)))
+            else
+                m.loan_trace === nothing || trace_void!(m.loan_trace, m, loan)
             end
             continue
         end
