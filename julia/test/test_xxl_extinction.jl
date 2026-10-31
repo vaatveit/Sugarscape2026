@@ -396,3 +396,449 @@ end
         @test usage(args) == 2
     end
 end
+
+# --- pause and resume --------------------------------------------------------------------------------------------------
+
+using Serialization: Serialization
+using Sugarscape:
+    CHECKPOINT_EVERY,
+    STOP_FILE,
+    save_checkpoint,
+    load_checkpoint,
+    seed_checkpoint,
+    seed_header,
+    extinction_plan,
+    flat_model,
+    model_from_flat,
+    collect_metrics,
+    timed_seed,
+    seed_job
+
+ext_csvs(folder, seeds=(5, 6)) = [read(joinpath(folder, "seed$k.csv")) for k in seeds]
+ext_ckpt(folder, k=5) = joinpath(folder, "seed$k.ckpt")
+ext_stop(folder) = joinpath(folder, STOP_FILE)
+# The CSVs of an unbroken run of `exp`, once per world and rule set: every stop and resume must match them to the byte.
+const EXT_UNBROKEN = Dict{Any,Vector{Vector{UInt8}}}()
+function ext_unbroken(exp; rules=XXL_V1, kw...)
+    return get!(EXT_UNBROKEN, (exp.config, rules, sort(collect(kw); by=first))) do
+        out = mktempdir()
+        ext_go(exp, out; rules=rules, kw...)
+        return ext_csvs(ext_dir(out))
+    end
+end
+# The run's own plan, as run_extinction makes it, and the header it expects of seed k's checkpoint.
+function ext_plan(exp, out; rules=XXL_V1)
+    return extinction_plan(rules, exp, out, "t", 5, 2, 12)
+end
+ext_expected(exp, out, k; rules=XXL_V1) = (p = ext_plan(exp, out; rules=rules); seed_header(p.exp, k, rules, p.fingerprint))
+
+const EXT_WORLD = EXT_TINY  # agents move, trade nothing and may die: the plainest run with draws
+
+@testset "xxl extinction: a stop file ends the run at a checkpoint, with no report" begin
+    out = mktempdir()
+    @test ext_go(EXT_WORLD, out; stop_at=6) === nothing
+    folder = ext_dir(out)
+    @test isfile(ext_stop(folder))  # kept until the run resumes
+    @test isfile(ext_ckpt(folder, 5))
+    @test !isfile(joinpath(folder, "seed5.csv"))  # the seed did not finish
+    @test !isfile(ext_ckpt(folder, 6)) && !isfile(joinpath(folder, "seed6.csv"))  # the next seed never began
+    @test !isfile(folder * ".md")
+    @test isfile(joinpath(folder, "elapsed.txt"))
+end
+
+@testset "xxl extinction: a stopped run resumes to the same bytes" begin
+    for world in (EXT_WORLD, EXT_FED, EXT_DOOMED), at in (0, 1, 6, 11)
+        out = mktempdir()
+        @test ext_go(world, out; stop_at=at) === nothing
+        folder = ext_dir(out)
+        @test ext_go(world, out) !== nothing
+        @test ext_csvs(folder) == ext_unbroken(world)
+        @test !isfile(ext_stop(folder))
+        @test !isfile(ext_ckpt(folder, 5)) && !isfile(ext_ckpt(folder, 6))
+        @test isfile(folder * ".md")
+    end
+end
+
+@testset "xxl extinction: a resumed seed goes on from its checkpoint, not from the start" begin
+    # Seeds are deterministic, so a seed that ignored its save and began again would give the same bytes. These can tell.
+    out = mktempdir()
+    ext_go(EXT_WORLD, out; stop_at=6)
+    folder = ext_dir(out)
+    path, good = ext_ckpt(folder, 5), ext_expected(EXT_WORLD, out, 5)
+    said = IOBuffer()
+    state = load_checkpoint(path, good)
+    state.rows[4][2] = 99999.0  # population at t = 3, already behind the save: only the save can hold this
+    a = state.model.agents[1]
+    a.max_age = a.age + 1.0  # and its model: this agent now dies of old age in the next period
+    save_checkpoint(path, good, state; t=state.model.t)
+    @test ext_go(EXT_WORLD, out; io=said) !== nothing
+    @test occursin("seed 5: carrying on from t = 6", String(take!(said)))
+    header, M = read_seed_csv(joinpath(folder, "seed5.csv"))
+    pop = findfirst(==("population"), header)
+    _, whole = mktempdir() |> o -> (ext_go(EXT_WORLD, o); read_seed_csv(joinpath(ext_dir(o), "seed5.csv")))
+    @test M[4, pop] == 99999
+    @test M[[1:3; 5:7], pop] == whole[[1:3; 5:7], pop]  # the rows before the save, as saved
+    @test !isequal(M[8:end, :], whole[8:end, :])  # the rows after it, from the saved model
+end
+
+@testset "xxl extinction: a save waits out a moment's lock on the old checkpoint" begin
+    # Windows refuses to replace a file that is open, as a virus scanner or an indexer may have it for a moment.
+    dir = mktempdir()
+    path = joinpath(dir, "seed5.ckpt")
+    save_checkpoint(path, "h", (; x=1))
+    held = open(path)
+    release = @async (sleep(0.3); close(held))
+    save_checkpoint(path, "h", (; x=2))
+    wait(release)
+    @test load_checkpoint(path, "h").x == 2
+    @test !isfile(path * ".tmp")
+end
+
+@testset "xxl extinction: stopped again and again, the bytes stay" begin
+    out = mktempdir()
+    for at in (2, 5, 9)
+        @test ext_go(EXT_WORLD, out; stop_at=at) === nothing
+    end
+    @test ext_go(EXT_WORLD, out) !== nothing
+    @test ext_csvs(ext_dir(out)) == ext_unbroken(EXT_WORLD)
+end
+
+@testset "xxl extinction: a stop at the last period is too late to matter" begin
+    out = mktempdir()
+    @test ext_go(EXT_WORLD, out; stop_at=12) !== nothing  # the last period has no save: the seed ends instead
+    @test ext_csvs(ext_dir(out)) == ext_unbroken(EXT_WORLD)
+end
+
+@testset "xxl extinction: a resumed seed's timing covers the whole seed" begin
+    out = mktempdir()
+    ext_go(EXT_WORLD, out; stop_at=6)
+    ext_go(EXT_WORLD, out)
+    plain = mktempdir()
+    ext_go(EXT_WORLD, plain)
+    lines(dir) = readlines(joinpath(ext_dir(dir), "seed5.timing.csv"))
+    cells(dir) = Dict(zip(split(lines(dir)[1], ","), split(lines(dir)[2], ",")))
+    for name in ("seed", "periods", "agents_start", "agents_end")
+        @test cells(out)[name] == cells(plain)[name]
+    end
+end
+
+@testset "xxl extinction: a stale stop file is gone on the next run" begin
+    out = mktempdir()
+    ext_go(EXT_FED, out; stop_at=6)
+    folder = ext_dir(out)
+    @test isfile(ext_stop(folder))
+    @test ext_go(EXT_FED, out) !== nothing  # it would stop at once if the file still counted
+    @test !isfile(ext_stop(folder))
+    # With every seed finished there is nothing to run, and the file still goes.
+    touch(ext_stop(folder))
+    @test ext_go(EXT_FED, out) !== nothing
+    @test !isfile(ext_stop(folder))
+end
+
+@testset "xxl extinction: --report-only leaves a stop and its checkpoints alone" begin
+    out = mktempdir()
+    ext_go(EXT_FED, out; stop_at=6)
+    folder = ext_dir(out)
+    saved = read(ext_ckpt(folder, 5))
+    v = rebuild_extinction_report(
+        XXL_V1; label="t", seeds=2, first_seed=5, periods=12, out=out, experiment=EXT_FED, io=devnull
+    )
+    @test v.verdict == "TOO FEW SEEDS"
+    @test occursin("- Seeds finished: 0 of 2", read(folder * ".md", String))
+    @test isfile(ext_stop(folder))
+    @test read(ext_ckpt(folder, 5)) == saved
+end
+
+@testset "xxl extinction: resuming with other --jobs gives the same bytes" begin
+    # Stopped alone, carried on by two workers.
+    out = mktempdir()
+    @test ext_go(EXT_WORLD, out; stop_at=6) === nothing
+    @test ext_go(EXT_WORLD, out; jobs=2) !== nothing
+    @test ext_csvs(ext_dir(out)) == ext_unbroken(EXT_WORLD)
+    # Stopped by two workers, carried on alone. Whichever worker writes the stop file, the other stops or finishes.
+    out = mktempdir()
+    @test ext_go(EXT_WORLD, out; jobs=2, stop_at=4) === nothing
+    @test !isfile(ext_dir(out) * ".md")
+    @test isfile(ext_ckpt(ext_dir(out), 5)) || isfile(ext_ckpt(ext_dir(out), 6))
+    @test ext_go(EXT_WORLD, out; jobs=1) !== nothing
+    @test ext_csvs(ext_dir(out)) == ext_unbroken(EXT_WORLD)
+end
+
+@testset "xxl extinction: a stop leaves waiting seeds unstarted" begin
+    out = mktempdir()
+    kw = (label="t", seeds=4, first_seed=5, periods=12, out=out, experiment=EXT_FED, io=devnull)
+    @test run_extinction(XXL_V1; kw..., jobs=2, stop_at=3) === nothing
+    folder = ext_dir(out; seeds=4)
+    done = count(k -> isfile(joinpath(folder, "seed$k.csv")), 5:8)
+    @test done < 4
+    @test run_extinction(XXL_V1; kw..., jobs=3) !== nothing
+    plain = mktempdir()
+    run_extinction(XXL_V1; kw..., out=plain, jobs=1)
+    @test ext_csvs(folder, 5:8) == ext_csvs(ext_dir(plain; seeds=4), 5:8)
+end
+
+@testset "xxl extinction: every so many periods, only the latest checkpoint" begin
+    out = mktempdir()
+    plan = ext_plan(EXT_WORLD, out)
+    mkpath(plan.folder)
+    hook = seed_checkpoint(plan.exp, 5, XXL_V1, plan.folder, plan.fingerprint; every=4)
+    @test hook.restore() === nothing
+    path = ext_ckpt(plan.folder, 5)
+    saves = Int[]
+    killed = (
+        restore=hook.restore,
+        period_done=function (m, rows, clock)
+            stop = hook.period_done(m, rows, clock)
+            @test !stop
+            @test isfile(path) == (m.t >= 4)
+            @test !isfile(path * ".tmp")
+            @test count(endswith(".ckpt"), readdir(plan.folder)) == (m.t >= 4 ? 1 : 0)
+            m.t % 4 == 0 && m.t > 0 && push!(saves, filesize(path))
+            m.t == 9 && throw(InterruptException())  # killed, between saves, with no chance to save
+            return false
+        end,
+    )
+    @test_throws InterruptException timed_seed(plan.exp, 5; xxl=XXL_V1, checkpoint=killed)
+    @test length(saves) == 2
+    @test load_checkpoint(path, seed_header(plan.exp, 5, XXL_V1, plan.fingerprint)).model.t == 8  # the latest
+    write(joinpath(plan.folder, "fingerprint.txt"), plan.fingerprint)
+    @test ext_go(EXT_WORLD, out) !== nothing  # the run goes on from t = 8
+    @test ext_csvs(plan.folder) == ext_unbroken(EXT_WORLD)
+    @test !isfile(path)
+    @test CHECKPOINT_EVERY == 100
+end
+
+@testset "xxl extinction: the seed loop's hook is optional" begin
+    plain, timing = timed_seed(EXT_WORLD, 5; xxl=XXL_V1)
+    @test timing !== nothing
+    never = (restore=() -> nothing, period_done=(m, rows, clock) -> false)
+    hooked, timing2 = timed_seed(EXT_WORLD, 5; xxl=XXL_V1, checkpoint=never)
+    @test isequal(hooked, plain)  # some cells are NaN
+    @test timing2.agents_end == timing.agents_end
+    # Told to stop, a seed gives back its rows so far and no timing.
+    at_three = (restore=() -> nothing, period_done=(m, rows, clock) -> m.t == 3)
+    rows, stopped = timed_seed(EXT_WORLD, 5; xxl=XXL_V1, checkpoint=at_three)
+    @test stopped === nothing
+    @test isequal(rows, plain[1:4])
+    # Carried on from a save, a seed goes on from the period after it, and its clock runs on from the saved one.
+    m = Model(replace_config(EXT_WORLD.config; seed=EXT_WORLD.config.seed + 5))
+    saved = (;
+        model=m, rows=[[-1.0]], clock=(; setup_s=1000.0, stepping_s=2000.0, metrics_s=3000.0, agents_start=77),
+    )
+    carried, t3 = timed_seed(EXT_WORLD, 5; checkpoint=(restore=() -> saved, period_done=(m, rows, clock) -> false))
+    @test carried[1] == [-1.0]
+    @test [row[1] for row in carried[2:end]] == 1:5
+    @test t3.setup_s >= 1000 && t3.stepping_s >= 2000 && t3.metrics_s >= 3000
+    @test t3.agents_start == 77
+    @test_throws ArgumentError timed_seed(EXT_WORLD, 5; xxl=XXL_V1, scorecard=true, checkpoint=never)
+    # seed_job passes the hook on only when there is one, so a stand-in without it still works.
+    stand_in(exp, k; xl, xxl=nothing) = ([[0.0]], (; seed=k))
+    @test seed_job(EXT_WORLD, 5, false, stand_in; xxl=XXL_V1)[1] == [[0.0]]
+    with_hook(exp, k; xl, xxl=nothing, scorecard=false, checkpoint) = ([[Float64(checkpoint)]], (; seed=k))
+    @test seed_job(EXT_WORLD, 5, false, with_hook; xxl=XXL_V1, checkpoint=7)[1] == [[7.0]]
+end
+
+@testset "xxl extinction: a checkpoint from anything else is refused" begin
+    out = mktempdir()
+    ext_go(EXT_WORLD, out; stop_at=6)
+    folder = ext_dir(out)
+    path = ext_ckpt(folder, 5)
+    original = read(path)
+    good = ext_expected(EXT_WORLD, out, 5)
+    state = load_checkpoint(path, good)
+    @test state.model.t == 6
+    refused(header) = begin
+        save_checkpoint(path, header, state)
+        before = read(path)
+        @test_throws ArgumentError load_checkpoint(path, good)
+        @test_throws ArgumentError ext_go(EXT_WORLD, out)  # refused before anything runs
+        @test read(path) == before  # and kept: it may be someone's hours
+        @test !isfile(joinpath(folder, "seed5.csv")) && !isfile(joinpath(folder, "seed6.csv"))
+    end
+    refused(replace(good, "periods=12" => "periods=13"))
+    refused(replace(good, r"code sha256=[0-9a-f]+" => "code sha256=edited"))
+    other_rules = replace_rules(XXL_V1; travel_cost=0.05)
+    refused(ext_expected(EXT_WORLD, mktempdir(), 5; rules=other_rules))
+    refused(ext_expected(EXT_WORLD, out, 6))  # another seed's
+    refused(replace(good, r"^julia=[^\n]*"m => "julia=1.0.0"))
+    # A world that differs under the same fingerprint (only a test can make one) is another run too.
+    refused(ext_expected(EXT_FED, out, 5))
+    write(path, original)
+    @test ext_go(EXT_WORLD, out) !== nothing
+    @test ext_csvs(folder) == ext_unbroken(EXT_WORLD)
+end
+
+@testset "xxl extinction: a seed's header names no types, which print by what Main can see" begin
+    # A worker's `using Sugarscape` and a main process's `import Sugarscape` would print `Config` differently.
+    exp = with_steps(EXT_TINY, 12)
+    h = seed_header(exp, 5, XXL_V1, "fp\n")
+    @test !occursin("Config(", h) && !occursin("XxlRules(", h)
+    @test occursin("seed=5", replace(h, "seed=$(EXT_TINY.config.seed + 5)" => "seed=5"))
+    @test h != seed_header(exp, 6, XXL_V1, "fp\n")
+    @test h != seed_header(ext_exp(; metabolism=(1, 1)), 5, XXL_V1, "fp\n")
+    @test h != seed_header(exp, 5, replace_rules(XXL_V1; travel_cost=0.05), "fp\n")
+end
+
+@testset "xxl extinction: a refused checkpoint is a usage error on the command line" begin
+    out = mktempdir()
+    args = ["--rules", "v1", "--label", "t", "--seeds", "2", "--first-seed", "5", "--periods", "12", "--out", out]
+    plan = extinction_plan(XXL_V1, nothing, out, "t", 5, 2, 12)
+    mkpath(plan.folder)
+    write(joinpath(plan.folder, "fingerprint.txt"), plan.fingerprint)
+    save_checkpoint(ext_ckpt(plan.folder, 5), "another run", (; x=1))
+    @test redirect_stderr(() -> extinction_main(args), devnull) == 2
+    @test !isfile(plan.folder * ".md")
+    @test isfile(ext_ckpt(plan.folder, 5))
+end
+
+@testset "xxl extinction: a half-written checkpoint cannot be picked up" begin
+    out = mktempdir()
+    ext_go(EXT_WORLD, out; stop_at=6)
+    folder = ext_dir(out)
+    path = ext_ckpt(folder, 5)
+    whole = read(path)
+    good = ext_expected(EXT_WORLD, out, 5)
+    @test load_checkpoint(path, good).model.t == 6
+    n = length(whole)
+    flipped = copy(whole)
+    flipped[n ÷ 2] ⊻= 0x01
+    damaged = [
+        UInt8[],  # nothing written
+        whole[1:10],  # cut inside the checksum
+        whole[1:40],  # cut inside the header
+        whole[1:(n ÷ 2)],  # cut inside the state
+        whole[1:(n - 1)],  # one byte short
+        [zeros(UInt8, 32); whole[33:end]],  # the checksum never filled in
+        flipped,
+    ]
+    for bytes in damaged
+        write(path, bytes)
+        @test load_checkpoint(path, good) === nothing
+    end
+    # A run says so and starts that seed again; the bytes are still those of an unbroken run.
+    write(path, damaged[4])
+    write(path * ".tmp", whole[1:(n ÷ 2)])  # and a save cut off by a crash, under its temporary name
+    said = IOBuffer()
+    @test ext_go(EXT_WORLD, out; io=said) !== nothing
+    @test occursin("seed 5: its checkpoint is damaged; starting it again", String(take!(said)))
+    @test ext_csvs(folder) == ext_unbroken(EXT_WORLD)
+    @test !isfile(path * ".tmp")
+end
+
+@testset "xxl extinction: a stray temporary checkpoint is never read" begin
+    out = mktempdir()
+    ext_go(EXT_WORLD, out; stop_at=6)
+    folder = ext_dir(out)
+    path = ext_ckpt(folder, 5)
+    write(ext_ckpt(folder, 6) * ".tmp", read(path))  # whole, but under the temporary name: seed 6 has no checkpoint
+    @test ext_go(EXT_WORLD, out) !== nothing
+    @test ext_csvs(folder) == ext_unbroken(EXT_WORLD)
+    @test !isfile(ext_ckpt(folder, 6) * ".tmp")
+end
+
+struct ExtUnsaveable end
+Serialization.serialize(::Serialization.AbstractSerializer, ::ExtUnsaveable) = error("the disk is full")
+
+@testset "xxl extinction: a save that fails leaves the last checkpoint" begin
+    dir = mktempdir()
+    path = joinpath(dir, "seed5.ckpt")
+    save_checkpoint(path, "h", (; x=1))
+    before = read(path)
+    @test_throws ErrorException save_checkpoint(path, "h", (; x=ExtUnsaveable()))
+    @test read(path) == before
+    @test load_checkpoint(path, "h").x == 1
+end
+
+@testset "xxl extinction: a failed periodic save does not end the seed; a failed stop does" begin
+    out = mktempdir()
+    plan = ext_plan(EXT_WORLD, out)
+    mkpath(plan.folder)
+    mkpath(ext_ckpt(plan.folder, 5) * ".tmp")  # a folder in the way: every save fails
+    hook = seed_checkpoint(plan.exp, 5, XXL_V1, plan.folder, plan.fingerprint; every=4)
+    plain, _ = timed_seed(plan.exp, 5; xxl=XXL_V1)
+    rows, timing = redirect_stderr(devnull) do
+        timed_seed(plan.exp, 5; xxl=XXL_V1, checkpoint=hook)
+    end
+    @test isequal(rows, plain)
+    @test timing !== nothing
+    touch(ext_stop(plan.folder))
+    @test_throws Exception redirect_stderr(devnull) do
+        timed_seed(plan.exp, 5; xxl=XXL_V1, checkpoint=hook)
+    end
+    @test !isfile(ext_ckpt(plan.folder, 5))
+end
+
+# VI-1 itself, where agents link to each other: children, friends, neighbours, the dead that the living still hold, loans.
+const EXT_VI1 = find_experiment(EXT_REG, "VI-1")
+
+@testset "xxl extinction: a checkpoint keeps a VI-1 model whole" begin
+    m = Model(replace_config(to_xxl(EXT_VI1.config, XXL_DEFAULTS); seed=7))
+    for _ in 1:24
+        step!(m)
+    end
+    @test !isempty(m.loans)
+    @test any(a -> !isempty(a.children), m.agents)
+    @test any(a -> !isempty(a.friends), m.agents)
+    @test any(a -> any(c -> !c.alive, a.children) || any(n -> !n.alive, a.neighbors), m.agents)  # the dead still held
+    path = joinpath(mktempdir(), "seed.ckpt")
+    save_checkpoint(path, "h", (; model=m))
+    r = load_checkpoint(path, "h").model
+    @test r.t == m.t && r.next_id == m.next_id
+    @test r.rng == m.rng
+    @test r.config == m.config
+    # One agent, one object: the grid, the living, every list and the loans all point at it.
+    @test all(r.grid[a.x + 1, a.y + 1] === a for a in r.agents)
+    @test all(r.agents[a.slot] === a for a in r.agents)
+    by_id = Dict(a.id => a for a in r.agents)
+    @test all(n.alive ? by_id[n.id] === n : !haskey(by_id, n.id) for a in r.agents for n in a.neighbors)
+    @test all(c.alive ? by_id[c.id] === c : !haskey(by_id, c.id) for a in r.agents for c in a.children)
+    book = Set(objectid(l) for l in r.loans)
+    @test all(objectid(l) in book for ls in values(r.debts) for l in ls)
+    @test sort(collect(keys(r.debts))) == sort(collect(keys(m.debts)))
+    @test r.lent == m.lent
+    # Every agent field, in the same order, with the dead that are still held.
+    plain(x) = [getfield(x, f) for f in fieldnames(Agent) if !(f in (:neighbors, :children, :friends))]
+    ids(list) = [(x isa Tuple ? (x[1].id, x[2]) : x.id) for x in list]
+    for (a, b) in zip(m.agents, r.agents)
+        @test isequal(plain(a), plain(b))
+        @test ids(a.neighbors) == ids(b.neighbors)
+        @test ids(a.children) == ids(b.children)
+        @test ids(a.friends) == ids(b.friends)
+    end
+    # Both go on as one: the same draws, the same metrics, to the bit.
+    for _ in 1:6
+        step!(m)
+        step!(r)
+        @test isequal(collect_metrics(m), collect_metrics(r))
+    end
+    @test r.rng == m.rng
+    @test all(isequal(a.sugar, b.sugar) && a.id == b.id for (a, b) in zip(m.agents, r.agents))
+end
+
+@testset "xxl extinction: no field of the model or an agent escapes the flat table" begin
+    m = Model(replace_config(EXT_TINY.config; seed=1))
+    flat = flat_model(m)
+    r = model_from_flat(flat)
+    @test all(isequal(getfield(r, f), getfield(m, f)) for f in (:t, :next_id, :rng, :viable_fallbacks))
+    # A new field holding agents would drag the whole graph into one recursive save: it must be named, or the save fails.
+    linked(T) = occursin(r"\b(Agent|Loan|Exchange)\b", string(T))
+    for f in fieldnames(Model)
+        linked(fieldtype(Model, f)) && @test f in Sugarscape.MODEL_LINK_FIELDS
+    end
+    for f in fieldnames(Agent)
+        linked(fieldtype(Agent, f)) && @test f in Sugarscape.AGENT_LINK_FIELDS
+    end
+    for f in Sugarscape.MODEL_LINK_FIELDS
+        @test f in fieldnames(Model)
+    end
+end
+
+@testset "xxl extinction: VI-1 stopped and resumed by other workers gives the same bytes" begin
+    kw = (label="vi", seeds=2, first_seed=20, periods=24, io=devnull, experiment=EXT_VI1)
+    whole, broken = mktempdir(), mktempdir()
+    run_extinction(XXL_DEFAULTS; kw..., jobs=1, out=whole)
+    @test run_extinction(XXL_DEFAULTS; kw..., jobs=1, out=broken, stop_at=12) === nothing
+    @test run_extinction(XXL_DEFAULTS; kw..., jobs=2, out=broken) !== nothing
+    dir(out) = ext_dir(out; label="vi", first=20, seeds=2, periods=24)
+    @test ext_csvs(dir(broken), (20, 21)) == ext_csvs(dir(whole), (20, 21))
+end

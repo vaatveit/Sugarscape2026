@@ -8,6 +8,7 @@ module Sugarscape
 
 using Distributed: WorkerPool, addprocs, pmap, remotecall_eval, remotecall_fetch, rmprocs
 using Random: AbstractRNG, Xoshiro, shuffle!
+using Serialization: deserialize, serialize
 using SHA: sha256
 using TOML
 
@@ -94,6 +95,7 @@ include("xxl/metrics.jl")
 include("xxl/scorecard_metrics.jl")
 include("runner.jl")
 include("xxl/scorecard.jl")
+include("xxl/checkpoint.jl")
 include("xxl/extinction.jl")
 include("xxl/experiments.jl")
 

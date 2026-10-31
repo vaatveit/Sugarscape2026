@@ -246,20 +246,79 @@ function read_elapsed(folder::AbstractString)
     return isfile(path) ? tryparse(Float64, strip(read(path, String))) : nothing
 end
 
-"""
-    extinction_seed!(exp, k, rules, folder) -> SeedOutcome
+const CHECKPOINT_EVERY = 100  # a seed saves itself every this many periods
+const STOP_FILE = "stop"  # this file in a run's folder stops the run (see run_extinction)
 
-Runs seed `k` of `exp` (already set to the run's periods) under `rules` and writes its timing file and its CSV, the
-standard xxl columns with no scorecard ones, into `folder`. The CSV goes to a temporary name and is moved onto its own
-only when whole. Runs in a worker.
+checkpoint_path(folder::AbstractString, k::Int) = joinpath(folder, "seed$k.ckpt")
+
+"""A config or rules as `field=value` text. Not `repr`: it prints a type by what `Main` can see, which a worker's differs in."""
+fields_text(x::Union{Config,XxlRules}) = join(("$f=$(fields_text(getfield(x, f)))" for f in fieldnames(typeof(x))), ",")
+fields_text(x) = repr(x)
+
 """
-function extinction_seed!(exp::Experiment, k::Int, rules::XxlRules, folder::AbstractString)
-    rows, timing, _ = seed_job(exp, k, false; xxl=rules)
+What a checkpoint of seed `k` must say it belongs to: this Julia (the stream of draws and the file format are its), the
+seed's config, and the run's fingerprint (the rules, the code and the periods).
+"""
+function seed_header(exp::Experiment, k::Int, rules::XxlRules, fingerprint::AbstractString)
+    cfg = to_xxl(exp.config, rules)
+    return "julia=$VERSION\nconfig=$(fields_text(replace_config(cfg; seed=cfg.seed + k)))\n$fingerprint"
+end
+
+"""
+    seed_checkpoint(exp, k, rules, folder, fingerprint; every=CHECKPOINT_EVERY, stop_at=nothing) -> (; restore, period_done)
+
+The hook of [`timed_seed`](@ref) that pauses seed `k`. It saves to `seed<k>.ckpt` in `folder` every `every` periods, and
+at the end of a period that finds the stop file, which ends the seed. A periodic save that fails is only warned of, as the
+last one still stands and the seed loses nothing by going on; a save on stopping that fails is an error. `stop_at`, for
+tests, writes the stop file on reaching that period, so that a run stops at a known point.
+"""
+function seed_checkpoint(
+    exp::Experiment, k::Int, rules::XxlRules, folder::AbstractString, fingerprint::AbstractString;
+    every::Int=CHECKPOINT_EVERY, stop_at::Union{Nothing,Int}=nothing,
+)
+    path, stop = checkpoint_path(folder, k), joinpath(folder, STOP_FILE)
+    header = seed_header(exp, k, rules, fingerprint)
+    function period_done(m, rows, clock)
+        save() = save_checkpoint(path, header, (; model=m, rows=rows, clock=clock); t=m.t)
+        m.t === stop_at && touch(stop)
+        if isfile(stop)
+            save()
+            return true
+        end
+        if m.t > 0 && m.t % every == 0
+            try
+                save()
+            catch e
+                e isa Base.IOError || e isa SystemError || rethrow()
+                println(stderr, "warning: seed $k: could not save at t = $(m.t): $(sprint(showerror, e))")
+            end
+        end
+        return false
+    end
+    return (; restore=() -> load_checkpoint(path, header), period_done)
+end
+
+"""
+    extinction_seed!(exp, k, rules, folder, fingerprint; every=CHECKPOINT_EVERY, stop_at=nothing) -> SeedOutcome or nothing
+
+Runs seed `k` of `exp` (already set to the run's periods) under `rules`, from its checkpoint if it has one, and writes
+its timing file and its CSV, the standard xxl columns with no scorecard ones, into `folder`. The CSV goes to a temporary
+name and is moved onto its own only when whole, and then the checkpoint goes. `nothing` if the stop file stopped it (see
+[`seed_checkpoint`](@ref)). Runs in a worker.
+"""
+function extinction_seed!(
+    exp::Experiment, k::Int, rules::XxlRules, folder::AbstractString, fingerprint::AbstractString;
+    every::Int=CHECKPOINT_EVERY, stop_at::Union{Nothing,Int}=nothing,
+)
+    hook = seed_checkpoint(exp, k, rules, folder, fingerprint; every=every, stop_at=stop_at)
+    rows, timing, _ = seed_job(exp, k, false; xxl=rules, checkpoint=hook)
+    timing === nothing && return nothing
     write_timing_csv(joinpath(folder, "seed$k.timing.csv"), [timing])
     columns = metric_columns(to_xxl(exp.config, rules))
     path = joinpath(folder, "seed$k.csv")
     write_seed_csv(path * ".tmp", rows; columns=columns)
     mv(path * ".tmp", path; force=true)
+    retrying(() -> rm(checkpoint_path(folder, k); force=true))
     seconds = timing.setup_s + timing.stepping_s + timing.metrics_s
     return seed_outcome(stack(rows; dims=1), ["t"; columns], k; seconds=seconds)
 end
@@ -291,6 +350,31 @@ function check_extinction_folder(
     )
     mkpath(folder)
     write_atomic(path, fingerprint)
+    return nothing
+end
+
+"""
+Looks over the checkpoints of the seeds `todo`: `ArgumentError` if one is whole but belongs to another run (kept, as it
+may be hours of someone's work), otherwise says on `io` where each seed will carry on from. A damaged one can only be
+ignored: that seed starts again and its next save replaces the file.
+"""
+function check_checkpoints(
+    folder::AbstractString, todo, exp::Experiment, rules::XxlRules, fingerprint::AbstractString; io::IO=devnull
+)
+    for k in todo
+        path = checkpoint_path(folder, k)
+        isfile(path) || continue
+        label = checkpoint_label(path)
+        if label === nothing
+            println(io, "seed $k: its checkpoint is damaged; starting it again")
+        elseif label.header == seed_header(exp, k, rules, fingerprint)
+            println(io, "seed $k: carrying on from t = $(label.t)")
+        else
+            throw(ArgumentError(
+                "$path was made under other rules, code, periods or Julia; delete it to start that seed again",
+            ))
+        end
+    end
     return nothing
 end
 
@@ -339,13 +423,20 @@ end
 
 """
     run_extinction(rules; label="defaults", seeds=60, first_seed=20, periods=2000, jobs=10, out=RESULTS_XXL,
-                   experiment=nothing, io=stdout) -> (; verdict, extinct, limit)
+                   experiment=nothing, io=stdout, checkpoint_every=CHECKPOINT_EVERY, stop_at=nothing)
+        -> (; verdict, extinct, limit) or nothing
 
 Runs seeds `first_seed` to `first_seed + seeds - 1` of VI-1 (or `experiment`, for tests) under `rules` over `periods`
 into `<out>/<extinction_name>/`, then writes `<out>/<extinction_name>.md` and prints it. Each seed's CSV and timing file
 are written as it ends; a seed whose CSV is whole (`periods + 2` lines) is skipped, so a stopped run resumes by running
-again. A folder made under other rules, code or periods is refused (`ArgumentError`) before anything runs. With
-`jobs > 1` the seeds run in that many worker processes. `elapsed.txt` adds the running time across resumes.
+again. A folder made under other rules, code or periods is refused (`ArgumentError`) before anything runs, as is a
+checkpoint made under them. With `jobs > 1` the seeds run in that many worker processes. `elapsed.txt` adds the running
+time across resumes.
+
+A seed saves itself to `seed<k>.ckpt` every `checkpoint_every` periods and carries on from there when run again, with any
+`jobs`. A file named `stop` in the folder makes every seed save at the end of its current period and end, and no waiting
+seed starts: the run then returns `nothing` and writes no report. The next run deletes the file. `stop_at` is for tests
+(see [`seed_checkpoint`](@ref)).
 """
 function run_extinction(
     rules::XxlRules;
@@ -357,12 +448,21 @@ function run_extinction(
     out::AbstractString=RESULTS_XXL,
     experiment::Union{Nothing,Experiment}=nothing,
     io::IO=stdout,
+    checkpoint_every::Int=CHECKPOINT_EVERY,
+    stop_at::Union{Nothing,Int}=nothing,
 )
     check_extinction_size(; seeds=seeds, first_seed=first_seed, periods=periods, jobs=jobs)
     exp, folder, fingerprint = extinction_plan(rules, experiment, out, label, first_seed, seeds, periods)
     check_extinction_folder(folder, fingerprint; create=true)
     indices = first_seed:(first_seed + seeds - 1)
     todo = [k for k in indices if !seed_done(joinpath(folder, "seed$k.csv"), periods)]
+    stop = joinpath(folder, STOP_FILE)
+    rm(stop; force=true)  # before the checksums, which take seconds: a stop asked for after this one counts
+    check_checkpoints(folder, todo, exp, rules, fingerprint; io=io)
+    for k in indices  # what a crash can leave: half a save, or the checkpoint of a seed whose CSV was just written
+        rm(checkpoint_path(folder, k) * ".tmp"; force=true)
+        k in todo || rm(checkpoint_path(folder, k); force=true)
+    end
     if !isempty(todo)
         write_machine_note(joinpath(folder, "machine.txt"), jobs, Float64[], "extinction $label")
         before, t0 = something(read_elapsed(folder), 0.0), time_ns()
@@ -384,17 +484,35 @@ function run_extinction(
                 remotecall_eval(Main, procs, :(using Sugarscape))
                 pool = WorkerPool(procs)
                 asyncmap(todo; ntasks=workers) do k
-                    record!(remotecall_fetch(Sugarscape.extinction_seed!, pool, exp, k, rules, abspath(folder)))
+                    isfile(stop) && return nothing
+                    o = remotecall_fetch(
+                        Sugarscape.extinction_seed!, pool, exp, k, rules, abspath(folder), fingerprint;
+                        every=checkpoint_every, stop_at=stop_at,
+                    )
+                    o === nothing || record!(o)
+                    return nothing
                 end
             finally
                 rmprocs(procs)
             end
         else
             for k in todo
-                record!(extinction_seed!(exp, k, rules, folder))
+                isfile(stop) && break
+                o = extinction_seed!(exp, k, rules, folder, fingerprint; every=checkpoint_every, stop_at=stop_at)
+                o === nothing || record!(o)
             end
         end
+        left = [k for k in todo if !seed_done(joinpath(folder, "seed$k.csv"), periods)]
+        if !isempty(left)
+            write_atomic(joinpath(folder, "elapsed.txt"), string(before + seconds_since(t0)))
+            saved = count(k -> isfile(checkpoint_path(folder, k)), left)
+            println(io, "stopped: $(seeds - length(left)) of $seeds seeds done, $saved more saved part-way. ",
+                    "Run the same command, with any --jobs, to carry on.")
+            flush(io)
+            return nothing
+        end
     end
+    rm(stop; force=true)  # it came too late to stop anything
     return write_extinction_report(rules, folder; label=label, seeds=seeds, first_seed=first_seed, periods=periods,
                                    jobs=jobs, io=io)
 end
@@ -500,9 +618,14 @@ function extinction_main(args::Vector{String})
     a = try
         a = extinction_args(args)
         # The run and the rebuild check the folder again; checking it here makes a refusal a usage error.
-        _, folder, fingerprint = extinction_plan(a.rules, nothing, a.out, a.label, a.first_seed, a.seeds, a.periods)
+        exp, folder, fingerprint = extinction_plan(a.rules, nothing, a.out, a.label, a.first_seed, a.seeds, a.periods)
         warn_io = a.report_only ? devnull : nothing  # the rebuild says so itself when only the code differs
         check_extinction_folder(folder, fingerprint; create=!a.report_only, warn_io=warn_io)
+        if !a.report_only
+            indices = a.first_seed:(a.first_seed + a.seeds - 1)
+            todo = [k for k in indices if !seed_done(joinpath(folder, "seed$k.csv"), a.periods)]
+            check_checkpoints(folder, todo, exp, a.rules, fingerprint)
+        end
         a
     catch e
         e isa ArgumentError || rethrow()
