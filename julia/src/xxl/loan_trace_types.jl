@@ -27,11 +27,27 @@ mutable struct Chain
 end
 
 """
+    CensusEntry
+
+A living agent the census follows: its state `groups` and age `band` when taken, whether it has had a child since
+(`children` is the length of its `children` then), and `fate`: `:open`, `:survived`, or the cause of its death.
+"""
+mutable struct CensusEntry
+    agent::Agent
+    groups::Vector{String}
+    band::String
+    children::Int
+    had_child::Bool
+    fate::Symbol
+end
+
+"""
     LoanTrace(term; census_every=CENSUS_EVERY, sample_every=SAMPLE_EVERY)
 
 An opt-in record of every loan's life for a run (set it as `Model.loan_trace`): the open chains by their current loan,
-the voids of the period not yet told apart, the tallies by `(window, table, key1, key2)` and the sampled rows. `term`
-is the loan term d. Read the tallies with `tally`.
+the voids of the period not yet told apart, the tallies by `(window, table, key1, key2)`, the sampled rows and the
+census cohort being followed. `term` is the loan term d. Read the tallies with `tally`. The census follows each agent
+for `term + 1` periods, so `census_every` must exceed that and the cohorts never overlap.
 """
 mutable struct LoanTrace
     term::Int
@@ -42,9 +58,13 @@ mutable struct LoanTrace
     voids::Vector{Tuple{Chain,Loan,Bool}}  # this period's voided chains, their loan, whether the borrower had a child
     tallies::Dict{Tuple{Int,String,String,String},Float64}
     sampled::Vector{Vector{Any}}
+    cohort::Dict{Int,CensusEntry}  # the census being followed, by agent id; empty between cohorts
+    cohort_window::Int  # the window of the period it was taken in
+    cohort_end::Int  # the label of the period it is followed to
 end
 
 function LoanTrace(term::Int; census_every::Int=CENSUS_EVERY, sample_every::Int=SAMPLE_EVERY)
+    census_every > term + 1 || throw(ArgumentError("census_every $census_every must exceed the follow-up, $(term + 1)"))
     return LoanTrace(
         term,
         census_every,
@@ -54,5 +74,8 @@ function LoanTrace(term::Int; census_every::Int=CENSUS_EVERY, sample_every::Int=
         Tuple{Chain,Loan,Bool}[],
         Dict{Tuple{Int,String,String,String},Float64}(),
         Vector{Any}[],
+        Dict{Int,CensusEntry}(),
+        0,
+        0,
     )
 end

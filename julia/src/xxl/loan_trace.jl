@@ -19,6 +19,12 @@
 #   unfinished: the chains still open when the run stops.
 #
 # An outcome is repaid, voided_lender, voided_borrower or voided_both.
+#
+# The census (docs/superpowers/specs/2026-10-31-xxl-x8-investigation-design.md, "A census, for fair comparisons") takes
+# the living every `census_every` periods, each in its state groups and age band, and follows them for `term + 1`
+# periods, to see who has a child and who dies of what. Its tables, by (window of the census, group, band), are
+# `census_n`, `census_children`, `census_old_age`, `census_sugar`, `census_spice` and `census_killed`; read a row with
+# `census_row`. A cohort enters them only once its follow-up is complete.
 
 # The columns of a sampled chain's row, `received` and `weight` as the chain stands (per unit of weight, see `Chain`).
 const TRACE_SAMPLE_COLUMNS = [
@@ -205,10 +211,21 @@ function sample_row!(tr::LoanTrace, chain::Chain, outcome::String, t_end, child:
 end
 
 """
-The end of a period, after `step!`: tells the period's voids apart and tallies them. `m.killed` and each agent's age and
-sugar are still as they were, so the cause of death holds. The voids are cleared, so no dead agent outlives its period.
+The end of a period, after `step!`: tells the period's voids apart, follows the open census cohort, and takes a census
+if the period is due one. `m.killed` and each agent's age and sugar are still as they were, so the cause of death holds.
 """
 function trace_period!(tr::LoanTrace, m::Model)
+    tell_voids!(tr, m)
+    follow_cohort!(tr, m)  # before the new census, so an agent that died this period is in neither
+    m.t > 0 && m.t % tr.census_every == 0 && take_census!(tr, m)
+    return nothing
+end
+
+"""
+Tallies the period's voids, each told apart by which party is dead. The voids are cleared, so no dead agent outlives its
+period.
+"""
+function tell_voids!(tr::LoanTrace, m::Model)
     w = window_index(m.t)
     for (chain, loan, child) in tr.voids
         lender, borrower = loan.lender, loan.borrower
@@ -230,6 +247,80 @@ function trace_period!(tr::LoanTrace, m::Model)
     return nothing
 end
 
+"""
+The state groups of a living agent: `borrowing` if it owes a loan, `lending` if it has lent one (both if both), and
+else `could_borrow` if it is short of sugar to have a child and has income to repay, `could_lend` if it has sugar to
+lend, `other`.
+"""
+function census_group(m::Model, a::Agent)
+    groups = String[]
+    haskey(m.debts, a.id) && push!(groups, "borrowing")
+    haskey(m.lent, a.id) && push!(groups, "lending")
+    isempty(groups) || return groups
+    if shortfall(m, a) > 0 && a.last_income > 0
+        push!(groups, "could_borrow")
+    elseif available_to_lend(m, a) > 0
+        push!(groups, "could_lend")
+    else
+        push!(groups, "other")
+    end
+    return groups
+end
+
+"""Starts a cohort: every living agent, in its groups and band, followed to `term + 1` periods after this one."""
+function take_census!(tr::LoanTrace, m::Model)
+    tr.cohort_window, tr.cohort_end = window_index(m.t), m.t + tr.term + 1
+    for a in m.agents
+        tr.cohort[a.id] = CensusEntry(a, census_group(m, a), age_band(a.age), length(a.children), false, :open)
+    end
+    return nothing
+end
+
+"""
+A period of the open cohort's follow-up: the dead among it are closed with their cause, the living are noted for a new
+child. A child born in the period its parent dies isn't seen (`kill!` empties the list), in every group alike. At the
+last period the rest are closed as survivors and the cohort enters the tables.
+"""
+function follow_cohort!(tr::LoanTrace, m::Model)
+    isempty(tr.cohort) && return nothing
+    for a in m.dead_this_step
+        entry = get(tr.cohort, a.id, nothing)
+        entry === nothing || (entry.fate = death_cause(m, a))
+    end
+    final = m.t >= tr.cohort_end
+    for entry in values(tr.cohort)
+        entry.fate === :open || continue
+        length(entry.agent.children) > entry.children && (entry.had_child = true)
+        final && (entry.fate = :survived)
+    end
+    final || return nothing
+    for entry in values(tr.cohort), group in (entry.groups..., "all")
+        add!(tr, tr.cohort_window, "census_n", 1, group, entry.band)
+        entry.had_child && add!(tr, tr.cohort_window, "census_children", 1, group, entry.band)
+        entry.fate === :survived || add!(tr, tr.cohort_window, "census_$(entry.fate)", 1, group, entry.band)
+    end
+    empty!(tr.cohort)
+    return nothing
+end
+
+"""
+    census_row(tr, window, group, band) -> (n, children, old_age, sugar, spice, killed)
+
+The agents of the censuses taken in `window` that were in `group` and `band`: how many, how many had a child in the
+follow-up, and how many died of each cause in it. Zeros if there are none.
+"""
+function census_row(tr::LoanTrace, window::Int, group::String, band::String)
+    field(name) = round(Int, tally(tr, window, "census_$name", group, band))
+    return (
+        n=field(:n),
+        children=field(:children),
+        old_age=field(:old_age),
+        sugar=field(:sugar),
+        spice=field(:spice),
+        killed=field(:killed),
+    )
+end
+
 """The run is over: the chains still open are unfinished, as X8 counts them, in the last period's window."""
 function trace_finish!(tr::LoanTrace, m::Model)
     w = window_index(m.t)
@@ -239,5 +330,6 @@ function trace_finish!(tr::LoanTrace, m::Model)
         sample_row!(tr, chain, "unfinished", "", had_child(chain, loan))
     end
     empty!(tr.chains)
+    empty!(tr.cohort)  # an unfinished follow-up is dropped
     return nothing
 end

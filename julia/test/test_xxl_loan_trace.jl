@@ -4,6 +4,7 @@ isdefined(@__MODULE__, :tiny_model) || include("helpers.jl")
 using Sugarscape, Test
 using Sugarscape: LoanTrace, tally, window_index, age_band, trace_start!, trace_period!, trace_finish!
 using Sugarscape: TRACE_SAMPLE_COLUMNS, death_cause, Loan, add_loan!, with_steps
+using Sugarscape: census_group, census_row
 
 const LT_REG = load_registry()
 
@@ -391,4 +392,115 @@ end
     with_trace(exp, k; xl=false, xxl=nothing, scorecard=false, loan_trace=nothing) =
         ([[loan_trace === nothing ? 0.0 : 1.0]], (; seed=k))
     @test Sugarscape.seed_job(tiny, 0, false, with_trace; xxl=XXL_BOOK, loan_trace=LoanTrace(10))[1] == [[1.0]]
+end
+
+# A person of childbearing age (12-40) with a birth endowment of 30, so it is short of sugar below 30 and lends above.
+function lt_person(m, x, y; sugar, income=2.0)
+    a = put_agent(m, x, y; sugar=sugar, metabolism=0)
+    a.sex, a.fertility_start, a.fertility_end, a.initial_sugar = :F, 12, 40, 30.0
+    a.age, a.last_income = 20, income
+    return a
+end
+
+# A world of loans with a term of 2 and a census every 4 periods, so the one at t = 4 is followed to t = 7.
+function census_model()
+    m = tiny_model(zeros(Int, 9, 9); sex=true, credit=(2, 0.0))
+    m.loan_trace = LoanTrace(2; census_every=4)
+    return m
+end
+
+const CENSUS_BANDS = [string(b) for b in 0:5:95]
+census_total(tr, w, group, field) = sum(getfield(census_row(tr, w, group, b), field) for b in CENSUS_BANDS)
+
+@testset "census: the groups" begin
+    m = lt_model(; term=5)
+    borrower, lender, both = (lt_person(m, x, 1; sugar=5.0) for x in (1, 3, 5))
+    lender.sugar = 100.0
+    other_lender, other_borrower = lt_person(m, 7, 1; sugar=100.0), lt_person(m, 8, 1; sugar=5.0)
+    add_loan!(m, Loan(lender, borrower, 5.0, 5.0, 50))
+    add_loan!(m, Loan(both, other_borrower, 5.0, 5.0, 50))
+    add_loan!(m, Loan(other_lender, both, 5.0, 5.0, 50))
+    @test census_group(m, borrower) == ["borrowing"]
+    @test census_group(m, lender) == ["lending"]
+    @test census_group(m, both) == ["borrowing", "lending"]
+    free = lt_person(m, 1, 5; sugar=5.0)
+    @test census_group(m, free) == ["could_borrow"]
+    @test census_group(m, lt_person(m, 3, 5; sugar=100.0)) == ["could_lend"]
+    @test census_group(m, lt_person(m, 5, 5; sugar=5.0, income=0.0)) == ["other"]
+    @test census_group(m, lt_person(m, 7, 5; sugar=30.0)) == ["other"]  # no shortfall, nothing beyond the need
+    @test census_group(m, put_agent(m, 8, 5)) == ["other"]  # no sex: neither borrows nor lends
+end
+
+@testset "census: the follow-up" begin
+    m = census_model()
+    tr = m.loan_trace
+    old = put_agent(m, 1, 1; metabolism=0, max_age=7)  # reaches its max age at t = 7
+    late = put_agent(m, 3, 1; metabolism=0, max_age=8)  # and this one at t = 8
+    starves = put_agent(m, 5, 1; sugar=6.5)  # burns 1 a period: dead at t = 7
+    child7 = put_agent(m, 7, 1; metabolism=0)
+    child8 = put_agent(m, 8, 1; metabolism=0)
+    gone = put_agent(m, 1, 3; metabolism=0, max_age=4)  # dies in the census period: in no census
+    lt_step!(m, 4)
+    @test !gone.alive && tr.cohort_end == 7 && length(tr.cohort) == 5
+    lt_step!(m, 2)
+    push!(child7.children, put_agent(m, 3, 3))
+    lt_step!(m)  # t = 7
+    push!(child8.children, put_agent(m, 5, 3))
+    @test isempty(tr.cohort) && !old.alive && late.alive && !starves.alive
+    row = census_row(tr, 1, "other", "0")
+    @test row == (n=5, children=1, old_age=1, sugar=1, spice=0, killed=0)
+    @test census_row(tr, 1, "all", "0") == row
+    @test sum(census_row(tr, w, g, b).n for w in 2:3 for g in ("all", "other") for b in CENSUS_BANDS) == 0
+    @test census_total(tr, 1, "all", :n) == 5
+    lt_step!(m)  # t = 8: a new census, not yet followed
+    @test census_total(tr, 1, "all", :n) == 5 && length(tr.cohort) == 4
+end
+
+@testset "census: an agent in two groups" begin
+    m = census_model()
+    tr = m.loan_trace
+    x, y, z = (lt_person(m, c, 1; sugar=100.0) for c in (1, 3, 5))
+    y.sugar = 5.0
+    add_loan!(m, Loan(x, y, 5.0, 5.0, 50))
+    add_loan!(m, Loan(z, x, 5.0, 5.0, 50))
+    @test census_group(m, x) == ["borrowing", "lending"]
+    lt_step!(m, 7)
+    for (group, n) in (("borrowing", 2), ("lending", 2), ("all", 3), ("could_borrow", 0), ("other", 0))
+        @test census_row(tr, 1, group, "20") == (n=n, children=0, old_age=0, sugar=0, spice=0, killed=0)
+    end
+end
+
+@testset "census: a cohort unfinished at the end" begin
+    m = census_model()
+    tr = m.loan_trace
+    lt_person(m, 1, 1; sugar=5.0)
+    lt_step!(m, 6)  # the follow-up of the census at t = 4 ends at t = 7
+    @test length(tr.cohort) == 1
+    trace_finish!(tr, m)
+    @test isempty(tr.cohort) && census_total(tr, 1, "all", :n) == 0 && isempty(tr.tallies)
+end
+
+@testset "census: a run shorter than one census" begin
+    m = census_model()
+    tr = m.loan_trace
+    lt_person(m, 1, 1; sugar=5.0)
+    lt_step!(m, 3)
+    trace_finish!(tr, m)
+    @test isempty(tr.cohort) && isempty(tr.tallies)
+    @test census_row(tr, 1, "all", "20") == (n=0, children=0, old_age=0, sugar=0, spice=0, killed=0)
+end
+
+@testset "census: the run is the same" begin
+    vi1 = with_steps(find_experiment(LT_REG, "VI-1"), 60)
+    plain, _ = Sugarscape.timed_seed(vi1, 0; xxl=XXL_DEFAULTS)
+    tr = LoanTrace(10; census_every=20)
+    traced, _ = Sugarscape.timed_seed(vi1, 0; xxl=XXL_DEFAULTS, loan_trace=tr)
+    @test isequal(plain, traced)
+    @test census_total(tr, 1, "all", :n) > 0  # the censuses of t = 20 and 40 were followed through
+    @test isempty(tr.cohort)  # and that of t = 60 dropped
+end
+
+@testset "census: cohorts can't overlap" begin
+    @test_throws ArgumentError LoanTrace(10; census_every=11)
+    @test LoanTrace(10; census_every=12).census_every == 12
 end
