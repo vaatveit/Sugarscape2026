@@ -81,6 +81,10 @@ end
         lr_census(), [lr_row("2", c.group, c.band; n=2c.n, old_age=2c.old_age, sugar=2c.sugar) for c in lr_census()]
     )
     @test age_ratios(t2, c2, 1:2).lender ≈ 20 / 30
+    # A window with loans and voids but no census at all is left out of both sides.
+    t3 = merge(lr_tally(), Dict(("2", k[2], k[3], k[4]) => v for (k, v) in lr_tally()))
+    @test age_ratios(t3, lr_census(), [1, 2]) == age_ratios(t3, lr_census(), [1])
+    @test isnan(age_ratios(t3, lr_census(), [2]).lender)
     # No census to give a death rate: nothing to compare with.
     @test isnan(age_ratios(lr_tally(), [], [1]).lender)
 end
@@ -103,6 +107,20 @@ end
     @test r.borrower["sugar"] == 2.0 && r.excluded == 10
     # A window not asked for isn't read.
     @test isnan(matched_ratios(c, [2]).borrower["sugar"])
+
+    # Each window is compared within itself: borrowers die as often as could-borrow agents in both, but the groups
+    # are spread differently over the windows, so pooling them would read 1.4.
+    two = [
+        lr_row("1", "borrowing", "20"; n=300.0, sugar=60.0),
+        lr_row("1", "could_borrow", "20"; n=100.0, sugar=20.0),
+        lr_row("2", "borrowing", "20"; n=100.0, sugar=10.0),
+        lr_row("2", "could_borrow", "20"; n=300.0, sugar=30.0),
+    ]
+    @test matched_ratios(two, 1:2).borrower["sugar"] == 1.0 && matched_ratios(two, 1:2).borrower["all"] == 1.0
+    # A band with a comparison group in another window only is still left out, and counted.
+    r = matched_ratios(vcat(two, [lr_row("1", "borrowing", "25"; n=10.0, sugar=9.0),
+                                  lr_row("2", "could_borrow", "25"; n=50.0, sugar=5.0)]), 1:2)
+    @test r.borrower["sugar"] == 1.0 && r.excluded == 10
 end
 
 @testset "loan report: the child shares" begin

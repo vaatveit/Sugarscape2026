@@ -148,16 +148,16 @@ census_deaths(r) = r.old_age + r.sugar + r.spice + r.killed
 
 Observed voids on each side ÷ the voids that mortality at the parties' ages predicts. Per window, the death rate `q` of
 each band is the census's `all` group's deaths ÷ `n` (0 with no census); a side expects the started chains × `q` at its
-band, × ended ÷ started, since the chains still open haven't had their chance to die. Windows add before dividing. A
-borrower's side observes `voided_borrower` + `voided_both`, a lender's `voided_lender` + `voided_both`. NaN with nothing
-expected.
+band, × ended ÷ started, since the chains still open haven't had their chance to die. Windows add before dividing, and a
+window with no census at all is left out of both sides. A borrower's side observes `voided_borrower` + `voided_both`, a
+lender's `voided_lender` + `voided_both`. NaN with nothing expected.
 """
 function age_ratios(t, census, windows)
     expected = Dict("borrower" => 0.0, "lender" => 0.0)
     observed = Dict("borrower" => 0.0, "lender" => 0.0)
     for w in windows
         started = tget(t, w, "started")
-        started > 0 || continue
+        started > 0 && any(true for _ in census_rows(census, [w], "all")) || continue
         ended = sum(tget(t, w, "ended", o) for o in TRACE_OUTCOMES)
         q = Dict(r.band => census_deaths(r) / r.n for r in census_rows(census, [w], "all") if r.n > 0)
         for (lender_band, borrower_band, count) in trace_rows(t, [w], "started_bands")
@@ -188,23 +188,29 @@ end
     matched_ratios(census, windows) -> (; borrower, lender, excluded)
 
 Deaths of `borrowing` agents ÷ the deaths expected if they died at the rate of `could_borrow` agents of the same band
-(direct standardization), for each cause and for `all`; likewise `lending` against `could_lend`. Bands with no
-comparison group are left out of both sides, and their agents add to `excluded`. NaN where nothing is expected.
+in the same window (direct standardization, window by window, as mortality differs between them), for each cause and for
+`all`; likewise `lending` against `could_lend`. A (window, band) with no comparison group is left out of both sides, and
+its agents add to `excluded`. NaN where nothing is expected.
 """
 function matched_ratios(census, windows)
     excluded = 0.0
     function side(group, reference)
-        g, ref = pooled_group(census, windows, group), pooled_group(census, windows, reference)
-        bands = [b for b in keys(g) if haskey(ref, b) && ref[b][1] > 0]
-        excluded += sum(g[b][1] for b in keys(g) if !(b in bands); init=0.0)
-        out = Dict{String,Float64}()
-        for (name, columns) in MATCHED_CAUSES
-            death(v) = sum(v[columns])
-            observed = sum(death(g[b]) for b in bands; init=0.0)
-            expected = sum(g[b][1] * death(ref[b]) / ref[b][1] for b in bands; init=0.0)
-            out[name] = share_of(observed, expected)
+        observed = Dict(name => 0.0 for (name, _) in MATCHED_CAUSES)
+        expected = Dict(name => 0.0 for (name, _) in MATCHED_CAUSES)
+        for w in windows
+            g, ref = pooled_group(census, [w], group), pooled_group(census, [w], reference)
+            for (band, v) in g
+                if !haskey(ref, band) || ref[band][1] <= 0
+                    excluded += v[1]
+                    continue
+                end
+                for (name, columns) in MATCHED_CAUSES
+                    observed[name] += sum(v[columns])
+                    expected[name] += v[1] * sum(ref[band][columns]) / ref[band][1]
+                end
+            end
         end
-        return out
+        return Dict(name => share_of(observed[name], expected[name]) for (name, _) in MATCHED_CAUSES)
     end
     borrower = side("borrowing", "could_borrow")
     lender = side("lending", "could_lend")
@@ -549,7 +555,7 @@ function loan_report(s; label, world, first_seed, seeds, periods, jobs, wall)
     append!(
         lines,
         window_table(cols, [
-            "Census agents followed" => c -> count_text(c.census_n),
+            "Agents followed" => c -> count_text(c.census_n),
             "Age ratio, borrowers" => c -> num(c.age.borrower),
             "Age ratio, lenders" => c -> num(c.age.lender),
             (
@@ -586,7 +592,7 @@ function loan_report(s; label, world, first_seed, seeds, periods, jobs, wall)
     append!(
         lines,
         window_table(cols, [
-            "Census agents followed" => c -> count_text(c.census_n),
+            "Agents followed" => c -> count_text(c.census_n),
             "Lenders past childbearing age" => c -> num(c.lender_past_fertile),
             "Borrowers of childbearing age" => c -> num(c.borrower_fertile),
             "Lenders who are female" => c -> num(c.lender_female),
