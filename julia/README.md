@@ -145,6 +145,39 @@ Estimated time for the 60 seeds with `--jobs 10`: about 8–10 hours or more (an
 seed at the reference pace, metrics included, and more in the later periods, when the population is largest). The
 first finished seeds give the real figure.
 
+The loan trace asks what the X8 scorecard check measures: it follows every loan of VI-1 from the day it is made to its
+repayment or its void by a death, and writes the report that answers the X8 investigation's four questions (who dies,
+whether a loan is riskier than the parties' ages explain, what it costs in sugar, whether credit does its job). It
+adds nothing to an ordinary run: the tracer is off unless the trace script sets it, and then it draws no random numbers
+and changes no loan or agent, so a traced seed's CSV is byte-identical to the untraced run's.
+
+```bat
+julia --project=julia julia/xxl_loan_trace.jl --jobs 5
+julia --project=julia julia/xxl_loan_trace.jl --label term5 --term 5 --seeds 5 --periods 500
+julia --project=julia julia/xxl_loan_trace.jl --world book --seeds 20 --periods 500
+julia --project=julia julia/xxl_loan_trace.jl --label term5 --term 5 --seeds 5 --periods 500 --report-only
+julia --project=julia julia/xxl_loan_trace.jl --compare loans-defaults-s20-10-p2000,loans-term5-s20-5-p500 --periods 500
+```
+
+The first runs the xxl defaults over seeds 20–29 for 2,000 periods (`--world defaults --seeds 10 --first-seed 20
+--periods 2000 --jobs 5`, the defaults of those options). `--world` is `defaults`, `xl` (the xl VI-1, no xxl rules) or
+`book` (the registry's 50 × 50 VI-1); `--term D` changes the loan term with the rate at 10, `--no-credit` turns credit
+off and `--inheritance` passes a dead lender's loans to its heirs. The third rewrites a report from the seeds finished,
+running nothing. Seeds go to `results-julia-xxl/loans-<label>-s<first>-<seeds>-p<periods>/` (a CSV, a timing file and
+`.tally.csv`, `.census.csv` and `.loans.csv` per seed) and the report beside them as `.md`; `--label` defaults to the
+world's name. `--compare BASE,A,B,…` tabulates folders of `--out`, a row each, over the seeds finished in all of them and
+their first `--periods` periods, into `loans-compare.md`: so the main run's seeds 20–24 cut to 500 periods can be the
+baseline of the 500-period probes. Its loan figures are by whole window (t = 1–100, 101–500 and 501–end), so for any cut
+up to 500 they cover t = 1–500.
+
+Traced runs have no stop file and no checkpoints: a traced seed can't be paused, because a resume would lose the
+tracer's state and give wrong tallies with no warning. A stop costs the seeds then running, each of which starts again
+from period 0 (an hour or more at 2,000 periods); finished seeds are kept. A seed counts as done only with its CSV and all
+three trace files, the CSV being written last, so running the same command again reruns exactly the seeds that were not
+done, clearing their leftovers first, and refuses a folder made under another world, term, inheritance, code or periods
+(choose another `--label`). The code is checked by the same checksum of `julia/src` as the extinction test's, so make no
+edit there while a long run is going. With `--jobs 5` expect about 2 GB for each worker.
+
 ## Comparing with Python
 
 ```bat
