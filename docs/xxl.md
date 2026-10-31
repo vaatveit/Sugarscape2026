@@ -636,6 +636,48 @@ Under the defaults, on seeds 20–39:
 confirmation scorecard took 2,196 s, of which the xl reference runs for the new seed range took 583 s (VI-1 512 s).
 Scorecards that reused an existing xl reference took 1,373–2,209 s (the defaults on seeds 0–19: 1,753 s).
 
+## Stage 2: the chance of extinction
+
+**The bar is the user's:** a healthy society is one that doesn't go extinct, so the chance of extinction over 2,000
+periods must be below 5%. The design is in
+[docs/superpowers/specs/2026-10-30-xxl-extinction-risk-design.md](superpowers/specs/2026-10-30-xxl-extinction-risk-design.md).
+
+**The test:** VI-1 under `XXL_DEFAULTS`, seeds 20–79, 2,000 periods each. A seed is extinct if its population reaches 0
+at any period from 1 to 2,000. The test passes if the one-sided 95% exact (Clopper–Pearson) upper limit on the chance
+of extinction is below 5%.
+
+**The verdict: pass.** 0 of 60 seeds went extinct, which puts the upper limit at 4.87%. The report is
+`results-julia-xxl/extinction-defaults-s20-60-p2000.md` (git-ignored); `julia/xxl_extinction.jl` runs the test.
+
+| Across the 60 seeds | Lowest | Median | Highest |
+|---|---|---|---|
+| Lowest population in the run | 3,441 (seed 53) | 5,866 | 8,476 (seed 26) |
+| Population at t = 2,000 | 51,151 (seed 78) | 72,323 | 85,317 (seed 66) |
+
+- **The trough is the only close call.** Every seed reaches its lowest population at t = 62–78, and no seed comes
+  back down to it later. The deepest, seed 53, falls to 17% of the 20,000 founders. At t = 500, 1,000, 1,500 and 2,000
+  no seed is below 48,282.
+- **No seed is in slow decline.** 0 of 60 fell by more than 10% from t = 1,001–1,500 to t = 1,501–2,000, the report's
+  warning line. The closest is seed 78, down 9.1% (55,497 to 50,438); next is seed 38, down 6.9%. Over the last 200
+  periods births reach deaths in 38 of 60 seeds, and the two counts differ by at most 2.3% in any seed.
+- **X2 reads 0.16, and the society survives anyway.** On seeds 20–39 16.3% of fertile agents have a mate in reach at
+  VI-1's trough, by the scorecard's count; seeds 40–79 weren't scored. X2 stays a reported value with no threshold.
+
+**What the pass does not show.**
+- It clears the bar with no room: one extinct seed among the 60 would have failed it.
+- All 60 seeds share one generated map pair (rule 6). The 4.87% is for those maps; other maps weren't tried.
+- The limit says nothing past 2,000 periods.
+- Survival is the only thing it tests. The scorecard still fails X8, loans voided by death (0.249 against 0.2).
+
+**Run time.** On the 24 threads of an i7-13700K with 31.8 GB, shared with other work, the run took 14 h 40 min by the
+clock, from 14:40 to 05:20. It was stopped three times for low memory and resumed each time: 10 workers, then 5 from
+16:40, then 4 from 00:34. The report gives `--jobs 4` and 47,766 s of wall time, but the first is only the last
+resume's setting and the second leaves out work lost in the stops. Each stop kept the finished seeds and lost those in
+progress, 20 in all and roughly 13 CPU-hours; they reran in full, and none was chosen by its outcome. The finished
+seeds took 2,337–5,535 s each, 228,304 s in all, depending on the load.
+
+**Next:** stage 3, the economy, starting from X8.
+
 ## Results of the first rules (`XXL_V1`)
 
 This section is the record of the first rules, `XXL_V1`, as the 16 `XXL-…` experiments still run them. Where it says
