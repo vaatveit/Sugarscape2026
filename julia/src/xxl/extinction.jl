@@ -1,11 +1,59 @@
 # xxl: the extinction test (stage-2 spec, "The test"). Whether VI-1 under the defaults has under a 5% chance of going
 # extinct in 2,000 periods: the upper limit on that chance from the seeds run, one seed's outcome, the verdict and the
 # markdown report, and the run that makes the seeds and resumes after a stop (julia/xxl_extinction.jl is its command
-# line).
+# line). The credit study's options (`CreditOptions`) change the world the seeds run in.
 
 const EXTINCTION_BAR = 0.05  # the claim: the chance of extinction is below this
 const DECLINE_LINE = 0.9  # a seed is falling when its last quarter's mean is below this share of the one before
 const EXTINCTION_LAST = 200  # births and deaths are counted over the last this many periods
+
+"""
+    CreditOptions(; credit_off=false, inheritance=false, claims_outlive_lender=false, credit_reach=1.0, lender_limit=false)
+
+The credit study's changes to the world of an extinction run: credit off, a dead lender's loans passing to its heirs, the
+loans standing after the lender's death, the borrower's credited income scaled by `credit_reach`, and the half-wealth
+limit on a lender. At the defaults the world is VI-1's own. Which combinations are allowed is for [`validate`](@ref) to
+say, when [`with_options`](@ref) applies them.
+"""
+Base.@kwdef struct CreditOptions
+    credit_off::Bool = false
+    inheritance::Bool = false
+    claims_outlive_lender::Bool = false
+    credit_reach::Float64 = 1.0
+    lender_limit::Bool = false
+end
+
+"""The options that differ from the defaults as comma-joined text (`credit off, inheritance`); `""` at the defaults."""
+function options_text(o::CreditOptions)
+    parts = String[]
+    o.credit_off && push!(parts, "credit off")
+    o.inheritance && push!(parts, "inheritance")
+    o.claims_outlive_lender && push!(parts, "claims outlive lender")
+    o.credit_reach != 1.0 && push!(parts, "credit reach $(o.credit_reach)")
+    o.lender_limit && push!(parts, "lender limit")
+    return join(parts, ", ")
+end
+
+"""
+    with_options(exp, o) -> Experiment
+
+`exp` itself at the default options, otherwise `exp` with the options set in both its configs (the book's and the xl
+version). `ArgumentError`, from [`replace_config`](@ref), for a combination the rules refuse: an option that needs credit
+with credit off, a `credit_reach` of 0 or less, or claims outliving the lender with inheritance.
+"""
+function with_options(exp::Experiment, o::CreditOptions)
+    o == CreditOptions() && return exp
+    swap(cfg) = replace_config(
+        cfg;
+        credit=o.credit_off ? nothing : cfg.credit,
+        inheritance=o.inheritance || cfg.inheritance,
+        claims_outlive_lender=o.claims_outlive_lender || cfg.claims_outlive_lender,
+        credit_reach=o.credit_reach != 1.0 ? o.credit_reach : cfg.credit_reach,
+        lender_limit=o.lender_limit || cfg.lender_limit,
+    )
+    return Experiment(exp.id, exp.title, exp.rules, exp.steps, exp.seeds, swap(exp.config), exp.fingerprint,
+                      swap(exp.xl_config), exp.xl_fingerprint)
+end
 
 """
     extinction_limit(extinct, seeds) -> Float64
@@ -110,13 +158,13 @@ seconds_text(s) = isnan(s) ? "—" : string(round(Int, s))
 whole_text(x) = string(round(Int, x))  # a population, exact: `fmt` keeps four significant figures
 
 """
-    extinction_report(outcomes; label, rules, first_seed, seeds, periods, jobs, wall) -> String
+    extinction_report(outcomes; label, rules, first_seed, seeds, periods, jobs, wall, options=CreditOptions()) -> String
 
 The markdown report: the verdict and the upper limit, the seeds finished of the `seeds` planned (from `first_seed`) over
-`periods`, how many living seeds were falling at the end, the run time (`jobs` and `wall` may be `nothing`), then one
-table row per outcome.
+`periods`, the credit `options` when any differ from the defaults, how many living seeds were falling at the end, the run
+time (`jobs` and `wall` may be `nothing`), then one table row per outcome.
 """
-function extinction_report(outcomes; label, rules, first_seed, seeds, periods, jobs, wall)
+function extinction_report(outcomes; label, rules, first_seed, seeds, periods, jobs, wall, options=CreditOptions())
     v = extinction_verdict(collect(SeedOutcome, outcomes))
     finished = length(outcomes)
     living = filter(o -> o.extinct_t === nothing, outcomes)
@@ -130,6 +178,7 @@ function extinction_report(outcomes; label, rules, first_seed, seeds, periods, j
     end
     wall === nothing || (run_time *= "; wall $(round(Int, wall)) s")
     jobs === nothing || (run_time *= " with --jobs $jobs")
+    named = options_text(options)
     lines = [
         "# Extinction test: $label",
         "",
@@ -140,10 +189,14 @@ function extinction_report(outcomes; label, rules, first_seed, seeds, periods, j
         "- Seeds finished: $finished of $seeds ($(seed_text(first_seed, seeds)))",
         "- Periods: $periods",
         "- Rules: `$(rules_line(rules))`",
+    ]
+    isempty(named) || push!(lines, "- Credit options: $named")
+    push!(
+        lines,
         "- Falling at the end: $falling of $(length(living)) living seeds (fell more than 10%, " *
         "t = $(periods ÷ 2 + 1)–$(3periods ÷ 4) against t = $(3periods ÷ 4 + 1)–$periods)",
         "- Run time: $run_time",
-    ]
+    )
     finished < seeds && push!(
         lines,
         "",
@@ -201,10 +254,14 @@ end
 
 """
 What an extinction run was produced from: the xxl fingerprint, the checksum of the package's source (so that a change
-to the code is a different run) and the periods (`with_steps` keeps the original `steps=` in the text).
+to the code is a different run) and the periods (`with_steps` keeps the original `steps=` in the text). A line names
+the credit `options`, only when some differ from the defaults, so that a default run's fingerprint keeps its shape.
 """
-function extinction_fingerprint(exp::Experiment, rules::XxlRules, periods::Int)
-    return xxl_fingerprint(exp, rules) * "code sha256=$(source_sha256(dirname(@__DIR__)))\nperiods=$periods\n"
+function extinction_fingerprint(exp::Experiment, rules::XxlRules, periods::Int; options::CreditOptions=CreditOptions())
+    text = options_text(options)
+    named = isempty(text) ? "" : "credit options: $text\n"
+    return xxl_fingerprint(exp, rules) * named *
+           "code sha256=$(source_sha256(dirname(@__DIR__)))\nperiods=$periods\n"
 end
 
 function check_extinction_size(; seeds, first_seed, periods, jobs)
@@ -392,11 +449,13 @@ function finished_outcomes(folder::AbstractString, indices, periods::Int)
 end
 
 """Reads the finished seeds, writes the report beside the folder and prints it to `io`. Returns the verdict."""
-function write_extinction_report(rules, folder; label, seeds, first_seed, periods, jobs, io)
+function write_extinction_report(
+    rules, folder; label, seeds, first_seed, periods, jobs, io, options::CreditOptions=CreditOptions()
+)
     outcomes = finished_outcomes(folder, first_seed:(first_seed + seeds - 1), periods)
     report = extinction_report(
         outcomes; label=label, rules=rules, first_seed=first_seed, seeds=seeds, periods=periods, jobs=jobs,
-        wall=read_elapsed(folder),
+        wall=read_elapsed(folder), options=options,
     )
     path = folder * ".md"
     write_atomic(path, report)
@@ -414,17 +473,23 @@ function extinction_progress(o::SeedOutcome, fresh, periods, done, total, worker
            "about $(round(left; digits=1)) h left"
 end
 
-"""The experiment of an extinction run (VI-1 over `periods`, or `experiment`), its folder and its fingerprint."""
-function extinction_plan(rules::XxlRules, experiment, out, label, first_seed, seeds, periods)
-    exp = with_steps(experiment === nothing ? find_experiment(load_registry(), "VI-1") : experiment, periods)
+"""
+The experiment of an extinction run (VI-1 over `periods`, or `experiment`, with the credit `options` set), its folder and
+its fingerprint. `ArgumentError` for options the rules refuse (see [`with_options`](@ref)).
+"""
+function extinction_plan(
+    rules::XxlRules, experiment, out, label, first_seed, seeds, periods; options::CreditOptions=CreditOptions()
+)
+    base = experiment === nothing ? find_experiment(load_registry(), "VI-1") : experiment
+    exp = with_options(with_steps(base, periods), options)
     folder = joinpath(out, extinction_name(label, first_seed, seeds, periods))
-    return (; exp, folder, fingerprint=extinction_fingerprint(exp, rules, periods))
+    return (; exp, folder, fingerprint=extinction_fingerprint(exp, rules, periods; options=options))
 end
 
 """
     run_extinction(rules; label="defaults", seeds=60, first_seed=20, periods=2000, jobs=10, out=RESULTS_XXL,
-                   experiment=nothing, io=stdout, checkpoint_every=CHECKPOINT_EVERY, stop_at=nothing)
-        -> (; verdict, extinct, limit) or nothing
+                   experiment=nothing, io=stdout, checkpoint_every=CHECKPOINT_EVERY, stop_at=nothing,
+                   options=CreditOptions()) -> (; verdict, extinct, limit) or nothing
 
 Runs seeds `first_seed` to `first_seed + seeds - 1` of VI-1 (or `experiment`, for tests) under `rules` over `periods`
 into `<out>/<extinction_name>/`, then writes `<out>/<extinction_name>.md` and prints it. Each seed's CSV and timing file
@@ -437,6 +502,10 @@ A seed saves itself to `seed<k>.ckpt` every `checkpoint_every` periods and carri
 `jobs`. A file named `stop` in the folder makes every seed save at the end of its current period and end, and no waiting
 seed starts: the run then returns `nothing` and writes no report. The next run deletes the file. `stop_at` is for tests
 (see [`seed_checkpoint`](@ref)).
+
+`options` ([`CreditOptions`](@ref)) changes the world the seeds run in. It is in the fingerprint, so a folder made under
+other options is refused like one made under other rules, and the report names it. `ArgumentError` for options the rules
+refuse.
 """
 function run_extinction(
     rules::XxlRules;
@@ -450,9 +519,10 @@ function run_extinction(
     io::IO=stdout,
     checkpoint_every::Int=CHECKPOINT_EVERY,
     stop_at::Union{Nothing,Int}=nothing,
+    options::CreditOptions=CreditOptions(),
 )
     check_extinction_size(; seeds=seeds, first_seed=first_seed, periods=periods, jobs=jobs)
-    exp, folder, fingerprint = extinction_plan(rules, experiment, out, label, first_seed, seeds, periods)
+    exp, folder, fingerprint = extinction_plan(rules, experiment, out, label, first_seed, seeds, periods; options)
     check_extinction_folder(folder, fingerprint; create=true)
     indices = first_seed:(first_seed + seeds - 1)
     todo = [k for k in indices if !seed_done(joinpath(folder, "seed$k.csv"), periods)]
@@ -514,16 +584,16 @@ function run_extinction(
     end
     rm(stop; force=true)  # it came too late to stop anything
     return write_extinction_report(rules, folder; label=label, seeds=seeds, first_seed=first_seed, periods=periods,
-                                   jobs=jobs, io=io)
+                                   jobs=jobs, io=io, options=options)
 end
 
 """
     rebuild_extinction_report(rules; label, seeds, first_seed, periods, out=RESULTS_XXL, experiment=nothing,
-                              jobs=nothing, io=stdout) -> (; verdict, extinct, limit)
+                              jobs=nothing, io=stdout, options=CreditOptions()) -> (; verdict, extinct, limit)
 
 Writes the report of an extinction run from the seeds it has finished, running nothing. `ArgumentError` if the folder is
 absent or was made under other rules or periods, so a report cannot be rewritten under the wrong ones. Code that has
-changed since is only warned of (to `io`): the report is of the CSVs, whatever wrote them.
+changed since is only warned of (to `io`): the report is of the CSVs, whatever wrote them. `options` must be the run's.
 """
 function rebuild_extinction_report(
     rules::XxlRules;
@@ -535,12 +605,13 @@ function rebuild_extinction_report(
     experiment::Union{Nothing,Experiment}=nothing,
     jobs::Union{Nothing,Int}=nothing,
     io::IO=stdout,
+    options::CreditOptions=CreditOptions(),
 )
     check_extinction_size(; seeds=seeds, first_seed=first_seed, periods=periods, jobs=something(jobs, 1))
-    _, folder, fingerprint = extinction_plan(rules, experiment, out, label, first_seed, seeds, periods)
+    _, folder, fingerprint = extinction_plan(rules, experiment, out, label, first_seed, seeds, periods; options)
     check_extinction_folder(folder, fingerprint; create=false, warn_io=io)
     return write_extinction_report(rules, folder; label=label, seeds=seeds, first_seed=first_seed, periods=periods,
-                                   jobs=jobs, io=io)
+                                   jobs=jobs, io=io, options=options)
 end
 
 """
@@ -562,21 +633,33 @@ function same_run(a::AbstractString, b::AbstractString; periods::Int)
     return true
 end
 
-const EXTINCTION_USAGE = "usage: julia --project=julia julia/xxl_extinction.jl [--rules v1|defaults] [--label NAME] [--seeds N] [--first-seed K] [--periods P] [--jobs J] [--out DIR] [--report-only]"
+const EXTINCTION_USAGE = "usage: julia --project=julia julia/xxl_extinction.jl [--rules v1|defaults] [--label NAME] [--seeds N] [--first-seed K] [--periods P] [--jobs J] [--out DIR] [--report-only] [--no-credit] [--inheritance] [--claims-outlive-lender] [--credit-reach K] [--lender-limit]"
 
 """
 The extinction test's command line: `--rules v1|defaults`, `--label NAME`, `--seeds N`, `--first-seed K`, `--periods P`,
-`--jobs J`, `--out DIR` and `--report-only`. Throws `ArgumentError` on a usage error.
+`--jobs J`, `--out DIR` and `--report-only`, and the credit study's options, returned as a [`CreditOptions`](@ref) in
+`options`: `--no-credit`, `--inheritance`, `--claims-outlive-lender`, `--credit-reach K` and `--lender-limit`. Throws
+`ArgumentError` on a usage error. Whether the options go together is for [`with_options`](@ref) to say, in
+[`extinction_plan`](@ref).
 """
 function extinction_args(args::Vector{String})
     rules, label, report_only, out = "defaults", nothing, false, RESULTS_XXL
     seeds, first_seed, periods, jobs = 60, 20, 2000, 10
+    credit_off, inheritance, claims_outlive_lender, credit_reach, lender_limit = false, false, false, 1.0, false
     i = 1
     while i <= length(args)
         a = args[i]
         if a == "--report-only"
             report_only = true
-        elseif a in ("--rules", "--label", "--seeds", "--first-seed", "--periods", "--jobs", "--out")
+        elseif a == "--no-credit"
+            credit_off = true
+        elseif a == "--inheritance"
+            inheritance = true
+        elseif a == "--claims-outlive-lender"
+            claims_outlive_lender = true
+        elseif a == "--lender-limit"
+            lender_limit = true
+        elseif a in ("--rules", "--label", "--seeds", "--first-seed", "--periods", "--jobs", "--out", "--credit-reach")
             i += 1
             i <= length(args) || throw(ArgumentError("$a needs a value"))
             v = args[i]
@@ -593,6 +676,8 @@ function extinction_args(args::Vector{String})
                 periods = parse(Int, v)
             elseif a == "--jobs"
                 jobs = parse(Int, v)
+            elseif a == "--credit-reach"
+                credit_reach = parse(Float64, v)
             else
                 out = v
             end
@@ -602,23 +687,26 @@ function extinction_args(args::Vector{String})
         i += 1
     end
     check_extinction_size(; seeds=seeds, first_seed=first_seed, periods=periods, jobs=jobs)
+    options = CreditOptions(; credit_off, inheritance, claims_outlive_lender, credit_reach, lender_limit)
     return (; rules=SCORECARD_BASES[rules], label=something(label, rules), seeds, first_seed, periods, jobs, out,
-            report_only)
+            report_only, options)
 end
 
 """
     extinction_main(args) -> exit code
 
 The command line of julia/xxl_extinction.jl: runs [`run_extinction`](@ref), or with `--report-only`
-[`rebuild_extinction_report`](@ref). Returns 2 on a usage error, a missing folder or a folder made under other rules; a
-`FAIL` verdict is a result, so 0. Only the arguments and the folder check are usage errors: anything that goes wrong
-after (a malformed CSV, say) is thrown with its stack trace.
+[`rebuild_extinction_report`](@ref). Returns 2 on a usage error (options the rules refuse among them), a missing
+folder or a folder made under other rules or options; a `FAIL` verdict is a result, so 0. Only the arguments and the
+folder check are usage errors: anything that goes wrong after (a malformed CSV, say) is thrown with its stack trace.
 """
 function extinction_main(args::Vector{String})
     a = try
         a = extinction_args(args)
         # The run and the rebuild check the folder again; checking it here makes a refusal a usage error.
-        exp, folder, fingerprint = extinction_plan(a.rules, nothing, a.out, a.label, a.first_seed, a.seeds, a.periods)
+        exp, folder, fingerprint = extinction_plan(
+            a.rules, nothing, a.out, a.label, a.first_seed, a.seeds, a.periods; options=a.options,
+        )
         warn_io = a.report_only ? devnull : nothing  # the rebuild says so itself when only the code differs
         check_extinction_folder(folder, fingerprint; create=!a.report_only, warn_io=warn_io)
         if !a.report_only
@@ -635,11 +723,12 @@ function extinction_main(args::Vector{String})
     if a.report_only
         rebuild_extinction_report(
             a.rules; label=a.label, seeds=a.seeds, first_seed=a.first_seed, periods=a.periods, out=a.out,
+            options=a.options,
         )
     else
         run_extinction(
             a.rules; label=a.label, seeds=a.seeds, first_seed=a.first_seed, periods=a.periods, jobs=a.jobs,
-            out=a.out,
+            out=a.out, options=a.options,
         )
     end
     return 0

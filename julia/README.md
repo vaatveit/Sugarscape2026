@@ -118,10 +118,22 @@ options); the second a shorter trial of the first rules; the third rewrites the 
 nothing. Seeds go to `results-julia-xxl/extinction-<label>-s<first>-<seeds>-p<periods>/` and the report beside them as
 `.md`; `--label` defaults to the `--rules` value. Each seed's CSV is written when it ends and the progress line shows
 the pace and the hours left, so a stopped or crashed run resumes by running the same command: it runs only the seeds
-without a whole CSV, and refuses a folder made under other rules, code or periods (choose another `--label`). The code
-is checked by a checksum of every `.jl` file under `julia/src`, so any edit there, even a comment, means a stopped run
-must restart under a new `--label`; `--report-only` rebuilds the report from the CSVs all the same, with a warning
-when only the code differs. A `FAIL` verdict is a result, so the exit code is still 0.
+without a whole CSV, and refuses a folder made under other rules, options, code or periods (choose another
+`--label`). The code is checked by a checksum of every `.jl` file under `julia/src`, so any edit there, even a comment,
+means a stopped run must restart under a new `--label`; `--report-only` rebuilds the report from the CSVs all the same,
+with a warning when only the code differs. A `FAIL` verdict is a result, so the exit code is still 0.
+
+The credit study's options change the world the seeds run in, each off by default: `--no-credit` (VI-1 with no loans),
+`--inheritance` (a dead lender's loans pass to its heirs), `--claims-outlive-lender` (they stand instead, repaid into
+nowhere), `--credit-reach K` (scales the income a borrower is credited with, 1 by default; it must be above 0) and
+`--lender-limit` (a lender lends at most half its wealth, in all, within a period). All but the first two need credit
+and `--claims-outlive-lender` refuses `--inheritance`; options the rules refuse are a usage error (exit 2). The options
+are in the folder's fingerprint and named in the report, so a run under some is a different run: give it its own
+`--label`, and `--report-only` the same options. A run without them writes the fingerprint it always did.
+
+```bat
+julia --project=julia julia/xxl_extinction.jl --label reach2 --credit-reach 2 --lender-limit --jobs 10
+```
 
 To pause a run, for instance to free the machine's memory, create a file named `stop` in its folder:
 
@@ -162,8 +174,9 @@ julia --project=julia julia/xxl_loan_trace.jl --compare loans-defaults-s20-10-p2
 The first runs the xxl defaults over seeds 20–29 for 2,000 periods (`--world defaults --seeds 10 --first-seed 20
 --periods 2000 --jobs 5`, the defaults of those options). `--world` is `defaults`, `xl` (the xl VI-1, no xxl rules) or
 `book` (the registry's 50 × 50 VI-1); `--term D` changes the loan term with the rate at 10, `--no-credit` turns credit
-off and `--inheritance` passes a dead lender's loans to its heirs. The fourth rewrites a report from the seeds finished,
-running nothing. Seeds go to `results-julia-xxl/loans-<label>-s<first>-<seeds>-p<periods>/` (a CSV, a timing file and
+off and `--inheritance` passes a dead lender's loans to its heirs; `--credit-reach K` scales the income a borrower is
+credited with and `--lender-limit` caps a lender at half its wealth within a period (as in the extinction test, and both
+need credit). The fourth rewrites a report from the seeds finished, running nothing. Seeds go to `results-julia-xxl/loans-<label>-s<first>-<seeds>-p<periods>/` (a CSV, a timing file and
 `.tally.csv`, `.census.csv` and `.loans.csv` per seed) and the report beside them as `.md`; `--label` defaults to the
 world's name. `--compare BASE,A,B,…` tabulates folders of `--out`, a row each, over the seeds finished in all of them and
 their first `--periods` periods, into `loans-compare.md`: so the main run's seeds 20–24 cut to 500 periods can be the
@@ -174,8 +187,8 @@ Traced runs have no stop file and no checkpoints: a traced seed can't be paused,
 tracer's state and give wrong tallies with no warning. A stop costs the seeds then running, each of which starts again
 from period 0 (an hour or more at 2,000 periods); finished seeds are kept. A seed counts as done only with its CSV and all
 three trace files, the CSV being written last, so running the same command again reruns exactly the seeds that were not
-done, clearing their leftovers first, and refuses a folder made under another world, term, inheritance, code or periods
-(choose another `--label`). The code is checked by the same checksum of `julia/src` as the extinction test's, so make no
+done, clearing their leftovers first, and refuses a folder made under another world, term, inheritance, credit reach,
+lender limit, code or periods (choose another `--label`). The code is checked by the same checksum of `julia/src` as the extinction test's, so make no
 edit there while a long run is going. With `--jobs 5` expect about 2 GB for each worker.
 
 ## Comparing with Python

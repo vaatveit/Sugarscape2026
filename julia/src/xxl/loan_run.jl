@@ -9,19 +9,25 @@ const TRACE_TERM = 10  # the term the tracer assumes with credit off, as the cen
 const TRACE_CREDIT = (10, 10.0)  # VI-1's: a term of 10, a rate of 10
 
 """
-    TraceWorld(name, credit, inheritance)
+    TraceWorld(name, credit, inheritance; credit_reach=1.0, lender_limit=false)
 
 What a loan trace runs: `name` is `defaults` (VI-1 under `XXL_DEFAULTS`), `xl` (its xl version, no xxl rules) or `book`
 (the registry's 50 × 50 VI-1, no xxl or xl layer); `credit` is the loan `(term, rate)` or `nothing` for none, and
-`inheritance` whether a dead lender's loans pass to its heirs.
+`inheritance` whether a dead lender's loans pass to its heirs. `credit_reach` scales the income a borrower is credited
+with and `lender_limit` caps what a lender lends (the credit study's options, see [`CreditOptions`](@ref)); with credit
+off either is an `ArgumentError`.
 """
 struct TraceWorld
     name::String
     credit::Union{Nothing,Tuple{Int,Float64}}
     inheritance::Bool
-    function TraceWorld(name, credit, inheritance)
+    credit_reach::Float64
+    lender_limit::Bool
+    function TraceWorld(name, credit, inheritance; credit_reach::Real=1.0, lender_limit::Bool=false)
         name in TRACE_WORLDS || throw(ArgumentError("--world is defaults, xl or book, not $(repr(name))"))
-        return new(name, credit, inheritance)
+        credit === nothing && (credit_reach != 1.0 || lender_limit) &&
+            throw(ArgumentError("--credit-reach and --lender-limit need credit; not with --no-credit"))
+        return new(name, credit, inheritance, credit_reach, lender_limit)
     end
 end
 
@@ -32,13 +38,19 @@ trace_xl(w::TraceWorld) = w.name == "xl"
 
 function world_text(w::TraceWorld)
     credit = w.credit === nothing ? "off" : "term $(w.credit[1]), rate $(w.credit[2])"
-    return "$(w.name), credit $credit, inheritance $(w.inheritance)"
+    reach = w.credit_reach == 1.0 ? "" : ", credit reach $(w.credit_reach)"
+    return "$(w.name), credit $credit, inheritance $(w.inheritance)$reach$(w.lender_limit ? ", lender limit" : "")"
 end
 
-"""VI-1 (or `experiment`, for tests) over `periods`, with the world's credit and inheritance in both its configs."""
+"""
+VI-1 (or `experiment`, for tests) over `periods`, with the world's credit, inheritance, credit reach and lender limit in
+both its configs. `ArgumentError` for a combination the rules refuse (a `credit_reach` of 0 or less, say).
+"""
 function trace_experiment(w::TraceWorld, periods::Int; experiment::Union{Nothing,Experiment}=nothing)
     e = experiment === nothing ? find_experiment(load_registry(), "VI-1") : experiment
-    swap(cfg) = replace_config(cfg; credit=w.credit, inheritance=w.inheritance)
+    swap(cfg) = replace_config(
+        cfg; credit=w.credit, inheritance=w.inheritance, credit_reach=w.credit_reach, lender_limit=w.lender_limit,
+    )
     return with_steps(
         Experiment(e.id, e.title, e.rules, e.steps, e.seeds, swap(e.config), e.fingerprint, swap(e.xl_config),
                    e.xl_fingerprint),
@@ -53,7 +65,11 @@ function trace_config(w::TraceWorld, exp::Experiment)
     return exp.config
 end
 
-"""What a loan trace was produced from: the world's fingerprint, credit and inheritance, the code and the periods."""
+"""
+What a loan trace was produced from: the world's fingerprint, credit and inheritance, the code and the periods. The
+credit reach and lender limit have lines only when either differs from its default, so a trace without them keeps the
+fingerprint it had.
+"""
 function trace_fingerprint(exp::Experiment, w::TraceWorld, periods::Int)
     base = if w.name == "defaults"
         xxl_fingerprint(exp, XXL_DEFAULTS)
@@ -62,7 +78,12 @@ function trace_fingerprint(exp::Experiment, w::TraceWorld, periods::Int)
     else
         "julia\n" * exp.fingerprint
     end
-    return base * "world=$(w.name)\ncredit=$(w.credit)\ninheritance=$(w.inheritance)\n" *
+    study = if w.credit_reach == 1.0 && !w.lender_limit
+        ""
+    else
+        "credit_reach=$(w.credit_reach)\nlender_limit=$(w.lender_limit)\n"
+    end
+    return base * "world=$(w.name)\ncredit=$(w.credit)\ninheritance=$(w.inheritance)\n" * study *
            "code sha256=$(source_sha256(dirname(@__DIR__)))\nperiods=$periods\n"
 end
 
@@ -318,16 +339,18 @@ end
 
 # ---- the command line
 
-const LOAN_USAGE = "usage: julia --project=julia julia/xxl_loan_trace.jl [--world defaults|xl|book] [--term D] [--no-credit] [--inheritance] [--label NAME] [--seeds N] [--first-seed K] [--periods P] [--jobs J] [--out DIR] [--report-only] [--compare BASE,A,B]"
+const LOAN_USAGE = "usage: julia --project=julia julia/xxl_loan_trace.jl [--world defaults|xl|book] [--term D] [--no-credit] [--inheritance] [--credit-reach K] [--lender-limit] [--label NAME] [--seeds N] [--first-seed K] [--periods P] [--jobs J] [--out DIR] [--report-only] [--compare BASE,A,B]"
 
 """
 The loan trace's command line: `--world defaults|xl|book`, `--term D` (the loan term, keeping the rate 10),
-`--no-credit`, `--inheritance`, `--label NAME` (the world's name), `--seeds N` (10), `--first-seed K` (20),
-`--periods P` (2000), `--jobs J` (5), `--out DIR`, `--report-only` and `--compare BASE,A,B,…`. Throws `ArgumentError` on
-a usage error.
+`--no-credit`, `--inheritance`, `--credit-reach K` (scales the income a borrower is credited with; 1) and `--lender-limit`
+(a lender lends at most half its wealth in a period), neither of which combines with `--no-credit`, `--label NAME` (the
+world's name), `--seeds N` (10), `--first-seed K` (20), `--periods P` (2000), `--jobs J` (5), `--out DIR`,
+`--report-only` and `--compare BASE,A,B,…`. Throws `ArgumentError` on a usage error.
 """
 function loan_trace_args(args::Vector{String})
     world, term, credit, inheritance, label = "defaults", nothing, true, false, nothing
+    credit_reach, lender_limit = 1.0, false
     seeds, first_seed, periods, jobs, out, report_only, compare = 10, 20, 2000, 5, RESULTS_XXL, false, nothing
     i = 1
     while i <= length(args)
@@ -336,10 +359,12 @@ function loan_trace_args(args::Vector{String})
             credit = false
         elseif a == "--inheritance"
             inheritance = true
+        elseif a == "--lender-limit"
+            lender_limit = true
         elseif a == "--report-only"
             report_only = true
-        elseif a in ("--world", "--term", "--label", "--seeds", "--first-seed", "--periods", "--jobs", "--out",
-                     "--compare")
+        elseif a in ("--world", "--term", "--credit-reach", "--label", "--seeds", "--first-seed", "--periods", "--jobs",
+                     "--out", "--compare")
             i += 1
             i <= length(args) || throw(ArgumentError("$a needs a value"))
             v = args[i]
@@ -347,6 +372,8 @@ function loan_trace_args(args::Vector{String})
                 world = v
             elseif a == "--term"
                 term = parse(Int, v)
+            elseif a == "--credit-reach"
+                credit_reach = parse(Float64, v)
             elseif a == "--label"
                 label = v
             elseif a == "--seeds"
@@ -372,7 +399,10 @@ function loan_trace_args(args::Vector{String})
     term === nothing || 1 <= term < CENSUS_EVERY - 1 ||
         throw(ArgumentError("--term must be from 1 to $(CENSUS_EVERY - 2), not $term"))
     compare === nothing || !any(isempty, compare) || throw(ArgumentError("--compare takes folder names, BASE,A,B"))
-    w = TraceWorld(world, credit ? (something(term, TRACE_CREDIT[1]), TRACE_CREDIT[2]) : nothing, inheritance)
+    w = TraceWorld(
+        world, credit ? (something(term, TRACE_CREDIT[1]), TRACE_CREDIT[2]) : nothing, inheritance; credit_reach,
+        lender_limit,
+    )
     return (; w, label=something(label, world), seeds, first_seed, periods, jobs, out, report_only, compare)
 end
 

@@ -5,10 +5,12 @@
 # period 0 any that were cut short (a traced seed can't be paused). --report-only rebuilds the report from the finished
 # seeds; --compare BASE,A,B,... tabulates folders of --out, over the seeds they share and their first --periods
 # periods, into <out>/loans-compare.md. --term D changes the loan term (the rate stays 10); --no-credit and
-# --inheritance change the rules; --label defaults to the world's name.
+# --inheritance change the rules, as do --credit-reach K (scales the income a borrower is credited with) and
+# --lender-limit (a lender lends at most half its wealth in a period), which need credit; --label defaults to the
+# world's name.
 #   julia --project=julia julia/xxl_loan_trace.jl [--world defaults|xl|book] [--term D] [--no-credit] [--inheritance]
-#         [--label NAME] [--seeds N] [--first-seed K] [--periods P] [--jobs J] [--out DIR] [--report-only]
-#         [--compare BASE,A,B]
+#         [--credit-reach K] [--lender-limit] [--label NAME] [--seeds N] [--first-seed K] [--periods P] [--jobs J]
+#         [--out DIR] [--report-only] [--compare BASE,A,B]
 using Sugarscape
 
 exit(Sugarscape.loan_trace_main(ARGS))
