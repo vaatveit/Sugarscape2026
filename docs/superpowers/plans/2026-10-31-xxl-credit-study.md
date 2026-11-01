@@ -648,17 +648,20 @@ Expected: 60 shared seeds; births t ≤ 100 and the trough close to the 5-seed r
 julia --project=julia julia/xxl_extinction.jl --label inherit --inheritance --seeds 10 --first-seed 20 --periods 500 --jobs 4
 julia --project=julia julia/xxl_extinction.jl --label inherit-nocredit --inheritance --no-credit --seeds 10 --first-seed 20 --periods 500 --jobs 4
 julia --project=julia julia/xxl_extinction.jl --label claims --claims-outlive-lender --seeds 20 --first-seed 20 --periods 500 --jobs 4
-julia --project=julia julia/xxl_loan_trace.jl --label reach2 --credit-reach 2 --seeds 10 --first-seed 20 --periods 500 --jobs 4
-julia --project=julia julia/xxl_loan_trace.jl --label limit --lender-limit --seeds 10 --first-seed 20 --periods 500 --jobs 4
+julia --project=julia julia/xxl_loan_trace.jl --label reach2 --credit-reach 2 --seeds 10 --first-seed 20 --periods 511 --jobs 4
+julia --project=julia julia/xxl_loan_trace.jl --label limit --lender-limit --seeds 10 --first-seed 20 --periods 511 --jobs 4
 ```
+
+The two traced probes run to 511 so that the census of t = 500 finishes, as it does in the 2,000-period base; their t = 1–500 columns then hold the same cohorts. Seeds 20–24 of the `inherit` probe's CSVs must equal `loans-inherit-s20-5-p500/seed<k>.csv`'s first 502 lines by `cmp`.
 
 Then:
 
 ```bash
-julia --project=julia julia/xxl_credit_compare.jl --on extinction-defaults-s20-60-p2000 --off extinction-nocredit-s20-60-p2000 --runs extinction-inherit-s20-10-p500,extinction-inherit-nocredit-s20-10-p500,extinction-claims-s20-20-p500,loans-reach2-s20-10-p500,loans-limit-s20-10-p500 --label study
+julia --project=julia julia/xxl_credit_compare.jl --on extinction-defaults-s20-60-p2000 --off extinction-nocredit-s20-60-p2000 --runs extinction-inherit-s20-10-p500,extinction-inherit-nocredit-s20-10-p500,extinction-claims-s20-20-p500,loans-reach2-s20-10-p511,loans-limit-s20-10-p511 --label study
+julia --project=julia julia/xxl_credit_compare.jl --on extinction-inherit-s20-10-p500 --off extinction-inherit-nocredit-s20-10-p500 --label inherit2x2
 ```
 
-The reach and limit readings also use the base's rollovers, deaths and lenders' matched sugar ratio. Quote seeds 20–29 from `results-julia-xxl/loans-defaults-s20-10-p2000.md`'s t = 1–500 column, and each probe's own report.
+The second answers the spec's question of whether credit adds anything once inheritance is there. The reach and limit readings also use the base's rollovers, deaths and lenders' matched sugar ratio. Quote seeds 20–29 from `results-julia-xxl/loans-defaults-s20-10-p2000.md`'s t = 1–500 column, and each probe's own report.
 
 - [ ] **Step 5: Check before writing**
 
