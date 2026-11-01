@@ -120,3 +120,19 @@ end
     @test usage(["--on", "x", "--off", "y", "--out", dir]) == 2
     @test usage(["--nope"]) == 2
 end
+
+@testset "credit compare: deaths in a window" begin
+    s = Sugarscape.CompareSeries(1, [10.0, 8.0, 6.0, 7.0, 9.0], [10.0, 11.0, 13.0, 16.0, 20.0])
+    @test Sugarscape.window_deaths(s, 1, 2) == 7.0  # 3 born, the population down 4
+    @test Sugarscape.window_deaths(s, 3, 4) == 4.0  # 7 born, the population up 3
+end
+
+@testset "credit compare: the deaths row of a report" begin
+    dir = mktempdir()
+    # Both hold 100 throughout: the base has 10 born a period (1,000 deaths in t = 1–100), the run 5 (500).
+    base = cmp_folder(dir, "base", Dict(k => fill(100.0, 101) for k in 1:3); ever=Dict(k => 100.0 .+ 10 .* (0:100) for k in 1:3))
+    run = cmp_folder(dir, "run", Dict(k => fill(100.0, 101) for k in 1:3); ever=Dict(k => 100.0 .+ 5 .* (0:100) for k in 1:3))
+    r = Sugarscape.credit_compare(dir; on="base", off="run", runs=String[])
+    # off (run) against on (base): deaths 500 against 1000 in t = 1–100, a ratio of 0.5 whose interval is a point.
+    @test occursin("| 1–100 | Deaths | 0.5 | [0.5, 0.5] | below | below | 0.5 | 3 | 3 |", r)
+end

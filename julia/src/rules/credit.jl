@@ -107,7 +107,8 @@ end
 
 """
 Loans due now are repaid in full if the borrower can; otherwise it pays half its wealth and a new loan with the
-same terms is originated for the remainder (p.133).
+same terms is originated for the remainder (p.133). Under `claims_outlive_lender` a dead lender's share leaves the
+world: the borrower pays it and no one receives it.
 """
 function settle_loans!(m::Model)
     d, _ = m.config.credit

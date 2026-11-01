@@ -124,7 +124,7 @@ means a stopped run must restart under a new `--label`; `--report-only` rebuilds
 with a warning when only the code differs. A `FAIL` verdict is a result, so the exit code is still 0.
 
 The credit study's options change the world the seeds run in, each off by default: `--no-credit` (VI-1 with no loans),
-`--inheritance` (a dead lender's loans pass to its heirs), `--claims-outlive-lender` (they stand instead, repaid into
+`--inheritance` (rule I: a dead agent's wealth, and a dead lender's loans, pass to its heirs), `--claims-outlive-lender` (they stand instead, repaid into
 nowhere), `--credit-reach K` (scales the income a borrower is credited with, 1 by default; it must be above 0) and
 `--lender-limit` (a lender lends at most half its wealth, in all, within a period). All but the first two need credit
 and `--claims-outlive-lender` refuses `--inheritance`; options the rules refuse are a usage error (exit 2). The options
@@ -174,7 +174,7 @@ julia --project=julia julia/xxl_loan_trace.jl --compare loans-defaults-s20-10-p2
 The first runs the xxl defaults over seeds 20–29 for 2,000 periods (`--world defaults --seeds 10 --first-seed 20
 --periods 2000 --jobs 5`, the defaults of those options). `--world` is `defaults`, `xl` (the xl VI-1, no xxl rules) or
 `book` (the registry's 50 × 50 VI-1); `--term D` changes the loan term with the rate at 10, `--no-credit` turns credit
-off and `--inheritance` passes a dead lender's loans to its heirs; `--credit-reach K` scales the income a borrower is
+off and `--inheritance` (rule I) passes a dead agent's wealth, and a dead lender's loans, to its heirs; `--credit-reach K` scales the income a borrower is
 credited with and `--lender-limit` caps a lender at half its wealth within a period (as in the extinction test, and both
 need credit). The fourth rewrites a report from the seeds finished, running nothing. Seeds go to `results-julia-xxl/loans-<label>-s<first>-<seeds>-p<periods>/` (a CSV, a timing file and
 `.tally.csv`, `.census.csv` and `.loans.csv` per seed) and the report beside them as `.md`; `--label` defaults to the

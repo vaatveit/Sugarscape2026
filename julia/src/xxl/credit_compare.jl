@@ -72,6 +72,12 @@ window_population(s::CompareSeries, lo::Int, hi::Int) = mean_of(@view s.populati
 window_births(s::CompareSeries, lo::Int, hi::Int) = s.ever[hi + 1] - s.ever[lo]
 
 """
+The deaths in periods `lo` to `hi`: the births less the change in population over them. The CSVs have no cause-of-death
+columns, so this is every cause together.
+"""
+window_deaths(s::CompareSeries, lo::Int, hi::Int) = window_births(s, lo, hi) - (s.population[hi + 1] - s.population[lo])
+
+"""
 The births in periods `lo` to `hi` over the sum of the population in them; NaN if the population is 0 throughout.
 """
 function births_per_head(s::CompareSeries, lo::Int, hi::Int)
@@ -233,6 +239,7 @@ const COMPARE_MEASURES = (
     ("Mean population", window_population),
     ("Births", window_births),
     ("Births per head", births_per_head),
+    ("Deaths", window_deaths),
 )
 
 const COMPARE_COLUMNS = ["Window", "Measure", "Ratio", "95% interval", "Against 1", "Against 0.95–1.05",

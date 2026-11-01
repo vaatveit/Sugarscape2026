@@ -10,7 +10,7 @@ const EXTINCTION_LAST = 200  # births and deaths are counted over the last this 
 """
     CreditOptions(; credit_off=false, inheritance=false, claims_outlive_lender=false, credit_reach=1.0, lender_limit=false)
 
-The credit study's changes to the world of an extinction run: credit off, a dead lender's loans passing to its heirs, the
+The credit study's changes to the world of an extinction run: credit off, a dead lender's loans passing to its heirs (rule I, which also passes on its wealth), the
 loans standing after the lender's death, the borrower's credited income scaled by `credit_reach`, and the half-wealth
 limit on a lender. At the defaults the world is VI-1's own. Which combinations are allowed is for [`validate`](@ref) to
 say, when [`with_options`](@ref) applies them.
@@ -494,8 +494,8 @@ end
 Runs seeds `first_seed` to `first_seed + seeds - 1` of VI-1 (or `experiment`, for tests) under `rules` over `periods`
 into `<out>/<extinction_name>/`, then writes `<out>/<extinction_name>.md` and prints it. Each seed's CSV and timing file
 are written as it ends; a seed whose CSV is whole (`periods + 2` lines) is skipped, so a stopped run resumes by running
-again. A folder made under other rules, code or periods is refused (`ArgumentError`) before anything runs, as is a
-checkpoint made under them. With `jobs > 1` the seeds run in that many worker processes. `elapsed.txt` adds the running
+again. A folder made under other rules, credit options, code or periods is refused (`ArgumentError`) before anything runs,
+as is a checkpoint made under them. With `jobs > 1` the seeds run in that many worker processes. `elapsed.txt` adds the running
 time across resumes.
 
 A seed saves itself to `seed<k>.ckpt` every `checkpoint_every` periods and carries on from there when run again, with any
@@ -592,7 +592,7 @@ end
                               jobs=nothing, io=stdout, options=CreditOptions()) -> (; verdict, extinct, limit)
 
 Writes the report of an extinction run from the seeds it has finished, running nothing. `ArgumentError` if the folder is
-absent or was made under other rules or periods, so a report cannot be rewritten under the wrong ones. Code that has
+absent or was made under other rules, credit options or periods, so a report cannot be rewritten under the wrong ones. Code that has
 changed since is only warned of (to `io`): the report is of the CSVs, whatever wrote them. `options` must be the run's.
 """
 function rebuild_extinction_report(
