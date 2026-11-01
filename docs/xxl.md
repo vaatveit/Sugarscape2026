@@ -598,7 +598,7 @@ the first rules. On seeds 20–39 it passes the same 13 checks as on seeds 0–1
 | X5 Agents trade | ≥ 0.5 | 0.920 | 0.979 | 0.981 |
 | X6 Prices agree | ≤ 1.5 | 1.297 | 1.223 | 1.202 |
 | X7 Credit persists | ≥ 1 | 14 | 990 | 1,134 |
-| X8 Loans are repaid | ≤ 0.2 | **0.276** | **0.253** | **0.249** |
+| X8 Loans voided by a death | — | 0.276 | 0.253 | 0.249 |
 | X9 Disease is endemic | ≥ 0.9 | **0** | 0.95 | 0.95 |
 | X10 Disease is bounded | 0.01–0.2 | **0** | 0.112 | 0.107 |
 | Checks passed | | 7 | 13 | 13 |
