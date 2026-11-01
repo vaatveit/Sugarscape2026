@@ -880,6 +880,233 @@ by the clock, 14:21 to 18:32, with 4 workers rather than the planned 5 for lack 
 
 **What to change is the user's decision,** under a new spec. Nothing here changes X8 or the rules.
 
+## Stage 3: what credit adds
+
+The user read the findings above and chose to retire X8 and study credit. X8 is now reported only, so the scorecard reads
+13 of 13 under the defaults. That says X8 no longer counts. It doesn't say credit works: the one credit check left, X7, only
+tests that loans exist. This step changes no rule in `XXL_DEFAULTS`. The design is in
+[docs/superpowers/specs/2026-10-31-xxl-credit-study-design.md](superpowers/specs/2026-10-31-xxl-credit-study-design.md).
+
+**The short answer.** Without credit the society passes the user's bar on these maps: 0 of 60 seeds went extinct in 2,000
+periods. For population, credit acts like a head start. It lifts the trough by 15% and early births by 28%, and by
+t = 1,501–2,000 it changes population by no more than 5%. But other things last: with credit on there is more inequality,
+far more trade and about twice the sickness, and without it a disease is more likely to die out, enough to fail X9. Those
+readings weren't planned, and I didn't test why. Repayable loans keep about 0.45 of the lift, and these runs can't say how
+much of the rest is dying lenders' sugar. Bigger loans about double the lift and bring many more rollovers, and more
+starving in place of other deaths. A limit per period shows no effect in the trough, but seems barely to have bound.
+Inheritance moves later population far more than anything else here, and it concentrates wealth.
+
+**The main run.** `XXL_DEFAULTS` with credit off, VI-1, seeds 20–79, 2,000 periods, paired with stage 2's credit-on run on
+the same seeds. Reports are in `results-julia-xxl/` (git-ignored): `extinction-nocredit-s20-60-p2000.md` and
+`credit-compare-main.md`. With credit off the verdict is **PASS, 0 of 60 extinct, limit 4.87%**, and no seed was falling at
+the end. The closest call was seed 53, which fell to 2,838 from 20,000 founders at t = 83. Its lowest with credit on was
+3,441, the lowest of that run too. Both runs read 0 of 60, so this test can't compare their risk, but credit off comes
+closer to the edge: 12 seeds under 4,000 against 4, and 1 under 3,000 against none.
+
+Credit off against credit on, ratios of means over the 60 seeds, each with a 95% bootstrap interval over seed pairs:
+
+| Window | Population | Births | Births per head | Interval against 0.95–1.05, population |
+|---|---|---|---|---|
+| Trough | 0.8675 [0.8591, 0.8756] (5,020 against 5,787) | | | below |
+| t = 1–100 | 0.9336 [0.9297, 0.9376] | 0.7813 [0.7687, 0.7938] | 0.8353 [0.8245, 0.8457] | below |
+| t = 101–200 | 0.8838 [0.8684, 0.9000] | 0.9147 [0.8944, 0.9359] | 1.036 [1.026, 1.046] | below |
+| t = 201–300 | 0.9622 [0.9374, 0.9889] | 0.9828 [0.9549, 1.012] | 1.020 [1.010, 1.029] | straddles 0.95 |
+| t = 301–500 | 0.9925 [0.9703, 1.016] | 1.002 [0.9754, 1.030] | 1.011 [1.004, 1.017] | inside |
+| t = 501–1,000 | 0.9884 [0.9626, 1.015] | 0.9792 [0.9469, 1.013] | 0.9911 [0.9830, 0.9993] | inside |
+| t = 1,001–1,500 | 0.9979 [0.9692, 1.027] | 0.9886 [0.9522, 1.026] | 0.9913 [0.9821, 1.001] | inside |
+| t = 1,501–2,000 | 1.011 [0.9813, 1.042] | 1.013 [0.9759, 1.051] | 1.002 [0.9936, 1.011] | inside |
+
+- **The trough** is lower without credit in all 60 seeds (0.79–0.93), and births at t ≤ 100 are too (9,696 against 12,409).
+- **The head start:** with credit off, population runs 11.4 periods behind at t = 100 (4–21 by seed), 9.4 at t = 150 (−5–18)
+  and 6.8 at t = 200 (−78–33). Past that the curve is too flat for this reading to mean much. For a while after the trough
+  births per head run a little higher without credit, 3.6% at t = 101–200 and 1.1% by t = 301–500.
+- **The end:** at t = 1,501–2,000 the reading is that credit lowers population by 1.1%, and the interval allows it to raise
+  population by up to about 1.9% or lower it by up to about 4.0%. That rules out a lasting effect on population above 5%. It
+  doesn't show there is none.
+- **Births and deaths late on** don't quite settle the 5% line. Births at t = 501–1,000 reach 0.9469, under 0.95, and births
+  at t = 1,501–2,000 reach 1.051, over 1.05. Deaths do the same, at 0.9484 and 1.051.
+- **These aren't the earlier figures.** The section above gives 0.749 and 0.848 for 5 seeds, as means of per-seed ratios, and
+  says credit lifts the trough by 18%. As ratios of means those 5 seeds read 0.7523 and 0.8511. Sixty seeds read the early
+  effect a little smaller, so 15% (1 / 0.8675) replaces 18%.
+
+**Did the seeds stay paired?** Partly. The correlation between a seed's credit-on and credit-off mean population is 0.99 at
+t = 1–100, 0.81 at t = 101–200, 0.59 at t = 301–500, and 0.44 at t = 1,501–2,000. The design feared ±4.7% if pairing was
+lost. The late interval came out about ±3%, so 60 seeds did settle the 5% line, for the population's ratio of means.
+
+**What does last.** None of this was in the design's reading table. The reviewer of this section found it by looking across
+about 50 CSV columns after the fact, and I recomputed it, so treat these as leads with strong numbers. Credit off against
+credit on, t = 1,501–2,000, 60 seeds:
+
+| | Credit on | Credit off | Off against on | Off below on, seeds |
+|---|---|---|---|---|
+| Gini | 0.239 | 0.213 | 0.8895 [0.879, 0.900] | 60 |
+| Mean sugar | 25.0 | 27.9 | 1.113 [1.097, 1.130] | 2 |
+| Trades per period | 101,345 | 56,964 | 0.562 [0.485, 0.644] | 56 |
+| Mean price | 1.386 | 1.149 | 0.829 [0.788, 0.870] | 49 |
+| Share of agents sick | 0.113 | 0.052 | 0.458 [0.356, 0.567] | 50 |
+| Diseases circulating | 3.32 | 1.84 | 0.555 [0.462, 0.653] | 44 |
+
+- **These all lie wholly outside 0.95–1.05.** Each is already well off 1 at t = 101–200, except the Gini at 0.96, which reaches
+  0.90 by t = 301–500, and they hold through every later window.
+- **Without credit, these seeds would fail X9.** A disease circulates at t = 500 in 57 of 60 seeds with credit, 0.95, and in
+  48 of 60 without, 0.80, against X9's 0.9. In the pairs, 10 seeds have one only with credit and 1 only without.
+- **The mark looks like it's left by the trough.** With credit on, a seed's diseases at t = 101–200 correlate 0.998 with its
+  diseases at t = 1,501–2,000. So my lead, which I didn't test, is that a shallower trough lets more diseases survive, and they
+  stay.
+- **The level population may be two effects cancelling.** Late on, population within a run is mostly disease: its correlation
+  with the share sick is −0.98 with credit and −0.90 without. Taking each run's fit on the share sick out of the population
+  takes the pairs' correlation from 0.44 to 0.03. A fit over both runs reads about 5,300 more people with credit at the same
+  share sick, about 7.6%, and about 6,100 fewer from credit's extra sickness. Grouped by diseases circulating at t = 2,000,
+  population is higher with credit at every count that both runs have, from 83,621 against 76,013 at no diseases to 59,324
+  against 58,211 at five. Credit also widens the spread between seeds, 13.0% of the mean against 8.4%. The share sick is itself
+  a result of the change, so none of this is causal, and I wouldn't lean on it without testing it.
+
+**The probes.** Seeds 20–29 to about t = 500, and 20–39 for the claims probe. One change at a time, each a measurement and
+not a proposal. Reports: `credit-compare-study.md` and `credit-compare-inherit2x2.md`. None went extinct. Each probe's
+ratios are against credit on over its own seeds. Lift kept is (probe − off) ÷ (on − off): 1 keeps all of credit's lift, 0
+keeps none.
+
+| Probe | Seeds | Trough | Births, t ≤ 100 | Population, t = 301–500 | Lift kept, trough |
+|---|---|---|---|---|---|
+| Inheritance, credit on | 10 | 1.150 [1.137, 1.165] | 1.372 [1.346, 1.400] | 1.342 [1.220, 1.465] | 2.195 [1.984, 2.446] |
+| Inheritance, credit off | 10 | 1.040 [1.020, 1.057] | 1.137 [1.103, 1.168] | 1.407 [1.266, 1.557] | 1.316 [1.138, 1.538] |
+| Claims outlive the lender | 20 | 0.9297 [0.9123, 0.9466] | 0.8753 [0.8458, 0.9035] | 1.044 [0.9925, 1.104] | 0.4465 [0.3349, 0.565] |
+| Bigger loans | 10 | 1.137 [1.121, 1.155] | 1.262 [1.222, 1.300] | 1.066 [1.002, 1.125] | 2.092 [1.888, 2.309] |
+| Lender limit | 10 | 1.007 [0.9981, 1.016] | 1.016 [0.9946, 1.035] | 0.973 [0.9126, 1.028] | 1.059 [0.9856, 1.136] |
+
+- **Where the lift comes from: repayable loans keep some of it, and the rest can't be split.** With a dead lender's loans
+  standing, the trough keeps 0.45 of credit's lift, [0.33, 0.57], and births at t ≤ 100 keep 0.41, [0.28, 0.54]. Both straddle
+  0.5, so these seeds couldn't settle the row's question. The probe's confound decides what else can be said: the repayment
+  leaves the world, which the book's rules never do, and borrowers end poorer than under either the book's rule or
+  inheritance. Total sugar at t = 70 reads 232,171 against 250,887, 7.5% lower. So it tests where the lift comes from, and
+  isn't a sensible rule. Excluding 0 means loans do some of the work even with that drain, though a loan from a lender who
+  later dies still hands the young that lender's sugar for part of its term. Excluding 1 doesn't show the gift matters, since
+  the 0.55 lost can't be split between the lost gift and the drain. Its later population, 1.044 at t = 301–500, doesn't show
+  the drain is harmless: that run has far less disease (share sick 0.055 against 0.109, and disease at t = 500 in 13 of 20
+  seeds against 19). Its CSV's lender columns also still count dead lenders.
+- **Credit still lifts the trough with inheritance on, but that doesn't separate the loans from the gift.** There a dead
+  lender's claims pass to its living children if it has any, and otherwise the loan is void. Inheritance passes on wealth, not
+  only loans, so this is another world, with richer agents. Credit off against on is 0.9041 for the trough, [0.8811, 0.9234],
+  and 0.8289 for births at t ≤ 100, [0.7967, 0.8539], against 0.874 and 0.788 on these same 10 seeds without inheritance. In
+  absolute terms the trough lift is 685 against 780, and the births lift 3,144 against 2,841. Over t = 1–500 inheritance removes
+  about 80% of what borrowers keep when a lender dies (67,880 per seed against 348,980, on seeds 20–24), but only about a third
+  by t = 100 (9,654 against 15,160), which is when this lift is measured. From t = 201 no window can tell credit on from off,
+  and with 10 seeds those intervals are wide, up to 13.6% at t = 301–500.
+- **Inheritance alone does more for the trough than credit alone,** by 4.0%, [2.0%, 5.7%], and far more after that:
+  population at t = 301–500 runs 41% above credit on, [27%, 56%], and at t = 500 it's 90,251 against 61,166. That is well
+  above the 71,095 these seeds reach with credit on at t = 1,501–2,000. Births rise 51% and deaths 46% at t = 301–500, so deaths
+  per head rise about 3.6%. In the trough it isn't ahead of everything: inheritance with credit is about level with bigger
+  loans (7,143 against 7,063), and inheritance alone is below them. Two things weigh on the other side. The Gini at t = 500 is
+  0.371 alone and 0.386 with credit, against 0.239. And the share sick at t = 301–500 is 0.178 alone and 0.222 with credit,
+  against 0.106, on the far side of X10's ceiling of 0.2 with credit, if that lasted to the end. These runs stop at t = 500, so
+  they say nothing about where it settles or about extinction, and I didn't test why it does this.
+- **Bigger loans lift the trough a further 13.7%, so the income limit does hold credit back there.** Its costs are many more
+  rollovers and more starving, not more deaths overall. "Bigger" undersells the change: there are 2.05 times the loans, 1.5
+  times the mean size and 3.06 times the principal. Figures are seeds 20–29 at t = 1–500 against the same seeds' loan trace,
+  with no intervals:
+
+  | | Defaults | Bigger loans |
+  |---|---|---|
+  | Loans started | 7,284,839 | 14,912,805 |
+  | Rollovers, of loans started | 0.75% | 7.2% |
+  | Repaid, of ended | 0.7535 | 0.6819 |
+  | Dead borrowers starving of sugar | 0.64% | 6.2% |
+  | Borrowers' sugar deaths, census (matched ratio) | 905 (3.18) | 11,460 (2.91) |
+  | Lenders' sugar deaths, census (matched ratio) | 3,370 (1.51) | 15,580 (1.43) |
+  | All agents: sugar deaths per agent, census | 0.0026 | 0.0074 |
+  | All agents: all deaths per agent, census | 0.1646 | 0.1635 |
+  | Gini at t = 500 | 0.239 | 0.285 |
+  | Share of loans voided by a death (X8) | 0.2466 | 0.3188 |
+
+  Counts per borrower aren't like for like, since borrowers go from about a quarter of the census to over a third and now
+  include agents with lower incomes, so the table compares all agents. Deaths per head by window are level, 0.95, 1.04, 0.99 and
+  1.00, so starving replaces other deaths and population runs higher. Population at t = 301–500 reads 1.066, [1.002, 1.125], above
+  1 and straddling 1.05. The run stops at t = 511, so it can't speak to t = 1,501–2,000.
+- **The lender limit shows no gain or cost in the trough, and it doesn't test what I meant it to.** The trough interval rules out
+  a cost above 0.2% and a gain above 1.6%. Later population can't be settled: at t = 301–500, [0.9126, 1.028] allows a cost of up
+  to 8.7%. The lenders' matched sugar ratio is 1.49 (3,582 against 2,400), against 1.51 (3,370 against 2,234), so the row doesn't
+  fire. But the cap seems barely to have bound: total principal lent didn't fall (about 1.006 times the defaults), though loans
+  started did (0.961). A lender can also still give half its wealth every period. And the matched ratio is a blunt measure here,
+  since it hardly moved under bigger loans, with 3.06 times the principal. One reading did move a little: at t ≤ 100, 0.195 of
+  dead lenders' voids came from a lender starving of sugar, against 0.209. So my lead in the section above, that the lack of a
+  limit starves lenders, is untested, not shown wrong. The limit also changes the first lender a borrower meets, and so who
+  lends.
+
+**My guess, written before measuring.**
+
+| Guess | Result |
+|---|---|
+| 0 of 60 extinct with credit off | Held |
+| Population at t = 1,501–2,000 within 5% | Held: [0.9813, 1.042] |
+| A head start | Held for population: all 60 seeds lower in the trough, about 11 periods behind at t = 100, and within 5% by the end. Missed that other things last |
+| At least half the trough's lift comes from dying lenders' sugar | Not shown. The 0.55 lost fits, but the interval allows 0.43–0.67, and the drain can't be separated from the gift |
+| Bigger loans lift the trough further | Held: 1.137 |
+| Bigger loans don't change later population | Not tested: the probe stops at t = 511. What exists leans against it: t = 301–500 reads 1.066, [1.002, 1.125] |
+
+The guess missed the two largest results. I didn't expect credit's trough to leave a lasting mark on disease, trade and wealth,
+or inheritance to move population at t = 301–500 by so much more than credit does.
+
+**The reading table, set before the runs.** A result can fall under more than one row. A row that fires is a reading, not a
+finding by itself.
+
+| Row | Result |
+|---|---|
+| Credit off: limit under 5% | **Fired:** 4.87%. Survival doesn't depend on credit, by the user's bar |
+| Credit off: limit at or over 5% | No |
+| Population, t = 1,501–2,000, inside 0.95–1.05 | **Fired:** [0.9813, 1.042]. No lasting effect on the society's size above 5%; this row doesn't speak to the rest |
+| That interval wholly outside 0.95–1.05 | No |
+| That interval straddles 0.95 or 1.05 | No |
+| Claims, lift kept in the trough, wholly under 0.5 | No: [0.3349, 0.565] |
+| Claims, wholly over 0.5 | No |
+| Claims, straddles 0.5 | **Fired.** Couldn't say which matters more. The interval excludes 0 and 1, but excluding 1 may only reflect the drain |
+| Inheritance, credit off, trough against credit on, wholly above 1 | **Fired:** 1.040, [1.020, 1.057]. Inheritance alone does more than credit for the trough |
+| That interval straddles 1 | No |
+| That interval wholly below 1 | No |
+| Bigger loans, trough wholly above 1 | **Fired:** 1.137, [1.121, 1.155]. The income limit holds credit back in the trough |
+| Bigger loans, trough straddles 1 | No |
+| Bigger loans, trough wholly below 1 | No |
+| Lender limit: matched ratio at or under 1.1, and trough doesn't fall wholly below 1 | No: the ratio is 1.49, though the trough doesn't fall |
+| Lender limit: otherwise | **Fired.** It doesn't help by the row's measure; no cost detected in the trough |
+
+No reading changed after the runs. "What does last" sits outside this table and was found afterwards. Windows that straddle a
+line other than these rows' are in the tables, and read as "the seeds couldn't settle it".
+
+**What this doesn't show.**
+- All runs share one generated map pair, as in stage 2. The 4.87% is for those maps.
+- The extinction test reads 0 of 60 on both sides, so it can't show that credit leaves the risk unchanged.
+- The probes have 10 or 20 seeds and stop at about t = 500, so none of them has an extinction verdict or a late reading. A
+  ratio over those seeds is against the same seeds of the main runs, whose own effect reads a little smaller than over all
+  60 (trough 0.874 at 10 seeds, 0.873 at 20, 0.867 at 60).
+- Who borrows or lends isn't assigned at random, so group comparisons within a run are evidence and not proof. That covers this
+  section's matched ratios and the census figures in the bigger-loans table, and the section above's readings, including the
+  5-seed credit-off comparison of who has children. The comparisons with credit on and off are direct changes on the same seeds,
+  on one map pair.
+- "What does last" was found by searching after the runs, and why it happens wasn't tested.
+
+**Run time.** Same machine, shared with other work. The main run took 44,399 s by its own count, 12 h 20 min, with 5 workers
+and no stops; its log reads 00:04 to 11:24 because the clock went back an hour that night. Its seeds took 2,770–4,421 s. The
+probes ran from 11:25 to 14:18, 2 h 53 min, with 4 workers and no stops: 33, 28, 42, 39 and 31 minutes in the order of the
+table. The main run came in at the low end of the design's 12–17 hours, and the probes under its 5 hours or so.
+
+**My recommendation, not a decision.**
+1. **Keep credit as it is.** It lifts the one close call, and the society passes the user's bar without it. Whether that counts as
+   working as intended is the user's question, and I'd say yes for now: it does something real in the period that matters most,
+   and the one change here that makes credit itself do more, bigger loans, has real costs.
+2. **Before stage 4, find out why the trough leaves a lasting mark.** It costs no new runs at first, since the CSVs can test how
+   trough depth and disease survival go together. It matters because X9 depends on it, and stage 4's disease work would start
+   from a baseline that credit is partly holding up.
+3. **Don't adopt the lender limit, and don't rely on this probe to clear lending.** It seems barely to have bound. A real test
+   of whether lending starves lenders would need a tighter cap, over several periods.
+4. **Don't adopt bigger loans without their own spec.** The lift is real, and so are 9.6 times the rollovers' share and about 2.9
+   times the starving per agent. They'd need an extinction test and a run to 2,000 periods.
+5. **If a rule gets its own spec next, make it inheritance.** It's the book's own rule and it moves later population far more
+   than anything else here. It needs a 2,000-period extinction run, and a decision on whether a Gini of 0.37–0.39 and that much
+   more sickness are acceptable.
+6. **Don't add a new credit check yet.** The direct test is the trough with credit on against off, which takes a paired run. It's
+   worth writing down once the question above is settled, not before.
+
+**What to change is the user's decision,** under a new spec. Nothing here changes the rules.
+
 ## Results of the first rules (`XXL_V1`)
 
 This section is the record of the first rules, `XXL_V1`, as the 16 `XXL-…` experiments still run them. Where it says
