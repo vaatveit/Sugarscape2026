@@ -427,8 +427,11 @@ stage 3 trade and credit, stage 4 disease. This section is stage 1's record.
 (rule 6), viable founder placement (rule 9), a free step of 1.5 (rule 10), and c = 0.2. On 20 seeds that were not
 used to choose them (seeds 20–39) they pass 13 of the 15 checks, every survival check among them, against 7 of 15 for
 the first rules. The two that still fail, mates in reach (X2) and loans voided by death (X8), failed in every setting
-tried. X2 has since become a reported value with no threshold (stage 2's spec, "X2 stops being a target"); X8 and the
-other X checks are the baseline for stages 3 and 4, and X2 is read beside them.
+tried. Both have since become reported values with no threshold: X2 under stage 2's spec ("X2 stops being a target"),
+X8 under the credit study's design (`docs/superpowers/specs/2026-10-31-xxl-credit-study-design.md`, "Part 1: retire
+X8"). X1 and X3–X7, X9 and X10 are the baseline for stages 3 and 4, and X2 and X8 are read beside them. Past reports
+aren't re-run, and their counts of checks passed stay as recorded, out of 15 or 14; 13 now apply. The scorecard rows in
+the tables below keep their figures.
 
 ### The scorecard
 
@@ -471,7 +474,7 @@ tables below report.
 | X5 Agents trade | Trade | VI-1's end share of agents who traded in the last 10 periods, mean over seeds | ≥ 0.5 |
 | X6 Prices agree | Trade | VI-1's end price sd ÷ xl's, means over seeds | ≤ 1.5 |
 | X7 Credit persists | Credit | The fewest loans outstanding in any period after t = 100 of any VI-1 seed | ≥ 1 |
-| X8 Loans are repaid | Credit | The share of VI-1's loans voided by a death (of those voided or repaid), mean over seeds | ≤ 0.2 |
+| X8 Loans voided by a death | Credit | The share of VI-1's loans voided by a death (of those voided or repaid), mean over seeds | none, reported only |
 | X9 Disease is endemic | Disease | The share of VI-1 seeds with a disease circulating at t = 500 | ≥ 0.9 |
 | X10 Disease is bounded | Disease | VI-1's end share of agents sick, mean over seeds | 0.01–0.2 |
 

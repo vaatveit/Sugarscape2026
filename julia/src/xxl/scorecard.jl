@@ -1,7 +1,7 @@
 # xxl: the scorecard (revised spec, "The scorecard"). It runs II-4, IV-A3 and VI-1 under one xxl rule set, with the
 # scorecard columns, and their xl versions over the same seeds as the reference level; scores the fifteen checks S1-S5
-# and X1-X10 (X2 is reported only, with no threshold); and writes a markdown report. julia/xxl_scorecard.jl is its
-# command line.
+# and X1-X10 (X2 and X8 are reported only, with no threshold); and writes a markdown report. julia/xxl_scorecard.jl is
+# its command line.
 
 const SCORECARD_EXPERIMENTS = ["II-4", "IV-A3", "VI-1"]
 
@@ -41,7 +41,7 @@ const CHECK_TITLES = Dict(
     "X5" => "Agents trade",
     "X6" => "Prices agree",
     "X7" => "Credit persists",
-    "X8" => "Loans are repaid",
+    "X8" => "Loans voided by a death",
     "X9" => "Disease is endemic",
     "X10" => "Disease is bounded",
 )
@@ -130,7 +130,8 @@ population reaches 0. Per check:
 - X5: per seed, the end share of agents who traded in the last 10 periods; their mean, ≥ 0.5.
 - X6: the mean over seeds of the end price sd ÷ the same mean for xl, ≤ 1.5.
 - X7: the fewest loans outstanding in any period after t = 100 of any seed, ≥ 1.
-- X8: per seed, the loans voided ÷ (voided + repaid), summed over the run; their mean, ≤ 0.2.
+- X8: per seed, the loans voided ÷ (voided + repaid), summed over the run; their mean. Reported only: no threshold, no
+  pass or fail.
 - X9: the share of seeds with a disease circulating at t = 500, ≥ 0.9.
 - X10: per seed, the end share sick; their mean, 0.01-0.2.
 
@@ -309,7 +310,7 @@ function score(
         return sum(M[rows, voided]) / (sum(M[rows, voided]) + sum(M[rows, repaid]))
     end
     v, d = over_seeds(share_voided, ids, falses(n); why="no loan ended")
-    push!(checks, check("X8", "Credit", v, -Inf, 0.2, d))
+    push!(checks, Check("X8", "Credit", v, -Inf, Inf, false, d, true))
 
     # Disease.
     circulating = c("diseases_circulating")
@@ -379,7 +380,7 @@ end
 
 The markdown report: a header with the label, the rules line, the seeds, the periods and the wall time (`times`
 gives each run's seconds, `nothing` for a reused xl run), then one table per aspect with each check's value, its
-threshold, PASS or FAIL (`reported only` for X2), and the detail.
+threshold, PASS or FAIL (`reported only` for X2 and X8), and the detail.
 """
 function scorecard_report(checks; label, rules, seeds, first_seed, steps, jobs, wall, times)
     run_text(kind) = join(

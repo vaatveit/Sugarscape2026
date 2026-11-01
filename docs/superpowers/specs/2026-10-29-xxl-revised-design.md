@@ -130,7 +130,7 @@ artifact.
 | X5 Agents trade | At VI-1's end, ≥ 50% of agents traded in the last 10 periods | Trade |
 | X6 Prices agree | VI-1's end price sd ≤ xl's end price sd × 1.5 | Trade |
 | X7 Credit persists | Loans outstanding > 0 in every period after t = 100, in every VI-1 seed | Credit |
-| X8 Loans are repaid | Over VI-1, ≤ 20% of loans end voided by the borrower's or lender's death | Credit |
+| X8 Loans voided by a death | Reported only, no threshold (the user's call, 2026-10-31; see the credit study's design, `docs/superpowers/specs/2026-10-31-xxl-credit-study-design.md`, "Part 1: retire X8"): over VI-1, the share of loans that end voided by the borrower's or lender's death, of those voided or repaid. Stage 1 asked ≤ 20% | Credit |
 | X9 Disease is endemic | At least one disease still circulates at t = 500 in ≥ 90% of VI-1 seeds | Disease |
 | X10 Disease is bounded | At VI-1's end, the share sick is within 1–20% | Disease |
 

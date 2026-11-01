@@ -157,17 +157,6 @@ const SCD_PAIRS = [
         (x, _) -> scd_set!(x["VI-1"], "n_loans", 0.0; when=t -> 90 <= t <= 100),
         (x, _) -> scd_set!(x["VI-1"], "n_loans", 0.0; seeds=3:3, when=scd_at(101)),
     ),
-    (
-        "X8",
-        (x, _) -> (
-            scd_set!(x["VI-1"], "loans_repaid", 0.81);
-            scd_set!(x["VI-1"], "loans_voided", 0.19)
-        ),
-        (x, _) -> (
-            scd_set!(x["VI-1"], "loans_repaid", 0.79);
-            scd_set!(x["VI-1"], "loans_voided", 0.21)
-        ),
-    ),
     # t = 500 alone decides: no disease at t = 499 anywhere.
     (
         "X9",
@@ -275,7 +264,7 @@ end
     x2 = scd_check(checks, "X2")
     @test isnan(x2.value) && x2.reported_only
     @test occursin("extinct in seed 1", x2.detail)
-    @test all(c -> c.pass || occursin("seed 1", c.detail), checks)
+    @test all(c -> c.pass || c.reported_only || occursin("seed 1", c.detail), checks)
 end
 
 @testset "X2 is reported only" begin
@@ -284,7 +273,7 @@ end
     checks = Sugarscape.score(xxl, xl, columns)
     x2 = scd_check(checks, "X2")
     @test x2.reported_only && !x2.pass && x2.value > 0
-    @test count(c -> c.reported_only, checks) == 1
+    @test count(c -> c.reported_only, checks) == 2
     report = Sugarscape.scorecard_report(
         checks;
         label="t",
@@ -298,8 +287,20 @@ end
             (k, id) => 1.0 for k in (:xxl, :xl) for id in Sugarscape.SCORECARD_EXPERIMENTS
         ),
     )
-    @test occursin("Passing: 14 of 14 checks", report)
+    @test occursin("Passing: 13 of 13 checks", report)
     @test occursin(r"\| X2 Mates in reach \| [^|]+ \| — \| reported only \|", report)
+    @test occursin(r"\| X8 Loans voided by a death \| [^|]+ \| — \| reported only \|", report)
+end
+
+@testset "X8 is reported only" begin
+    xxl, xl, columns = scd_data()
+    scd_set!(xxl["VI-1"], "loans_repaid", 1.0)
+    scd_set!(xxl["VI-1"], "loans_voided", 9.0)  # 0.9, far above the old 0.2
+    checks = Sugarscape.score(xxl, xl, columns)
+    x8 = scd_check(checks, "X8")
+    @test x8.reported_only && !x8.pass && x8.value ≈ 0.9
+    @test Sugarscape.CHECK_TITLES["X8"] == "Loans voided by a death"
+    @test Sugarscape.threshold_text(x8) == "—"
 end
 
 @testset "run_scorecard on seeds 20 and 21" begin
