@@ -84,6 +84,13 @@ Base.@kwdef struct Config
     trade::Bool = false
     trade_rounding::String = "exact"
     credit::Union{Nothing,Tuple{Int,Float64}} = nothing
+    # The credit study's options (docs/superpowers/specs/2026-10-31-xxl-credit-study-design.md): Julia-only, with no
+    # Python counterpart, and each needs `credit`. At their defaults, rule L is the book's. claims_outlive_lender: a
+    # dead lender's loans stand and are repaid into nowhere, instead of being void. credit_reach scales the income a
+    # borrower is credited with. lender_limit: a lender lends at most half its wealth, in all, within a period.
+    claims_outlive_lender::Bool = false
+    credit_reach::Float64 = 1.0
+    lender_limit::Bool = false
     pollution_stop::Union{Nothing,Int} = nothing
 
     # Chapter V.
@@ -93,7 +100,7 @@ Base.@kwdef struct Config
     immune_length::Int = 50
     disease_fee::Float64 = 1.0
 
-    # xxl: the one Julia-only field, with no Python counterpart (the registry loader never sets it).
+    # xxl: a Julia-only field, with no Python counterpart (the registry loader never sets it).
     xxl::Union{Nothing,XxlRules} = nothing
 
     seed::Int = 0
@@ -234,7 +241,15 @@ function validate(c::Config)
             bad("credit needs each agent's income, which combat movement doesn't record")
         (d < 1 || r < 0) &&
             bad("credit duration must be >= 1 and rate >= 0, not $(c.credit)")
+    else
+        c.claims_outlive_lender && bad("claims_outlive_lender needs credit")
+        c.lender_limit && bad("lender_limit needs credit")
+        c.credit_reach != 1.0 && bad("credit_reach needs credit")
     end
+    c.credit_reach > 0 || bad("credit_reach must be > 0, not $(c.credit_reach)")
+    c.claims_outlive_lender &&
+        c.inheritance &&
+        bad("claims_outlive_lender and inheritance both settle a lender's death; use one")
     (c.disease_list < 0 || c.diseases_per_agent < 0) &&
         bad("disease_list and diseases_per_agent must be >= 0")
     c.diseases_per_agent > c.disease_list && bad(

@@ -22,6 +22,16 @@ function available_to_lend(m::Model, a::Agent)
     return 0.0
 end
 
+"""
+How much more this lender may lend this period: unlimited unless `lender_limit` is on, when it is half the lender's
+wealth at its first loan of the period, less what it has lent since (`m.lend_left`; `step!` clears it). Nothing is
+stored here, so a refused request doesn't fix the budget. A study option from the credit study's design, not the book.
+"""
+function lending_left(m::Model, a::Agent)
+    m.config.lender_limit || return Inf
+    return get(m.lend_left, a.id, a.sugar / 2)
+end
+
 """Of childbearing age without the wealth to have a child: how much it lacks (p.132)."""
 function shortfall(m::Model, a::Agent)
     (a.sex === :none || !(a.fertility_start <= a.age < a.fertility_end)) && return 0.0
@@ -30,13 +40,13 @@ end
 
 """
 Present income (harvest - metabolism) over the loan's duration covers this loan plus the borrower's other
-obligations (our reading of p.132).
+obligations (our reading of p.132). `credit_reach` scales the income counted (1 is the reading above).
 """
 function creditworthy(m::Model, borrower::Agent, due::Float64)
     d, _ = m.config.credit
     loans = get(m.debts, borrower.id, nothing)
     owed = loans === nothing ? 0.0 : sum((loan.due for loan in loans); init=0.0)
-    return borrower.last_income * d - owed >= due
+    return borrower.last_income * d * m.config.credit_reach - owed >= due
 end
 
 """Adds a loan to the book, to its borrower's entry in `m.debts` (both keep creation order) and to `m.lent`."""
@@ -80,9 +90,11 @@ function seek_credit!(m::Model, a::Agent)
     need <= 0 && return made
     d, _ = m.config.credit
     for lender in shuffle!(m.rng, neighbors_of(m, a))
-        amount = min(available_to_lend(m, lender), need)
+        left = lending_left(m, lender)
+        amount = min(available_to_lend(m, lender), left, need)
         (amount <= 0 || !creditworthy(m, a, amount_due(m, amount))) && continue
         lender.sugar -= amount
+        m.config.lender_limit && (m.lend_left[lender.id] = left - amount)
         a.sugar += amount
         loan = add_loan!(m, Loan(lender, a, amount, amount_due(m, amount), m.t + d))
         m.loan_trace === nothing || trace_start!(m.loan_trace, m, loan)
@@ -110,13 +122,13 @@ function settle_loans!(m::Model)
         borrower, lender = loan.borrower, loan.lender
         if borrower.sugar >= loan.due
             borrower.sugar -= loan.due
-            lender.sugar += loan.due
+            lender.alive && (lender.sugar += loan.due)
             m.loan_trace === nothing || trace_repaid!(m.loan_trace, m, loan)
             continue
         end
         paid = max(borrower.sugar, 0.0) / 2
         borrower.sugar -= paid
-        lender.sugar += paid
+        lender.alive && (lender.sugar += paid)
         rest = loan.due - paid
         rolled = add_loan!(m, Loan(lender, borrower, rest, amount_due(m, rest), m.t + d))
         m.loan_trace === nothing || trace_rolled!(m.loan_trace, m, loan, rolled, paid)
@@ -127,7 +139,8 @@ end
 """
 A dead borrower's loans are the lender's loss; a dead lender's loans are void unless inheritance I is on, when its
 living children become the creditors (p.133). An heir who is the borrower would owe itself: that debt is
-extinguished.
+extinguished. With `claims_outlive_lender` (the credit study's design) a dead lender's loans stand instead, with the
+lender as creditor: settling takes the repayment, and `settle_loans!` pays it to no one.
 """
 function credit_on_death!(m::Model, a::Agent, excluded_heirs)
     return credit_on_deaths!(m, (a,), excluded_heirs)
@@ -135,7 +148,8 @@ end
 
 """
 The loans of every agent in `dying` at once, in one pass over the book: the same book as `credit_on_death!` one
-agent at a time when no heir is dying (each is in `excluded_heirs`). Agents without loans cost nothing.
+agent at a time when no heir is dying (each is in `excluded_heirs`). Agents without loans cost nothing. A loan whose
+borrower and lender both die is void even with `claims_outlive_lender`: no one is left to owe or to be owed.
 """
 function credit_on_deaths!(m::Model, dying, excluded_heirs)
     any(a -> holds_loans(m, a), dying) || return nothing
@@ -148,6 +162,10 @@ function credit_on_deaths!(m::Model, dying, excluded_heirs)
             continue
         end
         if loan.lender in dying
+            if m.config.claims_outlive_lender
+                push!(keep, loan)  # stands, and its `m.lent` count with it
+                continue
+            end
             push!(lent_to, loan.borrower.id)
             count_lender!(m, loan.lender.id, -1)
             heirs = [

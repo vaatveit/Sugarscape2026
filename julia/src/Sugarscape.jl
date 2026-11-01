@@ -59,7 +59,7 @@ export random_tags, cross_tags, hamming, culture_transmit!, update_friends!
 export is_fertile, assign_sex!, in_sight, mate!, combat_move!, vulnerable
 export preference_fraction, welfare, mrs, welfare_score, bargain!, trade_with_neighbors!
 export available_to_lend,
-    shortfall, creditworthy, seek_credit!, settle_loans!, credit_on_death!
+    lending_left, shortfall, creditworthy, seek_credit!, settle_loans!, credit_on_death!
 
 export intern_disease!,
     nearest_substring, is_immune, immune_step!, infect!, immune_response!
