@@ -679,6 +679,204 @@ seeds took 2,337–5,535 s each, 228,304 s in all, depending on the load.
 
 **Next:** stage 3, the economy, starting from X8.
 
+## Stage 3: what X8 measures
+
+X8 is the one scorecard check still failing under `XXL_DEFAULTS`: the share of VI-1's loans voided by a death, against a
+limit of 0.2. That limit was my provisional pick in stage 1, not a measurement, and X8 had never been read under xl or
+the book's world. So this step asks what X8 measures and whether credit works; it changes no rule. The design is in
+[docs/superpowers/specs/2026-10-31-xxl-x8-investigation-design.md](superpowers/specs/2026-10-31-xxl-x8-investigation-design.md).
+
+**The short answer.** X8 mostly reads how long lenders live, so it's a poor guide to whether credit works: term 5 passes
+X8 and lowers the trough, term 20 reads more than twice the limit and lifts it, and inheritance lowers X8 and lifts it.
+The bigger finding is about credit itself. It lifts the trough by 18%, and by about t = 300 these 5 seeds can't detect any
+difference it makes to births or population. They could only detect a difference of about 10%.
+
+**The runs.** `julia/xxl_loan_trace.jl` follows every loan and, every 50 periods, a census of all agents. The main run is
+`XXL_DEFAULTS`, VI-1, seeds 20–29, 2,000 periods. Its reports and the probes' are in `results-julia-xxl/loans-*.md`
+(git-ignored). The run is the same run with the tracer on: all 10 CSVs are byte-identical to the extinction run's, and
+the tracer's counts equal the scorecard's for all 10 seeds. Figures below are t = 1–500, the check's own window, then
+t = 501–2,000 where it adds something.
+
+**1. Who dies?** Mostly old lenders.
+
+| | t = 1–500 | t = 501–2,000 |
+|---|---|---|
+| X8, mean over seeds | 0.2466 (seeds 0.2363–0.26) | 0.259 |
+| Voids in which only the lender died | 0.8053 | 0.7529 |
+| Voids in which a party was certain to die of old age by the due date | 0.6713 | 0.6463 |
+| Dead lenders: old age, sugar, spice | 0.775, 0.093, 0.131 | 0.793, 0.053, 0.154 |
+| Dead lenders aged 60 or more | 0.811 | 0.806 |
+| Dead borrowers: old age, sugar, spice | 0.048, 0.006, 0.946 | 0.040, 0.006, 0.954 |
+| Loans ended by the borrower's death, alone or with the lender's | 0.0480 | 0.0640 |
+
+The typical dead lender is 70–74 and the typical dead borrower 20–24. Median time to a void is 4 periods for a lender and
+2 for a borrower. Rollovers are 0.75% of loans started and about 1% of those reaching their due date, so a borrower who
+lives can nearly always pay.
+
+**2. Is a loan riskier than its parties' ages explain?** A little by age, not against similar agents.
+
+- **Against age alone,** borrowers' voids run 1.10 times what mortality at those ages predicts, and 1.20 later; lenders'
+  run 1.11, and 1.06 later. Old age is on the mark (borrowers 0.94, 0.92; lenders 1.02, 1.00). The borrowers' excess is
+  spice (1.17, 1.26), which fits the design's other lead: a loan is in sugar, and a borrower can starve of spice.
+- **Against similar agents,** borrowers die less, not more: 0.70 times the rate of could-borrow agents of the same age,
+  and 0.60 for spice. So the excess over age comes from who borrows. Lenders are level at 0.96.
+- **Starving of sugar is the exception on both sides.** It fired the report's lines, and it differs by side:
+  - **Borrowers** read 3.18 (905 deaths against 285 expected), but that is 0.09% of borrowers per follow-up and 2.8% of
+    their deaths, so the report's wording, "a real credit defect", overstates it. Their old-age ratio of 1.19 also shows
+    how unlike the groups are, since a loan can't make anyone die of old age. And could-borrow agents can take a loan
+    during the follow-up, so they aren't a clean baseline.
+  - **Lenders** deserve more attention. They read 1.51 (3,370 against 2,234) with an old-age ratio of 1.015, so that
+    discount doesn't apply. It is 0.38% of lenders and 1.7% of their deaths, but 9.3% of the voids where a lender died,
+    since a dead lender voids all its loans, and by age the voids run 6.46 times the prediction (5.29 later). A
+    lender past childbearing age may lend half its current wealth at each request, with no limit on requests. That could be
+    the cause; I didn't test it.
+
+**3. What does it cost, in sugar?** Voided loans are larger than average, but most of that cost falls on no living lender.
+
+- 28.6% of principal is voided (29.1% later), against 24.7% of loans. Of that, 78% (74%) is where only the lender died.
+  There, no living lender loses anything, because without inheritance the claim dies with them. The borrower keeps 0.96
+  of the principal, as the book intends (p.133).
+- Principal lost to a borrower's death is 6.3% of all principal (7.5% later).
+- Lenders get back 1.445 per unit lent (1.433 later), against 2.0 due on a loan that runs its term.
+
+**4. Does credit do its job?** In the trough, yes. After that the runs can't show that it does.
+
+- **It reaches the right people.** Every loan's borrower is of childbearing age when it starts, and 53% of loans come from
+  lenders past it. 52% of loans have a borrower who has a child during the term.
+- **Comparing individuals flatters it.** Agents who took a loan had a child 3.12 times as often as could-borrow agents
+  who didn't (3.60 later).
+- **Turning credit off shows little else.** With credit off, seeds 20–24 against the same seeds with credit on, as means
+  of the per-seed ratios:
+
+  | With credit off | Ratio to credit on | By seed | Below credit on in |
+  |---|---|---|---|
+  | Births, t ≤ 100 | 0.749 | 0.688–0.801 | 5 of 5 |
+  | Trough | 0.848 (5,116 against 6,011) | 0.801–0.884 | 5 of 5 |
+  | Births, t = 101–300 | 0.956 | 0.867–1.023 | 3 of 5 |
+  | Births, t = 301–500 | 1.019 | 0.875–1.113 | 2 of 5 |
+  | Births, all of t ≤ 500 | 0.982 | 0.867–1.058 | 2 of 5 |
+  | Population at t = 500 | 0.989 | 0.879–1.082 | 2 of 5 |
+
+  That is about 726,000 loans per seed for 6,700 more births. The difference has a paired 95% interval of about 10% either
+  way, so these seeds can't tell it from nothing, and they can't resolve an effect of 5% either.
+- **The 3.12 doesn't carry to society.** These checks weren't planned; I added them after seeing the no-credit result.
+  They compare credit on with credit off, standardized by window and age band, and none is randomized:
+
+  | Children, credit on against credit off | Ratio | Children against expected |
+  |---|---|---|
+  | All agents | 0.979 | 613,413 against 626,449 |
+  | Took a loan, against could-borrow agents with credit off | 1.30 | 52,705 against 40,530 |
+  | Could borrow and took none, against the same | 0.38 | 6,217 against 16,382 |
+  | Lending, against could-lend agents with credit off | 0.82 | 94,043 against 114,248 |
+
+  So those who take a loan do better, those who don't do worse, and lenders have fewer children. Selection and displacement
+  can't be separated here, but society's total barely moves.
+- **Why the effect fades is open.** I can point to three things, and no run tested any of them.
+  - **The loan is small.** To be creditworthy, a borrower's present income over the term must cover everything due, and on
+    `L10,10` the due amount is twice the principal. So a new loan is at most 5 periods of present income. The sampled loans
+    show that: never above 5.00, median 2.00 (at term 5, never above 3.33; at term 20, never above 6.67). The borrower might
+    have saved the same sugar in that time, though a median loan also costs 2 more to repay than saving would. Income here
+    is one period's reading, and the rule is our reading of p.132.
+  - **Births follow deaths once the population flattens.** At t = 401–500 births and deaths per seed are 95,192 and 91,233
+    with credit, 94,773 and 93,320 without. Any boost confined to the trough would fade this way, whatever the loan's size.
+  - **The trough gain may not be about saving time at all.** 36% of loans ended in t ≤ 100 end by the lender's death, with
+    the borrower keeping 0.95 of the principal. That moves wealth from the dying to the young, as inheritance does, and
+    inheritance has the largest lift in early births (1.347).
+
+**The probes.** Seeds 20–24, 500 periods, one change at a time. Each is a measurement, not a proposal. Ratios are to the
+defaults on the same seeds, as means of the per-seed ratios. The repaid, lender-only and doomed figures for the defaults
+are from the 10-seed report.
+
+| Run | X8 | Repaid, of ended | Lender-only, of voids | Doomed, of voids | Births | Births, t ≤ 100 | Trough | Population at t = 500 |
+|---|---|---|---|---|---|---|---|---|
+| Defaults | 0.2444 | 0.7535 | 0.8053 | 0.6713 | 338,410 | 13,074 | 6,011 | 61,181 |
+| Term 5 | 0.1506 | 0.8494 | 0.772 | 0.5812 | 0.948 | 0.878 | 0.927 | 0.956 |
+| Term 20 | 0.5284 | 0.4726 | 0.8438 | 0.7705 | 0.994 | 1.169 | 1.095 | 0.989 |
+| Inheritance | 0.0825 | 0.918 | 0.6035 | 0.5262 | 1.232 | 1.347 | 1.144 | 1.221 |
+| No credit | — | — | — | — | 0.982 | 0.749 | 0.848 | 0.989 |
+
+- **Term.** X8 follows the design's crude mortality estimate, 1 − (1 − h)^(2d) with h = 0.0155: 0.145, 0.268 and 0.465
+  for terms 5, 10 and 20, against 0.151, 0.244 and 0.528 read. Term 5 passes X8, and the trough is lower in all 5 seeds;
+  term 20 reads more than twice the limit, and the trough is higher in all 5, though births and final population stay
+  level. Getting under 0.2 this way is the failure the design warned of. Changing the term also changes the amount due
+  (1.5, 2 and 3 times the principal) and who is creditworthy, so it changes who borrows, not only how long they are exposed.
+- **End-of-run effect.** X8 counts voids from a run's last d periods but not those loans' repayments, which come later.
+  Among the sampled loans, keeping only those started at least d + 1 periods before the end lowers X8 by 0.001 at term 5,
+  0.004 at term 10 and 0.009 at term 20. So it doesn't change any of this.
+- **Inheritance,** the book's own answer to a lender's death, takes X8 to 0.08, with more births and people. But it also
+  passes on wealth, so that probe changes more than loans: the Gini at t = 500 is 0.387 against 0.241. Its figures are the
+  tracer's, since the scorecard's `loans_voided` miscounts under inheritance.
+
+**The reference worlds.** Neither reaches 0.2, though past the trough neither is far above it. xl is near the defaults.
+The book's mean of 0.38 comes from seeds that went extinct: 11 of its 20 seeds died out at t = 117–201, having made fewer
+than 70 loans each, and read 0.38–0.65. By stage 2's bar the book's world isn't healthy, so its reading says little about
+a healthy X8. Pooling all its loans gives 0.241.
+
+| World | Seeds | X8, mean over seeds | X8, pooled, 1–500 | X8, pooled, 101–500 | Ended by the borrower's death | Lenders get per unit lent | Lender-only, of voids | Doomed, of voids |
+|---|---|---|---|---|---|---|---|---|
+| xxl defaults | 10 | 0.2466 | 0.2465 | 0.2437 | 0.0480 | 1.445 | 0.8053 | 0.6713 |
+| xl | 5 | 0.2326 | 0.2326 | 0.2303 | 0.0417 | 1.483 | 0.8206 | 0.7499 |
+| Book, 50 × 50 | 20 | 0.3821 | 0.241 | 0.235 | 0.0426 | 1.456 | 0.8235 | 0.7701 |
+
+So 0.2 didn't describe the reference worlds either, and in all three X8 is about the same once pooled.
+
+**My guess, written before measuring, held in the main.** I guessed that X8 is mostly a reading of how long agents live,
+and that most voids come from old lenders. Both held, but age alone doesn't explain everything: borrowers' voids run
+10–20% over age, from spice, and lenders starve of sugar more than I expected. The guess also missed the larger point,
+since I didn't expect credit's effect to be so hard to find after the trough.
+
+**The reading table, set before the long runs.**
+
+| Row | t = 1–500 | t = 501–2,000 |
+|---|---|---|
+| Age ratio within 0.9–1.1 on both sides | No: 1.102, 1.114 | No: 1.20, 1.055 |
+| Lender-only voids over half, or doomed over a quarter | **Fired:** 0.8053, 0.6713 | **Fired:** 0.7529, 0.6463 |
+| Borrowers' matched ratio over 1.1, sugar or spice | **Fired on sugar:** 3.18; spice 0.60 | **Fired on sugar:** 3.36; spice 0.62 |
+| Lenders' matched ratio over 1.1, sugar or spice | **Fired on sugar:** 1.51; spice 0.54 | **Fired on sugar:** 1.51; spice 0.57 |
+| Took a loan against took none, a child, at most 1.1 | No: 3.12 | No: 3.60 |
+| With credit off, births and end population within 5% | **Fired:** 0.980, 0.986 | No run past t = 500 |
+| Age ratio over 1.1 with matched ratio within 0.9–1.1 | No: matched 0.70 | No: matched 0.70 |
+
+The last-but-one row is the one the design called the bigger finding, and it fired as written: 0.980 and 0.986 are the
+report's ratios of means, where the table above gives means of ratios. But 5 seeds can't resolve a 5% line, so read it as
+no effect these seeds could detect, not as no effect. The table's rows changed once before any long run, after a
+reviewer saw up to 260 periods of seed 20: the child comparison and the age ratio were redefined and a row for lenders
+was added, because the first two as written couldn't work. The lines themselves, 0.9–1.1, 1.1 and 5%, didn't move. No
+reading changed after the gate run or the main run.
+
+**What this doesn't show.**
+- All runs share one generated map pair, as in stage 2.
+- The matched and credit-on-against-off group comparisons aren't randomized, so they are evidence, not proof.
+- The no-credit probe has 5 seeds and stops at t = 500, so credit's effect at 2,000 periods and on the chance of extinction
+  is unmeasured. The population is still growing at t = 500. Its seeds stay paired through the trough, where the result is
+  clear, and not by t = 500.
+- The probes say nothing about combinations, such as inheritance without credit.
+- The term probes change who borrows, so they aren't a clean test of exposure.
+
+**Run time.** Same machine, shared with other work, including a program holding about 12 GB. The main run took 4 h 11 min
+by the clock, 14:21 to 18:32, with 4 workers rather than the planned 5 for lack of free memory, and no stops; seeds took
+3,930–5,946 s. The probes ran from 18:34 to 20:56, 2 h 22 min, also with 4 workers and no stops: term 5 1,655 s, term 20
+2,040 s, inheritance 2,111 s, no credit 1,671 s, xl 795 s and the book 28 s.
+
+**My recommendation, not a decision.**
+1. **Stop treating X8 as pass or fail, without setting a new limit yet.** Keep it as a reported value, like X2. I'm not
+   proposing 0.25: X8 reads about the same in all three worlds, but that says what it measures, not that any value of it is
+   healthy. The simple replacements have problems of their own. The share of loans ended by the borrower's death rises with
+   the term (0.034, 0.048, 0.082) and over time (0.064 later). What lenders get back per unit lent mostly reflects lenders'
+   own deaths; among loans whose lender lived, it is about 1.85 in the defaults and in xl, from the sampled loans, and it
+   rises with the term as the amount due does. The direct test of credit is what it did here: the trough and births with
+   credit on against off.
+2. **Don't shorten the term.** It passes X8 and lowers the trough.
+3. **Make credit's job the real stage 3 question.** It helps in the trough, the one close call in stage 2, so it shouldn't
+   go. A new spec should first run credit off for 2,000 periods, with enough seeds to resolve 5% and to read the chance of
+   extinction, and then look at why the effect fades.
+4. **Look at how much lenders may lend,** as part of that spec. Lenders' starving is a small share of their deaths but
+   voids many loans, and the rule has no limit per period.
+5. **Test inheritance on its own, later.** It looks strong, but wealth concentrates, and it would need its own extinction
+   test before anyone relied on it.
+
+**What to change is the user's decision,** under a new spec. Nothing here changes X8 or the rules.
+
 ## Results of the first rules (`XXL_V1`)
 
 This section is the record of the first rules, `XXL_V1`, as the 16 `XXL-…` experiments still run them. Where it says
