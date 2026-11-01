@@ -191,6 +191,26 @@ done, clearing their leftovers first, and refuses a folder made under another wo
 lender limit, code or periods (choose another `--label`). The code is checked by the same checksum of `julia/src` as the extinction test's, so make no
 edit there while a long run is going. With `--jobs 5` expect about 2 GB for each worker.
 
+The credit comparison sets finished runs side by side, seed by seed, to see what credit adds. It reads the CSVs of run
+folders (the extinction test's or the loan trace's) and runs nothing, so it can be used while a long run is going: a seed
+counts only when its CSV is whole, and checkpoints, temporary files and trace files are ignored.
+
+```bat
+julia --project=julia julia/xxl_credit_compare.jl --on loans-defaults-s20-10-p2000 --off loans-nocredit-s20-5-p500 --label smoke
+julia --project=julia julia/xxl_credit_compare.jl --on extinction-defaults-s20-60-p2000 --off extinction-nocredit-s20-60-p2000 --runs extinction-reach2-s20-60-p2000 --label reach2
+```
+
+`--on` and `--off` are folders of `--out` (default `results-julia-xxl`) made with credit and without it; each of `--runs`
+(comma-separated) is set against both. Each pair is compared over the seeds both have finished and the periods both
+reach (a shorter run cuts the longer). The report, `credit-compare-<label>.md` in `--out` (`--label` defaults to
+`credit`), has a table per pair with a row for the trough and one for each window of periods (1–100, 101–200, 201–300,
+301–500, 501–1000, 1001–1500, 1501–2000) of the mean population, the births and the births per head. Each is the ratio of
+the run's mean to the base's, with a 95% interval from 10,000 resamples of the seeds (a random stream of its own, so
+a rerun gives the same figures), where that lies against 1 and against 0.95–1.05, the range of the seeds' own ratios and
+how many seeds fell below the base. A seed extinct before a window is left out of it, and a line says how many. The
+lag rows give how many periods the run trails the base in recovering, at t = 100, 150 and 200. Each of `--runs` also
+gets the share of the lift from off to on that it keeps, for the trough and for the births in periods 1–100.
+
 ## Comparing with Python
 
 ```bat
