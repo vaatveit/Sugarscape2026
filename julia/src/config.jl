@@ -320,5 +320,28 @@ function validate_xxl(c::Config, r::XxlRules)
         bad("speed $(r.speed) must not exceed the lowest vision, $(c.vision[1])")
     (r.landscape == "generated") == (c.sugar_map == XXL_MAP) ||
         bad("landscape \"generated\" and sugar_map $(repr(XXL_MAP)) go together")
+    r.disease_count !== nothing &&
+        r.disease_count < 1 &&
+        bad("disease_count must be >= 1, not $(r.disease_count)")
+    r.founder_diseases !== nothing &&
+        r.founder_diseases < 0 &&
+        bad("founder_diseases must be >= 0, not $(r.founder_diseases)")
+    if c.disease_list == 0
+        r.disease_count !== nothing && bad("disease_count needs disease (disease_list > 0)")
+        r.founder_diseases !== nothing &&
+            bad("founder_diseases needs disease (disease_list > 0)")
+        r.disease_lengths !== nothing && bad("disease_lengths needs disease (disease_list > 0)")
+    end
+    r.disease_count !== nothing &&
+        r.disease_count != c.disease_list &&
+        bad("disease_count $(r.disease_count) and disease_list $(c.disease_list) go together")
+    r.founder_diseases !== nothing &&
+        r.founder_diseases != c.diseases_per_agent &&
+        bad(
+            "founder_diseases $(r.founder_diseases) and diseases_per_agent $(c.diseases_per_agent) go together",
+        )
+    r.disease_lengths !== nothing &&
+        r.disease_lengths != c.disease_length &&
+        bad("disease_lengths $(r.disease_lengths) and disease_length $(c.disease_length) go together")
     return c
 end

@@ -6,15 +6,27 @@
 The xxl version of a regular 50x50 config on `sugar-map.txt`: [`to_xl`](@ref) first (which refuses anything else,
 and a config that is already xl), then `rules`. A run without seasons has no latitude to taper, so the season
 gradient is turned off for it, and a run without sex or without finite lives has no founder ages to young, so
-`founder_ages` is reset to `"book"`; the generated landscape swaps in `sugar-map-xxl.txt`.
+`founder_ages` is reset to `"book"`; the generated landscape swaps in `sugar-map-xxl.txt`. The disease list settings
+set `disease_list`, `diseases_per_agent` and `disease_length` where they are not `nothing`; a run without disease
+has no list to size, so they are reset to `nothing` for it.
 """
 function to_xxl(cfg::Config, rules::XxlRules=XXL_DEFAULTS)
     xl = to_xl(cfg)
     cfg.seasons === nothing && (rules = replace_rules(rules; season_gradient=false))
     cfg.sex && cfg.max_age !== nothing ||
         (rules = replace_rules(rules; founder_ages="book"))
+    cfg.disease_list == 0 && (
+        rules = replace_rules(
+            rules; disease_count=nothing, founder_diseases=nothing, disease_lengths=nothing
+        )
+    )
     return replace_config(
-        xl; xxl=rules, sugar_map=rules.landscape == "generated" ? XXL_MAP : xl.sugar_map
+        xl;
+        xxl=rules,
+        sugar_map=rules.landscape == "generated" ? XXL_MAP : xl.sugar_map,
+        disease_list=something(rules.disease_count, xl.disease_list),
+        diseases_per_agent=something(rules.founder_diseases, xl.diseases_per_agent),
+        disease_length=something(rules.disease_lengths, xl.disease_length),
     )
 end
 

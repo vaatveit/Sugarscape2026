@@ -11,7 +11,7 @@ _off_book(rules::XxlRules, f::Symbol) = getfield(rules, f) != getfield(XXL_BOOK,
 """
     rules_line(rules) -> String
 
-The original nine `XxlRules` fields as `name=value`, in field order, separated by spaces, then each stage-1 field
+The original nine `XxlRules` fields as `name=value`, in field order, separated by spaces, then each later field
 only when it is off its book setting (so every first-rules fingerprint stays as it was). Strings print with `repr`,
 the rest with `string`: `vision_shape="disc" speed=(1, 6) travel_cost=0.1 ... free_step=1.5`.
 """
