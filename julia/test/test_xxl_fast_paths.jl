@@ -193,3 +193,28 @@ end
         @test isempty(m.sight)  # no one left over for a checkpoint to save
     end
 end
+
+@testset "a death's loans settle without copying the book" begin
+    function book(; kw...)
+        m = tiny_model(ones(Int, 200, 200); sex=true, credit=(10, 10.0), fertility_threshold=1.0, kw...)
+        people = [put_agent(m, x, y; sugar=10.0) for x in 0:199 for y in 0:9]
+        rng = Xoshiro(6)
+        for _ in 1:20_000
+            lender, borrower = rand(rng, people), rand(rng, people)
+            lender === borrower || Sugarscape.add_loan!(m, Sugarscape.Loan(lender, borrower, 1.0, 2.0, 10))
+        end
+        return m, people
+    end
+    m, people = book()
+    Sugarscape.credit_on_deaths!(m, Set(people[1:2]), ())  # compiled, and a first look at it
+    dying = Set(people[3:4])
+    gone = count(l -> l.lender in dying || l.borrower in dying, m.loans)
+    n = length(m.loans)
+    @test (@allocated Sugarscape.credit_on_deaths!(m, dying, ())) < 20_000
+    @test length(m.loans) == n - gone
+    @test !any(l -> l.lender in dying || l.borrower in dying, m.loans)
+    # The index still says what the book says, in its order.
+    @test all(m.debts[id] == filter(l -> l.borrower.id == id, m.loans) for id in keys(m.debts))
+    @test Set(keys(m.debts)) == Set(l.borrower.id for l in m.loans)
+    @test sum(values(m.lent)) == length(m.loans)
+end

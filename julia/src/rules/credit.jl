@@ -154,6 +154,38 @@ borrower and lender both die is void even with `claims_outlive_lender`: no one i
 """
 function credit_on_deaths!(m::Model, dying, excluded_heirs)
     any(a -> holds_loans(m, a), dying) || return nothing
+    m.config.inheritance && return inherit_on_deaths!(m, dying, excluded_heirs)
+    loans = m.loans
+    claims_stand = m.config.claims_outlive_lender  # a claim stands with its `m.lent` count
+    lent_to = Set{Int}()  # borrowers whose entries change: the dead's loans to them are void
+    kept = 0
+    for i in eachindex(loans)  # in place: most of the book stays, and in its order
+        loan = @inbounds loans[i]
+        borrower_dies = loan.borrower in dying
+        if borrower_dies || (!claims_stand && loan.lender in dying)
+            borrower_dies || push!(lent_to, loan.borrower.id)
+            count_lender!(m, loan.lender.id, -1)
+            m.loan_trace === nothing || trace_void!(m.loan_trace, m, loan)
+            continue
+        end
+        kept += 1
+        @inbounds loans[kept] = loan
+    end
+    resize!(loans, kept)
+    for a in dying
+        delete!(m.debts, a.id)
+    end
+    for id in lent_to  # only the dead's loans go, so the rest stay in the book's order
+        list = m.debts[id]
+        filter!(loan -> !(loan.lender in dying), list)
+        isempty(list) && delete!(m.debts, id)
+    end
+    return nothing
+end
+
+# [`credit_on_deaths!`](@ref) under inheritance I: a dead lender's living children take its loans, each with a share, at the
+# place in the book where the loan stood, so the book is rebuilt. Claims can't outlive the lender here (`validate`).
+function inherit_on_deaths!(m::Model, dying, excluded_heirs)
     keep = Loan[]
     lent_to = Set{Int}()  # borrowers whose entries change: the dead's loans to them go to heirs or are void
     for loan in m.loans
@@ -163,17 +195,13 @@ function credit_on_deaths!(m::Model, dying, excluded_heirs)
             continue
         end
         if loan.lender in dying
-            if m.config.claims_outlive_lender
-                push!(keep, loan)  # stands, and its `m.lent` count with it
-                continue
-            end
             push!(lent_to, loan.borrower.id)
             count_lender!(m, loan.lender.id, -1)
             heirs = [
                 c for c in loan.lender.children if
                 c.alive && !(c in excluded_heirs) && c !== loan.borrower
             ]
-            if m.config.inheritance && !isempty(heirs)
+            if !isempty(heirs)
                 k = length(heirs)
                 first_copy = length(keep) + 1
                 for h in heirs
