@@ -52,14 +52,16 @@ list_pop(low, rest; periods=500) = vcat(10000.0, Float64(low), fill(Float64(max(
 A screening arm's folder of `n` seeds, `band` of them with a share sick of 0.1 (the rest 0.3, over the band) and
 `with_disease` with 5 diseases at every period (the rest none); `sick` gives every seed's share sick instead.
 Populations are about 6,000 and spread by `spread` (each seed above or below the 6,000 by that share), and the lowest
-populations are `lows` (a number or one a seed) where given. `lengths` and `count` go into the fingerprint's `xxl` line.
+populations are `lows` (a number or one a seed) where given. `lengths`, `count` and `founder` go into the fingerprint's
+`xxl` line.
 """
 function list_arm_folder(dir, name; n=20, band=n, with_disease=n, spread=0.0, lows=nothing, lengths=nothing, count=nothing,
-                         sick=nothing, periods=500)
+                         founder=nothing, sick=nothing, periods=500)
     rest = [6000.0 * (1 + (isodd(i) ? spread : -spread)) for i in 1:n]
     low = lows === nothing ? rest : (lows isa Real ? fill(Float64(lows), n) : Float64.(lows))
     settings = join(
-        [count === nothing ? "" : "disease_count=$count", lengths === nothing ? "" : "disease_lengths=$lengths"], " ")
+        [count === nothing ? "" : "disease_count=$count", founder === nothing ? "" : "founder_diseases=$founder",
+         lengths === nothing ? "" : "disease_lengths=$lengths"], " ")
     return list_folder(dir, name;
         pops=[list_pop(low[i], rest[i]; periods) for i in 1:n],
         sick=sick === nothing ? [i <= band ? 0.1 : 0.3 for i in 1:n] : sick,

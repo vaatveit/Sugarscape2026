@@ -218,4 +218,104 @@ isdefined(@__MODULE__, :list_folder) || include("disease_list_helpers.jl")
         short_run = Sugarscape.read_list_run("p", list_arm_folder(dir, "p100"; n=2, periods=100))
         @test_throws ArgumentError Sugarscape.seeds_losing(short_run)
     end
+
+    @testset "the reading windows" begin
+        # Two seeds over 600 periods, each reading with a value just outside its window that would move the figure: the
+        # windows are written out here (t = 1-500, 1-100, 301-500, 451-500 and the last 50), not taken from the constants.
+        # Population: 50 at t = 0; 1,800 at t = 301 and 200 at t = 500, so that the window's mean is 1,000 and its lowest
+        # point is its last; 5,000 at t = 300 and 100 at t = 501. A seed's second copy has twice the population.
+        pop(t) = t == 0 ? 50.0 : t == 300 ? 5000.0 : t == 301 ? 1800.0 : t == 500 ? 200.0 : t == 501 ? 100.0 : 1000.0
+        # Share sick: 0.05 at t = 451 and 0.15 at t = 500 around 0.1, and 0.9 at t = 450, 0.5 at t = 501; the same about the last
+        # 50 periods (t = 551-600), with 0.9 at t = 550. The second seed's is 1.5 times the first's.
+        sick(t) = t in (450, 550) ? 0.9 : t == 501 ? 0.5 : t in (451, 551) ? 0.05 : t in (500, 600) ? 0.15 : 0.1
+        # Diseases: 4 at t = 500 for the first seed (none at 499 or 501), and for the second none at 500 but 3 either side.
+        diseases1(t) = t == 500 ? 4.0 : t == 600 ? 2.0 : 0.0
+        diseases2(t) = t in (499, 501, 600) ? 3.0 : 0.0
+        # Births: 3 a period for the first seed and 5 for the second, and 1,000 more at t = 101.
+        ever(i) = [100.0 + [3, 5][i] * t + (t >= 101 ? 1000.0 : 0.0) for t in 0:600]
+        # Gini, sugar and price average 0.3, 40 and 2 over t = 301-500 (the ends offset each other) and are something else at
+        # t = 300 and 501. Trades are 100 a period, 200 at t = 301 (1,800 agents) and none at t = 500 (200 agents), a million
+        # outside; the second seed's are three times the first's.
+        gini(t) = t == 300 ? 0.9 : t == 301 ? 0.2 : t == 500 ? 0.4 : t == 501 ? 0.8 : 0.3
+        sugar(t) = t == 300 ? 99.0 : t == 301 ? 30.0 : t == 500 ? 50.0 : t == 501 ? 7.0 : 40.0
+        price(t) = t == 300 ? 50.0 : t == 301 ? 1.0 : t == 500 ? 3.0 : t == 501 ? 60.0 : 2.0
+        trades(t) = t in (300, 501) ? 1e6 : t == 301 ? 200.0 : t == 500 ? 0.0 : 100.0
+        at(f, k=1) = Float64[f(t) * k for t in 0:600]
+        win = Sugarscape.read_list_run("win", list_folder(dir, "extinction-win-s1-2-p600";
+            pops=[at(pop), at(pop, 2)], sick=[at(sick), at(sick, 1.5)],
+            diseases=[at(diseases1), at(diseases2)], ever=ever,
+            gini=i -> at(gini), sugar=i -> at(sugar), price=i -> at(price), trades=i -> at(trades, [1, 3][i]), periods=600))
+        r = Sugarscape.list_readings(win)
+        @test r.per_seed.trough == [200, 400] && r.per_seed.trough_t == [500, 500]  # not t = 0, and not t = 501
+        @test r.trough ≈ 300 && r.trough_t ≈ 500
+        @test r.per_seed.births_100 == [300, 500] && r.births_100 ≈ 400  # to t = 100, not 101
+        @test r.per_seed.x9 == [1, 0] && r.x9 ≈ 0.5  # t = 500 itself
+        @test r.per_seed.sick_end ≈ [0.1, 0.15] && r.sick_end ≈ 0.125  # t = 451-500
+        @test (r.in_band_end, r.under_end, r.over_end) == (2, 0, 0)
+        @test r.per_seed.population == [1000, 2000] && r.population ≈ 1500  # t = 301-500
+        @test r.spread ≈ sqrt(2) / 3 && Sugarscape.population_spread(win) ≈ sqrt(2) / 3
+        @test r.per_seed.gini ≈ [0.3, 0.3] && r.gini ≈ 0.3
+        @test r.per_seed.sugar ≈ [40, 40] && r.sugar ≈ 40
+        @test r.per_seed.price ≈ [2, 2] && r.price ≈ 2
+        # Trades per head is a seed's trades over its population, both summed over the window: 20,000 over 200,000, and
+        # 60,000 over 400,000. The mean of the periods' ratios would be 0.0996 and 0.1493 instead.
+        @test r.per_seed.trades_per_head ≈ [0.1, 0.15] && r.trades_per_head ≈ 0.125
+        # the share sick by diseases at the last period reads t = 551-600, not 550
+        by = Sugarscape.sick_by_count(win)
+        @test [b.count for b in by] == [2, 3] && [b.seeds for b in by] == [1, 1]
+        @test by[1].sick ≈ 0.1 && by[2].sick ≈ 0.15
+        # the screening rows read t ≤ 500 of a longer run: the trough and the share sick
+        rows = Sugarscape.screen_arm(win, base)
+        @test row(rows, "X10, mean").value == "0.125" && !row(rows, "Trough").pass
+        @test occursin("lowest 200", row(rows, "Trough").value)
+        # the lowest over the whole run, which no bar reads: 100 and 200 at t = 501
+        lowest = Sugarscape.run_lowest(win)
+        @test lowest.mean ≈ 150 && lowest.lowest == 100
+    end
+
+    @testset "an arm short of its extinction is not near" begin
+        # rows 1-4 pass and the only failure is a seed dying at t = 550, which is never near
+        late = Sugarscape.read_list_run("late2", list_folder(dir, "extinction-late2-s80-20-p600";
+            pops=[vcat(list_pop(low, 6000.0), i == 1 ? vcat(fill(6000.0, 49), zeros(51)) : fill(6000.0, 100))
+                  for (i, low) in enumerate(list_base_lows())],
+            sick=fill(0.1, 20), diseases=fill(5.0, 20), periods=600))
+        rows = Sugarscape.screen_arm(late, base)
+        @test all(r -> r.pass, rows[1:4]) && [r.name for r in rows if !r.pass] == ["Extinction"]
+        @test !Sugarscape.arm_near(late, rows) && !Sugarscape.arm_passes(late, rows)
+    end
+
+    @testset "an arm with no finished seed" begin
+        empty_run = Sugarscape.read_list_run("empty", list_arm_folder(dir, "extinction-empty-s80-20-p500"; n=0))
+        @test isempty(empty_run.seeds) && empty_run.planned == 20 && !Sugarscape.finished(empty_run)
+        whole = Sugarscape.read_list_run("whole2", list_arm_folder(dir, "extinction-whole2-s80-20-p500"; lows=list_base_lows()))
+        @test Sugarscape.choose_arm([empty_run, whole], base).name == "whole2"
+        @test Sugarscape.choose_arm([empty_run], base) === nothing
+        # a folder that plans no seeds and holds none is as empty
+        unplanned = Sugarscape.read_list_run("unplanned", list_arm_folder(dir, "unplanned"; n=0))
+        @test Sugarscape.choose_arm([unplanned], base) === nothing
+    end
+
+    @testset "a row doesn't contradict itself" begin
+        # A baseline whose trough mean is 5,787.0, and arms whose mean is just under it: four significant digits would show
+        # both as 5787.
+        base2 = Sugarscape.read_list_run("base2", list_arm_folder(dir, "extinction-base2-s20-20-p500";
+            lows=vcat(3000.0, 4974.0, fill(5987.0, 18))))
+        trough(lows) = row(list_screen(dir, base2; lows), "Trough")
+        t = trough(vcat(3000.0, 4972.0, fill(5987.0, 18)))  # 5,786.9
+        @test !t.pass && t.value == "mean 5786.9, lowest 3000" && t.bar == "mean at least 5787.0, none below 3000"
+        # one decimal isn't enough where the mean rounds to the baseline's: it gets the digits that tell them apart
+        t = trough(vcat(3000.0, 4973.2, fill(5987.0, 18)))  # 5,786.91 .. 5,786.96
+        @test !t.pass && t.value == "mean 5786.96, lowest 3000" && t.bar == "mean at least 5787.0, none below 3000"
+        t = trough(vcat(3000.0, 4974.0, fill(5987.0, 18)))  # equal: passes
+        @test t.pass && t.value == "mean 5787.0, lowest 3000" && t.bar == "mean at least 5787.0, none below 3000"
+        # the lowest is a whole number however big
+        big_row = row(list_screen(dir, base; lows=fill(12345.0, 20)), "Trough")
+        @test big_row.value == "mean 12345.0, lowest 12345"
+        # the share sick's mean to five decimals, and more where that would put a failing mean inside the band
+        mean_row(c) = row(list_screen(dir, base; sick=fill(c, 20)), "X10, mean")
+        @test !mean_row(0.20004).pass && mean_row(0.20004).value == "0.20004" && mean_row(0.20004).bar == "0.01–0.2"
+        @test !mean_row(0.2000004).pass && mean_row(0.2000004).value == "0.2000004"
+        @test !mean_row(0.0099996).pass && mean_row(0.0099996).value == "0.0099996"
+        @test mean_row(0.0123456).value == "0.01235" && mean_row(0.0123456).pass
+    end
 end
