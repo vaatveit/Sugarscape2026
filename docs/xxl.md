@@ -896,6 +896,8 @@ much of the rest is dying lenders' sugar. Bigger loans about double the lift and
 starving in place of other deaths. A limit per period shows no effect in the trough, but seems barely to have bound.
 Inheritance moves later population far more than anything else here, and it concentrates wealth.
 
+**Read with the next section,** which came after this. With no disease, credit's gain in population lasts, so "a head start" holds only for population in the world with disease, where more disease roughly offsets it. And the lasting mark on wealth and inequality is mostly credit's own, not left by the trough.
+
 **The main run.** `XXL_DEFAULTS` with credit off, VI-1, seeds 20–79, 2,000 periods, paired with stage 2's credit-on run on
 the same seeds. Reports are in `results-julia-xxl/` (git-ignored): `extinction-nocredit-s20-60-p2000.md` and
 `credit-compare-main.md`. With credit off the verdict is **PASS, 0 of 60 extinct, limit 4.87%**, and no seed was falling at
@@ -952,8 +954,8 @@ credit on, t = 1,501–2,000, 60 seeds:
   48 of 60 without, 0.80, against X9's 0.9. In the pairs, 10 seeds have one only with credit and 1 only without.
 - **The mark looks like it's left by the trough.** With credit on, a seed's diseases at t = 101–200 correlate 0.998 with its
   diseases at t = 1,501–2,000. So my lead, which I didn't test, is that a shallower trough lets more diseases survive, and they
-  stay.
-- **The level population may be two effects cancelling.** Late on, population within a run is mostly disease: its correlation
+  stay. (Tested in the next section: a seed's trough doesn't predict it, but neither does any other measure, so that doesn't separate them. The gap opens after the trough.)
+- **The level population may be two effects cancelling.** (Tested in the next section: they roughly offset, on average.) Late on, population within a run is mostly disease: its correlation
   with the share sick is −0.98 with credit and −0.90 without. Taking each run's fit on the share sick out of the population
   takes the pairs' correlation from 0.44 to 0.03. A fit over both runs reads about 5,300 more people with credit at the same
   share sick, about 7.6%, and about 6,100 fewer from credit's extra sickness. Grouped by diseases circulating at t = 2,000,
@@ -1106,6 +1108,222 @@ table. The main run came in at the low end of the design's 12–17 hours, and th
    worth writing down once the question above is settled, not before.
 
 **What to change is the user's decision,** under a new spec. Nothing here changes the rules.
+
+## Stage 3: why credit's mark lasts
+
+The user chose to trace the lasting mark, recommendation 2 above. This step changes no rule and no code under `julia/`. I had
+said it might need no new runs. It needed two sets, and that was my call: a trace of every disease, and credit on and off with no
+disease. No reading table was set before them, so apart from the two leads named below, all of this is reading after the fact.
+
+**The short answer.** Credit has two lasting results, and as far as I can see they start from one early lift: its effects read the
+same with disease and without up to about t = 60.
+- **At the same disease, credit means more people, less sugar each and more inequality.** With no disease at all, credit off has
+  11.0% fewer people, [10.0%, 12.0%], in all 20 seeds, about the same total sugar, more sugar per head and a lower Gini.
+- **More diseases last.** Long diseases must pass from founders to children at about t = 80–150, on few carriers. With credit more of
+  them make it, and they stay.
+- **In the world actually run, those two roughly offset for population.** So what credit leaves there is the same number of
+  people, 8.5–11% less total sugar, more inequality, more sickness and more trade. "A head start" is still a fair
+  description of population in that world, but it isn't all credit does: the level population hides a gain at equal disease.
+- **Why more diseases last isn't settled.** More hosts near the sick is the lead the evidence fits best, on averages and timing, but no
+  measure I tried sorts seeds within a run. That includes the trough, my earlier lead.
+- **Trade is mostly disease.** Where diseases circulate, disease count accounts for nearly all of credit's gap in trades per head.
+
+**The lead on the trough.** A seed's trough doesn't predict how many diseases it keeps. But that test doesn't separate the trough from
+anything else, because the other measures fail it too. Diseases at t = 200, 60 seeds, where the raw effect of credit on the count is 1.42:
+
+| Measure | Credit's effect, holding it | Correlation of the pairs' gaps | Correlation within a run, on and off |
+|---|---|---|---|
+| Trough | 1.52 | 0.20 | −0.08, −0.10 |
+| Population at t = 90 | 1.49 | 0.20 | −0.03, −0.07 |
+| Births at t = 61–90 | 1.44 | 0.22 | 0.01, −0.05 |
+| Neighbours per sick agent at t = 61–80 | 1.09 | 0.05 | 0.27, 0.17 |
+
+So trough depth as such doesn't sort seeds, and neither does population or births, and neighbours only weakly. This is evidence
+about the seeds within an arm. It can't rule out what credit does to the average, which is what the rest of this section reads. The timing
+is against the trough having a direct role: the two runs have about the same number of diseases until after it, which comes at about
+t = 68 with credit and t = 73 without, and the gap opens later:
+
+| t | 50 | 80 | 90 | 100 | 125 | 200 | 2,000 |
+|---|---|---|---|---|---|---|---|
+| Diseases circulating, credit on | 8.55 | 5.87 | 4.62 | 3.63 | 3.37 | 3.32 | 3.32 |
+| Diseases circulating, credit off | 8.55 | 5.70 | 4.00 | 2.63 | 2.15 | 1.90 | 1.83 |
+
+No disease ever returned in either run, so a disease that's gone stays gone.
+
+**The trace.** A tracer read each run period by period to t = 200 through the runner's `period_done` hook: each disease's carriers,
+who catches what, and the neighbours of the sick. It covered credit on and off on 60 seeds, claims on 20 and the other probes on 10,
+180 runs in all. Population, new infections and diseases circulating match the runs' CSVs in every period of t = 1–200 in all 120 on and
+off runs, so it reads a run without changing it. Credit on against off, 60 seeds:
+
+- **Short diseases go first, with or without credit.** Of the 668 diseases of length 7 or less that any founder carries, 603 with
+  credit and 605 without are gone by t = 50. Few founders can carry them, since a short string is likely to match somewhere in an immune
+  string: the share of founders not immune is 0.006 at length 3, 0.23 at length 5 and 0.96 at length 10.
+- **What lasts is long, and so is credit's gap.** Lengths 9 and 10 are 95–96% of what's left at t = 200, and they hold 1.32 of the
+  1.42 gap. Length 8 gives 10 survivors against 3:
+
+  | Length | Listed | Survive to t = 200, credit on | Credit off |
+  |---|---|---|---|
+  | 7 | 149 | 0.000 | 0.007 |
+  | 8 | 146 | 0.068 | 0.021 |
+  | 9 | 156 | 0.449 | 0.205 |
+  | 10 | 157 | 0.758 | 0.497 |
+
+- **They all reach t = 60, on few carriers, and must change hosts.** Of 313 long diseases 313 and 311 are alive at t = 60, with a median
+  of 16 and 14 carriers. By then the share of new infections in people born during the run is rising fast, from about 0.5 at t = 41–50 to
+  0.98 at t = 81–90, in both runs.
+- **The sick have more neighbours with credit, more so than population alone would give.** Neighbours per sick agent read 1.20 against
+  1.04 at t = 51–60, 1.45 against 1.16 at t = 61–70 and 1.87 against 1.45 at t = 71–80, higher with credit in 48 of 60, 50 of 59 and 50 of
+  58 seeds. That ratio is about 1.25–1.29 at t = 61–80, against about 1.17–1.21 for all agents' neighbours. The gap builds gradually
+  from about t = 41. The share of the living who could catch a long disease is about level, 0.80 and 0.79 at t = 70, as are infections per contact
+  at t = 61–80, 0.34 and 0.33. So there are more vulnerable people close by, in about the same proportion: 4,438 against 3,777 per long disease.
+- **Carriers turn upward sooner.** Total carriers over ten periods, as a ratio, per seed and by median: 0.75 with credit and 0.62 without
+  from t = 65, 1.10 and 0.60 from t = 70, 1.59 and 0.82 from t = 75. A seed's carriers bottom out 13.6 periods sooner with credit,
+  [9.8, 17.5], and that low is 51.5 carriers against 20.4. In 15 of those lows carriers reach 0, 3 with credit and 12 without, so that's partly
+  when diseases die out. Without those seeds it's 12.7 periods, [9.4, 16.1], sooner in 40 of 47.
+- **Most of the gap opens at about t = 80–125, and credit off keeps losing a few afterwards.** Credit's lead in long diseases is 6 at t = 80, 57 at
+  t = 100, 70 at t = 125, 76 at t = 150 and 79 at t = 200. In t = 125–200 credit off loses 12 long diseases and credit on 3. Not all of those
+  are thin: credit off's include diseases with 209, 106, 61 and 32 carriers at t = 125. After t = 200 credit off loses 4 more, and credit on none.
+
+**The fit can't say how much hosts explain.** I fitted each living disease's survival to t = 200 on credit, its carriers at t = 60 and
+its length, and credit's coefficient is 1.18 [0.81, 1.62]. Adding one more reading lowers it, whatever the reading is about:
+
+| Added | Credit's coefficient |
+|---|---|
+| Noise | 1.17 |
+| Trough | 0.80 |
+| Mean sugar, t = 70 | 0.74 |
+| Neighbours per sick, t = 61–80 | 0.68 |
+| Population, t = 90 | 0.61 |
+| Mean sugar, t = 90 | 0.41 |
+| Trades per head, t = 41–60 | −0.30 |
+| Population at t = 70 and t = 90, and neighbours | −0.03 |
+
+Anything credit moves takes credit's coefficient with it, because it largely says which run a seed is in. So this doesn't favour hosts
+over the trough or wealth, and I withdraw the reading of it I first drafted.
+
+**What does point to hosts.** Two things, neither decisive. Inheritance without credit has more people and no loans, and it has more
+diseases than credit off, +1.1 [0.0, 2.2]. And over the six 10-seed worlds, more people at t = 80 goes with more diseases at t = 200, and it seems
+to level off:
+
+| | Off | On | Limit | Inheritance, off | Bigger loans | Inheritance, on |
+|---|---|---|---|---|---|---|
+| Population at t = 80 | 5,667 | 6,863 | 6,941 | 7,594 | 8,418 | 8,978 |
+| Diseases at t = 200 | 1.9 | 3.3 | 3.4 | 3.0 | 3.5 | 4.2 |
+
+Inheritance also adds wealth, so these aren't clean tests of hosts, and the intervals are wide.
+
+**Claims doesn't fit simply.** With claims the mean of carriers at t = 100 is 2.4 times credit off's (226 against 93, and 444 with credit on; medians
+82, 53 and 408), but there are no more diseases, −0.15 against off, [−1.0, 0.6], and clearly fewer than credit on, −1.3, [−2.1, −0.55]. It has 1.19 neighbours
+per sick at t = 61–70, against 1.13 off and 1.44 on. So one lead, untested, is that only hosts arriving before about t = 75 matter.
+Its interval still allows a modest gain.
+
+**Which diseases cross.** Credit raises the odds at every size, and a disease's early carriers predict much of which ones make it. Among
+long diseases, by quartile of carriers at t = 60, survival to t = 200 runs 0.23, 0.51, 0.68 and 0.96 with credit, and 0.09, 0.23, 0.41 and 0.65
+without. Carriers at t = 60 sort survivors well (area under the curve 0.84 and 0.78). Even the other run's carriers at t = 20 do, 0.79 and
+0.76, so much of that is settled when the runs are still alike. A disease survives with credit 0.82 of the time when it survives without, and 0.49 when
+it doesn't. The on and off counts at t = 200 correlate 0.526 by seed, list lengths alone leave that at 0.525, and each disease's carriers at
+t = 60 with its length leave 0.319. There are no repeat runs of a seed, so I can't say how much of the rest is chance.
+
+**The test with no disease.** The defaults with `disease_list` and `diseases_per_agent` set to 0, credit on and off, seeds 20–39, 1,000
+periods, through `run_extinction` with a custom experiment. Reports: `extinction-nodisease-s20-20-p1000.md` and
+`extinction-nodisease-nocredit-s20-20-p1000.md`. None of the 40 went extinct. Its on and off pair by seed, but they don't pair
+with the runs with disease, whose random draws differ. Credit off against on, t = 501–1,000, ratios of means with 95% intervals over
+seed pairs:
+
+| | No disease, on | Off | Off against on | With disease, on | Off | Off against on |
+|---|---|---|---|---|---|---|
+| Population | 77,527 | 69,028 | 0.890 [0.880, 0.900] | 64,146 | 63,404 | 0.988 [0.962, 1.014] |
+| Gini | 0.227 | 0.201 | 0.886 [0.880, 0.892] | 0.240 | 0.215 | 0.892 [0.880, 0.906] |
+| Mean sugar | 26.14 | 29.60 | 1.132 [1.117, 1.149] | 25.87 | 28.59 | 1.105 [1.094, 1.115] |
+| Total sugar | 2,024,844 | 2,040,836 | 1.008 [1.000, 1.016] | 1,659,272 | 1,813,897 | 1.093 [1.066, 1.123] |
+| Trades per period | 24,268 | 14,228 | 0.586 [0.579, 0.595] | 92,095 | 55,417 | 0.602 [0.507, 0.696] |
+| Trades per head | 0.313 | 0.206 | 0.658 [0.652, 0.664] | 1.513 | 0.932 | 0.616 [0.517, 0.720] |
+| Mean price | 1.047 | 0.965 | 0.921 [0.915, 0.926] | 1.464 | 1.221 | 0.834 [0.793, 0.875] |
+
+Ratios that match don't show the same cause, as trades show below. So I split the pairs with disease: each pair's gap in t = 501–1,000 against its gap in
+diseases at t = 200, which comes before that window. The intercept reads credit's gap at equal counts. This is a fit on a result of the change,
+across 60 pairs:
+
+| Credit on minus off | Whole gap | At equal counts | Per extra disease | r |
+|---|---|---|---|---|
+| Population | 741 [−1,013, 2,386] | 5,958 [4,498, 7,319] | −3,682 [−4,387, −2,996] | −0.80 |
+| Gini | 0.026 | 0.018 [0.014, 0.022] | 0.005 [0.004, 0.007] | 0.63 |
+| Mean sugar | −2.72 | −2.59 [−3.05, −2.15] | −0.09 [−0.29, 0.09] | −0.13 |
+| Trades per head | 0.581 | 0.018 [−0.132, 0.139] | 0.397 [0.346, 0.473] | 0.86 |
+| Mean price | 0.243 | 0.032 [−0.029, 0.079] | 0.149 [0.112, 0.190] | 0.80 |
+
+- **Population: the two roughly offset, on average, on this map pair.** The gain at equal counts, 5,958, against 3,682 times the 1.42 extra diseases, about 5,216, leaves
+  about 740, the net actually read. With no disease credit's gain is larger in people, 8,499, though close in ratio, 0.89 against 0.90 at equal counts. It doesn't
+  offset pair by pair: the gaps vary widely, and they correlate −0.80 with the disease gap.
+- **Mean sugar is credit's own, and most of the Gini is.** About 70% of the Gini gap remains at equal counts. Mean sugar doesn't depend on the count.
+- **Trade and price are mostly through disease.** See below.
+- **With disease, population's gap closes as the extra diseases spread.** Population, off against on:
+
+  | t | 60 | 100 | 125 | 150 | 200 | 300 | 500 | 1,000 |
+  |---|---|---|---|---|---|---|---|---|
+  | No disease | 0.922 | 0.826 | 0.827 | 0.832 | 0.850 | 0.908 | 0.897 | 0.891 |
+  | With disease | 0.912 | 0.774 | 0.809 | 0.870 | 0.944 | 0.979 | 0.995 | 0.984 |
+
+  To t = 60 they're about the same, and so are the other measures: at t = 41–60 trades read 0.828 and 0.829, mean sugar 1.016 and 1.016. With no disease the gap
+  doesn't close by t = 1,000: 0.894 at t = 501–750 and 0.887 at t = 751–1,000, lower in all 20 seeds both times. Nothing tests t = 2,000.
+- **The trough isn't only disease.** With none, population still falls from 20,000 to 9,922 with credit and 9,183 without, at t = 54 and
+  t = 65. Disease takes it to 5,787 and 5,020. Credit's lift is 8.0% with no disease, [7.2%, 8.9%], and 15.3% with it.
+
+**Grouping seeds by disease count.** Means over t = 501–1,000, by diseases circulating at t = 1,000, with the runs with no disease at the
+top. Seeds in a group aren't assigned at random, and several groups are tiny, so read the pattern, not a row:
+
+| Diseases | Seeds, on / off | Population, on / off | Trades per head, on / off | Mean price, on / off | Gini, on / off |
+|---|---|---|---|---|---|
+| None, by rule | 20 / 20 | 77,527 / 69,028 | 0.313 / 0.206 | 1.047 / 0.965 | 0.227 / 0.201 |
+| 0 | 3 / 14 | 76,924 / 68,570 | 0.310 / 0.206 | 1.06 / 0.967 | 0.230 / 0.202 |
+| 1 | 1 / 11 | 75,572 / 67,145 | 0.468 / 0.388 | 1.098 / 1.048 | 0.228 / 0.205 |
+| 2 | 20 / 16 | 70,763 / 63,143 | 0.890 / 0.919 | 1.174 / 1.188 | 0.230 / 0.214 |
+| 3 | 7 / 10 | 63,504 / 60,006 | 1.584 / 1.479 | 1.409 / 1.376 | 0.241 / 0.225 |
+| 4 | 13 / 7 | 60,557 / 55,694 | 1.846 / 2.092 | 1.512 / 1.660 | 0.242 / 0.235 |
+| 5 | 11 / 1 | 56,764 / 51,089 | 2.203 / 2.435 | 1.833 / 1.951 | 0.253 / 0.243 |
+| 6 | 5 / 1 | 54,196 / 54,398 | 2.449 / 2.187 | 2.078 / 1.832 | 0.258 / 0.244 |
+
+- **The seeds that lost every disease read like the runs with none.** That shows the no-disease runs are a fair baseline for seeds whose disease died out,
+  and says nothing about counts of 1 or more, where the offset operates. Credit on's three such seeds are few and spread, from 73,895 to 80,474, and credit
+  off's include seeds 73 and 75, whose last disease lasted to t = 635 and t = 511.
+- **Each disease goes with about 3,200–4,300 fewer people on average** (slopes −4,276 with credit, −3,179 without, r −0.91 and −0.87, against the count at t = 200). The first
+  seems to cost less, on thin groups. Credit's gap is about 8,000 at counts up to 2 and 3,500–4,900 at 3 and 4, the groups that have enough seeds on both sides, so the two effects
+  don't simply add.
+
+**Trade is mostly disease.** Trades per head go from 0.2–0.3 with none to about 2.4 with six, and the price about doubles. The evidence, none of it a randomised test:
+- Within each arm trades per head correlate 0.91 and 0.90 with the count at t = 200, which comes before the window they're read over.
+- It doesn't go through population: holding the share sick, their partial correlation with population is −0.22 and 0.01. Holding population, it's 0.50 and 0.75 with the share sick.
+- Two seeds lose their last disease well inside the run, both with credit off. In seed 73 (t = 635) trades per head go from 0.304 to 0.208, and in seed 75 (t = 511) from 0.322 to
+  0.201, comparing the 100 periods before with t + 100 to t + 200. Price falls with them, 1.045 to 0.980 and 1.060 to 0.971, near the runs with none.
+- Credit also has its own lift with no disease, 0.107 per head, [0.105, 0.109]. At equal counts with disease the fit reads 0.018, [−0.132, 0.139], whose interval
+  contains that, so the lift can't be seen there, against disease's far larger gap. I said earlier in this work that trade and price were marks of disease and not of credit.
+  That was too strong: with no disease credit off has 41% fewer trades.
+- Why is a lead. The fee is in the marginal rate of substitution directly (`sugar_burn` in `mrs`, `julia/src/rules/welfare.jl:37`), so a sick agent values sugar more at the same holdings. That's from the
+  code, not tested.
+
+**What this doesn't show.**
+- All of it is on one map pair, as before. The runs with no disease have 20 seeds and stop at t = 1,000, and population is still
+  rising slowly in every run there, about 6% from t = 501–750 to t = 751–1,000 with credit.
+- The no-disease world has about 20% more people than the runs with disease with credit on, and 9% more with it off, so credit's own effect there
+  needn't be the same size as in a world with disease. The fits at equal counts are the only reading in that world, and they condition on a result of the change.
+- What makes more diseases last with credit isn't established. The readings of neighbours, carriers and births describe what differs between the arms on average, not what causes survival.
+- Lengths of 8 or less don't last, but they are 54% of founders' disease load at t = 0. Their effect on the trough isn't tested.
+- The trace stops at t = 200, and the scripts aren't in the repository. Copies are in `results-julia-xxl/lasting-mark-scripts/` with the traces in
+  `results-julia-xxl/disease-trace/`, all git-ignored, so they don't travel with the repo.
+
+**Run time.** Same machine, 5 workers, no memory stops. The trace took about 62 minutes. The runs with no disease took 6,760 s and
+5,895 s, 3 h 31 min in all.
+
+**My recommendation, not a decision.**
+1. **Keep credit, and describe it as more than a head start.** In the world actually run it leaves about the same people, with 8.5–11% less total sugar, more inequality and
+   more sickness. At equal disease or none it adds about 9–12% to population. This changes the question I left with the user: helping through the worst period isn't
+   all it does, and not all of what else it does is welcome. Whether that's working as intended is still the user's call. I'd still say yes.
+2. **Make stage 4's first question the disease list.** The count of diseases moves population a long way, and trade and price more than anything else here, and it's set by
+   a crossing on few carriers. What lasts is almost entirely lengths 9 and 10, about 5.2 per seed. X9 reads 0.95 with credit and 0.80 without, so its pass depends on that
+   crossing. A spec could test lists with more long diseases. That's a rule change, so it's for the user to decide.
+3. **Judge trade after disease, not before.** Changing disease will move every trade reading, so a trade check set now would be largely measuring disease.
+4. **Don't run more of this first.** The unknowns left (what makes diseases last with credit, why disease drives trade, and what the seeds share) matter mostly if stage 4 keeps this
+   disease list. A test of hosts would be replicate runs of a seed with hosts added by hand at about t = 60–80, and that's worth doing only if the crossing stays.
 
 ## Results of the first rules (`XXL_V1`)
 
