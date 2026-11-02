@@ -74,6 +74,20 @@ end
 
 const NO_WELFARE = SiteWelfare(0.0, 0.0, false, false, 0.0, 0.0, 1.0)  # sugar-only moves
 
+const SURELY_BELOW = 1.0 - 1e-9  # far enough under 1 that no rounding in the powers could bring the two values level
+
+"""
+    surely_less(c1, c2, A, B) -> Bool
+
+Whether A^e1 * B^e2 is below a reference Ar^e1 * Br^e2, told without taking a power; `c1, c2 =`
+[`prune_weights`](@ref)`(e1, e2, Ar, Br)`. With e1 + e2 = 1 these are weighted geometric means, so by weighted AM-GM the
+first is at most (e1 A/Ar + e2 B/Br) times the second. `false` says nothing: the powers must decide. A reference of zero
+makes a weight Inf, and Inf * 0 is NaN, so nothing is ruled out against it.
+"""
+@inline surely_less(c1::Float64, c2::Float64, A::Float64, B::Float64) = c1 * A + c2 * B < SURELY_BELOW
+
+@inline prune_weights(e1::Float64, e2::Float64, Ar::Float64, Br::Float64) = (e1 / Ar, e2 / Br)
+
 @inline function score(sw::SiteWelfare, ls::Landscape, i::Int, j::Int)
     s, p = @inbounds ls.sugar[i, j], ls.spice[i, j]
     (s == 0 && p == 0) && return sw.w0

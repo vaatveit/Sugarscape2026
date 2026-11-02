@@ -30,3 +30,69 @@ end
     @test all(Sugarscape.travel_periods(d, S) == max(1, ceil(Int, d / S)) for S in 1:7 for d in 0:0.25:30)
     @test Sugarscape.travel_periods(100.0, 0) == 1
 end
+
+@testset "net_parts: the arguments of net_value's two powers" begin
+    m, a = fast_world(1)
+    rng = Xoshiro(2)
+    for _ in 1:2000
+        a.sugar, a.spice = 40 * rand(rng), 40 * rand(rng)
+        d, sugar, spice = 12 * rand(rng), 5 * rand(rng), 5 * rand(rng)
+        sw = Sugarscape.SiteWelfare(m, a)
+        A, B = Sugarscape.net_parts(a, sw, Sugarscape.sugar_burn(a), 0.1, 0.0, d, sugar, spice)
+        v = Sugarscape.net_value(a, sw, true, 0.1, 0.0, d, sugar, spice)
+        @test A < 0 ? v == -Inf : v === A^sw.e1 * B^sw.e2
+    end
+end
+
+@testset "surely_less only says so of a site worth less" begin
+    rng = Xoshiro(3)
+    said = 0
+    for _ in 1:200_000
+        e1 = rand(rng)
+        e2 = 1 - e1
+        pick() = rand(rng) < 0.05 ? 0.0 : (rand(rng) < 0.05 ? 1.0 : 40 * rand(rng))
+        A, B, Ar, Br = pick(), pick(), pick(), pick()
+        c1, c2 = Sugarscape.prune_weights(e1, e2, Ar, Br)
+        Sugarscape.surely_less(c1, c2, A, B) || continue
+        said += 1
+        A^e1 * B^e2 < Ar^e1 * Br^e2 || @test false
+    end
+    @test said > 10_000
+    # Worth the same is not worth less: a tie goes on to the rule that breaks it.
+    c1, c2 = Sugarscape.prune_weights(0.3, 0.7, 5.0, 9.0)
+    @test !Sugarscape.surely_less(c1, c2, 5.0, 9.0)
+    # A reference worth nothing rules nothing out, whatever the other coefficient says.
+    c1, c2 = Sugarscape.prune_weights(0.3, 0.7, 0.0, 9.0)
+    @test !Sugarscape.surely_less(c1, c2, 0.0, 1.0) && !Sugarscape.surely_less(c1, c2, 1.0, 1.0)
+end
+
+@testset "rank_pool! keeps what ranking every entry would" begin
+    for seed in 1:40
+        m, a = fast_world(seed; M=5)
+        rng = Xoshiro(seed)
+        a.sugar, a.spice = 2 + 30 * rand(rng), 2 + 30 * rand(rng)
+        pool = empty!(m.pool)
+        for _ in 1:60
+            s = rand(rng) < 0.3 ? 2.0 : 6 * rand(rng)  # some of equal worth, for the ties
+            push!(pool, Remembered(rand(rng, 0:39), rand(rng, 0:39), s, s, rand(rng) < 0.5 ? 0.0 : rand(rng), rand(rng, 0:3)))
+        end
+        Sugarscape.rank_pool!(m, a)
+        value(e) = net_value(m, a, e.x, e.y, Sugarscape.torus_dist(40, 40, a.x, a.y, e.x, e.y), e.sugar / (1 + e.pollution), e.spice / (1 + e.pollution))
+        ranked = sort(pool; lt=(e, f) -> Sugarscape.ranks_above(value(e), e, value(f), f))
+        @test a.memory == ranked[1:5]
+        @test m.pool_values == value.(ranked[1:5])
+    end
+end
+
+@testset "rank_pool! with a disease fee that isn't whole" begin
+    m, a = fast_world(1; M=3)
+    a.disease_fee = 0.5
+    push!(a.diseases, 1)
+    @test Sugarscape.sugar_burn(a) == 1.5
+    pool = empty!(m.pool)
+    for (s, x) in ((1.0, 1), (5.0, 2), (3.0, 3), (2.0, 4))
+        push!(pool, Remembered(x, 0, s, s, 0.0, 0))
+    end
+    Sugarscape.rank_pool!(m, a)
+    @test [e.x for e in a.memory] == [2, 3, 4]
+end

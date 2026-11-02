@@ -33,23 +33,45 @@ function net_value(
     sugar::Float64,
     spice::Float64,
 )
-    wait = travel_periods(d, a.speed) - 1  # periods spent on the way beyond the first
     m1 = sugar_burn(a)
-    trip = trip_cost(c, free, d)
     if !two
-        h1 = a.sugar - trip - m1 * wait  # without spice the book has no foresight: b is the holding itself
+        wait = travel_periods(d, a.speed) - 1
+        h1 = a.sugar - trip_cost(c, free, d) - m1 * wait  # without spice the book has no foresight: b is the holding itself
         d > 0 && h1 <= 0 && return -Inf
         return h1 + sugar
     end
+    A, B = net_parts(a, sw, m1, c, free, d, sugar, spice)
+    A < 0 && return -Inf
+    left = sw.use1 ? A^sw.e1 : 1.0
+    right = sw.use2 ? B^sw.e2 : 1.0
+    return left * right
+end
+
+"""
+    net_parts(a, sw, m1, c, free, d, sugar, spice) -> (A, B)
+
+What the two powers of [`net_value`](@ref) with spice are of, `m1` being the agent's [`sugar_burn`](@ref); (-1.0, -1.0) if
+it would starve on the way. Both are otherwise at least 0.
+"""
+@inline function net_parts(
+    a::Agent,
+    sw::SiteWelfare,
+    m1,
+    c::Float64,
+    free::Float64,
+    d::Float64,
+    sugar::Float64,
+    spice::Float64,
+)
+    wait = travel_periods(d, a.speed) - 1  # periods spent on the way beyond the first
+    trip = trip_cost(c, free, d)
     m2 = a.spice_metabolism
     if d > 0 && (a.sugar - trip - m1 * wait <= 0 || a.spice - m2 * wait <= 0)
-        return -Inf  # starves on the way, judged on what the agent really holds
+        return (-1.0, -1.0)  # starves on the way, judged on what the agent really holds
     end
     h1 = sw.base1 - trip - m1 * wait  # travel comes off after the foresight clamp
     h2 = sw.base2 - m2 * wait
-    left = sw.use1 ? max(h1 + sugar, 0.0)^sw.e1 : 1.0
-    right = sw.use2 ? max(h2 + spice, 0.0)^sw.e2 : 1.0
-    return left * right
+    return (max(h1 + sugar, 0.0), max(h2 + spice, 0.0))
 end
 
 """
@@ -117,12 +139,26 @@ function speed_move!(m::Model, a::Agent)
     best = site_value(a, sw, spice, c, free, ls, a.x, a.y, 0.0)
     ties = 1
     memory = xxl_on(m.config, :memory)
+    two_powers = spice && sw.use1 && sw.use2  # most sites then lose without a power being taken (surely_less)
+    m1 = sugar_burn(a)
+    b1, b2 = Inf, Inf
+    if two_powers
+        A, B = site_parts(a, sw, m1, c, free, ls, a.x, a.y, 0.0)
+        b1, b2 = prune_weights(sw.e1, sw.e2, A, B)
+    end
     for (x, y) in look!(m, a)
         @inbounds m.grid[x + 1, y + 1] === nothing || continue  # the agent's own site is occupied by itself
         d = torus_dist(w, h, a.x, a.y, x, y)
-        v = site_value(a, sw, spice, c, free, ls, x, y, d)
+        if two_powers
+            A, B = site_parts(a, sw, m1, c, free, ls, x, y, d)
+            (A < 0 || surely_less(b1, b2, A, B)) && continue  # starving on the way is worth -Inf, below the own site
+            v = A^sw.e1 * B^sw.e2
+        else
+            v = site_value(a, sw, spice, c, free, ls, x, y, d)
+        end
         if v > best || (v == best && d < best_d)
             best, best_x, best_y, best_d, ties = v, x, y, d, 1
+            two_powers && ((b1, b2) = prune_weights(sw.e1, sw.e2, A, B))
         elseif v == best && d == best_d
             ties += 1
             rand(m.rng) < 1 / ties && ((best_x, best_y) = (x, y))
@@ -176,4 +212,22 @@ end
     sugar = @inbounds ls.sugar[x + 1, y + 1] / devalue
     spice = two ? @inbounds(ls.spice[x + 1, y + 1]) / devalue : 0.0
     return net_value(a, sw, two, c, free, d, sugar, spice)
+end
+
+# [`net_parts`](@ref) of site (x, y), `d` away, with its resources devalued by the pollution there.
+@inline function site_parts(
+    a::Agent,
+    sw::SiteWelfare,
+    m1,
+    c::Float64,
+    free::Float64,
+    ls::Landscape,
+    x::Int,
+    y::Int,
+    d::Float64,
+)
+    devalue = 1.0 + @inbounds ls.pollution[x + 1, y + 1]
+    sugar = @inbounds ls.sugar[x + 1, y + 1] / devalue
+    spice = @inbounds(ls.spice[x + 1, y + 1]) / devalue
+    return net_parts(a, sw, m1, c, free, d, sugar, spice)
 end

@@ -42,6 +42,8 @@ mutable struct Model{R<:AbstractRNG}
     threat_looked::Vector{Tuple{Int,Int}}  # xxl scratch: the retaliation look's sites, apart from `looked`
     pool::Vector{Remembered}  # xxl scratch: memory ranking's candidates (rule 3)
     pool_values::Vector{Float64}  # xxl scratch: the kept entries' net values
+    kept_a::Vector{Float64}  # xxl scratch: what the kept entries' powers are of (Ranking)
+    kept_b::Vector{Float64}
     viable_fallbacks::Int  # xxl: new agents placed off viable land because none was free (spawn_viable!)
     viable_sites::Dict{Tuple{Int,Int},Vector{Int32}}  # xxl: the grid's viable sites by metabolism pair, built lazily
     killed::Set{Int}  # xxl: ids of the agents killed in combat this period (xxl_combat_move!), for the scorecard
@@ -107,6 +109,8 @@ function Model(
         Float64[],
         Tuple{Int,Int}[],
         Remembered[],
+        Float64[],
+        Float64[],
         Float64[],
         0,
         Dict{Tuple{Int,Int},Vector{Int32}}(),
