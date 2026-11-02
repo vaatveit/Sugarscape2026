@@ -133,11 +133,14 @@ function society_metrics!(out, m::Model)
     tagged = length(blue) + length(red)
     side(group, sw) = count(a -> (a.x + a.y < width) == sw, group)
     best, mean_close = Float64[], Float64[]
+    scores = m.scores
     for a in agents
         a.ntags == 0 && continue
-        friends = [f for (f, _) in a.friends if f.alive && f.ntags > 0]
-        isempty(friends) && continue
-        scores = [closeness(a.tags, f.tags, a.ntags) for f in friends]
+        empty!(scores)
+        for (f, _) in a.friends
+            (f.alive && f.ntags > 0) && push!(scores, closeness(a.tags, f.tags, a.ntags))
+        end
+        isempty(scores) && continue
         push!(best, maximum(scores))
         push!(mean_close, sum(scores) / length(scores))
     end

@@ -34,7 +34,7 @@ mutable struct Model{R<:AbstractRNG}
     line::Vector{Int}  # scratch: move! and combat_move!'s look distances along one line
     threat::Vector{Int}  # scratch: vulnerable's look distances along one line
     looks::Vector{Int}  # scratch: in_sight's looks across the four lines, nearest first
-    sight::Vector{Agent}  # scratch: in_sight's agents, nearest first
+    sight::Vector{Agent}  # scratch: in_sight's agents, nearest first, or neighbors_of's
     sites::Vector{Tuple{Int,Int}}  # scratch: mate!'s empty sites next to the parents
     near::Dict{Float64,Vector{Tuple{Int,Int}}}  # xxl: disc offsets by radius (near_offsets)
     looked::Vector{Tuple{Int,Int}}  # xxl scratch: this move's looked-at sites
@@ -44,6 +44,7 @@ mutable struct Model{R<:AbstractRNG}
     pool_values::Vector{Float64}  # xxl scratch: the kept entries' net values
     kept_a::Vector{Float64}  # xxl scratch: what the kept entries' powers are of (Ranking)
     kept_b::Vector{Float64}
+    scores::Vector{Float64}  # scratch: society_metrics!'s closeness to one agent's friends
     viable_fallbacks::Int  # xxl: new agents placed off viable land because none was free (spawn_viable!)
     viable_sites::Dict{Tuple{Int,Int},Vector{Int32}}  # xxl: the grid's viable sites by metabolism pair, built lazily
     killed::Set{Int}  # xxl: ids of the agents killed in combat this period (xxl_combat_move!), for the scorecard
@@ -112,6 +113,7 @@ function Model(
         Float64[],
         Float64[],
         Float64[],
+        Float64[],
         0,
         Dict{Tuple{Int,Int},Vector{Int32}}(),
         Set{Int}(),
@@ -152,10 +154,10 @@ end
 
 """
 Living agents on the four von Neumann sites around `a` (p.39), in the order E, W, N, S. Under xxl rule 4 (interaction
-radius R ≠ 1): those within R, nearest first.
+radius R ≠ 1): those within R, nearest first. Returns `m.sight`, which the next call, or `in_sight`'s, reuses.
 """
 function neighbors_of(m::Model, a::Agent)
-    found = Agent[]
+    found = empty!(m.sight)
     xxl_on(m.config, :radius) && return radius_neighbors!(found, m, a)
     for (dx, dy) in VON_NEUMANN
         other = agent_at(m, a.x + dx, a.y + dy)

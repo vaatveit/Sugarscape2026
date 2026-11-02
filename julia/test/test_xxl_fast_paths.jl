@@ -218,3 +218,27 @@ end
     @test Set(keys(m.debts)) == Set(l.borrower.id for l in m.loans)
     @test sum(values(m.lent)) == length(m.loans)
 end
+
+@testset "neighbors_of reuses a list" begin
+    m, a = fast_world(1; sex=true)
+    put_agent(m, 21, 20)
+    neighbors_of(m, a)
+    @test (@allocated neighbors_of(m, a)) == 0
+    @test neighbors_of(m, a) === m.sight
+end
+
+@testset "the society metrics use no list per agent" begin
+    m, a = fast_world(1; culture=true, tag_length=7)
+    for x in 0:39, y in 0:9
+        b = put_agent(m, x, y)
+        b.tags, b.ntags = rand(Xoshiro(x + 40y), UInt64) & 0xff, 8
+        push!(a.friends, (b, 0))
+        push!(b.friends, (a, 0))
+    end
+    a.tags, a.ntags = UInt64(0xf0), 8
+    out = Float64[]
+    Sugarscape.society_metrics!(out, m)
+    empty!(out)
+    each = (@allocated Sugarscape.society_metrics!(out, m)) / length(m.agents)
+    @test each < 200
+end
