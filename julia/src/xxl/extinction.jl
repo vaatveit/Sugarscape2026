@@ -633,17 +633,20 @@ function same_run(a::AbstractString, b::AbstractString; periods::Int)
     return true
 end
 
-const EXTINCTION_USAGE = "usage: julia --project=julia julia/xxl_extinction.jl [--rules v1|defaults] [--label NAME] [--seeds N] [--first-seed K] [--periods P] [--jobs J] [--out DIR] [--report-only] [--no-credit] [--inheritance] [--claims-outlive-lender] [--credit-reach K] [--lender-limit]"
+const EXTINCTION_USAGE = "usage: julia --project=julia julia/xxl_extinction.jl [--rules v1|defaults] [--set field=value]... [--label NAME] [--seeds N] [--first-seed K] [--periods P] [--jobs J] [--out DIR] [--report-only] [--no-credit] [--inheritance] [--claims-outlive-lender] [--credit-reach K] [--lender-limit]"
 
 """
-The extinction test's command line: `--rules v1|defaults`, `--label NAME`, `--seeds N`, `--first-seed K`, `--periods P`,
+The extinction test's command line: `--rules v1|defaults`, repeated `--set field=value` (any [`XxlRules`](@ref) field,
+read as the scorecard reads it, by [`rule_setting`](@ref)), `--label NAME`, `--seeds N`, `--first-seed K`, `--periods P`,
 `--jobs J`, `--out DIR` and `--report-only`, and the credit study's options, returned as a [`CreditOptions`](@ref) in
-`options`: `--no-credit`, `--inheritance`, `--claims-outlive-lender`, `--credit-reach K` and `--lender-limit`. Throws
-`ArgumentError` on a usage error. Whether the options go together is for [`with_options`](@ref) to say, in
-[`extinction_plan`](@ref).
+`options`: `--no-credit`, `--inheritance`, `--claims-outlive-lender`, `--credit-reach K` and `--lender-limit`. The
+`rules` are the `--rules` base with each `--set` applied; the label is `--label`, else the base followed by each `--set`
+as written, joined by `+` (`defaults+disease_count=4`). Throws `ArgumentError` on a usage error. Whether the options go
+together is for [`with_options`](@ref) to say, in [`extinction_plan`](@ref).
 """
 function extinction_args(args::Vector{String})
-    rules, label, report_only, out = "defaults", nothing, false, RESULTS_XXL
+    base, sets, texts = "defaults", Pair{Symbol,Any}[], String[]
+    label, report_only, out = nothing, false, RESULTS_XXL
     seeds, first_seed, periods, jobs = 60, 20, 2000, 10
     credit_off, inheritance, claims_outlive_lender, credit_reach, lender_limit = false, false, false, 1.0, false
     i = 1
@@ -659,13 +662,16 @@ function extinction_args(args::Vector{String})
             claims_outlive_lender = true
         elseif a == "--lender-limit"
             lender_limit = true
-        elseif a in ("--rules", "--label", "--seeds", "--first-seed", "--periods", "--jobs", "--out", "--credit-reach")
+        elseif a in ("--rules", "--set", "--label", "--seeds", "--first-seed", "--periods", "--jobs", "--out", "--credit-reach")
             i += 1
             i <= length(args) || throw(ArgumentError("$a needs a value"))
             v = args[i]
             if a == "--rules"
                 haskey(SCORECARD_BASES, v) || throw(ArgumentError("--rules is v1 or defaults, not $(repr(v))"))
-                rules = v
+                base = v
+            elseif a == "--set"
+                push!(sets, rule_setting(v))
+                push!(texts, v)
             elseif a == "--label"
                 label = v
             elseif a == "--seeds"
@@ -688,7 +694,8 @@ function extinction_args(args::Vector{String})
     end
     check_extinction_size(; seeds=seeds, first_seed=first_seed, periods=periods, jobs=jobs)
     options = CreditOptions(; credit_off, inheritance, claims_outlive_lender, credit_reach, lender_limit)
-    return (; rules=SCORECARD_BASES[rules], label=something(label, rules), seeds, first_seed, periods, jobs, out,
+    rules = replace_rules(SCORECARD_BASES[base]; sets...)
+    return (; rules, label=something(label, join([base; texts], "+")), seeds, first_seed, periods, jobs, out,
             report_only, options)
 end
 

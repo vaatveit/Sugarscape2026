@@ -474,6 +474,22 @@ function with_steps(e::Experiment, steps::Int)
 end
 
 """
+    scorecard_experiments(rules; steps_override=nothing) -> Vector{Experiment}
+
+The scorecard's experiments, shortened to `steps_override` periods if given. `ArgumentError` if `rules` is refused for
+any of them, as it is by [`to_xxl`](@ref), so that a refusal comes before anything runs.
+"""
+function scorecard_experiments(rules::XxlRules; steps_override::Union{Nothing,Int}=nothing)
+    reg = load_registry()
+    exps = map(SCORECARD_EXPERIMENTS) do id
+        e = find_experiment(reg, id)
+        return steps_override === nothing ? e : with_steps(e, steps_override)
+    end
+    foreach(e -> to_xxl(e.config, rules), exps)
+    return exps
+end
+
+"""
     run_scorecard(rules; label, seeds=20, first_seed=0, jobs=1, out="results-julia-xxl", steps_override=nothing,
                   io=stdout) -> Vector{Check}
 
@@ -495,12 +511,7 @@ function run_scorecard(
     io::IO=stdout,
 )
     t0 = time_ns()
-    reg = load_registry()
-    exps = map(SCORECARD_EXPERIMENTS) do id
-        e = find_experiment(reg, id)
-        return steps_override === nothing ? e : with_steps(e, steps_override)
-    end
-    foreach(e -> to_xxl(e.config, rules), exps)  # invalid rules fail here, before any run
+    exps = scorecard_experiments(rules; steps_override=steps_override)  # invalid rules fail here, before any run
     indices = first_seed:(first_seed + seeds - 1)
     name = scorecard_name(label, first_seed, seeds)
     xxl_out = joinpath(out, name)
@@ -591,6 +602,21 @@ function parse_rule_value(T::Type, v::AbstractString)
 end
 
 """
+    rule_setting(v) -> Pair{Symbol,Any}
+
+A `--set` argument `field=value` as the rule it sets: the field of [`XxlRules`](@ref) and its value, read by the
+field's type ([`parse_rule_value`](@ref)). `ArgumentError` for text without an `=`, a field `XxlRules` lacks or a
+value the type cannot read. Both the scorecard's and the extinction test's command lines read `--set` through it.
+"""
+function rule_setting(v::AbstractString)
+    eq = findfirst('=', v)
+    eq === nothing && throw(ArgumentError("--set wants field=value, not $(repr(v))"))
+    field = Symbol(v[1:(eq - 1)])
+    field in fieldnames(XxlRules) || throw(ArgumentError("XxlRules has no field $field"))
+    return field => parse_rule_value(fieldtype(XxlRules, field), v[(eq + 1):end])
+end
+
+"""
 The scorecard's command line: `--rules v1|defaults`, repeated `--set field=value`, `--label NAME`, `--seeds N`,
 `--first-seed K`, `--jobs J` and `--out DIR`. Throws `ArgumentError` on a usage error.
 """
@@ -612,15 +638,7 @@ function scorecard_args(args::Vector{String})
                 throw(ArgumentError("--rules is v1 or defaults, not $(repr(v))"))
             base = v
         elseif a == "--set"
-            eq = findfirst('=', v)
-            eq === nothing &&
-                throw(ArgumentError("--set wants field=value, not $(repr(v))"))
-            field = Symbol(v[1:(eq - 1)])
-            field in fieldnames(XxlRules) ||
-                throw(ArgumentError("XxlRules has no field $field"))
-            push!(
-                sets, field => parse_rule_value(fieldtype(XxlRules, field), v[(eq + 1):end])
-            )
+            push!(sets, rule_setting(v))
             push!(texts, v)
         elseif a == "--label"
             label = v
@@ -660,11 +678,14 @@ const SCORECARD_USAGE = "usage: julia --project=julia julia/xxl_scorecard.jl [--
 """
     scorecard_main(args) -> exit code
 
-The command line of julia/xxl_scorecard.jl: runs [`run_scorecard`](@ref) as `args` say. Returns 2 on a usage error.
+The command line of julia/xxl_scorecard.jl: runs [`run_scorecard`](@ref) as `args` say. Returns 2 on a usage error,
+rules the experiments refuse among them.
 """
 function scorecard_main(args::Vector{String})
     a = try
-        scorecard_args(args)
+        a = scorecard_args(args)
+        scorecard_experiments(a.rules)  # the rules the scorecard's experiments refuse are a usage error too
+        a
     catch e
         e isa ArgumentError || rethrow()
         println(stderr, SCORECARD_USAGE, "\n", e.msg)
