@@ -25,15 +25,13 @@ function bargain!(m::Model, a::Agent, b::Agent)
             sugar, spice = floor(sugar), floor(spice)
         end
         old = (hi.sugar, hi.spice, lo.sugar, lo.spice)
-        before_hi = welfare(hi, hi.sugar, hi.spice, cultural)
-        before_lo = welfare(lo, lo.sugar, lo.spice, cultural)
         hi.sugar, hi.spice = hi.sugar + sugar, hi.spice - spice
         lo.sugar, lo.spice = lo.sugar - sugar, lo.spice + spice
-        accepted =
+        accepted =  # the cheapest tests first: nothing here changes anything, so the order can't matter
             min(hi.sugar, hi.spice, lo.sugar, lo.spice) > 0 &&
-            welfare(hi, hi.sugar, hi.spice, cultural) > before_hi &&
-            welfare(lo, lo.sugar, lo.spice, cultural) > before_lo &&
-            mrs(hi, cultural) >= mrs(lo, cultural)  # no crossing over
+            mrs(hi, cultural) >= mrs(lo, cultural) &&  # no crossing over
+            welfare_rises(hi, hi.sugar, hi.spice, old[1], old[2], cultural) &&
+            welfare_rises(lo, lo.sugar, lo.spice, old[3], old[4], cultural)
         if !accepted
             hi.sugar, hi.spice, lo.sugar, lo.spice = old
             return nothing

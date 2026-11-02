@@ -137,3 +137,18 @@ end
     empty!(a.memory)
     @test Sugarscape.remember!(m, a) == expected
 end
+
+@testset "welfare_rises answers as comparing the two welfares does" begin
+    m, a = fast_world(1)
+    rng = Xoshiro(5)
+    for cultural in (false, true), _ in 1:50_000
+        a.tags, a.ntags = rand(rng, UInt64) & 0xff, 8
+        s0, p0 = rand(rng) < 0.02 ? 0.0 : 30 * rand(rng), rand(rng) < 0.02 ? 0.0 : 30 * rand(rng)
+        near = rand(rng) < 0.5  # a trade's small steps, where the two welfares are close
+        s1, p1 = near ? (s0 + 1e-7 * rand(rng), p0 - 1e-7 * rand(rng)) : (s0 + rand(rng), p0 - rand(rng))
+        (s1 > 0 && p1 > 0) || continue
+        Sugarscape.welfare_rises(a, s1, p1, s0, p0, cultural) ==
+        (Sugarscape.welfare(a, s1, p1, cultural) > Sugarscape.welfare(a, s0, p0, cultural)) || @test false
+    end
+    @test true
+end

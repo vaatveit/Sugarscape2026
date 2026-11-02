@@ -27,6 +27,23 @@ function welfare(a::Agent, w1::Real, w2::Real, cultural::Bool=false)
 end
 
 """
+    welfare_rises(a, s1, p1, s0, p0, cultural) -> Bool
+
+`welfare(a, s1, p1, cultural) > welfare(a, s0, p0, cultural)`, with no powers when [`surely_less`](@ref) settles it, as it
+does for most offers. It can only say so of positive holdings before: a holding at or below 0 counts as 0.
+"""
+@inline function welfare_rises(a::Agent, s1::Float64, p1::Float64, s0::Float64, p0::Float64, cultural::Bool)
+    if s0 > 0 && p0 > 0
+        f = preference_fraction(a, cultural)
+        a1, a2 = sugar_burn(a) * f, a.spice_metabolism * (1 - f)
+        mu = a1 + a2
+        c1, c2 = prune_weights(a1 / mu, a2 / mu, s0, p0)
+        surely_less(c1, c2, s1, p1) && return false
+    end
+    return welfare(a, s1, p1, cultural) > welfare(a, s0, p0, cultural)
+end
+
+"""
     mrs(a, cultural=false)
 
 Spice the agent would give for one sugar: (w2 / (m2 (1-f))) / (w1 / (m1 f)) (eq. 3; eq. 5 form). 0.0 or Inf when a
