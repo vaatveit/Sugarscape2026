@@ -25,3 +25,8 @@ end
         x2 in (-2w):(2w)
     )
 end
+
+@testset "travel_periods: within speed needs no division" begin
+    @test all(Sugarscape.travel_periods(d, S) == max(1, ceil(Int, d / S)) for S in 1:7 for d in 0:0.25:30)
+    @test Sugarscape.travel_periods(100.0, 0) == 1
+end

@@ -7,7 +7,7 @@
 How many periods a trip of distance `d` takes at speed `S`: T = max(1, ⌈d / S⌉). Without a speed (`S == 0`) every site
 is reached in one period.
 """
-travel_periods(d::Real, S::Integer) = S == 0 ? 1 : max(1, ceil(Int, d / S))
+@inline travel_periods(d::Real, S::Integer) = S == 0 ? 1 : (d <= S ? 1 : max(1, ceil(Int, d / S)))
 
 """
     trip_cost(c, free, d) -> Float64
