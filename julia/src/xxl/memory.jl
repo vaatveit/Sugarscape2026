@@ -117,33 +117,39 @@ end
 """
     remember!(m, a)
 
-Updates agent `a`'s memory after its move (spec, rule 3). It pools its memory with the sites it looked at this move
-(`m.looked`) and the site it stands on, which count as seen now at their current resources and pollution (the site it
-harvested is as it is after harvest). One entry per site: the newest sighting, and a fresh look wins over a remembered
-entry of the same period. Entries older than `memory_span` periods are dropped first. Then [`rank_pool!`](@ref) keeps
-the `memory` best.
+Updates agent `a`'s memory after its move (spec, rule 3). It ranks, as [`rank_pool!`](@ref) does, the site it stands on
+and the sites it looked at this move (`m.looked`), which count as seen now at their current resources and pollution (the
+site it harvested is as it is after harvest), then the rest of its memory. One entry per site: the newest sighting, and a
+fresh look wins over a remembered entry of the same period. Entries older than `memory_span` periods are dropped first.
+The sites are ranked without being pooled, as most lose at once; `m.pool` holds only the memory's entries.
 """
 function remember!(m::Model, a::Agent)
     ls = m.landscape
     span = m.config.xxl.memory_span
     spice = m.config.spice
-    pool = empty!(m.pool)
-    push!(pool, seen(ls, spice, a.x, a.y, m.t))
-    for (x, y) in m.looked
-        (x, y) == (a.x, a.y) && continue
-        push!(pool, seen(ls, spice, x, y, m.t))
-    end
-    fresh = length(pool)
+    w, h = ls.width, ls.height
+    ax, ay = a.x, a.y
+    looked = m.looked
+    rest = empty!(m.pool)  # first: the ranking empties the memory
     for e in a.memory
         m.t - e.t > span && continue
-        dup = false
-        for i in 1:fresh
-            p = @inbounds pool[i]
-            dup |= (p.x == e.x) & (p.y == e.y)
+        dup = (e.x == ax) & (e.y == ay)
+        for i in eachindex(looked)
+            s = @inbounds looked[i]
+            dup |= (s[1] == e.x) & (s[2] == e.y)
         end
-        dup || push!(pool, e)
+        dup || push!(rest, e)
     end
-    return rank_pool!(m, a)
+    r = Ranking(m, a)
+    c1, c2 = rank_entry!(r, 0.0, seen(ls, spice, ax, ay, m.t), Inf, Inf)
+    for (x, y) in looked
+        ((x == ax) & (y == ay)) && continue
+        c1, c2 = rank_entry!(r, torus_dist(w, h, ax, ay, x, y), seen(ls, spice, x, y, m.t), c1, c2)
+    end
+    for e in rest
+        c1, c2 = rank_entry!(r, torus_dist(w, h, ax, ay, e.x, e.y), e, c1, c2)
+    end
+    return a.memory
 end
 
 # What the agent sees at site (x, y) in period t: its current resources and pollution.

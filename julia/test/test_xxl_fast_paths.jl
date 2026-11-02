@@ -96,3 +96,44 @@ end
     Sugarscape.rank_pool!(m, a)
     @test [e.x for e in a.memory] == [2, 3, 4]
 end
+
+@testset "remember! gives what pooling every entry would" begin
+    # The long way: the fresh sites, then the entries still in date that no fresh site replaces, all through Sugarscape.rank_pool!.
+    function pooled!(m, a)
+        ls, pool = m.landscape, empty!(m.pool)
+        push!(pool, Sugarscape.seen(ls, m.config.spice, a.x, a.y, m.t))
+        for (x, y) in m.looked
+            (x, y) == (a.x, a.y) || push!(pool, Sugarscape.seen(ls, m.config.spice, x, y, m.t))
+        end
+        fresh = length(pool)
+        for e in a.memory
+            m.t - e.t > m.config.xxl.memory_span && continue
+            any(p -> (p.x, p.y) == (e.x, e.y), view(pool, 1:fresh)) || push!(pool, e)
+        end
+        return Sugarscape.rank_pool!(m, a)
+    end
+    for seed in 1:40
+        m, a = fast_world(seed; M=6)
+        rng = Xoshiro(seed)
+        m.t = 60
+        a.sugar, a.spice = 2 + 30 * rand(rng), 2 + 30 * rand(rng)
+        Sugarscape.look!(m, a)
+        for _ in 1:6  # some out of date, some on sites just looked at, and the site it stands on
+            x, y = rand(rng) < 0.4 ? rand(rng, m.looked) : (rand(rng, 0:39), rand(rng, 0:39))
+            push!(a.memory, Remembered(x, y, 6 * rand(rng), 6 * rand(rng), rand(rng), rand(rng, 5:60)))
+        end
+        old = copy(a.memory)
+        pooled!(m, a)
+        expected = copy(a.memory)
+        a.memory = old
+        @test Sugarscape.remember!(m, a) == expected
+    end
+    # Without both commodities in the ranking, the same answer the same way.
+    m, a = fast_world(1; M=4)
+    a.spice_metabolism = 0
+    Sugarscape.look!(m, a)
+    pooled!(m, a)
+    expected = copy(a.memory)
+    empty!(a.memory)
+    @test Sugarscape.remember!(m, a) == expected
+end
