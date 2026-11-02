@@ -45,6 +45,22 @@ using Sugarscape: run_extinction
         @test occursin("disease_count=4 founder_diseases=2 disease_lengths=(9, 10)", report)
     end
 
+    @testset "--report-only with --set, through extinction_main" begin
+        # A real 4-period run of VI-1 (extinction_main always reads the real one) into a folder, and then its report rebuilt:
+        # with the same --set it is 0; with none, or another, the fingerprint differs and it is a usage error.
+        out = mktempdir()
+        base_args = ["--label", "t", "--seeds", "1", "--first-seed", "20", "--periods", "4", "--jobs", "1", "--out", out]
+        set_args(count; lengths="9,10") = ["--set", "disease_count=$count", "--set", "founder_diseases=2",
+                                           "--set", "disease_lengths=$lengths"]
+        quiet(f) = redirect_stdout(() -> redirect_stderr(f, devnull), devnull)
+        run_main(extra) = quiet(() -> Sugarscape.extinction_main([base_args; extra]))
+        @test run_main(set_args(4)) == 0
+        @test run_main([set_args(4); "--report-only"]) == 0                          # the same --set
+        @test run_main(["--report-only"]) == 2                                       # none
+        @test run_main([set_args(5); "--report-only"]) == 2                          # another count
+        @test run_main([set_args(4; lengths="8,10"); "--report-only"]) == 2          # another length
+    end
+
     @testset "a list through a stop and resume" begin
         whole, broken = mktempdir(), mktempdir()
         kw = (label="t", seeds=1, first_seed=20, periods=40, jobs=1, io=devnull, experiment=vi1)

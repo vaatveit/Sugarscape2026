@@ -268,6 +268,22 @@ isdefined(@__MODULE__, :list_folder) || include("disease_list_helpers.jl")
         rows = Sugarscape.screen_arm(win, base)
         @test row(rows, "X10, mean").value == "0.125" && !row(rows, "Trough").pass
         @test occursin("lowest 200", row(rows, "Trough").value)
+        @test row(rows, "X9").value == "1 of 2"  # seed 1 at t = 500; seed 2 has one at t = 499 and 501 but not at 500
+        # X9 is worked out apart from the readings, so the screening row is checked too, on four seeds: three with a disease
+        # at t = 500 only and one at t = 499 and 501 only. That is 3 of 4 at t = 500, and 1 of 4 at 499 or at 501.
+        at_500(t) = t == 500 ? 4.0 : 0.0
+        around(t) = t in (499, 501) ? 3.0 : 0.0
+        x9run = Sugarscape.read_list_run("x9", list_folder(dir, "extinction-x9-s1-4-p600";
+            pops=[vcat(10000.0, fill(6000.0, 600)) for _ in 1:4], sick=fill(0.1, 4),
+            diseases=[at(at_500), at(around), at(at_500), at(at_500)], periods=600))
+        @test row(Sugarscape.screen_arm(x9run, base), "X9").value == "3 of 4"  # t = 500; 499 or 501 would give 1 of 4
+        @test Sugarscape.list_readings(x9run).per_seed.x9 == [1, 0, 1, 1]
+        # the share sick over the whole window (t = 301-500 here), apart from the end share sick of t = 451-500: 0.1 but for 0.9
+        # at t = 450, 0.05 at t = 451 and 0.15 at t = 500; the second seed's is 1.5 times that
+        @test r.per_seed.sick ≈ [0.104, 0.156] && r.sick ≈ 0.13 && r.in_band == 2
+        # a window of the caller's: t = 501-600 is 0.5 at t = 501, 0.9 at 550, 0.05 at 551, 0.15 at 600 and 0.1 otherwise
+        ws = Sugarscape.list_readings(win; lo=501, hi=600)
+        @test ws.per_seed.sick ≈ [0.112, 0.168] && ws.sick ≈ 0.14 && ws.in_band == 2
         # the lowest over the whole run, which no bar reads: 100 and 200 at t = 501
         lowest = Sugarscape.run_lowest(win)
         @test lowest.mean ≈ 150 && lowest.lowest == 100

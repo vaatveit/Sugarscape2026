@@ -2,6 +2,8 @@
 # a test file includes it under an isdefined guard, as it does helpers.jl.
 using Sugarscape
 
+const LIST_CONFIG = "Config(width=50, spice=True, credit=(10, 10.0), disease_list=25, diseases_per_agent=10, " *
+                    "disease_length=(1, 10), immune_length=50, seed=0)"
 const LIST_COLUMNS = "t,population,agents_ever,fraction_sick,diseases_circulating,gini,mean_sugar,trades,mean_price"
 
 # One seed's column: a vector as it is (one value a period, t = 0 to periods), a number held throughout.
@@ -13,18 +15,22 @@ A folder of seeds' CSVs under `dir/name` for the disease list's readings: `pops`
 per seed, a number held throughout or a vector with a value for each period t = 0 to `periods`. They fill the columns
 population, fraction_sick and diseases_circulating. `ever`, `gini`, `sugar`, `trades` and `price` fill the other
 columns, each a number or vector for every seed, or a function of the seed's place (1, 2, ...) giving one. The first
-seed is the one the name gives (`-s80-20-p500`: 80), else 1. The fingerprint has an `xxl` line with `settings` at its end,
-a `Config` line for the book's list, and the periods.
+seed is the one the name gives (`-s80-20-p500`: 80), else 1. The fingerprint is shaped like a real one: an `xxl` line with
+`settings` at its end, the rule line, `steps=500` whatever the periods, a `Config` line (the book's list unless `config`
+gives another), the map lines (`xl_map` and `xxl_map` their checksums), `extra` (a line such as `credit options: credit
+off`), the `code` checksum and the periods.
 """
 function list_folder(dir, name; pops, sick, diseases, settings="", periods=500,
-                     ever=nothing, gini=0.3, sugar=40.0, trades=0.0, price=1.0)
+                     ever=nothing, gini=0.3, sugar=40.0, trades=0.0, price=1.0,
+                     code="code-a", extra="", config=LIST_CONFIG, xl_map="xl-a", xxl_map="xxl-a")
     folder = joinpath(dir, name)
     mkpath(folder)
     xxl_line = "xxl vision_shape=\"disc\" speed=(1, 6) free_step=1.5" * (isempty(settings) ? "" : " " * settings)
     write(joinpath(folder, "fingerprint.txt"),
-          "julia\n$xxl_line\nlook: centred\n" *
-          "Config(width=50, spice=True, credit=(10, 10.0), disease_list=25, diseases_per_agent=10, " *
-          "disease_length=(1, 10), immune_length=50, seed=0)\nperiods=$periods\n")
+          "julia\n$xxl_line\nlook: centred\n({G1}, {M, S, K, T, L10,10, E})\nsteps=500\n$config\n" *
+          "diffusion_passes=100\nlook_stride=10\nxl map sha256=$xl_map\n" *
+          "xxl map sugar-map-xxl.txt sha256=$xxl_map\nxxl map spice-map-xxl.txt sha256=spice-a\n" *
+          (isempty(extra) ? "" : extra * "\n") * "code sha256=$code\nperiods=$periods\n")
     m = match(r"-s(\d+)-", name)
     first_seed = m === nothing ? 1 : parse(Int, m.captures[1])
     each(x, i) = x isa Function ? x(i) : x
@@ -53,10 +59,10 @@ A screening arm's folder of `n` seeds, `band` of them with a share sick of 0.1 (
 `with_disease` with 5 diseases at every period (the rest none); `sick` gives every seed's share sick instead.
 Populations are about 6,000 and spread by `spread` (each seed above or below the 6,000 by that share), and the lowest
 populations are `lows` (a number or one a seed) where given. `lengths`, `count` and `founder` go into the fingerprint's
-`xxl` line.
+`xxl` line. `fingerprint` gives keywords for the fingerprint's other lines (`code`, `extra`, `config`, `xl_map`, `xxl_map`).
 """
 function list_arm_folder(dir, name; n=20, band=n, with_disease=n, spread=0.0, lows=nothing, lengths=nothing, count=nothing,
-                         founder=nothing, sick=nothing, periods=500)
+                         founder=nothing, sick=nothing, periods=500, fingerprint=(;))
     rest = [6000.0 * (1 + (isodd(i) ? spread : -spread)) for i in 1:n]
     low = lows === nothing ? rest : (lows isa Real ? fill(Float64(lows), n) : Float64.(lows))
     settings = join(
@@ -66,7 +72,7 @@ function list_arm_folder(dir, name; n=20, band=n, with_disease=n, spread=0.0, lo
         pops=[list_pop(low[i], rest[i]; periods) for i in 1:n],
         sick=sick === nothing ? [i <= band ? 0.1 : 0.3 for i in 1:n] : sick,
         diseases=[i <= with_disease ? 5.0 : 0.0 for i in 1:n],
-        settings=strip(settings), periods)
+        settings=strip(settings), periods, fingerprint...)
 end
 
 # The baseline: 20 seeds, their lowest populations 3,000, 7,000 and 5,000 for the other 18 (mean 5,000, minimum 3,000).

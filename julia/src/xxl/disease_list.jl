@@ -46,10 +46,11 @@ struct ListSeed
 end
 
 """
-    ListRun(name, count, founder, lengths, planned, periods, seeds)
+    ListRun(name, count, founder, lengths, planned, periods, seeds, folder, fingerprint)
 
 A run folder read for the disease list: the list it ran (`count` diseases, `founder` offered to each founder, lengths
-`lengths`), the seeds the folder was planned to hold, its `periods`, and the whole seeds found.
+`lengths`), the seeds the folder was planned to hold, its `periods`, and the whole seeds found; the `folder`'s base name
+and the text of its `fingerprint.txt`, which says what world the seeds ran in (see [`world_differences`](@ref)).
 """
 struct ListRun
     name::String
@@ -59,6 +60,8 @@ struct ListRun
     planned::Int
     periods::Int
     seeds::Vector{ListSeed}
+    folder::String
+    fingerprint::String
 end
 
 # What a fingerprint says of one setting: its numbers on the `xxl` line if that line names it, else on the `Config` line.
@@ -98,7 +101,8 @@ column the readings need, or a folder without a fingerprint that names the list 
 """
 function read_list_run(name::AbstractString, folder::AbstractString)
     periods = folder_periods(folder)
-    s = list_settings(read(joinpath(folder, "fingerprint.txt"), String))
+    fingerprint = read(joinpath(folder, "fingerprint.txt"), String)
+    s = list_settings(fingerprint)
     files = Tuple{Int,String}[]
     for file in readdir(folder)
         m = match(r"^seed(\d+)\.csv$", file)
@@ -113,9 +117,74 @@ function read_list_run(name::AbstractString, folder::AbstractString)
         pop, ever, sick, circulating, gini, sugar, trades, price = (M[:, j] for j in cols)
         push!(seeds, ListSeed(CompareSeries(k, pop, ever), sick, circulating, gini, sugar, trades, price))
     end
-    m = match(r"-s\d+-(\d+)-p\d+$", basename(rstrip(folder, ['/', '\\'])))
+    folder_name = basename(rstrip(folder, ['/', '\\']))
+    m = match(r"-s\d+-(\d+)-p\d+$", folder_name)
     planned = m === nothing ? length(seeds) : parse(Int, m.captures[1])
-    return ListRun(name, s.count, s.founder, s.lengths, planned, periods, seeds)
+    return ListRun(name, s.count, s.founder, s.lengths, planned, periods, seeds, folder_name, fingerprint)
+end
+
+# A fingerprint's lines as `world_differences` compares them: without the code's checksum, the periods and the three list
+# settings on the `xxl` line, and with the blanks and line endings around each line dropped.
+function world_lines(fingerprint::AbstractString)
+    lines = String[]
+    for line in split(fingerprint, '\n')
+        line = strip(line)
+        (isempty(line) || startswith(line, "code sha256=") || startswith(line, "periods=")) && continue
+        if startswith(line, "xxl ") && !startswith(line, "xxl map ")
+            line = replace(line, r"\s*\bdisease_count=\S+" => "", r"\s*\bfounder_diseases=\S+" => "",
+                           r"\s*\bdisease_lengths=\(\s*\d+,\s*\d+\s*\)" => "")
+        end
+        push!(lines, String(line))
+    end
+    return lines
+end
+
+# What a fingerprint line is of, so that a changed line is told from an added one: an `xxl map` line by its file, any other
+# by its first word (`Config`, `steps`, `credit`, `xl`, ...).
+function world_key(line::AbstractString)
+    startswith(line, "xxl map ") && return String(split(line)[3])
+    return String(match(r"^[^\s(=:]*", line).match)
+end
+
+"""
+    world_differences(run, base) -> Vector{String}
+
+The lines of `run`'s fingerprint that tell its world from `base`'s, in the fingerprint's order. A line only `run` has is
+given as it is, with `(the baseline has …)` after it where `base` has a line of the same kind (the `Config` line, a map
+line) that reads otherwise. A line only `base` has is given as `the baseline has …`. The `code sha256=` line, the
+`periods=` line and the three list settings on the `xxl` line are left out, since the arms differ in those by design;
+anything else is the world, so a credit-off run, another rule set or map, or a changed `Config` line shows. Empty if the
+worlds are the same.
+"""
+function world_differences(run::ListRun, base::ListRun)
+    mine, theirs = world_lines(run.fingerprint), world_lines(base.fingerprint)
+    only_mine, only_theirs = setdiff(mine, theirs), setdiff(theirs, mine)
+    partner = Dict(world_key(l) => l for l in only_theirs)
+    out = String[]
+    for l in only_mine
+        other = get(partner, world_key(l), nothing)
+        push!(out, other === nothing ? l : "$l (the baseline has $other)")
+    end
+    kinds = Set(world_key(l) for l in only_mine)
+    for l in only_theirs
+        world_key(l) in kinds || push!(out, "the baseline has $l")
+    end
+    return out
+end
+
+"""
+The arms whose `code sha256=` lines differ, as `(checksum, names)` groups in the order the arms first show each; empty if
+the arms (the baseline is not among them) all ran the same code.
+"""
+function code_groups(runs::Vector{ListRun})
+    groups = Pair{String,Vector{String}}[]
+    for r in runs
+        m = match(r"^code sha256=(\S*)"m, r.fingerprint)
+        code = m === nothing ? "none" : m.captures[1]
+        i = findfirst(g -> first(g) == code, groups)
+        i === nothing ? push!(groups, code => [r.name]) : push!(last(groups[i]), r.name)
+    end
+    return length(groups) > 1 ? groups : Pair{String,Vector{String}}[]
 end
 
 """
@@ -345,12 +414,15 @@ The figures the study reports for a run, as a `NamedTuple` over its seeds, with 
   `over_end`: the seeds with it inside, under and over `SICK_BAND` (an extinct seed is none of them);
 - `population` over periods `lo` to `hi`, and its `spread` over seeds (see [`population_spread`](@ref));
 - `gini` and `sugar`: the mean over `lo` to `hi`; `trades_per_head`: a seed's trades over its population, each summed over
-  them; `price`: the mean, skipping NaN.
+  them; `price`: the mean, skipping NaN;
+- `sick` and `in_band`: the share sick over periods `lo` to `hi` (the seeds' means, then their mean, skipping an extinct
+  seed's) and the seeds with it inside `SICK_BAND`. Unlike `sick_end` this follows the window the caller gives.
 """
 function list_readings(run::ListRun; lo::Int=SPREAD_WINDOW[1], hi::Int=SPREAD_WINDOW[2])
     ss = run.seeds
     window(v) = @view v[(lo + 1):(hi + 1)]
     sick = [screen_sick(s) for s in ss]
+    sick_window = [window_sick(s, lo, hi) for s in ss]
     per_seed = (;
         trough=Float64[screen_lowest(s) for s in ss],
         trough_t=Float64[screen_lowest_t(s) for s in ss],
@@ -358,6 +430,7 @@ function list_readings(run::ListRun; lo::Int=SPREAD_WINDOW[1], hi::Int=SPREAD_WI
         x9=Float64[s.circulating[X9_T + 1] > 0 for s in ss],
         sick_end=sick,
         in_band_end=Float64[in_band(x) for x in sick],
+        sick=sick_window,
         population=Float64[window_population(s.series, lo, hi) for s in ss],
         gini=Float64[nanmean(window(s.gini)) for s in ss],
         sugar=Float64[nanmean(window(s.sugar)) for s in ss],
@@ -373,6 +446,8 @@ function list_readings(run::ListRun; lo::Int=SPREAD_WINDOW[1], hi::Int=SPREAD_WI
         in_band_end=count(in_band, sick),
         under_end=count(<(SICK_BAND[1]), sick),
         over_end=count(>(SICK_BAND[2]), sick),
+        sick=nanmean(sick_window),
+        in_band=count(in_band, sick_window),
         population=mean_of(per_seed.population),
         spread=population_spread(run; lo, hi),
         gini=nanmean(per_seed.gini),
@@ -502,12 +577,18 @@ end
 
 const READING_COLUMNS = ["Run", "Seeds", "Trough, mean", "Trough, lowest", "Trough at t, mean", "Births to t = 100", "X9",
                          "Population", "Spread", "Gini", "Mean sugar", "Trades per head", "Mean price"]
-const WINDOW_COLUMNS = ["Run", "Population", "Spread", "Gini", "Mean sugar", "Trades per head", "Mean price"]
+const WINDOW_COLUMNS = ["Run", "Population", "Spread", "Gini", "Mean sugar", "Trades per head", "Mean price", "Share sick",
+                        "Seeds in band"]
 
 # The cells of a run's population, spread, Gini, sugar, trades per head and price.
 function window_cells(rd)
     return [whole_cell(rd.population), places(rd.spread, 3), places(rd.gini, 3), places(rd.sugar, 2),
             places(rd.trades_per_head, 3), places(rd.price, 3)]
+end
+
+# The cells of a run's share sick over the window it was read in, and the seeds inside the band.
+function sick_cells(run::ListRun, rd)
+    return [places(rd.sick, SHARE_DIGITS), "$(rd.in_band) of $(length(run.seeds))"]
 end
 
 # The readings table's row for a run: `rd` is its `list_readings`.
@@ -517,7 +598,8 @@ function reading_cells(run::ListRun, rd)
             whole_cell(rd.births_100), "$(round(Int, sum(rd.per_seed.x9))) of $n", window_cells(rd)...]
 end
 
-const RATIO_MEASURES = (("Trough", :trough), ("Births to t = 100", :births_100), ("X9", :x9), ("End share sick", :sick_end),
+const RATIO_MEASURES = (("Trough", :trough), ("Births to t = 100", :births_100), ("X9", :x9),
+                        ("Share sick, $(period_text(SCREEN_SICK...))", :sick_end),
                         ("Population", :population), ("Gini", :gini), ("Mean sugar", :sugar),
                         ("Trades per head", :trades_per_head), ("Mean price", :price))
 const WINDOW_MEASURES = RATIO_MEASURES[5:end]
@@ -534,12 +616,12 @@ function ratio_lines(arms::Vector{ListRun}, reads, base_read, measures)
     return lines
 end
 
-# The readings of the runs `shown` (the baseline first) at t ≤ 500: the main table, the diseases circulating, the end share
-# sick, and the ratios of the arms to the baseline.
+# The readings of the runs `shown` (the baseline first) at t ≤ 500: the main table, the diseases circulating, the share sick
+# over t = 451–500, and the ratios of the arms to the baseline.
 function readings_lines(shown::Vector{ListRun})
     reads = [list_readings(r) for r in shown]
     lines = [
-        "The trough, births and X9 read t ≤ $SCREEN_END, the end share sick $(period_text(SCREEN_SICK...)), the rest " *
+        "The trough and X9 read t ≤ $SCREEN_END, births t ≤ 100, the share sick $(period_text(SCREEN_SICK...)), the rest " *
         "$(period_text(SPREAD_WINDOW...)). The baseline comes first.",
         "",
         row_text(READING_COLUMNS), "|" * "---|"^length(READING_COLUMNS),
@@ -553,7 +635,7 @@ function readings_lines(shown::Vector{ListRun})
         c = circulating_at(r, t)
         push!(lines, row_text([r.name, "t = $t", places(c.mean, 2), places(c.sd, 2), counts_text(c.counts)]))
     end
-    push!(lines, "", "End share sick over $(period_text(SCREEN_SICK...)), the mean of the seeds that have one, and the seeds " *
+    push!(lines, "", "Share sick over $(period_text(SCREEN_SICK...)), the mean of the seeds that have one, and the seeds " *
                      "under, inside and over $(SICK_BAND[1])–$(SICK_BAND[2]). An extinct seed has none.", "",
           row_text(["Run", "Mean", "Under", "Inside", "Over", "No value"]), "|" * "---|"^6)
     for (r, rd) in zip(shown, reads)
@@ -574,7 +656,7 @@ function window_lines(shown::Vector{ListRun}, base::ListRun, w::Tuple{Int,Int})
     members = [r for r in shown if r.periods >= w[2]]
     reads = [list_readings(r; lo=w[1], hi=w[2]) for r in members]
     lines = ["### $(period_text(w...))", "", row_text(WINDOW_COLUMNS), "|" * "---|"^length(WINDOW_COLUMNS),
-             (row_text([r.name, window_cells(rd)...]) for (r, rd) in zip(members, reads))..., ""]
+             (row_text([r.name, window_cells(rd)..., sick_cells(r, rd)...]) for (r, rd) in zip(members, reads))..., ""]
     if first(members) === base
         append!(lines, ratio_lines(members[2:end], reads[2:end], reads[1], WINDOW_MEASURES))
         push!(lines, "")
@@ -584,8 +666,8 @@ function window_lines(shown::Vector{ListRun}, base::ListRun, w::Tuple{Int,Int})
     return lines
 end
 
-# A run past t = 500, to the end: the diseases at its last period, the end share sick, the seeds losing a disease and the
-# lowest population over the whole run. No bar reads any of them.
+# A run past t = 500, to the end: the diseases at its last period, the share sick over its last `LIST_END` periods, the seeds
+# losing a disease and the lowest population over the whole run. No screening bar reads any of them.
 function past_lines(run::ListRun, title::AbstractString)
     n, last = length(run.seeds), run.periods
     lo = last - LIST_END + 1
@@ -598,8 +680,8 @@ function past_lines(run::ListRun, title::AbstractString)
         "### $title",
         "",
         "- Diseases at t = $(thousands(last)): mean $(places(c.mean, 2)), sd $(places(c.sd, 2)), seeds by diseases $(counts_text(c.counts))",
-        "- End share sick over $(period_text(lo, last)): mean $(places(nanmean(sicks), SHARE_DIGITS)), $under under, " *
-        "$inside inside, $over over, of $n seeds",
+        "- Share sick, $(period_text(lo, last)): mean $(places(nanmean(sicks), SHARE_DIGITS)), $under under, " *
+        "$inside inside, $over over, $(n - under - inside - over) no value, of $n seeds",
         "- Inside the band at the end: $inside of $n ($reached)",
         "- Seeds losing a disease after t = $LOSS_FROM: $(seeds_losing(run)) of $n",
         "- Lowest population over t = 1–$(thousands(last)): mean $(places(low.mean, TROUGH_DIGITS)), lowest $(whole_cell(low.lowest))",
@@ -622,16 +704,27 @@ The screening report of the arms `runs` against the baseline `base`, as markdown
 baseline's, the reading table (see [`screen_arm`](@ref)) with the arm it chooses (see [`choose_arm`](@ref)), the readings
 of each run with the baseline's first, and the arms' ratios to the baseline's with intervals that resample each side on its
 own. Where a run goes past t = `SCREEN_END`, a section reads it further: the readings at each of `LIST_WINDOWS` that a run
-reaches, and for each such run its diseases at its last period, its end share sick, the seeds losing a disease, the share
-sick by the number of diseases and its lowest population over the whole run. An arm with seeds unfinished is flagged in bold
-at the top, and cannot pass or be chosen. An arm with no finished seed is flagged and not screened. `ArgumentError` for a
-baseline with no finished seed, or a run that stops short of t = `SCREEN_END`.
+reaches, and for each such run its diseases at its last period, its share sick over its last `LIST_END` periods, the seeds
+losing a disease, the share sick by the number of diseases and its lowest population over the whole run. The Arms table names the folder each run was
+read from. An arm whose fingerprint tells its world from the baseline's (see [`world_differences`](@ref)) is flagged in
+bold at the top, a line for each difference, and so are arms that ran on different code; neither changes a result, since a
+credit-off arm is a reading the reader decides on. An arm with seeds unfinished is flagged in bold at the top, and cannot
+pass or be chosen. An arm with no finished seed is flagged and not screened. `ArgumentError` for a baseline with no
+finished seed, or a run that stops short of t = `SCREEN_END`.
 """
 function disease_list_report(runs::Vector{ListRun}, base::ListRun; label::AbstractString)
     check_list_runs(runs, base)
     arms = [r for r in runs if !isempty(r.seeds)]
     shown = vcat(base, arms)
     lines = ["# Disease list: $label", ""]
+    for r in runs
+        for line in world_differences(r, base)
+            push!(lines, "**$(r.name) isn't the baseline's world: $line**", "")
+        end
+    end
+    groups = code_groups(runs)
+    isempty(groups) || push!(lines, "**The arms ran on different code: " *
+        join(("$(join(names, ", ")) on $(first(code, 8))" for (code, names) in groups), "; ") * ".**", "")
     finished(base) || push!(lines, unfinished_line(base, "the baseline $(base.name)",
         "The trough bars are read from it, so they rest on the seeds finished."), "")
     for r in runs
@@ -641,21 +734,25 @@ function disease_list_report(runs::Vector{ListRun}, base::ListRun; label::Abstra
             "Its readings cover only those finished, and it cannot pass or be chosen."), "")
     end
     push!(lines, "## Arms", "",
-          row_text(["Run", "Diseases", "Founder diseases", "Lengths", "Seeds", "Periods"]), "|" * "---|"^6)
+          row_text(["Run", "Diseases", "Founder diseases", "Lengths", "Seeds", "Periods", "Folder"]), "|" * "---|"^7)
     for r in (base, runs...)
         push!(lines, row_text([r === base ? "$(r.name) (baseline)" : r.name, r.count, r.founder,
-                               "($(r.lengths[1]), $(r.lengths[2]))", "$(length(r.seeds)) of $(r.planned)", r.periods]))
+                               "($(r.lengths[1]), $(r.lengths[2]))", "$(length(r.seeds)) of $(r.planned)", r.periods,
+                               r.folder]))
     end
     push!(lines, "", "## Reading table", "",
           "Each arm against the baseline over t ≤ $SCREEN_END. Near is a failing row missed by one seed or by no more than " *
           "$(round(Int, 100NEAR_BY))% of the bar.", "")
     append!(lines, screen_lines(runs, base))
-    push!(lines, "", "## Choice", "")
+    push!(lines, "", "## Choice", "",
+          "This is the screening table, read at t ≤ $SCREEN_END. It does not decide a confirmation or credit-off reading.", "")
     append!(lines, choice_lines(runs, base))
     push!(lines, "", "## Readings", "")
     append!(lines, readings_lines(shown))
     if any(r -> r.periods > SCREEN_END, arms)
-        push!(lines, "## Past t = $SCREEN_END", "", "Read for the runs that go past it. No bar uses any of it.", "")
+        push!(lines, "## Past t = $SCREEN_END", "",
+              "Read for the runs that go past it. No screening bar uses any of it. \"Inside the band at the end\" is the " *
+              "per-seed X10 reading that confirmation uses, over each run's last $LIST_END periods.", "")
         for w in LIST_WINDOWS
             any(r -> r.periods >= w[2], arms) && append!(lines, window_lines(shown, base, w))
         end
