@@ -18,7 +18,7 @@
 - No edit under `julia/src` once a long run has started: the fingerprint holds the source's hash. Tasks 1–5 finish first.
 - Bars, from the spec: X9 at least 18 of 20; X10 mean 0.01–0.2 over t = 451–500; X10 per seed at least 18 of 20 inside 0.01–0.2 over t = 451–500; trough mean at or above the baseline's and no seed below the baseline's lowest; none extinct.
 - Bootstrap: `BOOT_REPS` resamples from `BOOT_SEED`, each side resampled independently; percentile 95% interval.
-- Long runs: 5 workers, memory watched, resumable by stopping and running the same command. The machine is shared: leave other sessions' jobs alone.
+- Long runs: 5 workers, memory watched, resumable by stopping and running the same command. A scorecard isn't resumable: it writes only when all an experiment's seeds finish, so a stop restarts it, which loses time and not results. The machine is shared: leave other sessions' jobs alone.
 - Commits end with: `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. Commits are on `xxl-disease-list` only. Nothing is merged or pushed. Rerun the Julia suite before any merge.
 - Comments and docstrings match the surrounding style: plain sentences.
 
@@ -534,7 +534,7 @@ Ledger what the table says, without changing a bar:
 | It says | Next |
 |---|---|
 | One or more pass | Ledger the chosen arm. Go to Task 7 |
-| None passes, one is near | Name at most 3 arms around it in the ledger **before running**, labels `list-r-…`, same seeds and terms. Rerun Step 2 for them and Step 3 with all arms. There's no third round |
+| None passes, one is near | Name at most 3 arms around it in the ledger **before running**, labels `list-r-…`, same seeds and terms. Rerun Step 2 for them and Step 3 with all arms and `--label screening-round2`, so the first table survives. There's no third round |
 | None passes after that | Skip Task 7. Go to Task 8 and report what failed |
 
 ---
@@ -550,7 +550,7 @@ julia --project=julia julia/xxl_scorecard.jl $SET --label list-x --seeds 20 --fi
 julia --project=julia julia/xxl_scorecard.jl $SET --label list-x --seeds 20 --first-seed 20 --jobs 5
 ```
 
-Expected: about 40 minutes each; `scorecard-list-x-s0-20.md` and `scorecard-list-x-s20-20.md`. The bar is 13 of 13 on both. Ledger which of X1–X10 and S1–S5 moved against today's scorecards on the same seeds, `scorecard-defaults-x2sight-s0-20.md` and `scorecard-defaults-x2sight-s20-20.md`.
+Expected: about an hour each; `scorecard-list-x-s0-20.md` and `scorecard-list-x-s20-20.md`. The bar is 13 of 13 on both. Ledger which of X1–X10 and S1–S5 moved against today's scorecards on the same seeds, `scorecard-defaults-x2sight-s0-20.md` and `scorecard-defaults-x2sight-s20-20.md`. Those print 13 of 15 with X2 and X8 as FAIL, because they predate those two becoming reported only, so compare check by check and don't read their count against a new 13 of 13.
 
 - [ ] **Step 2: Credit off, a reading and not a bar**
 
@@ -589,7 +589,7 @@ Ledger the result against the spec's table, with no reading changed:
 **Files:**
 - Modify: `docs/xxl.md`
 
-- [ ] **Step 1: Write "## Stage 4: the disease list"**, between "## Stage 3: why credit's mark lasts" and "## Results of the first rules (`XXL_V1`)", in stage 3's style: the short answer; the user's ruling that credit is working as intended; the table of arms; the reading table with what fired; my guess against what happened (the spec's two extra readings too: A passing without B–D, and E passing X10); what this doesn't show, including that all of it is on one map pair; run time; a recommendation that isn't a decision. Anything found after the runs is labelled as found afterwards. Stage 3's line "Whether that's working as intended is still the user's call" gets a pointer to the ruling.
+- [ ] **Step 1: Write "## Stage 4: the disease list"**, between "## Stage 3: why credit's mark lasts" and "## Results of the first rules (`XXL_V1`)", in stage 3's style: the short answer; the user's ruling that credit is working as intended; the table of arms; the reading table with what fired; my guess against what happened (the spec's two extra readings too: A passing without B–D, and E passing X10); what this doesn't show, including that all of it is on one map pair and that a list can draw the same disease twice (per seed about 3.3% for E, 1.1% for A, 0.6% for C, 0.4% for B, 0.2% for D, 0.15% for F, measured by the whole-branch reviewer and to be recomputed), so a seed starting with fewer distinct diseases than listed isn't a die-off; run time; a recommendation that isn't a decision. Anything found after the runs is labelled as found afterwards. Stage 3's line "Whether that's working as intended is still the user's call" gets a pointer to the ruling.
 
 - [ ] **Step 2: A fresh reviewer**
 

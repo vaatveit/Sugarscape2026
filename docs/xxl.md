@@ -61,9 +61,12 @@ the changes stage 1 chose ("Stage 1: the scorecard and survival").
 | `founder_placement` | `"random"` | `"random"` | **`"viable"`** | 9 |
 | `free_step` | 0 | 0 | **1.5** sites | 10 |
 | `founder_ages` | `"book"` | `"book"` | `"book"` | 11 |
+| `disease_count` | none | none | none | 12 |
+| `founder_diseases` | none | none | none | 12 |
+| `disease_lengths` | none | none | none | 12 |
 
-The last four are the stage-1 survival switches. Each was tried at a candidate setting, and the scorecard decided
-which to keep:
+`max_metabolism`, `founder_placement`, `free_step` and `founder_ages` are the stage-1 survival switches. Each was tried
+at a candidate setting, and the scorecard decided which to keep:
 
 | Setting | Candidate | What the candidate does | Chosen by stage 1 |
 |---|---|---|---|
@@ -74,8 +77,9 @@ which to keep:
 | `landscape` | `"generated"` | Makes the generated map the default | Yes |
 
 The xxl version of a regular experiment is its xl version (docs/xl.md) with these set to the default column. For a
-base experiment without seasons the season gradient is set to false, and for one without sex or without finite lives
-`founder_ages` is set to `"book"`, so a fingerprint never names a rule that can't apply.
+base experiment without seasons the season gradient is set to false, for one without sex or without finite lives
+`founder_ages` is set to `"book"`, and for one without disease the three list settings are set to none, so a fingerprint
+never names a rule that can't apply.
 
 **Refused combinations.** A configuration xxl doesn't define is refused, not run under book rules:
 - `vision_shape` other than `"lattice"` or `"disc"`; `landscape` other than `"xl"` or `"generated"`;
@@ -83,6 +87,9 @@ base experiment without seasons the season gradient is set to false, and for one
 - speed that isn't a range lo ≤ hi with lo ≥ 1; travel cost below 0; R below 1; memory below 0; span below 1;
   a free step below 0; a metabolism cap below 1, below the lowest sugar metabolism, or (with spice) below the
   lowest spice metabolism;
+- a disease count below 1; founder diseases below 0 or above the count; a disease length range that isn't lo ≤ hi with
+  lo ≥ 1, or whose hi reaches `immune_length`; any of the three on an experiment without disease, or disagreeing with
+  the configuration;
 - memory without speed; travel cost above 0 without speed; a free step above 0 without speed; word of mouth without
   memory (> 0);
 - the season gradient without seasons, or with `winter_growback = "pulse"`;
@@ -357,6 +364,18 @@ finite lives the transform sets it back to `"book"`. Newcomers and children are 
 **Stage 1:** not chosen. It does the most for VI-1's trough of any change, but the survival checks pass without it,
 and with it the share sick ends above the scorecard's bound (below). It stays available for stage 2.
 
+## Rule 12: the disease list
+
+**Book setting:** `disease_count`, `founder_diseases` and `disease_lengths` are none: the experiment's own list stands
+(VI-1: 25 diseases of lengths 1–10, with 10 offered to each founder).
+
+**xxl:** each one set replaces its configuration field: `disease_count` the diseases on the master list (`disease_list`),
+`founder_diseases` the diseases offered to each founder (`diseases_per_agent`), and `disease_lengths` the lowest and highest
+length, inclusive (`disease_length`). Only the configuration changes. The rules and their draw order don't, and a founder
+is still skipped for a disease it's immune to. For an experiment without disease the transform sets them back to none.
+
+**Stage 4:** being studied. The defaults don't use it.
+
 ## The metrics
 
 Added to xxl runs only, after the 45 columns every Julia result has, so regular and xl CSV layouts are unchanged.
@@ -396,9 +415,10 @@ Where a metric doesn't apply it is `nan`.
   | `XXL-combat/III-9` | III-9 | the first rules, with combat |
 
 - **Fingerprint** (`fingerprint.txt`): the line `julia`; a line `xxl ` followed by the first nine settings as
-  `name=value`, in the table's order, then each of the four stage-1 settings only when it is off its book setting
+  `name=value`, in the table's order, then each later setting only when it is off its book setting
   (so a first-rules fingerprint is as it was before they existed), space separated (strings in double quotes,
-  `speed=nothing` or `speed=(1, 6)`). For the first rules it is
+  `speed=nothing` or `speed=(1, 6)`). The base experiment's `Config` line below keeps its own `disease_list`, as it
+  keeps its own map, so the `xxl` line is what names a list. For the first rules it is
   `xxl vision_shape="disc" speed=(1, 6) travel_cost=0.1 memory=8 memory_span=50 word_of_mouth=true
   interaction_radius=1.5 season_gradient=true landscape="xl"` on one line, and for the defaults
   `xxl vision_shape="disc" speed=(1, 6) travel_cost=0.2 memory=8 memory_span=50 word_of_mouth=true
@@ -412,6 +432,11 @@ Where a metric doesn't apply it is `nan`.
   experiment, the mean and the seed standard deviation at t = 50, 100, 200 and over the last 100 periods, xxl above
   its base's Julia xl run, for population, mean sugar, Gini, trades and price sd (with trade) and every added
   column, with the stepping seconds per period of both.
+- **Trying a setting.** `julia/xxl_scorecard.jl` and `julia/xxl_extinction.jl` both take a repeated `--set field=value`,
+  so a candidate can be scored or tested for extinction without becoming a default. It goes in the fingerprint, so give
+  each candidate its own `--label`. `julia --project=julia julia/xxl_disease_list.jl --base FOLDER --arms NAME=FOLDER,…
+  [--label NAME]` reads finished extinction runs against a baseline and the disease list's reading table (stage 4). It
+  runs nothing, so it can be used while a run is going.
 - **Agreement is statistical.** An xxl run's random stream differs from every other run's, in any language.
 
 ## Stage 1: the scorecard and survival
