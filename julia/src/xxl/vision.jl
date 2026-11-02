@@ -138,8 +138,8 @@ end
 """
     count_in_sight(m, a) -> Int
 
-How many agents [`disc_in_sight`](@ref) would find, on exactly the draws its look makes. `m.looked` is left holding only
-the ring's sites.
+How many agents [`disc_in_sight`](@ref) would find, on exactly the draws its look makes. It may overwrite `m.looked`, with
+only the ring's sites.
 """
 function count_in_sight(m::Model, a::Agent)
     grid = m.grid

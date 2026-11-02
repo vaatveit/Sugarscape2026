@@ -4,11 +4,11 @@ using Sugarscape, Test
 using Random: Xoshiro, shuffle!
 
 # A world of two commodities on a random map, with one agent in the middle of it.
-function fast_world(seed; M=6, S=4, V=8, c=0.1, kw...)
-    cap = rand(Xoshiro(seed), 0:4, 40, 40)
+function fast_world(seed; M=6, S=4, V=8, c=0.1, side=40, kw...)
+    cap = rand(Xoshiro(seed), 0:4, side, side)
     rules = XxlRules(; vision_shape="disc", speed=(S, S), travel_cost=c, memory=M, memory_span=50)
     m = tiny_model(cap; xxl=rules, vision=(V, V), spice=true, kw...)
-    a = put_agent(m, 20, 20; vision=V, sugar=30.0)
+    a = put_agent(m, side ÷ 2, side ÷ 2; vision=V, sugar=30.0)
     a.spice, a.spice_metabolism, a.speed = 25.0, 2, S
     return m, a
 end
@@ -38,9 +38,19 @@ end
         a.sugar, a.spice = 40 * rand(rng), 40 * rand(rng)
         d, sugar, spice = 12 * rand(rng), 5 * rand(rng), 5 * rand(rng)
         sw = Sugarscape.SiteWelfare(m, a)
-        A, B = Sugarscape.net_parts(a, sw, Sugarscape.sugar_burn(a), 0.1, 0.0, d, sugar, spice)
+        m1 = Sugarscape.sugar_burn(a)
+        A, B = Sugarscape.net_parts(a, sw, m1, 0.1, 0.0, d, sugar, spice)
         v = Sugarscape.net_value(a, sw, true, 0.1, 0.0, d, sugar, spice)
-        @test A < 0 ? v == -Inf : v === A^sw.e1 * B^sw.e2
+        # The rule as written out: the arrival's holdings after the trip and the wait.
+        wait = max(1, ceil(Int, d / a.speed)) - 1
+        trip = 0.1 * d
+        if a.sugar - trip - m1 * wait <= 0 || a.spice - 2 * wait <= 0
+            @test (A, B) == (-1.0, -1.0) && v == -Inf
+        else
+            @test A === max(sw.base1 - trip - m1 * wait + sugar, 0.0)
+            @test B === max(sw.base2 - 2 * wait + spice, 0.0)
+            @test v === A^sw.e1 * B^sw.e2
+        end
     end
 end
 
@@ -58,9 +68,18 @@ end
         A^e1 * B^e2 < Ar^e1 * Br^e2 || @test false
     end
     @test said > 10_000
-    # Worth the same is not worth less: a tie goes on to the rule that breaks it.
-    c1, c2 = Sugarscape.prune_weights(0.3, 0.7, 5.0, 9.0)
-    @test !Sugarscape.surely_less(c1, c2, 5.0, 9.0)
+    # Worth the same is not worth less: a tie goes on to the rule that breaks it, and so does anything near one.
+    rng = Xoshiro(4)
+    tie, near, clear = 0, 0, 0
+    for _ in 1:100_000
+        e1 = rand(rng)
+        e2, Ar, Br = 1 - e1, 40 * rand(rng), 40 * rand(rng)
+        c1, c2 = Sugarscape.prune_weights(e1, e2, Ar, Br)
+        tie += Sugarscape.surely_less(c1, c2, Ar, Br)
+        near += Sugarscape.surely_less(c1, c2, Ar * (1 - 1e-12), Br * (1 - 1e-12))
+        clear += Sugarscape.surely_less(c1, c2, Ar * (1 - 1e-6), Br * (1 - 1e-6))
+    end
+    @test (tie, near, clear) == (0, 0, 100_000)
     # A reference worth nothing rules nothing out, whatever the other coefficient says.
     c1, c2 = Sugarscape.prune_weights(0.3, 0.7, 0.0, 9.0)
     @test !Sugarscape.surely_less(c1, c2, 0.0, 1.0) && !Sugarscape.surely_less(c1, c2, 1.0, 1.0)
@@ -141,25 +160,28 @@ end
 @testset "welfare_rises answers as comparing the two welfares does" begin
     m, a = fast_world(1)
     rng = Xoshiro(5)
+    wrong = 0
     for cultural in (false, true), _ in 1:50_000
         a.tags, a.ntags = rand(rng, UInt64) & 0xff, 8
         s0, p0 = rand(rng) < 0.02 ? 0.0 : 30 * rand(rng), rand(rng) < 0.02 ? 0.0 : 30 * rand(rng)
         near = rand(rng) < 0.5  # a trade's small steps, where the two welfares are close
         s1, p1 = near ? (s0 + 1e-7 * rand(rng), p0 - 1e-7 * rand(rng)) : (s0 + rand(rng), p0 - rand(rng))
         (s1 > 0 && p1 > 0) || continue
-        Sugarscape.welfare_rises(a, s1, p1, s0, p0, cultural) ==
-        (Sugarscape.welfare(a, s1, p1, cultural) > Sugarscape.welfare(a, s0, p0, cultural)) || @test false
+        rises = Sugarscape.welfare_rises(a, s1, p1, s0, p0, cultural)
+        wrong += rises != (Sugarscape.welfare(a, s1, p1, cultural) > Sugarscape.welfare(a, s0, p0, cultural))
     end
-    @test true
+    @test wrong == 0
 end
 
 @testset "count_in_sight: the same partners on the same draws as the look" begin
-    for seed in 1:30, (S, V) in ((4, 8), (2, 15), (0, 6), (5, 5))
-        m, a = fast_world(seed; S=max(S, 1), V=V)
+    # From the corner of a small map the look crosses its edges. (A look can't be wider than half the map: `validate`.)
+    for seed in 1:30, (S, V, side) in ((4, 8, 40), (2, 15, 40), (0, 6, 40), (5, 5, 40), (2, 4, 9), (3, 5, 11), (1, 2, 5))
+        m, a = fast_world(seed; S=max(S, 1), V=V, side=side)
         a.speed = S
+        side < 40 && move_agent!(m, a, 0, side - 1)
         rng = Xoshiro(seed)
-        for _ in 1:300
-            x, y = rand(rng, 0:39), rand(rng, 0:39)
+        for _ in 1:(side * side ÷ 5)
+            x, y = rand(rng, 0:(side - 1)), rand(rng, 0:(side - 1))
             m.grid[x + 1, y + 1] === nothing && put_agent(m, x, y)
         end
         before = copy(m.rng)
@@ -217,6 +239,19 @@ end
     @test all(m.debts[id] == filter(l -> l.borrower.id == id, m.loans) for id in keys(m.debts))
     @test Set(keys(m.debts)) == Set(l.borrower.id for l in m.loans)
     @test sum(values(m.lent)) == length(m.loans)
+end
+
+@testset "a move and its ranking stay type-stable and allocate nothing" begin
+    m, a = fast_world(1; M=6)
+    a.sugar, a.spice = 200.0, 200.0
+    Sugarscape.speed_move!(m, a)
+    Sugarscape.remember!(m, a)
+    Sugarscape.count_in_sight(m, a)
+    @test (@inferred Sugarscape.speed_move!(m, a)) === nothing
+    @test (@allocated Sugarscape.remember!(m, a)) == 0
+    @test (@allocated Sugarscape.rank_pool!(m, a)) == 0
+    @test (@allocated Sugarscape.count_in_sight(m, a)) == 0
+    @test (@allocated Sugarscape.speed_move!(m, a)) == 0
 end
 
 @testset "neighbors_of reuses a list" begin
