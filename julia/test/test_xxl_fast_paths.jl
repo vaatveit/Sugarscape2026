@@ -152,3 +152,44 @@ end
     end
     @test true
 end
+
+@testset "count_in_sight: the same partners on the same draws as the look" begin
+    for seed in 1:30, (S, V) in ((4, 8), (2, 15), (0, 6), (5, 5))
+        m, a = fast_world(seed; S=max(S, 1), V=V)
+        a.speed = S
+        rng = Xoshiro(seed)
+        for _ in 1:300
+            x, y = rand(rng, 0:39), rand(rng, 0:39)
+            m.grid[x + 1, y + 1] === nothing && put_agent(m, x, y)
+        end
+        before = copy(m.rng)
+        expected = length(Sugarscape.disc_in_sight(m, a))
+        after = copy(m.rng)
+        m.rng = before
+        @test Sugarscape.count_in_sight(m, a) == expected
+        @test m.rng == after
+    end
+end
+
+@testset "an infertile agent's mate search: the draws and nothing else" begin
+    m, a = fast_world(4; sex=true)
+    a.sex, a.fertility_start, a.fertility_end, a.age = :F, 12, 40, 5  # too young
+    rng = Xoshiro(4)
+    for _ in 1:300
+        x, y = rand(rng, 0:39), rand(rng, 0:39)
+        if m.grid[x + 1, y + 1] === nothing
+            b = put_agent(m, x, y; sugar=1000.0)
+            b.sex, b.fertility_start, b.fertility_end, b.age = :M, 12, 40, 20
+        end
+    end
+    for _ in 1:50
+        before = copy(m.rng)
+        shuffle!(m.rng, Sugarscape.disc_in_sight(m, a))
+        after = copy(m.rng)
+        m.rng = before
+        n = length(m.agents)
+        @test isempty(mate!(m, a))
+        @test m.rng == after && length(m.agents) == n
+        @test isempty(m.sight)  # no one left over for a checkpoint to save
+    end
+end
