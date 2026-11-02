@@ -33,7 +33,15 @@ function set_spice!(ls::Landscape, spice_capacity::AbstractMatrix{<:Integer})
     return ls
 end
 
-wrap(ls::Landscape, x::Int, y::Int) = (mod(x, ls.width), mod(y, ls.height))
+# `mod(x, n)` without the division, for an x within a lap of the map, as nearly every look is.
+@inline function wrap_one(x::Int, n::Int)
+    0 <= x < n && return x
+    -n <= x < 0 && return x + n
+    n <= x < 2n && return x - n
+    return mod(x, n)
+end
+
+wrap(ls::Landscape, x::Int, y::Int) = (wrap_one(x, ls.width), wrap_one(y, ls.height))
 
 """G_alpha (p.23 fn 3): r(t+1) = min(r(t) + alpha, c); alpha = Inf gives G_inf (p.26)."""
 function growback!(ls::Landscape, rate::Float64)
