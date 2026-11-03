@@ -33,7 +33,9 @@ end
 
 What a saved xxl result was produced from: `julia`, an `xxl` line with the rules (those actually applied, so a season
 gradient the base experiment has no seasons for reads `false`), the base experiment's xl fingerprint, then one
-`xxl map <file> sha256=<hex>` line per generated map in use (the spice map only when the config has spice). A change to
+`xxl map <file> sha256=<hex>` line per generated map in use (the spice map only when the config has spice), and, where
+an infertile agent's mate search skips its look (sex, round vision, mate search within vision), a line saying so: the
+skip changed those runs' draws without changing their rules, so results saved before it are stale too. A change to
 the rules, the base experiment or the maps makes saved xxl results stale.
 """
 function xxl_fingerprint(exp::Experiment, rules::XxlRules)
@@ -49,6 +51,8 @@ function xxl_fingerprint(exp::Experiment, rules::XxlRules)
     for name in maps
         text *= "xxl map $name sha256=$(map_sha256(name))\n"
     end
+    cfg.sex && cfg.mate_contact == "vision" && xxl_on(cfg, :disc) &&
+        (text *= "xxl mate search: an infertile agent doesn't look\n")
     return text
 end
 

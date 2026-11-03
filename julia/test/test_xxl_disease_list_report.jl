@@ -157,6 +157,11 @@ isdefined(@__MODULE__, :list_folder) || include("disease_list_helpers.jl")
         @test xxl == ["xxl map sugar-map-xxl.txt sha256=xxl-b (the baseline has xxl map sugar-map-xxl.txt sha256=xxl-a)"]
         both = diffs(world("both"; fp=(extra="credit options: credit off", xl_map="xl-b")))
         @test length(both) == 2
+        # the mate search line is a kind of its own, not paired with the rules line beside it
+        mate = "xxl mate search: an infertile agent doesn't look"
+        @test diffs(world("mate"; fp=(extra=mate,))) == [mate]
+        @test diffs(base, world("mate2"; fp=(extra=mate,))) == ["the baseline has $mate"]
+        @test Sugarscape.world_key(mate) != Sugarscape.world_key("xxl vision_shape=\"disc\" speed=(1, 6)")
         # a baseline that is credit off differs from an arm that isn't
         off = world("off2"; fp=(extra="credit options: credit off",))
         @test diffs(base, off) == ["the baseline has credit options: credit off"]

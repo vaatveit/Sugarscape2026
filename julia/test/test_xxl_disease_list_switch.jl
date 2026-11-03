@@ -9,26 +9,39 @@ using Sugarscape: run_extinction
     vi1 = find_experiment(reg, "VI-1")
     ii4 = find_experiment(reg, "II-4")
     DL_LIST = (; disease_count=4, founder_diseases=2, disease_lengths=(9, 10))
+    # The defaults with the experiment's own list: what XXL_DEFAULTS were before stage 4 adopted list D.
+    OWN_LIST = replace_rules(XXL_DEFAULTS; disease_count=nothing, founder_diseases=nothing, disease_lengths=nothing)
 
     @testset "disease list: book settings change nothing" begin
         @test XXL_BOOK.disease_count === nothing &&
-            XXL_DEFAULTS.founder_diseases === nothing &&
+            XXL_V1.founder_diseases === nothing &&
             XXL_V1.disease_lengths === nothing
-        c = to_xxl(vi1.config, XXL_DEFAULTS)
+        c = to_xxl(vi1.config, OWN_LIST)
         @test (c.disease_list, c.diseases_per_agent, c.disease_length) == (25, 10, (1, 10))
-        @test Sugarscape.rules_line(XXL_DEFAULTS) ==
+        @test Sugarscape.rules_line(OWN_LIST) ==
             "vision_shape=\"disc\" speed=(1, 6) travel_cost=0.2 memory=8 memory_span=50 word_of_mouth=true " *
               "interaction_radius=1.5 season_gradient=true landscape=\"generated\" founder_placement=\"viable\" free_step=1.5"
-        @test !occursin("disease_count", Sugarscape.xxl_fingerprint(vi1, XXL_DEFAULTS))
+        @test !occursin("disease_count", Sugarscape.xxl_fingerprint(vi1, OWN_LIST))
+    end
+
+    @testset "disease list: the defaults are list D" begin
+        c = to_xxl(vi1.config, XXL_DEFAULTS)
+        @test (c.disease_list, c.diseases_per_agent, c.disease_length) == (3, 1, (9, 10))
+        @test endswith(Sugarscape.rules_line(XXL_DEFAULTS), "free_step=1.5 disease_count=3 founder_diseases=1 disease_lengths=(9, 10)")
+        @test occursin("disease_count=3", Sugarscape.xxl_fingerprint(vi1, XXL_DEFAULTS))
+        for id in ("V-1", "V-2", "VAR-inttrade/VI-1")  # the other experiments with disease take it too
+            d = to_xxl(find_experiment(reg, id).config, XXL_DEFAULTS)
+            @test (d.disease_list, d.diseases_per_agent, d.disease_length) == (3, 1, (9, 10))
+        end
     end
 
     @testset "disease list: each setting reaches the config" begin
         c = to_xxl(vi1.config, replace_rules(XXL_DEFAULTS; DL_LIST...))
         @test (c.disease_list, c.diseases_per_agent, c.disease_length) == (4, 2, (9, 10))
         @test c.xxl.disease_count == 4
-        @test to_xxl(vi1.config, replace_rules(XXL_DEFAULTS; founder_diseases=5)).diseases_per_agent == 5
-        @test to_xxl(vi1.config, replace_rules(XXL_DEFAULTS; disease_count=30)).disease_list == 30
-        @test to_xxl(vi1.config, replace_rules(XXL_DEFAULTS; disease_lengths=(12, 12))).disease_length == (12, 12)
+        @test to_xxl(vi1.config, replace_rules(OWN_LIST; founder_diseases=5)).diseases_per_agent == 5
+        @test to_xxl(vi1.config, replace_rules(OWN_LIST; disease_count=30)).disease_list == 30
+        @test to_xxl(vi1.config, replace_rules(OWN_LIST; disease_lengths=(12, 12))).disease_length == (12, 12)
     end
 
     @testset "disease list: the founders it makes" begin
@@ -49,7 +62,7 @@ using Sugarscape: run_extinction
             (; disease_count=4, founder_diseases=5), (; disease_count=4),  # 10 offered of 4
             (; disease_lengths=(0, 10)), (; disease_lengths=(10, 9)), (; disease_lengths=(1, 50)),  # 50 reaches immune_length
         )
-            @test_throws ArgumentError to_xxl(vi1.config, replace_rules(XXL_DEFAULTS; bad...))
+            @test_throws ArgumentError to_xxl(vi1.config, replace_rules(OWN_LIST; bad...))
         end
     end
 
@@ -72,7 +85,7 @@ using Sugarscape: run_extinction
     @testset "disease list: the fingerprint names a setting when it's on" begin
         @test endswith(Sugarscape.rules_line(replace_rules(XXL_DEFAULTS; DL_LIST...)),
                        "free_step=1.5 disease_count=4 founder_diseases=2 disease_lengths=(9, 10)")
-        @test endswith(Sugarscape.rules_line(replace_rules(XXL_DEFAULTS; founder_diseases=2)), "free_step=1.5 founder_diseases=2")
+        @test endswith(Sugarscape.rules_line(replace_rules(OWN_LIST; founder_diseases=2)), "free_step=1.5 founder_diseases=2")
         @test replace_rules(XXL_DEFAULTS; DL_LIST...) != XXL_DEFAULTS
         @test hash(replace_rules(XXL_DEFAULTS; DL_LIST...)) != hash(XXL_DEFAULTS)
     end
@@ -80,8 +93,8 @@ using Sugarscape: run_extinction
     @testset "disease list: naming the book's list gives the same bytes" begin
         a, b = mktempdir(), mktempdir()
         kw = (label="t", seeds=1, first_seed=20, periods=12, jobs=1, io=devnull, experiment=vi1)
-        run_extinction(XXL_DEFAULTS; kw..., out=a)
-        run_extinction(replace_rules(XXL_DEFAULTS; disease_count=25, founder_diseases=10, disease_lengths=(1, 10)); kw..., out=b)
+        run_extinction(OWN_LIST; kw..., out=a)
+        run_extinction(replace_rules(OWN_LIST; disease_count=25, founder_diseases=10, disease_lengths=(1, 10)); kw..., out=b)
         name = Sugarscape.extinction_name("t", 20, 1, 12)
         @test read(joinpath(a, name, "seed20.csv")) == read(joinpath(b, name, "seed20.csv"))
     end

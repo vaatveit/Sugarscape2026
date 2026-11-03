@@ -30,6 +30,8 @@ function same_run_cases(reg)
         ("combat", replace_config(to_xxl(iii9, XXL_DEFAULTS); seed=defaults.seed + 42)),
         ("book-vi1", replace_config(vi1; seed=vi1.seed + 43)),
         ("book-iii9", replace_config(iii9; seed=iii9.seed + 44)),
+        ("own-list", replace_config(to_xxl(vi1, rules(; disease_count=nothing, founder_diseases=nothing, disease_lengths=nothing));
+                                    seed=defaults.seed + 45)),
     ]
 end
 

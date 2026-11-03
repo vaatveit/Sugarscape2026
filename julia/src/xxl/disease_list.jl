@@ -139,10 +139,11 @@ function world_lines(fingerprint::AbstractString)
     return lines
 end
 
-# What a fingerprint line is of, so that a changed line is told from an added one: an `xxl map` line by its file, any other
-# by its first word (`Config`, `steps`, `credit`, `xl`, ...).
+# What a fingerprint line is of, so that a changed line is told from an added one: an `xxl map` line by its file, the `xxl
+# mate search` line as its own kind, any other by its first word (`Config`, `steps`, `credit`, `xl`, ...).
 function world_key(line::AbstractString)
     startswith(line, "xxl map ") && return String(split(line)[3])
+    startswith(line, "xxl mate search") && return "xxl mate search"
     return String(match(r"^[^\s(=:]*", line).match)
 end
 

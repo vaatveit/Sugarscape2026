@@ -44,7 +44,9 @@ every switch at its book setting, an xxl run is its Julia xl run, draw for draw.
 An xxl run is an xl configuration plus these settings. The book column turns each rule off. The first-rules column
 is `XXL_V1`, the rules of the first design, which the `XXL-…` experiments and the results of "Results of the first
 rules" use. The default column is `XXL_DEFAULTS`, what `--xxl` and the scorecard start from: the first rules with
-the changes stage 1 chose ("Stage 1: the scorecard and survival").
+the changes stage 1 chose ("Stage 1: the scorecard and survival") and the disease list stage 4 chose ("Stage 4: the
+disease list"). Stages 1–4 were run before list D became the default, so where they say `XXL_DEFAULTS` they mean these
+settings with the experiment's own disease list.
 
 | Setting | Book setting | First rules (`XXL_V1`) | Default | Rule |
 |---|---|---|---|---|
@@ -61,9 +63,9 @@ the changes stage 1 chose ("Stage 1: the scorecard and survival").
 | `founder_placement` | `"random"` | `"random"` | **`"viable"`** | 9 |
 | `free_step` | 0 | 0 | **1.5** sites | 10 |
 | `founder_ages` | `"book"` | `"book"` | `"book"` | 11 |
-| `disease_count` | none | none | none | 12 |
-| `founder_diseases` | none | none | none | 12 |
-| `disease_lengths` | none | none | none | 12 |
+| `disease_count` | none | none | **3** | 12 |
+| `founder_diseases` | none | none | **1** | 12 |
+| `disease_lengths` | none | none | **(9, 10)** | 12 |
 
 `max_metabolism`, `founder_placement`, `free_step` and `founder_ages` are the stage-1 survival switches. Each was tried
 at a candidate setting, and the scorecard decided which to keep:
@@ -376,7 +378,8 @@ length, inclusive (`disease_length`). Only the configuration changes. The rules 
 is still skipped for a disease it's immune to. For an experiment without disease the transform sets them back to none.
 
 **Stage 4:** studied in "Stage 4: the disease list" below, which recommends 3 diseases of length 9–10 with 1 offered to each
-founder. The defaults don't use it unless the user adopts it.
+founder. The user adopted it, so the defaults use that list. Under `--xxl` it reaches every experiment with disease: VI-1,
+which stage 4 measured, and V-1, V-2 and `VAR-inttrade/VI-1`, which it didn't.
 
 ## The metrics
 
@@ -1358,6 +1361,7 @@ top. Seeds in a group aren't assigned at random, and several groups are tiny, so
 The user read stage 3 and ruled that **credit is working as intended**, so credit stays on throughout this stage. They chose to design the disease list,
 recommendation 2 above. This step adds Rule 12, a switch for the list, and measures six candidate lists against a reading table set before the runs.
 The design is `docs/superpowers/specs/2026-11-01-xxl-disease-list-design.md`. Nothing here changes `XXL_DEFAULTS`: whether to adopt a list is the user's decision.
+(The user adopted list D afterwards: see "Adopting list D" at the end of this section.)
 
 **The short answer.**
 - **A short list of long diseases does what the idea said.** List D, 3 diseases of length 9–10 with 1 offered to each founder, passed every bar set before the runs, in screening
@@ -1489,11 +1493,30 @@ scorecards, plus 13 min lost to the memory stop, 40 min for credit off, and 13 h
    wasn't confirmed.
 3. **Then judge trade.** With disease settled, trade per head is about 1.15 instead of 1.56, and that's now the reading to judge.
 
+**Adopting list D.** The user adopted recommendation 1: `XXL_DEFAULTS` now has `disease_count = 3`, `founder_diseases = 1` and
+`disease_lengths = (9, 10)`. The same change brought in a speedup that alters the random draws: under round vision, an infertile
+agent's mate search no longer looks or draws, since nothing could come of it ("Mate search within vision"). The rules don't change,
+but every xxl run with sex, round vision and mate search within vision now draws differently, the first rules' runs included. The
+xxl fingerprint says so with a line of its own. A folder saved before the change is refused by the extinction test and the loan
+trace, and read as stale by `xxl_report`; a plain `--xxl` or scorecard run doesn't check an old folder's fingerprint, so give those a
+new `--out`. Book and xl runs are unchanged.
+
+What this means for the record:
+- The findings above stand: they compare lists under the rules, and the skip changes no rule. But no run of today's code
+  reproduces the confirmation runs, which were made before the skip.
+- Every saved result under the old defaults is stale: the extinction, scorecard and loan runs of stages 1–4.
+- The extinction-risk test ("Stage 2: the chance of extinction") is to be rerun whenever the defaults change. The list D confirmation run is that test for
+  list D, but on the draws before the skip, so a reference rerun under today's code is the record to keep. The old defaults'
+  folders (`extinction-defaults-s20-60-p2000`, `loans-defaults-s20-10-p2000`) hold the default label, so a rerun needs a new
+  `--label` or those folders moved.
+- V-1, V-2 and `VAR-inttrade/VI-1` take the list too under `--xxl`, and nothing here measured them.
+
 ## Results of the first rules (`XXL_V1`)
 
 This section is the record of the first rules, `XXL_V1`, as the 16 `XXL-…` experiments still run them. Where it says
 "the defaults" or "the xxl defaults", it means those rules (the first-rules column of "The settings"), not today's
-defaults.
+defaults. The results were made before an infertile agent's mate search stopped looking ("Adopting list D", above), so
+today's code doesn't reproduce their seeds where an experiment has sex. The rules are the same.
 
 First runs of the 16 `XXL-…` experiments (2026-10-28), 5 seeds each, against fresh Julia xl runs of the five base
 experiments (10 seeds for II-4, IV-A3 and III-9; 5 for II-7 and VI-1; all fingerprints current). These are findings,

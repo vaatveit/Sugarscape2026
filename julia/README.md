@@ -85,7 +85,7 @@ t = 50, 100, 200 and over the last 100 periods, xxl beside xl, with the stepping
 
 `--xxl` runs the defaults, which stage 1 of the revised design chose with the scorecard: the first rules (`XXL_V1`,
 which the `XXL-…` experiments keep) with the generated map, viable founder placement, a free step of 1.5 and a
-travel cost of 0.2. The scorecard scores one rule set on II-4, IV-A3 and VI-1 over 20 seeds, against their xl runs,
+travel cost of 0.2, plus stage 4's disease list (3 diseases of length 9–10, 1 offered to each founder). The scorecard scores one rule set on II-4, IV-A3 and VI-1 over 20 seeds, against their xl runs,
 with 15 pass/fail checks of survival, sex, culture, trade, credit and disease:
 
 ```bat

@@ -15,7 +15,8 @@ using Sugarscape: run_extinction
         a = Sugarscape.extinction_args(args)
         @test a.rules == list
         @test a.label == "defaults+disease_count=4+founder_diseases=2+disease_lengths=9,10"
-        @test Sugarscape.extinction_args(["--set", "disease_count=nothing"]).rules == XXL_DEFAULTS
+        @test Sugarscape.extinction_args(["--set", "disease_count=nothing"]).rules == replace_rules(XXL_DEFAULTS; disease_count=nothing)
+        @test Sugarscape.extinction_args(["--set", "disease_count=3"]).rules == XXL_DEFAULTS
         @test Sugarscape.extinction_args(String[]).label == "defaults"
         @test Sugarscape.extinction_args(["--rules", "v1", "--set", "free_step=1.5", "--label", "x"]).label == "x"
     end
@@ -23,7 +24,7 @@ using Sugarscape: run_extinction
     @testset "refusals are usage errors" begin
         usage(f, args) = redirect_stderr(() -> f(args), devnull)
         for args in (["--set"], ["--set", "nofield=1"], ["--set", "disease_count"], ["--set", "disease_count=x"],
-                     ["--set", "disease_lengths=9"], ["--set", "disease_count=4"], ["--set", "disease_count=0"])
+                     ["--set", "disease_lengths=9"], ["--set", "founder_diseases=4"], ["--set", "disease_count=0"])  # 4 offered of 3
             @test usage(Sugarscape.extinction_main, [args; "--out"; mktempdir()]) == 2
             @test usage(Sugarscape.scorecard_main, [args; "--out"; mktempdir()]) == 2
         end
