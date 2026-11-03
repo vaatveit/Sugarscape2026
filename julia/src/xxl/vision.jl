@@ -138,33 +138,19 @@ end
 """
     count_in_sight(m, a) -> Int
 
-How many agents [`disc_in_sight`](@ref) would find, on exactly the draws its look makes. It reads the bit map of who is
-where ([`occupancy`](@ref)), not the grid, but for the agent itself. It may overwrite `m.looked`, with only the ring's
-sites.
+How many agents [`disc_in_sight`](@ref) would find, on exactly the draws its look makes. It may overwrite `m.looked`, with
+only the ring's sites.
 """
 function count_in_sight(m::Model, a::Agent)
     grid = m.grid
-    w, h = size(grid)
     n = a.speed > 0 ? Float64(a.speed) : 1.0
     v = Float64(a.vision)
     ax, ay = a.x, a.y
-    R = floor(Int, n)
     found = 0
-    if 2R + 1 <= min(w, h)
-        # The near disc a row at a time: each a run of one map row, and no map row twice. The look leaves out the
-        # centre, which is in the middle row.
-        r2 = n * n
-        for dy in (-R):R
-            k = disc_half_width(r2, dy)
-            found += occupied_in_run(m, wrap_one(ay + dy, h), ax - k, ax + k)
-        end
-        found -= is_occupied(m, ax, ay)
-    else  # a disc that wraps onto itself (validate allows none): a site at a time, as the look goes
-        for (dx, dy) in near_offsets(m, n)
-            x, y = wrap(m, ax + dx, ay + dy)
-            other = @inbounds grid[x + 1, y + 1]
-            (other === nothing || other === a) || (found += 1)
-        end
+    for (dx, dy) in near_offsets(m, n)
+        x, y = wrap(m, ax + dx, ay + dy)
+        other = @inbounds grid[x + 1, y + 1]
+        (other === nothing || other === a) || (found += 1)
     end
     v > n || return found
     ring = empty!(m.looked)
@@ -180,8 +166,8 @@ function count_in_sight(m::Model, a::Agent)
         end
         fresh || continue
         push!(ring, site)
-        # Anyone there but the agent itself, which could only be on its own site.
-        is_occupied(m, site...) && (site != (ax, ay) || @inbounds(grid[ax + 1, ay + 1]) !== a) && (found += 1)
+        other = @inbounds grid[site[1] + 1, site[2] + 1]
+        (other === nothing || other === a) || (found += 1)
     end
     return found
 end

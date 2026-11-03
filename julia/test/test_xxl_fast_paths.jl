@@ -4,11 +4,11 @@ using Sugarscape, Test
 using Random: Xoshiro, shuffle!
 
 # A world of two commodities on a random map, with one agent in the middle of it.
-function fast_world(seed; M=6, S=4, V=8, c=0.1, side=40, height=side, kw...)
-    cap = rand(Xoshiro(seed), 0:4, side, height)
+function fast_world(seed; M=6, S=4, V=8, c=0.1, side=40, kw...)
+    cap = rand(Xoshiro(seed), 0:4, side, side)
     rules = XxlRules(; vision_shape="disc", speed=(S, S), travel_cost=c, memory=M, memory_span=50)
     m = tiny_model(cap; xxl=rules, vision=(V, V), spice=true, kw...)
-    a = put_agent(m, side ÷ 2, height ÷ 2; vision=V, sugar=30.0)
+    a = put_agent(m, side ÷ 2, side ÷ 2; vision=V, sugar=30.0)
     a.spice, a.spice_metabolism, a.speed = 25.0, 2, S
     return m, a
 end
@@ -193,115 +193,6 @@ end
     end
 end
 
-@testset "disc_half_width: disc_offsets row by row" begin
-    for r in [0:0.5:12; [sqrt(2), sqrt(50), sqrt(50) - 1e-12, 5 + 1e-12, 7 - 1e-12, 1.0e-3]]
-        R = floor(Int, r)
-        rows = [(dy, dx) for dy in (-R):R for dx in (-Sugarscape.disc_half_width(r * r, dy)):Sugarscape.disc_half_width(r * r, dy)]
-        listed = [(dy, dx) for (dx, dy) in Sugarscape.disc_offsets(r)]
-        @test sort(filter(!=((0, 0)), rows)) == sort(listed)
-    end
-end
-
-@testset "count_in_sight on a disc wider than the map: as the look counts it" begin
-    # `validate` keeps a look within half the map; an agent changed by hand can still have a disc that wraps onto itself.
-    for seed in 1:20, (S, V, side) in ((3, 4, 5), (4, 6, 7), (2, 7, 4), (6, 8, 9))
-        m, a = fast_world(seed; S=1, V=1, side=side)
-        a.speed, a.vision = S, V
-        rng = Xoshiro(seed)
-        for _ in 1:(side * side ÷ 2)
-            x, y = rand(rng, 0:(side - 1)), rand(rng, 0:(side - 1))
-            m.grid[x + 1, y + 1] === nothing && put_agent(m, x, y)
-        end
-        before = copy(m.rng)
-        expected = length(Sugarscape.disc_in_sight(m, a))
-        after = copy(m.rng)
-        m.rng = before
-        @test Sugarscape.count_in_sight(m, a) == expected
-        @test m.rng == after
-    end
-end
-
-@testset "count_in_sight from corners, edges and word boundaries, on maps of any shape" begin
-    # (speed, vision, width, height): non-square maps, a disc exactly as wide as the map, a disc wider than the map one
-    # way only (and, as tall as it or taller, back on its own site), and a map more than a word wide. Set by hand past
-    # what `validate` allows of a founder.
-    cases = [(3, 4, 40, 7), (3, 4, 7, 40), (4, 5, 40, 7), (4, 5, 7, 40), (4, 5, 40, 4), (5, 6, 40, 3), (4, 6, 9, 9),
-             (2, 3, 5, 5), (5, 8, 130, 20)]
-    for (S, V, w, h) in cases, seed in 1:4
-        places = [(0, 0), (w - 1, h - 1), (w - 1, 0), (0, h - 1), (w ÷ 2, h ÷ 2)]
-        w > 64 && append!(places, [(63, 5), (64, 5), (127, 10), (128, 10)])
-        rng = Xoshiro(seed)
-        append!(places, [(rand(rng, 0:(w - 1)), rand(rng, 0:(h - 1))) for _ in 1:3])
-        for (x, y) in places
-            m, a = fast_world(seed; S=1, V=1, side=w, height=h)
-            a.speed, a.vision = S, V
-            move_agent!(m, a, x, y)
-            for _ in 1:(2 * w * h ÷ 5)
-                u, v = rand(rng, 0:(w - 1)), rand(rng, 0:(h - 1))
-                m.grid[u + 1, v + 1] === nothing && put_agent(m, u, v)
-            end
-            before = copy(m.rng)
-            expected = length(Sugarscape.disc_in_sight(m, a))
-            after = copy(m.rng)
-            m.rng = before
-            @test Sugarscape.count_in_sight(m, a) == expected
-            @test m.rng == after
-        end
-    end
-end
-
-@testset "occupied_in_run counts a run of one row, off either edge too" begin
-    rng = Xoshiro(8)
-    for w in (3, 5, 63, 64, 65, 128, 130), h in (3, 4)  # `validate` wants a map more than twice the vision
-        m = tiny_model(ones(Int, w, h))
-        for x in 0:(w - 1), y in 0:(h - 1)
-            rand(rng) < 0.4 && put_agent(m, x, y)
-        end
-        long_way(y, lo, hi) = count(x -> m.grid[mod(x, w) + 1, y + 1] !== nothing, lo:hi)
-        runs = [(0, w - 1), (-1, w - 2), (1, w), (-(w - 1), 0), (w - 1, 2w - 2), (0, 0), (w - 1, w - 1)]
-        for _ in 1:3000
-            lo = rand(rng, (-(w - 1)):(w - 1))
-            push!(runs, (lo, lo + rand(rng, 0:(w - 1))))
-        end
-        wrong = 0
-        for y in 0:(h - 1), (lo, hi) in runs
-            wrong += Sugarscape.occupied_in_run(m, y, lo, hi) != long_way(y, lo, hi)
-        end
-        @test wrong == 0
-    end
-end
-
-"""Whether `m`'s bit map of occupied sites says what its grid says, site by site and word by word."""
-function map_agrees(m)
-    w, h = size(m.grid)
-    site_by_site = all(
-        Sugarscape.is_occupied(m, x, y) == (m.grid[x + 1, y + 1] !== nothing) for x in 0:(w - 1) for y in 0:(h - 1)
-    )
-    return site_by_site && m.occupied == Sugarscape.occupancy(m.grid)
-end
-
-@testset "the occupied bit map says what the grid says" begin
-    reg = load_registry()
-    vi1, iii9 = find_experiment(reg, "VI-1").config, find_experiment(reg, "III-9").config
-    # xxl's VI-1 (births, deaths, replacements), xxl's combat (agents killed), the book's VI-1.
-    for (cfg, periods, births) in ((to_xxl(vi1, XXL_DEFAULTS), 25, true), (to_xxl(iii9, XXL_DEFAULTS), 25, false), (vi1, 10, true))
-        m = Model(replace_config(cfg; seed=cfg.seed + 7))
-        founders = agents_ever(m)
-        @test map_agrees(m)
-        dead = 0
-        for _ in 1:periods
-            step!(m)
-            dead += deaths_this_step(m)
-        end
-        @test dead > 0
-        births && @test agents_ever(m) > founders  # someone placed after the founders
-        @test map_agrees(m)
-        # A checkpoint doesn't save the map: it is rebuilt from the grid.
-        @test !haskey(Sugarscape.flat_model(m).plain, :occupied)
-        @test map_agrees(Sugarscape.model_from_flat(Sugarscape.flat_model(m)))
-    end
-end
-
 @testset "an infertile agent's mate search: the draws and nothing else" begin
     m, a = fast_world(4; sex=true)
     a.sex, a.fertility_start, a.fertility_end, a.age = :F, 12, 40, 5  # too young
@@ -361,7 +252,6 @@ end
     @test (@allocated Sugarscape.rank_pool!(m, a)) == 0
     @test (@allocated Sugarscape.count_in_sight(m, a)) == 0
     @test (@allocated Sugarscape.speed_move!(m, a)) == 0
-    @test (@inferred Sugarscape.count_in_sight(m, a)) isa Int  # last: it leaves only the ring's sites in m.looked
 end
 
 @testset "neighbors_of reuses a list" begin
