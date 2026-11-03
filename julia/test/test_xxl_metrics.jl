@@ -1,6 +1,6 @@
 # xxl: the nine added metrics (spec, "Metrics"): movement, clustering, regional prices, memory and the winter weight.
 isdefined(@__MODULE__, :tiny_model) || include("helpers.jl")
-using Sugarscape, Test
+using Sugarscape, Test, Random
 
 col(m, name) = collect_metrics(m)[findfirst(==(name), metric_columns(m.config))]
 
@@ -104,6 +104,29 @@ end
             put_agent(m, x, y)
         end
         @test col(m, "clustering_1") ≈ 1.0 rtol = 1e-9
+    end
+
+    @testset "clustering counts the agents at each shell offset of every agent, exactly" begin
+        rng = Xoshiro(7)
+        # widths below, at and past a 64-site word, and worlds small enough that the shells wrap
+        for (w, h, k) in ((200, 50, 900), (64, 64, 1200), (128, 110, 3000), (130, 67, 2000), (65, 9, 200), (9, 7, 30),
+                          (500, 500, 6000))
+            m = tiny_model(ones(Int, w, h); xxl=XXL_BOOK)
+            for _ in 1:k
+                x, y = rand(rng, 0:(w - 1)), rand(rng, 0:(h - 1))
+                m.grid[x + 1, y + 1] === nothing && put_agent(m, x, y)
+            end
+            n = length(m.agents)
+            shares = Sugarscape.shell_shares!(m)
+            got = Sugarscape.clustering!(Float64[], m)
+            for (i, r) in enumerate(Sugarscape.CLUSTER_RADII)
+                observed = 0
+                for a in m.agents, (dx, dy) in Sugarscape.shell_offsets(m, r)
+                    observed += m.grid[mod(a.x + dx, w) + 1, mod(a.y + dy, h) + 1] !== nothing
+                end
+                @test isequal(got[i], observed / (n * (n - 1) * shares[i]))
+            end
+        end
     end
 
     @testset "regions" begin
