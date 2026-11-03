@@ -374,7 +374,8 @@ and with it the share sick ends above the scorecard's bound (below). It stays av
 length, inclusive (`disease_length`). Only the configuration changes. The rules and their draw order don't, and a founder
 is still skipped for a disease it's immune to. For an experiment without disease the transform sets them back to none.
 
-**Stage 4:** being studied. The defaults don't use it.
+**Stage 4:** studied in "Stage 4: the disease list" below, which recommends 3 diseases of length 9–10 with 1 offered to each
+founder. The defaults don't use it unless the user adopts it.
 
 ## The metrics
 
@@ -1343,12 +1344,149 @@ top. Seeds in a group aren't assigned at random, and several groups are tiny, so
 1. **Keep credit, and describe it as more than a head start.** In the world actually run it leaves about the same people, with 8.5–11% less total sugar, more inequality and
    more sickness. At equal disease or none it adds about 9–12% to population. This changes the question I left with the user: helping through the worst period isn't
    all it does, and not all of what else it does is welcome. Whether that's working as intended is still the user's call. I'd still say yes.
+   (The user has since ruled that it is: see stage 4.)
 2. **Make stage 4's first question the disease list.** The count of diseases moves population a long way, and trade and price more than anything else here, and it's set by
    a crossing on few carriers. What lasts is almost entirely lengths 9 and 10, about 5.2 per seed. X9 reads 0.95 with credit and 0.80 without, so its pass depends on that
    crossing. A spec could test lists with more long diseases. That's a rule change, so it's for the user to decide.
 3. **Judge trade after disease, not before.** Changing disease will move every trade reading, so a trade check set now would be largely measuring disease.
 4. **Don't run more of this first.** The unknowns left (what makes diseases last with credit, why disease drives trade, and what the seeds share) matter mostly if stage 4 keeps this
    disease list. A test of hosts would be replicate runs of a seed with hosts added by hand at about t = 60–80, and that's worth doing only if the crossing stays.
+
+## Stage 4: the disease list
+
+The user read stage 3 and ruled that **credit is working as intended**, so credit stays on throughout this stage. They chose to design the disease list,
+recommendation 2 above. This step adds Rule 12, a switch for the list, and measures six candidate lists against a reading table set before the runs.
+The design is `docs/superpowers/specs/2026-11-01-xxl-disease-list-design.md`. Nothing here changes `XXL_DEFAULTS`: whether to adopt a list is the user's decision.
+
+**The short answer.**
+- **A short list of long diseases does what the idea said.** List D, 3 diseases of length 9–10 with 1 offered to each founder, passed every bar set before the runs, in screening
+  and in confirmation: none of 60 seeds extinct to t = 2,000, 13 of 13 on both scorecards, and 58 of 60 seeds inside X10's band at the end, against 47 of 60 today.
+- **The trough rises by about half.** Mean 8,533 against 5,787, [1.41, 1.55] as a ratio, and the lowest seed is 7,427 against 3,441. Births to t = 100 rise a little more, 1.56 times.
+- **The lottery in the count is mostly gone, and in population about half of it.** Diseases at t = 2,000 are 3 in 49 of 60 seeds and 2 in 9, against anything from 0 to 6 today.
+  The spread of population over seeds falls from 0.110 to 0.064 at t = 301–500 and from 0.13 to 0.054 at t = 1,501–2,000. With no disease at all it's 0.018 at t = 301–500
+  (stage 3's runs, seeds 20–39), so some of what's left is still disease.
+- **On average, disease no longer depends on credit.** On seeds 20–39 credit off keeps 2.6 diseases at t = 500 against 2.75 with it, and X9 reads 19 of 20 both ways. Today the
+  same seeds read 1.95 against 3.1, and 16 against 19. Seed by seed it's chance: seed 32 loses all disease with credit and keeps 1 without, and seed 27 loses it without
+  and keeps 3 with. Without credit the band is weaker, 16 of 20, which would fail screening's bar. Credit still lifts the trough, 8,483 against 7,755.
+- **What it costs.** One seed in 60 still loses all its disease, by t = 77. That's no worse than today: X9 reads 59 of 60 against today's 57, and today's scorecards read 0.95
+  on both seed sets too. Trade falls by about a quarter by t = 1,501–2,000, as stage 3 predicted, since disease drives trade. Trade isn't judged here.
+
+**The arms.** VI-1 under `XXL_DEFAULTS` plus the list, credit on, seeds 80–99, 500 periods. Today's list is the baseline, over its existing seeds 20–79.
+
+| Arm | Diseases | Offered to each founder | Lengths | Why |
+|---|---|---|---|---|
+| Today | 25 | 10 | 1–10 | Baseline |
+| A | 6 | 2 | 9–10 | Today's long diseases, without the rest |
+| B | 4 | 2 | 9–10 | My guess |
+| C | 4 | 2 | 10 | Same, at better odds |
+| D | 3 | 1 | 9–10 | The lightest load |
+| E | 10 | 4 | 9–10 | Today's load, all long: the ceiling check |
+| F | 4 | 2 | 12 | Beyond the book's lengths |
+
+**The reading table, set before the runs.** An arm passed screening if X9 held in at least 18 of 20 seeds, the mean share sick over t = 451–500 was inside 0.01–0.2,
+at least 18 of 20 seeds were inside that band, the trough's mean was at least today's 5,787 with no seed below 3,441, and no seed went extinct. All 120 runs finished
+and none went extinct.
+
+| Arm | X9 | Share sick, mean | Seeds in band (under, over) | Trough, mean / lowest | Diseases at t = 500 | Result |
+|---|---|---|---|---|---|---|
+| Today, 60 seeds | 57 of 60 | 0.119 | 42 of 60 (4, 14) | 5,787 / 3,441 | 3.32, sd 1.58 | |
+| A | 20 | 0.205 | 10 (0, 10) | 6,838 / 5,805 | 4.95, sd 1.43 | Fails both X10 rows |
+| B | 20 | 0.134 | 18 (0, 2) | 7,522 / 6,637 | 3.6, sd 0.5 | Passes |
+| C | 20 | 0.186 | 14 (0, 6) | 6,849 / 6,083 | 4.0, sd 0 | Fails per seed |
+| D | 19 | 0.095 | 19 (1, 0) | 8,533 / 7,771 | 2.7, sd 0.73 | **Passes, chosen** |
+| E | 19 | 0.192 | 8 (1, 11) | 4,596 / 3,813 | 4.6, sd 2.09 | Fails per seed and on the trough |
+| F | 20 | 0.439 | 0 (0, 20) | 3,698 / 2,094 | 4.0, sd 0 | Fails three rows |
+
+B and D passed. The choice went to the most seeds in band, 19 against 18, so under the rule set before the runs it rests on one seed. The misses differ: D's one is
+seed 96, which lost all disease, and B's two are just over the band, 0.209 and 0.218. D's lead on the trough doesn't rest on a seed: B's best trough, 8,388, is below D's
+mean. D also has the lower share sick, and about the same spread of population, 0.066 against 0.062. Neither of the spec's conditional readings fired as worded: A didn't
+pass while B–D failed, and E passed X10's mean, 0.192, only just under the bar, while failing it per seed with 11 of 20 over. E's mean passing is the scorecard's
+reading, so by that bar alone the ceiling isn't where I thought. Per seed it is.
+
+**My guess against what happened.** Written before the runs: 4 diseases of length 9–10 with 2 offered to each founder (B) lifts the trough by a quarter or more, ends with about
+3 diseases per seed, passes X9 at 0.95 or better and puts at least 18 of 20 seeds in band. A list of 10 long diseases fails X10. Beyond length 10 isn't needed.
+- **The trough:** right. B's is 30% above today's.
+- **About 3 diseases:** a little low. B kept 3.6, since 12 of 20 seeds kept all 4.
+- **X9 and the band:** right, but the band only just: 18 of 20, exactly the bar.
+- **A list of 10 fails X10:** right per seed, wrong on the mean. See above.
+- **Length 10 is enough:** right, and more than that: length 12 is harmful. F keeps all 4 diseases in every seed, the share sick is 0.44 and its trough is lower than today's.
+- **The idea holds.** The list's size sets a ceiling: C and F keep every disease they list, and B nearly does. Longer diseases last better and make more people sick, so
+  4 at length 10 already fails. What I didn't guess is that the lightest arm would do best.
+
+**Confirmation.** List D, on the same terms as stages 2 and 3. Reports: `disease-list-confirmation.md`, `disease-list-credit-off.md`, `scorecard-list-d-s0-20.md` and
+`scorecard-list-d-s20-20.md`, all in `results-julia-xxl/`.
+
+| Bar | Reading | Result |
+|---|---|---|
+| Extinction, seeds 20–79 to t = 2,000: none | 0 of 60 | Pass |
+| Scorecard, seeds 0–19 and 20–39: 13 of 13 | 13 of 13 and 13 of 13 | Pass |
+| Seeds in X10's band at the end, t = 1,951–2,000: at least 0.9 | 58 of 60 (2 under, 0 over) | Pass |
+
+The table set before the runs reads this as **recommend adopting it**. Over the 60 seeds at t ≤ 500 it also passes every screening row: X9 59 of 60, share sick 0.081,
+58 of 60 in band, trough 8,533 / 7,427. D against today, ratios of means with 95% intervals:
+
+| Reading | Today | D | Ratio |
+|---|---|---|---|
+| Trough | 5,787 | 8,533 | 1.474 [1.407, 1.550] |
+| Births to t = 100 | 12,409 | 19,297 | 1.555 [1.467, 1.655] |
+| Share sick, t = 451–500 | 0.119 | 0.081 | 0.680 [0.546, 0.852] |
+| Population, t = 301–500 | 57,346 | 60,972 | 1.063 [1.030, 1.098] |
+| Population, t = 501–1,000 | 64,146 | 67,365 | 1.050 [1.016, 1.087] |
+| Population, t = 1,501–2,000 | 69,827 | 74,659 | 1.069 [1.033, 1.108] |
+| Mean sugar, t = 1,501–2,000 | 25.03 | 25.41 | 1.015 [0.998, 1.032] |
+| Gini, t = 1,501–2,000 | 0.239 | 0.234 | 0.976 [0.964, 0.989] |
+| Trades per head, t = 1,501–2,000 | 1.556 | 1.153 | 0.741 [0.640, 0.868] |
+| Mean price, t = 1,501–2,000 | 1.386 | 1.198 | 0.865 [0.812, 0.920] |
+
+At t = 501–1,000 trades per head and price read about as they do at t = 301–500, 0.839 and 0.874 as ratios, and mean sugar is about 1.5% higher in every window. The trough comes a
+little sooner, at t = 62 against 68 on average. Diseases circulating are 2.8 at t = 100 and 2.78 at t = 200, against 3.63 and 3.32. The share sick still follows the
+count, but the count hardly varies. At t = 1,951–2,000 it is 0.035 with 2 diseases and 0.070 with 3.
+
+**What moved on the scorecard.** Against today's scorecards on the same seeds, 0–19 and then 20–39:
+- **Up:** S2, the margin over near-extinction, about doubles, 0.18 to 0.38 and 0.20 to 0.37. X4, culture's movement, about doubles, 0.17 to 0.32 and 0.19 to 0.31. X7, credit
+  persisting, rises from 990 to 2,991 and from 1,134 to 2,795. S3 rises a little.
+- **Down, inside their bars:** X10 falls, 0.112 to 0.086 and 0.107 to 0.076, and X6, the gap in price, narrows, 1.22 to 1.13 and 1.20 to 1.16. X1 dips, 1.051 to 1.042 and 1.044 to 1.037.
+- **The same:** S1, S4, S5, X3, X5, and X2 and X8, which are reported only. X9 reads 1 and 0.95, against today's 0.95 and 0.95: the second scorecard fails it in seed 32, which also loses all disease in the extinction run.
+
+**Credit off.** Seeds 20–39, 500 periods, a reading and not a bar. Credit on and off pair by seed. D's disease barely depends on credit any more, so on this reading the lasting
+mark of stage 3 on disease belongs mostly to today's list:
+
+| Seeds 20–39 | Today, on | Today, off | D, on | D, off |
+|---|---|---|---|---|
+| Diseases at t = 500 | 3.1 | 1.95 | 2.75 | 2.6 |
+| X9 | 19 of 20 | 16 of 20 | 19 of 20 | 19 of 20 |
+| Seeds in band, t = 451–500 | | | 19 of 20 | 16 of 20 |
+| Trough, mean / lowest | | | 8,483 / 7,429 | 7,755 / 6,651 |
+
+Without credit, D's count is higher or lower than with it in only 5 of 20 seeds. Its band is weaker: 2 seeds are under and 2 over.
+
+**Found after the runs.**
+- In arms A, B and D of screening, and today's 60 seeds with credit, no seed's count changed after t = 145. Without credit today's seeds change as late as t = 1,674. It
+  doesn't hold for D's 60 seeds either: seed 69 loses a disease at t = 804. The other ten seeds that end under 3 lose theirs by t = 140. Seed 32 loses all three, one at
+  t = 69 and the last two at t = 77, and seed 57 loses two, by t = 70.
+- A list can draw the same disease twice: two diseases match only at the same length and the same bits. Per seed that's about 3.3% for E, 1.1% for A, 0.6% for C,
+  0.4% for B, 0.2% for D and 0.15% for F, worked out from `init_disease_list!`. It never happened: every seed of this stage's runs starts with as many diseases as its list. (Today's list, with its short diseases, starts with 14–24 of 25.)
+- The memory watcher in screening matched no process, so it couldn't have stopped a run. Nothing ran short of memory then, so no result is affected. Confirmation's watcher
+  did work, and it stopped one scorecard once, when another program took the memory. That scorecard was started over from the beginning.
+
+**What this doesn't show.**
+- All of it is on one map pair, as before.
+- B wasn't confirmed, and the choice of D over B rests on one seed in 20. B keeps disease better. D is lighter on the trough and the share sick.
+- How often a seed loses all disease isn't pinned down. D's runs with credit have 2 such seeds in 80, so the chance per seed could be anywhere from about 0.3% to 8.7%.
+  X9's bar is 0.9, so a scorecard of 20 seeds fails with 3 such seeds: about a 1% chance at 2 in 80, and 27% at 9%.
+- Trade falls by about a quarter, and nothing here says whether that's right. That was a non-goal: trade is judged after disease.
+- Population is still rising at t = 2,000 in both worlds, so the end readings aren't a steady state.
+
+**Run time.** Same machine, 5 workers. Screening took about 3 h 46 min for the six arms, from 21 min for F to 52 for B. Confirmation took 54 and 61 min for the two
+scorecards, plus 13 min lost to the memory stop, 40 min for credit off, and 13 h 43 min for the 60-seed extinction run, against 13 h 16 min for today's with fewer people.
+
+**My recommendation, not a decision.**
+1. **Adopt list D in `XXL_DEFAULTS`:** `disease_count = 3`, `founder_diseases = 1`, `disease_lengths = (9, 10)`. It passed every bar set before the runs, lifts the trough by about half
+   and takes most of the lottery out of disease. Adopting it changes the defaults' fingerprint, so every saved result under the defaults goes stale, and the defaults need
+   their own run list. That's a separate step.
+2. **If a margin on X9 matters more than the trough, B is the alternative.** It kept disease in all 20 seeds, but it has more sickness, its band passed at the bar exactly, and it
+   wasn't confirmed.
+3. **Then judge trade.** With disease settled, trade per head is about 1.15 instead of 1.56, and that's now the reading to judge.
 
 ## Results of the first rules (`XXL_V1`)
 
