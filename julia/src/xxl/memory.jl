@@ -13,6 +13,89 @@ more recent sighting, then the smaller (x, y).
     return (e1.x, e1.y) < (e2.x, e2.y)
 end
 
+# One agent's ranking in progress: `a.memory` being rebuilt, best first, with each kept entry's value and what its two
+# powers are of. Building one empties `a.memory`.
+struct Ranking
+    a::Agent
+    sw::SiteWelfare
+    two::Bool  # spice is on
+    two_powers::Bool  # both commodities count: an entry can lose without a power being taken (surely_less)
+    m1::Float64
+    c::Float64
+    free::Float64
+    cap::Int
+    mem::Vector{Remembered}
+    vals::Vector{Float64}
+    ka::Vector{Float64}
+    kb::Vector{Float64}
+end
+
+function Ranking(m::Model, a::Agent)
+    cfg = m.config
+    two = cfg.spice
+    sw = two ? SiteWelfare(m, a) : NO_WELFARE
+    cap = cfg.xxl.memory
+    return Ranking(
+        a,
+        sw,
+        two,
+        two && sw.use1 && sw.use2,
+        sugar_burn(a),
+        cfg.xxl.travel_cost,
+        cfg.xxl.free_step,
+        cap,
+        empty!(a.memory),
+        empty!(m.pool_values),
+        resize!(m.kept_a, cap),
+        resize!(m.kept_b, cap),
+    )
+end
+
+# Entry `e`, valued `v`, goes in its place in the kept list if it ranks there.
+@inline function keep_ranked!(r::Ranking, v::Float64, e::Remembered, A::Float64, B::Float64)
+    mem, vals, ka, kb = r.mem, r.vals, r.ka, r.kb
+    n = length(mem)
+    n == r.cap && !ranks_above(v, e, @inbounds(vals[n]), @inbounds(mem[n])) && return nothing
+    if n < r.cap  # room: a new last slot; otherwise the new entry replaces the last
+        push!(mem, e)
+        push!(vals, v)
+        n += 1
+    else
+        @inbounds mem[n], vals[n] = e, v
+    end
+    @inbounds ka[n], kb[n] = A, B
+    while n > 1 && ranks_above(v, e, @inbounds(vals[n - 1]), @inbounds(mem[n - 1]))
+        @inbounds mem[n], mem[n - 1] = mem[n - 1], mem[n]
+        @inbounds vals[n], vals[n - 1] = vals[n - 1], vals[n]
+        @inbounds ka[n], ka[n - 1] = ka[n - 1], ka[n]
+        @inbounds kb[n], kb[n - 1] = kb[n - 1], kb[n]
+        n -= 1
+    end
+    return nothing
+end
+
+# Ranks entry `e`, `d` from the agent. (c1, c2) are the weights against the last kept entry once the list is full, for an
+# entry that can't reach it to lose without its powers being taken; returns them as they now stand.
+@inline function rank_entry!(r::Ranking, d::Float64, e::Remembered, c1::Float64, c2::Float64)
+    a, sw = r.a, r.sw
+    devalue = 1.0 + e.pollution
+    sugar, spice = e.sugar / devalue, r.two ? e.spice / devalue : 0.0
+    if !r.two_powers
+        keep_ranked!(r, net_value(a, sw, r.two, r.c, r.free, d, sugar, spice), e, 0.0, 0.0)
+        return c1, c2
+    end
+    A, B = net_parts(a, sw, r.m1, r.c, r.free, d, sugar, spice)
+    if A < 0  # worth -Inf, and it counts as worth nothing against what comes after it
+        keep_ranked!(r, -Inf, e, 0.0, 0.0)
+    elseif surely_less(c1, c2, A, B)
+        return c1, c2
+    else
+        keep_ranked!(r, A^sw.e1 * B^sw.e2, e, A, B)
+    end
+    length(r.mem) == r.cap || return c1, c2
+    return prune_weights(sw.e1, sw.e2, @inbounds(r.ka[r.cap]), @inbounds(r.kb[r.cap]))
+end
+
 """
     rank_pool!(m, a)
 
@@ -22,33 +105,11 @@ with. An entry the agent could not reach alive (valued `-Inf`) ranks last, so it
 entries are reachable. The pool is not changed; `m.pool_values` holds the kept entries' values.
 """
 function rank_pool!(m::Model, a::Agent)
-    cfg = m.config
-    two = cfg.spice
-    c, free = cfg.xxl.travel_cost, cfg.xxl.free_step
-    cap = cfg.xxl.memory
     w, h = m.landscape.width, m.landscape.height
-    sw = two ? SiteWelfare(m, a) : NO_WELFARE
-    mem, vals = empty!(a.memory), empty!(m.pool_values)
+    r = Ranking(m, a)
+    c1, c2 = Inf, Inf
     for e in m.pool
-        d = torus_dist(w, h, a.x, a.y, e.x, e.y)
-        devalue = 1.0 + e.pollution
-        v = net_value(
-            a, sw, two, c, free, d, e.sugar / devalue, two ? e.spice / devalue : 0.0
-        )
-        n = length(mem)
-        n == cap && !ranks_above(v, e, @inbounds(vals[n]), @inbounds(mem[n])) && continue
-        if n < cap  # room: a new last slot; otherwise the new entry replaces the last
-            push!(mem, e)
-            push!(vals, v)
-            n += 1
-        else
-            @inbounds mem[n], vals[n] = e, v
-        end
-        while n > 1 && ranks_above(v, e, @inbounds(vals[n - 1]), @inbounds(mem[n - 1]))
-            @inbounds mem[n], mem[n - 1] = mem[n - 1], mem[n]
-            @inbounds vals[n], vals[n - 1] = vals[n - 1], vals[n]
-            n -= 1
-        end
+        c1, c2 = rank_entry!(r, torus_dist(w, h, a.x, a.y, e.x, e.y), e, c1, c2)
     end
     return a.memory
 end
@@ -56,33 +117,39 @@ end
 """
     remember!(m, a)
 
-Updates agent `a`'s memory after its move (spec, rule 3). It pools its memory with the sites it looked at this move
-(`m.looked`) and the site it stands on, which count as seen now at their current resources and pollution (the site it
-harvested is as it is after harvest). One entry per site: the newest sighting, and a fresh look wins over a remembered
-entry of the same period. Entries older than `memory_span` periods are dropped first. Then [`rank_pool!`](@ref) keeps
-the `memory` best.
+Updates agent `a`'s memory after its move (spec, rule 3). It ranks, as [`rank_pool!`](@ref) does, the site it stands on
+and the sites it looked at this move (`m.looked`), which count as seen now at their current resources and pollution (the
+site it harvested is as it is after harvest), then the rest of its memory. One entry per site: the newest sighting, and a
+fresh look wins over a remembered entry of the same period. Entries older than `memory_span` periods are dropped first.
+The sites are ranked without being pooled, as most lose at once; `m.pool` holds only the memory's entries.
 """
 function remember!(m::Model, a::Agent)
     ls = m.landscape
     span = m.config.xxl.memory_span
     spice = m.config.spice
-    pool = empty!(m.pool)
-    push!(pool, seen(ls, spice, a.x, a.y, m.t))
-    for (x, y) in m.looked
-        (x, y) == (a.x, a.y) && continue
-        push!(pool, seen(ls, spice, x, y, m.t))
-    end
-    fresh = length(pool)
+    w, h = ls.width, ls.height
+    ax, ay = a.x, a.y
+    looked = m.looked
+    rest = empty!(m.pool)  # first: the ranking empties the memory
     for e in a.memory
         m.t - e.t > span && continue
-        dup = false
-        for i in 1:fresh
-            p = @inbounds pool[i]
-            dup |= (p.x == e.x) & (p.y == e.y)
+        dup = (e.x == ax) & (e.y == ay)
+        for i in eachindex(looked)
+            s = @inbounds looked[i]
+            dup |= (s[1] == e.x) & (s[2] == e.y)
         end
-        dup || push!(pool, e)
+        dup || push!(rest, e)
     end
-    return rank_pool!(m, a)
+    r = Ranking(m, a)
+    c1, c2 = rank_entry!(r, 0.0, seen(ls, spice, ax, ay, m.t), Inf, Inf)
+    for (x, y) in looked
+        ((x == ax) & (y == ay)) && continue
+        c1, c2 = rank_entry!(r, torus_dist(w, h, ax, ay, x, y), seen(ls, spice, x, y, m.t), c1, c2)
+    end
+    for e in rest
+        c1, c2 = rank_entry!(r, torus_dist(w, h, ax, ay, e.x, e.y), e, c1, c2)
+    end
+    return a.memory
 end
 
 # What the agent sees at site (x, y) in period t: its current resources and pollution.

@@ -27,6 +27,23 @@ function welfare(a::Agent, w1::Real, w2::Real, cultural::Bool=false)
 end
 
 """
+    welfare_rises(a, s1, p1, s0, p0, cultural) -> Bool
+
+`welfare(a, s1, p1, cultural) > welfare(a, s0, p0, cultural)`, with no powers when [`surely_less`](@ref) settles it, as it
+does for most offers. It can only say so of positive holdings before: a holding at or below 0 counts as 0.
+"""
+@inline function welfare_rises(a::Agent, s1::Float64, p1::Float64, s0::Float64, p0::Float64, cultural::Bool)
+    if s0 > 0 && p0 > 0
+        f = preference_fraction(a, cultural)
+        a1, a2 = sugar_burn(a) * f, a.spice_metabolism * (1 - f)
+        mu = a1 + a2
+        c1, c2 = prune_weights(a1 / mu, a2 / mu, s0, p0)
+        surely_less(c1, c2, s1, p1) && return false
+    end
+    return welfare(a, s1, p1, cultural) > welfare(a, s0, p0, cultural)
+end
+
+"""
     mrs(a, cultural=false)
 
 Spice the agent would give for one sugar: (w2 / (m2 (1-f))) / (w1 / (m1 f)) (eq. 3; eq. 5 form). 0.0 or Inf when a
@@ -73,6 +90,20 @@ function SiteWelfare(m::Model, a::Agent)
 end
 
 const NO_WELFARE = SiteWelfare(0.0, 0.0, false, false, 0.0, 0.0, 1.0)  # sugar-only moves
+
+const SURELY_BELOW = 1.0 - 1e-9  # far enough under 1 that no rounding in the powers could bring the two values level
+
+"""
+    surely_less(c1, c2, A, B) -> Bool
+
+Whether A^e1 * B^e2 is below a reference Ar^e1 * Br^e2, told without taking a power; `c1, c2 =`
+[`prune_weights`](@ref)`(e1, e2, Ar, Br)`. With e1 + e2 = 1 these are weighted geometric means, so by weighted AM-GM the
+first is at most (e1 A/Ar + e2 B/Br) times the second. `false` says nothing: the powers must decide. A reference of zero
+makes a weight Inf, and Inf * 0 is NaN, so nothing is ruled out against it.
+"""
+@inline surely_less(c1::Float64, c2::Float64, A::Float64, B::Float64) = c1 * A + c2 * B < SURELY_BELOW
+
+@inline prune_weights(e1::Float64, e2::Float64, Ar::Float64, Br::Float64) = (e1 / Ar, e2 / Br)
 
 @inline function score(sw::SiteWelfare, ls::Landscape, i::Int, j::Int)
     s, p = @inbounds ls.sugar[i, j], ls.spice[i, j]

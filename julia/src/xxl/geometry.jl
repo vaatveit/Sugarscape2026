@@ -6,7 +6,9 @@
 The signed shortest offset from `x1` to `x2` on a ring of width `w`, in (-w/2, w/2]: a half-width apart goes positive.
 """
 function torus_delta(w::Integer, x1::Integer, x2::Integer)
-    d = mod(x2 - x1, w)
+    d = x2 - x1
+    d < 0 && (d += w)  # `mod` without the division, for sites on the map; further off, `mod` itself
+    (0 <= d < w) || (d = mod(x2 - x1, w))
     return 2d > w ? d - w : d
 end
 
