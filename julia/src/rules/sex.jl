@@ -91,12 +91,9 @@ function mate!(m::Model, a::Agent)
     capped, redraw = cfg.child_gift == "capped", cfg.child_threshold == "redraw"
     down = cfg.gift_rounding == "down"
     children = Agent[]
-    if cfg.mate_contact == "vision" && xxl_on(cfg, :disc) && !is_fertile(a, threshold)
-        # Nothing can come of this search, so only its draws matter: the look's, then a shuffle of that many agents.
-        shuffle!(rng, fill!(resize!(m.sight, count_in_sight(m, a)), a))
-        empty!(m.sight)
-        return children
-    end
+    # xxl: nothing can come of an infertile agent's search, so under round vision it doesn't look or draw. (The book's
+    # rules still make the search's draws, as Python does.)
+    cfg.mate_contact == "vision" && xxl_on(cfg, :disc) && !is_fertile(a, threshold) && return children
     partners = mate_reach(m, a)
     sites = m.sites
     for other in shuffle!(rng, partners)
