@@ -173,27 +173,7 @@ end
     @test wrong == 0
 end
 
-@testset "count_in_sight: the same partners on the same draws as the look" begin
-    # From the corner of a small map the look crosses its edges. (A look can't be wider than half the map: `validate`.)
-    for seed in 1:30, (S, V, side) in ((4, 8, 40), (2, 15, 40), (0, 6, 40), (5, 5, 40), (2, 4, 9), (3, 5, 11), (1, 2, 5))
-        m, a = fast_world(seed; S=max(S, 1), V=V, side=side)
-        a.speed = S
-        side < 40 && move_agent!(m, a, 0, side - 1)
-        rng = Xoshiro(seed)
-        for _ in 1:(side * side ÷ 5)
-            x, y = rand(rng, 0:(side - 1)), rand(rng, 0:(side - 1))
-            m.grid[x + 1, y + 1] === nothing && put_agent(m, x, y)
-        end
-        before = copy(m.rng)
-        expected = length(Sugarscape.disc_in_sight(m, a))
-        after = copy(m.rng)
-        m.rng = before
-        @test Sugarscape.count_in_sight(m, a) == expected
-        @test m.rng == after
-    end
-end
-
-@testset "an infertile agent's mate search: the draws and nothing else" begin
+@testset "an infertile agent's mate search under round vision makes no draws" begin
     m, a = fast_world(4; sex=true)
     a.sex, a.fertility_start, a.fertility_end, a.age = :F, 12, 40, 5  # too young
     rng = Xoshiro(4)
@@ -204,16 +184,17 @@ end
             b.sex, b.fertility_start, b.fertility_end, b.age = :M, 12, 40, 20
         end
     end
+    @test !isempty(Sugarscape.disc_in_sight(m, a))  # it has fertile partners in sight
     for _ in 1:50
         before = copy(m.rng)
-        shuffle!(m.rng, Sugarscape.disc_in_sight(m, a))
-        after = copy(m.rng)
-        m.rng = before
         n = length(m.agents)
         @test isempty(mate!(m, a))
-        @test m.rng == after && length(m.agents) == n
-        @test isempty(m.sight)  # no one left over for a checkpoint to save
+        @test m.rng == before && length(m.agents) == n
     end
+    a.age = 20  # of age: the search draws again, and finds a partner
+    before = copy(m.rng)
+    @test !isempty(mate!(m, a))
+    @test m.rng != before
 end
 
 @testset "a death's loans settle without copying the book" begin
@@ -246,11 +227,9 @@ end
     a.sugar, a.spice = 200.0, 200.0
     Sugarscape.speed_move!(m, a)
     Sugarscape.remember!(m, a)
-    Sugarscape.count_in_sight(m, a)
     @test (@inferred Sugarscape.speed_move!(m, a)) === nothing
     @test (@allocated Sugarscape.remember!(m, a)) == 0
     @test (@allocated Sugarscape.rank_pool!(m, a)) == 0
-    @test (@allocated Sugarscape.count_in_sight(m, a)) == 0
     @test (@allocated Sugarscape.speed_move!(m, a)) == 0
 end
 
