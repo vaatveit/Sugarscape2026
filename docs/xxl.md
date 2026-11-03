@@ -127,7 +127,8 @@ looked at; staying wins a tie with the agent's own site. No tie-break draw. It h
 
 **Mate search within vision** (`mate_contact = "vision"`) takes a fresh disc look from the agent's position after
 moving, without remembered sites. The agents on the looked-at sites are its partners in sight, nearest first and,
-at equal distance, in the order looked at. (With the lattice look it is the book's.)
+at equal distance, in the order looked at. An agent that isn't fertile doesn't look at all, since nothing could come
+of its search; it makes no draws either. (With the lattice look it is the book's.)
 
 Speed (rule 2) works with either shape; with the lattice look, the near sites are the lattice's own and the other
 rules below apply to them unchanged.
