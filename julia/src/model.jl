@@ -17,6 +17,7 @@ mutable struct Model{R<:AbstractRNG}
     rng::R  # Xoshiro(seed) unless a caller supplies one (the lockstep test replays Python's choices)
     landscape::Landscape
     grid::Matrix{Union{Nothing,Agent}}
+    occupied::Matrix{UInt64}  # the grid as a bit per site, kept in step with it (occupancy); a checkpoint rebuilds it
     agents::Vector{Agent}  # the living, in no particular order (each period draws a fresh order)
     t::Int
     dead_this_step::Vector{Agent}
@@ -86,6 +87,7 @@ function Model(
         rng,
         ls,
         fill!(Matrix{Union{Nothing,Agent}}(undef, cfg.width, cfg.height), nothing),
+        zeros(UInt64, cld(cfg.width, 64), cfg.height),
         Agent[],
         0,
         Agent[],
@@ -147,6 +149,62 @@ end
 
 wrap(m::Model, x::Int, y::Int) = wrap(m.landscape, x, y)
 
+"""
+    occupancy(grid) -> Matrix{UInt64}
+
+The bit map of the sites in `grid` that hold an agent: row y is column y + 1, and site x is bit `x & 63` of its word
+`x >> 6 + 1` (all 0-based). `m.occupied` is `occupancy(m.grid)` at all times: every write to the grid sets or clears its
+bit (place_agent!, move_agent!, kill!), and a checkpoint rebuilds it from the grid.
+"""
+function occupancy(grid::AbstractMatrix)
+    w, h = size(grid)
+    bits = zeros(UInt64, cld(w, 64), h)
+    for y in 0:(h - 1), x in 0:(w - 1)
+        grid[x + 1, y + 1] === nothing || (bits[x >> 6 + 1, y + 1] |= UInt64(1) << (x & 63))
+    end
+    return bits
+end
+
+@inline occupy!(m::Model, x::Int, y::Int) = (m.occupied[x >> 6 + 1, y + 1] |= UInt64(1) << (x & 63); nothing)
+@inline vacate!(m::Model, x::Int, y::Int) = (m.occupied[x >> 6 + 1, y + 1] &= ~(UInt64(1) << (x & 63)); nothing)
+
+"""Whether the site (x, y), on the map and 0-based, holds an agent, from the bit map."""
+@inline is_occupied(m::Model, x::Int, y::Int) = (m.occupied[x >> 6 + 1, y + 1] >> (x & 63)) & 1 == 1
+
+# Occupied sites among x = lo..hi of row y of the bit map, with 0 ≤ lo ≤ hi < width.
+@inline function occupied_in_row(bits::Matrix{UInt64}, y::Int, lo::Int, hi::Int)
+    lo_word, hi_word = lo >> 6 + 1, hi >> 6 + 1
+    from = typemax(UInt64) << (lo & 63)
+    upto = typemax(UInt64) >> (63 - (hi & 63))
+    lo_word == hi_word && return count_ones(@inbounds(bits[lo_word, y + 1]) & from & upto)
+    n = count_ones(@inbounds(bits[lo_word, y + 1]) & from) + count_ones(@inbounds(bits[hi_word, y + 1]) & upto)
+    for k in (lo_word + 1):(hi_word - 1)
+        n += count_ones(@inbounds bits[k, y + 1])
+    end
+    return n
+end
+
+@noinline bad_run(y, lo, hi, w) = throw(ArgumentError("run $lo..$hi of row $y is not within one turn of a $(w)-wide map"))
+
+"""
+    occupied_in_run(m, y, lo, hi) -> Int
+
+How many of the sites x = lo..hi of row y hold an agent, from the bit map. The run may go off either edge of the row,
+round the torus, by less than the row's width w, and is no longer than the row: -w < lo ≤ hi < 2w and hi - lo < w.
+"""
+@inline function occupied_in_run(m::Model, y::Int, lo::Int, hi::Int)
+    bits, w = m.occupied, size(m.grid, 1)
+    (-w < lo <= hi < 2w && hi - lo < w && 0 <= y < size(m.grid, 2)) || bad_run(y, lo, hi, w)
+    if lo < 0
+        hi < 0 && return occupied_in_row(bits, y, lo + w, hi + w)
+        return occupied_in_row(bits, y, lo + w, w - 1) + occupied_in_row(bits, y, 0, hi)
+    elseif hi >= w
+        lo >= w && return occupied_in_row(bits, y, lo - w, hi - w)
+        return occupied_in_row(bits, y, lo, w - 1) + occupied_in_row(bits, y, 0, hi - w)
+    end
+    return occupied_in_row(bits, y, lo, hi)
+end
+
 @inline function agent_at(m::Model, x::Int, y::Int)
     x, y = wrap(m.landscape, x, y)
     return @inbounds m.grid[x + 1, y + 1]
@@ -207,6 +265,7 @@ end
 function place_agent!(m::Model, a::Agent, x::Int, y::Int)
     a.x, a.y = x, y
     m.grid[x + 1, y + 1] = a
+    occupy!(m, x, y)
     push!(m.agents, a)
     a.slot = length(m.agents)
     return a
@@ -238,7 +297,9 @@ function move_agent!(m::Model, a::Agent, x::Int, y::Int)
     end
     m.grid[x + 1, y + 1] === nothing || throw(ArgumentError("site ($x, $y) is occupied"))
     m.grid[a.x + 1, a.y + 1] = nothing
+    vacate!(m, a.x, a.y)
     m.grid[x + 1, y + 1] = a
+    occupy!(m, x, y)
     w, h = m.config.width, m.config.height
     dx = mod(x - a.x + w ÷ 2, w) - w ÷ 2  # shortest way round the torus
     dy = mod(y - a.y + h ÷ 2, h) - h ÷ 2
@@ -253,6 +314,7 @@ end
 function kill!(m::Model, a::Agent)
     a.alive = false
     m.grid[a.x + 1, a.y + 1] = nothing
+    vacate!(m, a.x, a.y)
     last = pop!(m.agents)  # swap-remove: the order of m.agents carries no meaning
     if last !== a
         m.agents[a.slot] = last

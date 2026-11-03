@@ -44,6 +44,23 @@ function disc_offsets(r::Real)
 end
 
 """
+    disc_half_width(r2, dy) -> Int
+
+The widest dx with dx² + dy² ≤ `r2`, the comparison [`disc_offsets`](@ref) makes: row `dy` of the disc of radius √r2
+is dx = -k..k. `dy` is within the disc (dy² ≤ r2).
+"""
+@inline function disc_half_width(r2::Float64, dy::Int)
+    k = floor(Int, sqrt(max(r2 - dy * dy, 0.0)))
+    while k > 0 && k * k + dy * dy > r2  # sqrt rounded up past an edge
+        k -= 1
+    end
+    while (k + 1) * (k + 1) + dy * dy <= r2  # or down short of one
+        k += 1
+    end
+    return k
+end
+
+"""
     ring_point(rng, n, v) -> (Float64, Float64)
 
 An offset drawn uniformly by area from the ring n < d ≤ v: two `rand(rng)` draws, u₁ then u₂, giving

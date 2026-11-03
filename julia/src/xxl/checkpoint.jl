@@ -6,13 +6,16 @@ const AGENT_LINK_FIELDS = (:neighbors, :children, :friends)
 const AGENT_PLAIN_FIELDS = Tuple(f for f in fieldnames(Agent) if !(f in AGENT_LINK_FIELDS))
 # The model's fields that hold agents or records of them; every other field is saved as it is.
 const MODEL_LINK_FIELDS = (:grid, :agents, :dead_this_step, :trade_log, :loans, :debts, :infection_log, :order, :sight)
+# The model's fields that follow from others: not saved, but rebuilt from what they follow (model_from_flat).
+const MODEL_DERIVED_FIELDS = (:occupied,)
 
 """
     FlatModel
 
 A [`Model`](@ref) with no references between agents. `table` is one column per plain agent field, over every agent the
-model can reach, the dead that the living still hold included; `plain` is the model's own fields that hold no agents;
-the rest are the links, by agent id (loans in `debts` by their place in `loans`, as both hold the same objects).
+model can reach, the dead that the living still hold included; `plain` is the model's own fields that hold no agents,
+less those rebuilt on loading (`MODEL_DERIVED_FIELDS`); the rest are the links, by agent id (loans in `debts` by their
+place in `loans`, as both hold the same objects).
 """
 struct FlatModel
     plain::Dict{Symbol,Any}
@@ -70,7 +73,9 @@ function flat_model(m::Model)
     ids(list) = Int[a.id for a in list]
     place = IdDict{Loan,Int}(loan => i for (i, loan) in enumerate(m.loans))
     return FlatModel(
-        Dict{Symbol,Any}(f => getfield(m, f) for f in fieldnames(typeof(m)) if !(f in MODEL_LINK_FIELDS)),
+        Dict{Symbol,Any}(
+            f => getfield(m, f) for f in fieldnames(typeof(m)) if !(f in MODEL_LINK_FIELDS || f in MODEL_DERIVED_FIELDS)
+        ),
         Dict{Symbol,Any}(f => [getfield(a, f) for a in agents] for f in AGENT_PLAIN_FIELDS),
         [ids(a.neighbors) for a in agents],
         [ids(a.children) for a in agents],
@@ -115,8 +120,9 @@ function model_from_flat(f::FlatModel)
         :loans => loans,
         :debts => Dict{Int,Vector{Loan}}(id => Loan[loans[i] for i in places] for (id, places) in f.debts),
         :infection_log => Tuple{Agent,Agent}[(by_id[s], by_id[t]) for (s, t) in f.infection_log],
+        :occupied => occupancy(grid),
     )
-    return Model((name in MODEL_LINK_FIELDS ? links[name] : f.plain[name] for name in fieldnames(Model))...)
+    return Model((haskey(links, name) ? links[name] : f.plain[name] for name in fieldnames(Model))...)
 end
 
 const DIGEST_BYTES = 32  # sha256
