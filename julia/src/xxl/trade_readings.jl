@@ -11,7 +11,10 @@
 # neighbour pairs (`pairs_*`), the MRS gaps (`gap_healthy`, `gap_sick`), `healthy_healthy_10` and the snapshot, and is
 # also counted as a group of its own (`recovering`, `exchanges_recovering`, and the snapshot's two recovering flags).
 # The columns `healthy`, `recovering` and `sick` are the three groups apart. `healthy_healthy_10_strict` is the same
-# share among the strictly healthy, neither sick nor recovering, with a strictly healthy partner: a reading beside it.
+# share among the strictly healthy, neither sick nor recovering, with a strictly healthy partner. The last columns read
+# the strictly healthy apart from the rest: `exchanges_HH` (both), `exchanges_HX` (exactly one), `gap_strict` (the MRS
+# gaps of the strictly healthy) and `pairs_HH`, `pairs_HX` (the neighbour pairs). Which of these decide is the report's
+# (julia/src/xxl/trade_report.jl): by the user's decision after Part 1, the strict ones.
 
 """How many periods after its last disease an agent still counts as recovering."""
 const RECOVERING_PERIODS = 10
@@ -47,6 +50,11 @@ const TRADE_COLUMNS = [
     "gap_healthy",
     "gap_sick",
     "healthy_healthy_10_strict",
+    "exchanges_HH",
+    "exchanges_HX",
+    "gap_strict",
+    "pairs_HH",
+    "pairs_HX",
 ]
 
 "The columns of an agent's snapshot row, `agent_rows`."
@@ -103,6 +111,7 @@ mutable struct TradeReadings
     sick_seen::Set{Int}  # scratch: the sick agents in this period's exchanges
     gaps_healthy::Vector{Float64}  # scratch: the MRS gaps of a neighbour reading
     gaps_sick::Vector{Float64}
+    gaps_strict::Vector{Float64}
 end
 
 function TradeReadings(; window::Tuple{Int,Int})
@@ -117,6 +126,7 @@ function TradeReadings(; window::Tuple{Int,Int})
         Dict{Int,WindowAgent}(),
         Vector{Float64}[],
         Set{Int}(),
+        Float64[],
         Float64[],
         Float64[],
     )
@@ -173,7 +183,7 @@ function trade_period!(r::TradeReadings, m::Model)
         moved += a.moved_dist
     end
 
-    hh = hs = ss = with_recovering = 0
+    hh = hs = ss = with_recovering = strict_both = strict_one = 0
     empty!(r.sick_seen)
     for e in m.trade_log
         ha, hb = health(r, e.a, t), health(r, e.b, t)
@@ -191,8 +201,11 @@ function trade_period!(r::TradeReadings, m::Model)
         end
         (ha == RECOVERING || hb == RECOVERING) && (with_recovering += 1)
         if ha == HEALTHY && hb == HEALTHY
+            strict_both += 1
             r.healthy_partner[e.a.id] = t
             r.healthy_partner[e.b.id] = t
+        elseif ha == HEALTHY || hb == HEALTHY
+            strict_one += 1
         end
         if in_window
             count_exchange!(r, e.a, !sb)
@@ -228,6 +241,9 @@ function trade_period!(r::TradeReadings, m::Model)
         n == 0 ? NaN : moved / n,
         NaN, NaN, NaN, NaN, NaN,
         healthy == 0 ? NaN : recent_strict / healthy,
+        strict_both,
+        strict_one,
+        NaN, NaN, NaN,
     ]
     t % NEIGHBOUR_EVERY == 0 && read_neighbours!(row, r, m, t)
     push!(r.rows, row)
@@ -281,15 +297,19 @@ function finish_snapshot!(r::TradeReadings, m::Model)
 end
 
 """
-Fills the neighbour columns of `row` for period `t`: the unordered neighbour pairs by health (recovering as healthy), and
-the median |log MRS gap| over the (agent, neighbour) pairs whose first agent is not sick (`gap_healthy`; recovering as
-healthy) and whose is sick (`gap_sick`), with both MRSs valid. `neighbors_of` returns the model's scratch list, so each agent's is used up before the next call.
+Fills the neighbour columns of `row` for period `t`: the unordered neighbour pairs by health (recovering as healthy),
+and the median |log MRS gap| over the (agent, neighbour) pairs whose first agent is not sick (`gap_healthy`; recovering
+as healthy) and whose is sick (`gap_sick`), with both MRSs valid; and the same strictly: the pairs with both agents
+strictly healthy (`pairs_HH`) and with exactly one (`pairs_HX`), and the median gap over the pairs whose first agent is
+strictly healthy (`gap_strict`). `neighbors_of` returns the model's scratch list, so each agent's is used up before the
+next call.
 """
 function read_neighbours!(row::Vector{Float64}, r::TradeReadings, m::Model, t::Int)
     cultural = m.config.cultural_preferences
     empty!(r.gaps_healthy)
     empty!(r.gaps_sick)
-    hh = hs = ss = 0
+    empty!(r.gaps_strict)
+    hh = hs = ss = strict_both = strict_one = 0
     for a in m.agents
         ha = health(r, a, t)
         ma = mrs(a, cultural)
@@ -303,14 +323,22 @@ function read_neighbours!(row::Vector{Float64}, r::TradeReadings, m::Model, t::I
                 else
                     hh += 1
                 end
+                if ha == HEALTHY && hb == HEALTHY
+                    strict_both += 1
+                elseif ha == HEALTHY || hb == HEALTHY
+                    strict_one += 1
+                end
             end
             mb = mrs(b, cultural)
             valid_mrs(ma) && valid_mrs(mb) || continue
-            push!(ha == SICK ? r.gaps_sick : r.gaps_healthy, abs(log(ma) - log(mb)))
+            gap = abs(log(ma) - log(mb))
+            push!(ha == SICK ? r.gaps_sick : r.gaps_healthy, gap)
+            ha == HEALTHY && push!(r.gaps_strict, gap)
         end
     end
     row[13], row[14], row[15] = hh, hs, ss
     row[16], row[17] = median!(r.gaps_healthy), median!(r.gaps_sick)
+    row[21], row[22], row[23] = median!(r.gaps_strict), strict_both, strict_one
     return nothing
 end
 

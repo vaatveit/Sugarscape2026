@@ -10,7 +10,10 @@ const TR_HEADER = [
     "t", "healthy", "recovering", "sick", "exchanges", "exchanges_hh", "exchanges_hs", "exchanges_ss",
     "exchanges_recovering", "sick_traders", "healthy_healthy_10", "walked",
     "pairs_hh", "pairs_hs", "pairs_ss", "gap_healthy", "gap_sick", "healthy_healthy_10_strict",
+    "exchanges_HH", "exchanges_HX", "gap_strict", "pairs_HH", "pairs_HX",
 ]
+# The columns read only every tenth period, NaN otherwise.
+const TR_TENTH = ("pairs_hh", "pairs_hs", "pairs_ss", "gap_healthy", "gap_sick", "gap_strict", "pairs_HH", "pairs_HX")
 const TR_AGENT_HEADER = [
     "id", "metabolism", "spice_metabolism", "vision", "age_start", "sugar_start", "spice_start", "sugar_end",
     "spice_end", "exchanges", "exchanges_healthy_partner", "recovering_start", "recovering_in_window",
@@ -50,11 +53,13 @@ function tr_config()
     )
 end
 
-# A short VI-1 world as `tr_config` gives it, stepped with the observer after each period.
+# A short VI-1 world as `tr_config` gives it, stepped with the observer after each period; and the agents sick at
+# period 0.
 function tr_run(periods; window=(21, 30))
     cfg = tr_config()
     m = Model(replace_config(cfg; seed=cfg.seed))
     r = TradeReadings(; window=window)
+    start_sick = Set(a.id for a in m.agents if !isempty(a.diseases))
     trade_period!(r, m)  # period 0, as timed_seed does
     log = NamedTuple[]
     for _ in 1:periods
@@ -67,7 +72,7 @@ function tr_run(periods; window=(21, 30))
             sick=sick, sick_traders=length(traders), partners=[(e.a.id, e.b.id) for e in m.trade_log],
             partners_sick=[(!isempty(e.a.diseases), !isempty(e.b.diseases)) for e in m.trade_log]))
     end
-    return m, r, log
+    return m, r, log, start_sick
 end
 
 @testset "xxl trade readings" begin
@@ -99,6 +104,9 @@ end
         @test val(row, "exchanges_hs") == n(hs)
         @test val(row, "exchanges_ss") == n(ss)
         @test val(row, "exchanges_recovering") == n(rh)
+        # the strict counts: both strictly healthy (hh alone), exactly one (hs, and rh with its recovering agent)
+        @test val(row, "exchanges_HH") == n(hh)
+        @test val(row, "exchanges_HX") == n(hs) + n(rh)
         @test val(row, "sick_traders") == 3  # one sick agent in hs, two in ss; the recovered one is not sick
         @test (val(row, "healthy"), val(row, "recovering"), val(row, "sick")) == (4, 1, 3)
     end
@@ -165,12 +173,13 @@ end
         rows = [
             tr_period!(r, m, t, () -> (t == 2 && empty!(f.diseases); t == 1 && bargain!(m, a, b))) for t in 1:10
         ]
-        pair_cols = ("pairs_hh", "pairs_hs", "pairs_ss", "gap_healthy", "gap_sick")
-        @test all(t -> all(k -> isnan(val(rows[t], k)), pair_cols), 1:9)
+        @test all(t -> all(k -> isnan(val(rows[t], k)), TR_TENTH), 1:9)
         row = rows[10]
         @test val(row, "recovering") == 1  # f
         # a-b, and c-f (a recovering agent counts as healthy); c-e is healthy-sick
         @test (val(row, "pairs_hh"), val(row, "pairs_hs"), val(row, "pairs_ss")) == (2, 1, 0)
+        # strictly: a-b both strictly healthy; c-f (f recovering) and c-e (e sick) exactly one
+        @test (val(row, "pairs_HH"), val(row, "pairs_HX")) == (1, 2)
         gap_ab = abs(log(mrs(a)) - log(mrs(b)))
         @test gap_ab > 0
         @test val(row, "gap_sick") ≈ abs(log(mrs(e)) - log(mrs(c)))  # e's one neighbour
@@ -180,6 +189,10 @@ end
         @test val(row, "gap_healthy") ≈ sort([gap_ab, gap_ab, abs(log(mrs(c)) - log(mrs(e))), gap_cf, gap_cf])[3]
         gap_ce = abs(log(mrs(c)) - log(mrs(e)))
         @test !(val(row, "gap_healthy") ≈ sort([gap_ab, gap_ab, gap_ce])[2])  # f's gaps count: without them it would differ
+        # the strict gap has the strictly healthy as first agents, whatever their neighbour: a-b, b-a, c-e, c-f, not f-c
+        strict = sort([gap_ab, gap_ab, gap_ce, gap_cf])
+        @test val(row, "gap_strict") ≈ (strict[2] + strict[3]) / 2
+        @test !(val(row, "gap_strict") ≈ val(row, "gap_healthy"))
     end
 
     @testset "pairs and gaps leave out what has no MRS, and the walk is the mean distance" begin
@@ -190,6 +203,7 @@ end
         r = TradeReadings(; window=(1, 10))
         row = tr_period!(r, m, 10)
         @test val(row, "pairs_hh") == 1 && isnan(val(row, "gap_healthy")) && isnan(val(row, "gap_sick"))
+        @test val(row, "pairs_HH") == 1 && val(row, "pairs_HX") == 0 && isnan(val(row, "gap_strict"))
         @test val(row, "walked") == 1.5
         @test isnan(val(tr_period!(TradeReadings(; window=(1, 10)), tiny_model(zeros(Int, 3, 3)), 1), "walked"))
     end
@@ -235,10 +249,19 @@ end
     end
 
     @testset "on a VI-1 run: every row adds up" begin
-        m, r, log = tr_run(30)
+        m, r, log, start_sick = tr_run(30)
         header, rows = trade_rows(r)
         @test header == TR_HEADER && length(rows) == 30 && [row[1] for row in rows] == 1.0:30.0
+        last_sick = Dict{Int,Int}(id => 0 for id in start_sick)
         for (row, step) in zip(rows, log)
+            # strictly healthy, from the log: no disease now and none in the last 10 periods
+            foreach(id -> last_sick[id] = step.t, step.sick)
+            strict(id, sick) = !sick && step.t - get(last_sick, id, -99) > 10
+            both = [strict(x, sx) && strict(y, sy) for ((x, y), (sx, sy)) in zip(step.partners, step.partners_sick)]
+            one = [strict(x, sx) != strict(y, sy) for ((x, y), (sx, sy)) in zip(step.partners, step.partners_sick)]
+            @test val(row, "exchanges_HH") == count(both)
+            @test val(row, "exchanges_HX") == count(one)
+            @test val(row, "exchanges_HH") <= val(row, "exchanges_hh")
             @test val(row, "exchanges") == step.exchanges
             @test val(row, "exchanges") == val(row, "exchanges_hh") + val(row, "exchanges_hs") + val(row, "exchanges_ss")
             @test val(row, "healthy") + val(row, "recovering") + val(row, "sick") == step.n
@@ -253,13 +276,17 @@ end
             @test val(row, "sick_traders") == step.sick_traders
             @test isequal(val(row, "walked"), step.walked)
             on_tenth = Int(row[1]) % 10 == 0
-            pair_cols = ("pairs_hh", "pairs_hs", "pairs_ss", "gap_healthy", "gap_sick")
             if on_tenth
-                @test all(k -> !isnan(val(row, k)), ("pairs_hh", "pairs_hs", "pairs_ss"))
+                @test all(k -> !isnan(val(row, k)), ("pairs_hh", "pairs_hs", "pairs_ss", "pairs_HH", "pairs_HX"))
+                @test val(row, "pairs_HH") <= val(row, "pairs_hh")
+                @test val(row, "pairs_HH") + val(row, "pairs_HX") <=
+                      val(row, "pairs_hh") + val(row, "pairs_hs") + val(row, "pairs_ss")
             else
-                @test all(k -> isnan(val(row, k)), pair_cols)
+                @test all(k -> isnan(val(row, k)), TR_TENTH)
             end
         end
+        @test sum(row -> val(row, "exchanges_HX"), rows) > 0
+        @test any(row -> Int(row[1]) % 10 == 0 && !isnan(val(row, "gap_strict")) && val(row, "gap_strict") >= 0, rows)
         @test any(row -> val(row, "healthy_healthy_10") > 0, rows)
         @test any(row -> val(row, "healthy_healthy_10_strict") > 0, rows)
         @test any(row -> val(row, "walked") > 0, rows)  # the xxl agents walk

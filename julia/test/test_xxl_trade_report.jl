@@ -24,22 +24,26 @@ end
 """
 A study folder of `n` seeds under `dir/name` (first seed from the name's `-s<k>-`), shaped like `run_trade_arm`'s: a
 fingerprint with `xxl` (the rules line, `settings` added at its end), `extra` (such as `trade: off`), the periods and the
-readings' window, and per seed its CSV, its trade readings and its agent snapshot. Every keyword is a number held
-throughout, or a function of the seed's place (1, 2, ...) giving one; `pop` and the CSV's other columns may also give a
-whole column (t = 0 to `periods`). The population is 2,000 at t = 0, `low` (else `pop`) at t = 1 and `pop` after. The
-trade readings hold the same row every period, the pairs and gaps only at every tenth. `agents` gives a seed's
-snapshot, else `tr_agents(ratio)`.
+readings' window (the last 20 periods unless `window` is given), and per seed its CSV, its trade readings and its agent
+snapshot. Every keyword is a number held throughout, or a function of the seed's place (1, 2, ...) giving one; `pop`
+and the CSV's other columns may also give a whole column (t = 0 to `periods`). The population is 2,000 at t = 0, `low`
+(else `pop`) at t = 1 and `pop` after. The trade readings hold the same row every period, the pairs and gaps only at
+every tenth: `hh`, `hs`, `ss`, `pairs` and `gaps` (healthy, sick) count a recovering agent as healthy, `HH`, `HX`,
+`pairs_strict` (HH, HX) and `gap_strict` are the strictly healthy's. `agents` gives a seed's snapshot, else
+`tr_agents(ratio)`.
 """
-function tr_folder(dir, name; n=20, periods=500, xxl=TR_XXL, settings="", extra="", pop=1000.0, low=nothing,
-                   sick=0.08, diseases=3.0, gini=0.3, sugar=40.0, spice=30.0, trades=1000.0, price=1.0, price_sd=0.2,
-                   moved=1.5, healthy=900.0, sick_n=80.0, hh=600.0, hs=300.0, ss=100.0, hh10=0.3, hh10_strict=0.2,
-                   pairs=(800.0, 150.0, 50.0), gaps=(0.1, 0.4), ratio=1.2, agents=nothing)
+function tr_folder(dir, name; n=20, periods=500, window=nothing, xxl=TR_XXL, settings="", extra="", pop=1000.0,
+                   low=nothing, sick=0.08, diseases=3.0, gini=0.3, sugar=40.0, spice=30.0, trades=1000.0, price=1.0,
+                   price_sd=0.2, moved=1.5, healthy=900.0, sick_n=80.0, hh=600.0, hs=300.0, ss=100.0, hh10=0.3,
+                   hh10_strict=0.2, HH=500.0, HX=400.0, pairs=(800.0, 150.0, 50.0), pairs_strict=(700.0, 200.0),
+                   gaps=(0.1, 0.4), gap_strict=0.12, ratio=1.2, agents=nothing)
     folder = joinpath(dir, name)
     mkpath(folder)
+    lo, hi = something(window, (max(1, periods - 19), periods))
     write(joinpath(folder, "fingerprint.txt"),
           "julia\n$xxl$(isempty(settings) ? "" : " " * settings)\nlook: centred\n({G1}, {M, S, K, T, L10,10, E})\n" *
           "steps=500\n$TR_CONFIG\nxl map sha256=xl-a\n" * (isempty(extra) ? "" : extra * "\n") *
-          "code sha256=code-a\nperiods=$periods\ntrade readings: window=($(max(1, periods - 99)), $periods)\n")
+          "code sha256=code-a\nperiods=$periods\ntrade readings: window=($lo, $hi)\n")
     first_seed = parse(Int, match(r"-s(\d+)-", name).captures[1])
     each(x, i) = x isa Function ? x(i) : x
     column(x) = x isa AbstractVector ? Float64.(x) : fill(Float64(x), periods + 1)
@@ -53,10 +57,12 @@ function tr_folder(dir, name; n=20, periods=500, xxl=TR_XXL, settings="", extra=
         write(joinpath(folder, "seed$k.csv"),
               TR_SEED_COLUMNS * "\n" * join(("$(t - 1)," * join((c[t] for c in cols), ",") * "\n" for t in 1:(periods + 1))))
         h, s, x, y, z = each(hh, i), each(hs, i), each(ss, i), each(pairs, i), each(gaps, i)
+        g, q = each(gap_strict, i), each(pairs_strict, i)
         rows = map(1:periods) do t
             tenth = t % 10 == 0
             return Float64[t, each(healthy, i), 20, each(sick_n, i), h + s + x, h, s, x, 10, 70, each(hh10, i), 1.0,
-                           (tenth ? y : (NaN, NaN, NaN))..., (tenth ? z : (NaN, NaN))..., each(hh10_strict, i)]
+                           (tenth ? y : (NaN, NaN, NaN))..., (tenth ? z : (NaN, NaN))..., each(hh10_strict, i),
+                           each(HH, i), each(HX, i), (tenth ? (g, q...) : (NaN, NaN, NaN))...]
         end
         write(joinpath(folder, "seed$k-trade.csv"),
               join(Sugarscape.TRADE_COLUMNS, ",") * "\n" * join((join(r, ",") * "\n" for r in rows)))
@@ -79,10 +85,10 @@ function tr_xl(dir; n=20, price_sd=0.2)
     return folder
 end
 
-# The last cell of the reading table's row `row` of arm `arm`: pass, near or fail.
+# The last cell of the reading table's row `row` of arm `arm`: pass, near, fail or missing; absent with no such row.
 function tr_result(report, arm, row)
     line = findfirst(l -> startswith(l, "| $arm | $row |"), split(report, "\n"))
-    line === nothing && return "missing"
+    line === nothing && return "absent"
     return strip(split(split(report, "\n")[line], "|")[end - 1])
 end
 
@@ -147,7 +153,6 @@ const TR_NODISEASE = replace(TR_XXL, "founder_diseases=1" => "founder_diseases=0
     @testset "each bar at its edge" begin
         arms = [
             arm("r110"; ratio=1.1), arm("r109"; ratio=1.09), arm("r100"; ratio=1.0),
-            arm("hh25"; hh10=0.25), arm("hh24"; hh10=0.24), arm("hh20"; hh10=0.2),
             arm("nd2"), arm("nd195"; nodisease=study("nd195", nod("nd195"; trades=950.0))),
             arm("nd18"; nodisease=study("nd18", nod("nd18"; trades=900.0))),
             arm("sick50"; hs=150.0, ss=50.0), arm("sick48"; hs=140.0, ss=50.0), arm("sick40"; hs=100.0, ss=50.0),
@@ -161,9 +166,6 @@ const TR_NODISEASE = replace(TR_XXL, "founder_diseases=1" => "founder_diseases=0
         @test tr_result(r, "r110", "Richer with trade") == "pass"
         @test tr_result(r, "r109", "Richer with trade") == "near"
         @test tr_result(r, "r100", "Richer with trade") == "fail"
-        @test tr_result(r, "hh25", "Healthy trade") == "pass"
-        @test tr_result(r, "hh24", "Healthy trade") == "near"
-        @test tr_result(r, "hh20", "Healthy trade") == "fail"
         @test tr_result(r, "nd2", "Without disease") == "pass"
         @test tr_result(r, "nd195", "Without disease") == "near"
         @test tr_result(r, "nd18", "Without disease") == "fail"
@@ -184,11 +186,13 @@ const TR_NODISEASE = replace(TR_XXL, "founder_diseases=1" => "founder_diseases=0
         @test tr_result(r, "x6fail", "Prices: X6") == "fail"
         @test tr_result(r, "r110", "Extinction") == "pass"
         # every arm has every row, and only the four arms made to fail the trough fail it
-        for a in arms, row in ("Richer with trade", "Healthy trade", "Without disease", "Sick agents still trade",
+        for a in arms, row in ("Richer with trade", "Without disease", "Sick agents still trade",
                                "Trough", "Disease: X9", "Disease: X10 per seed", "Prices: X6", "Extinction")
             res = tr_result(r, a.name, row)
-            @test res != "missing"
+            @test res in ("pass", "near", "fail")
         end
+        # the healthy-trade bar is dropped (the user's): no arm has the row
+        @test all(a -> tr_result(r, a.name, "Healthy trade") == "absent", arms)
         @test count(a -> tr_result(r, a.name, "Trough") == "pass", arms) == length(arms) - 4
         # with arms passing, one is chosen and no near arm is offered
         @test occursin("Chosen: ", r) && !occursin("Near passing", r)
@@ -197,18 +201,55 @@ const TR_NODISEASE = replace(TR_XXL, "founder_diseases=1" => "founder_diseases=0
     @testset "the bars as printed" begin
         r = screen([arm("A")])
         @test occursin("at least 1.10, its 95% interval above 1", r)
-        @test occursin("at least 25% of agents with no disease", r)
-        # the strict share is printed beside the bar's, and the strict matched ratio beside the bar's
-        @test occursin("| A | Healthy trade | 0.3 (strictly healthy: 0.2, a reading) |", r)
-        @test occursin("| Traders ÷ similar non-traders, strictly healthy, resources at p̄ |", r)
+        @test !occursin("| A | Healthy trade |", r) && !occursin("agents with no disease, t = 451", r)
+        # the bar's ratio is the strictly healthy's; the wider one, recovering included, is printed beside it
+        @test occursin("| A | Richer with trade | 1.2, interval [1.2, 1.2] (recovering included: 1.2, a reading) |", r)
+        @test occursin("| Traders ÷ similar non-traders, recovering included, resources at p̄ |", r)
+        # the healthy trade stays as a reading, both ways
+        @test occursin("| Strictly healthy agents with a strictly healthy partner in 10 periods, t = 451–500 | 0.2 |", r)
+        @test occursin("| The same, agents with no disease with a partner with none (recovering included) | 0.3 |", r)
         @test occursin("at least ×2 today's", r) && occursin("at least ×0.5 today's", r)
         @test occursin("mean at least 95% of today's", r) && occursin("none below 90% of today's lowest", r)
         @test occursin("at most 1.5", r) && occursin("at least 18 of 20", r)
         # the text comes from the constants
         @test occursin("at least $(Sugarscape.two_places(Sugarscape.RICHER_BAR)),", r)
-        @test occursin("$(round(Int, 100 * Sugarscape.HEALTHY_TRADE_BAR))%", r)
-        # the sick agents' reading names its bias
+        # the sick agents' reading names its bias, and healthy is said to be strictly healthy
         @test occursin("died later in the same period", r)
+        @test occursin("healthy means strictly healthy (no disease for 10 periods) in every bar and Part 1 word, " *
+                       "by the user's decision after Part 1", r)
+        # the snapshot's window is read from the fingerprint: the last 20 periods, and IV-A3's
+        @test occursin("the snapshot's window, t = 481–500", r) && occursin("IV-A3 is read over t = 281–300", r)
+        @test !occursin("last 100 (its snapshot", r)
+    end
+
+    @testset "the Richer bar reads the strictly healthy, and a missing ratio decides nothing" begin
+        # a cell of 6 strictly healthy agents and one of 6 recovering in the window (vision 4)
+        mix(strict, recovering; flags=(0, 1)) = vcat(tr_agents(strict), tr_agents(recovering; vision=4, first=7, recovering=flags))
+        r = screen([arm("strict-fails"; agents=mix(1.0, 2.0)), arm("strict-passes"; agents=mix(1.2, 0.5; flags=(1, 0)))])
+        @test tr_result(r, "strict-fails", "Richer with trade") == "fail"  # recovering included it would be 1.5
+        @test occursin("| strict-fails | Richer with trade | 1, interval [1, 1] (recovering included: 1.5, a reading) |", r)
+        @test tr_result(r, "strict-passes", "Richer with trade") == "pass"  # recovering included it would be 0.85
+        @test occursin("Chosen: strict-passes.", r)
+        # the choice ranks by the strict ratio: 1.3 strictly beats 1.2, though the wider ones are 1.05 and 1.6
+        c = screen([arm("wide"; agents=mix(1.2, 2.0)), arm("tight"; agents=mix(1.3, 0.8))])
+        @test occursin("Chosen: tight.", c)
+        # no seed with a matched cell: the row reads missing, not fail, and the arm can't pass or be near
+        none = screen([arm("none"; agents=zeros(0, 13)), arm("A")])
+        @test tr_result(none, "none", "Richer with trade") == "missing"
+        @test occursin("**The matched ratio of none is missing: no seed has a matched cell, so its Richer with trade " *
+                       "row reads missing and it can't pass.**", none)
+        @test occursin("Chosen: A. Passing: A.", none)
+        @test occursin("| none | Richer with trade | —, no seed has a matched cell (recovering included: —, a reading) |", none)
+        @test !occursin("of none leaves out seed", none)  # the missing line says it once, not seed by seed
+        # one seed without a cell is named, and the ratio reads the other 19
+        one = screen([arm("one"; agents=i -> i == 1 ? zeros(0, 13) : tr_agents(1.2))])
+        @test occursin("**The matched ratio of one leaves out seed 80 has no matched cell (cells of at least 6 strictly " *
+                       "healthy agents).**", one)
+        @test tr_result(one, "one", "Richer with trade") == "pass" && !occursin("of one is missing", one)
+        alone = screen([arm("none"; agents=zeros(0, 13))])
+        @test occursin("No arm passes. No arm is near.", alone)
+        # a recovering-only snapshot is missing too: the bar reads none of it
+        @test tr_result(screen([arm("rec"; agents=tr_agents(1.5; recovering=(0, 1)))]), "rec", "Richer with trade") == "missing"
     end
 
     @testset "the choice and the result rows" begin
@@ -232,6 +273,8 @@ const TR_NODISEASE = replace(TR_XXL, "founder_diseases=1" => "founder_diseases=0
         @test occursin("One further round of at most 3 arms", near) && !occursin("Chosen", near)
         far = screen([arm("f"; ratio=1.0, hh10=0.1)])
         @test occursin("No arm passes. No arm is near.", far) && occursin("Stop.", far) && occursin("No confirmation run", far)
+        # with the healthy-trade bar dropped, little healthy trade doesn't stop an arm
+        @test occursin("Chosen: quiet.", screen([arm("quiet"; hh10=0.01, hh10_strict=0.01)]))
         # trades that rise without healthy agents getting richer are said plainly
         busy = screen([arm("busy"; ratio=1.0, trades=1500.0)])
         @test occursin("busy: trades per head rise", busy) && occursin("more trade isn't the goal", busy)
@@ -252,28 +295,52 @@ const TR_NODISEASE = replace(TR_XXL, "founder_diseases=1" => "founder_diseases=0
         @test d(; ratio=1.2, lo=1.05, sick_share=0.3).row === nothing             # richer, but no row says so
         @test !d(; ratio=1.2, lo=1.0).words.richer && d(; ratio=1.1, lo=1.01).words.richer
         @test d(; healthy_trade=0.25).words.common && !d(; healthy_trade=0.2499).words.common
+        # a missing ratio decides nothing: no row, though without it row 3 (or 1) would hold
+        @test d().decided && d(; ratio=1.2, lo=1.05).decided
+        @test !d(; ratio=NaN, lo=NaN).decided && d(; ratio=NaN, lo=NaN).row === nothing
+        @test d(; ratio=NaN, lo=NaN, healthy_trade=0.3).row === nothing
 
         part1(name; kw...) = Sugarscape.trade_report(; label="p", part1=true, off, xl,
             base=Sugarscape.TradeArm("today", study(name, vi1(name; kw...)), base_nod, base_iva3))
-        wrong = part1("p1wrong")  # ratio 1.2, 30% with a healthy partner
+        wrong = part1("p1wrong"; hh10_strict=0.3)  # ratio 1.2, 30% of the strictly healthy with a strictly healthy partner
         @test occursin("The premise is wrong. Stop and report", wrong)
-        holds = part1("p1holds"; ratio=1.0, hh10=0.1, hh=300.0, hs=900.0)  # 900 / (900 + 600) with a sick partner
+        # 900 ÷ (900 + 600) of the strictly healthy's exchanges with a partner who isn't strictly healthy
+        holds = part1("p1holds"; ratio=1.0, hh10_strict=0.1, HH=300.0, HX=900.0, hh=300.0, hs=900.0)
         @test occursin("The diagnosis holds. Go on to Part 2", holds)
-        @test occursin("| Healthy agents' exchanges with a sick partner | 0.6 |", holds)
+        @test occursin("| Strictly healthy agents' exchanges with a partner not strictly healthy | 0.6 |", holds)
+        @test occursin("| The same, recovering included: healthy agents' exchanges with a sick partner | 0.6 |", holds)
         # recovering agents are a group of their own: 20 of 1,000 agents, 10 exchanges with one among them
         @test occursin("| Recovering agents: share of agents / exchanges with one per recovering agent | 0.02 / 0.5 |", holds)
-        half = part1("p1half"; ratio=1.0, hh10=0.1, hh=300.0, hs=900.0, gaps=(0.3, 0.4))
+        # "small" reads the strict gap ÷ the sick one: 0.3 ÷ 0.4, though recovering included it is 0.1 ÷ 0.4
+        half = part1("p1half"; ratio=1.0, hh10_strict=0.1, HH=300.0, HX=900.0, gap_strict=0.3)
         @test occursin("only half right: something besides movement", half)
-        # Part 1 says which bars today already meets
+        @test occursin("the strictly healthy median |log MRS gap| ÷ the sick one is 0.75, against at most 0.5: no. " *
+                       "Recovering included, a reading: 0.25", half)
+        # "mostly with sick partners" reads the strict share: 300 ÷ 1,500, though recovering included it is 0.6
+        wide = part1("p1wide"; ratio=1.0, hh10_strict=0.1, hh=300.0, hs=900.0, HH=600.0, HX=300.0)
+        @test occursin("Healthy agents trade with each other, but it doesn't pay", wide) && !occursin("diagnosis holds", wide)
+        # Part 1 says whether today already meets the Richer bar; the healthy-trade bar is gone
         @test occursin("Today already meets the Richer with trade bar", wrong)
-        @test !occursin("Today already meets", holds)
+        @test !occursin("Today already meets", holds) && occursin("Today doesn't meet the Richer with trade bar", holds)
+        @test !occursin("Healthy trade bar", wrong)
         @test occursin("## Trade on ÷ off", wrong) && occursin("## Traders against similar non-traders", wrong)
-        # "common" reads the spec's share (recovering agents included); the strict one is beside it and decides nothing
-        @test occursin("**common**: 0.3 of agents with no active disease (recovering included)", wrong)
-        @test occursin("Of the strictly healthy with a strictly healthy partner, a reading: 0.2", wrong)
-        strict_common = part1("p1strict"; hh10=0.3, hh10_strict=0.1)
-        @test occursin("The premise is wrong", strict_common)  # 0.3 is common, though the strict 0.1 isn't
-        @test occursin("| sugar + spice ÷ p̄, strictly healthy (a reading) |", wrong)
+        # "common" reads the strict share against 25%; the wider one is beside it and decides nothing
+        @test occursin("**common**: 0.3 of strictly healthy agents traded with a strictly healthy partner in the last " *
+                       "10 periods, t = 451–500, against at least 25%: yes. Recovering included, a reading: 0.3", wrong)
+        @test occursin("The premise is wrong", part1("p1strict"; hh10=0.1, hh10_strict=0.3))
+        not_common = part1("p1loose"; hh10=0.3, hh10_strict=0.1)  # richer, not common, not mostly with sick partners
+        @test occursin("No row of the table fires: healthy agents are richer with trade, but", not_common)
+        @test occursin("| today | sugar + spice ÷ p̄, recovering included (a reading) |", wrong)
+        @test occursin("healthy means strictly healthy (no disease for 10 periods) in every bar and Part 1 word", wrong)
+        # no seed with a matched cell: said up front, no row fires
+        none = part1("p1none"; agents=zeros(0, 13), hh10_strict=0.3)
+        msg = "**The matched ratio is missing: no seed has a matched cell, so Part 1's decision can't be made and no " *
+              "row of its table fires.**"
+        @test occursin(msg, none) && findfirst(msg, none).start < findfirst("## Runs", none).start
+        @test !occursin("The row that fires", none) && !occursin("premise is wrong", none)
+        @test occursin("No row of the table fires: the matched ratio is missing, so the decision can't be made.", none)
+        @test occursin("against at least 1.10 with its interval above 1: missing", none)
+        @test occursin("Whether today meets the Richer with trade bar can't be said: the matched ratio is missing.", none)
     end
 
     @testset "the matched ratio over the strictly healthy" begin
@@ -288,15 +355,18 @@ const TR_NODISEASE = replace(TR_XXL, "founder_diseases=1" => "founder_diseases=0
     end
 
     @testset "p̄ is the mean price over the snapshot's window" begin
-        # the price is 5 before t = 401 and 2 over the window, t = 401–500. Every agent starts with 10 and 10; the
+        # the price is 5 before t = 481 and 2 over the window, t = 481–500. Every agent starts with 10 and 10; the
         # third with fewest exchanges ends with 10 sugar, the third with most with 20 spice: 20 / 2 = 10, a ratio of 1
-        # at the window's price (0.45 at the whole run's mean price, 0.4 at 5)
-        price = vcat(fill(5.0, 401), fill(2.0, 100))
+        # at the window's price (0.41 at the whole run's mean price, 0.4 at 5)
+        price = vcat(fill(5.0, 481), fill(2.0, 20))
         ends = [(10.0, 0.0), (10.0, 0.0), (10.0, 0.0), (10.0, 0.0), (0.0, 20.0), (0.0, 20.0)]
         agents = permutedims(hcat((Float64[i, 2, 2, 3, 20, 10, 10, ends[i]..., i - 1, 0, 0, 0] for i in 1:6)...))
         windowed = study("pbar", vi1("pbar"; price, agents))
         s = windowed.seeds[1]
-        @test windowed.window == (401, 500) && Sugarscape.window_price(s, windowed.window...) == 2.0
+        @test windowed.window == (481, 500) && Sugarscape.window_price(s, windowed.window...) == 2.0
+        # read from the fingerprint, not assumed: a folder whose readings name another window is read over it
+        other = study("pbar-other", vi1("pbar-other"; price, agents, window=(401, 500)))
+        @test other.window == (401, 500) && Sugarscape.window_price(other.seeds[1], other.window...) ≈ (80 * 5 + 20 * 2) / 100
         @test Sugarscape.matched_over_seeds(windowed).ratio ≈ 1.0
         @test Sugarscape.matched_over_seeds(windowed; value=:raw).ratio ≈ 2.0
     end
@@ -304,7 +374,7 @@ const TR_NODISEASE = replace(TR_XXL, "founder_diseases=1" => "founder_diseases=0
     @testset "trade on ÷ off values the spice at the on run's p̄" begin
         # on: the snapshot's agents end with 10 sugar and 10 spice, at p̄ = 2 over the window (5 before it), so 15;
         # off: 10 sugar and no spice, 10. Leaving out the spice would give 1, the whole run's price 1.2
-        price = vcat(fill(5.0, 401), fill(2.0, 100))
+        price = vcat(fill(5.0, 481), fill(2.0, 20))
         holding(sugar, spice) = permutedims(hcat((Float64[i, 2, 2, 3, 20, 10, 10, sugar, spice, i - 1, 0, 0, 0] for i in 1:6)...))
         on = study("spice-on", vi1("spice-on"; price, agents=holding(10.0, 10.0)))
         off_run = study("spice-off", vi1("spice-off"; extra="trade: off", price=NaN, agents=holding(10.0, 0.0)))
@@ -379,6 +449,12 @@ const TR_NODISEASE = replace(TR_XXL, "founder_diseases=1" => "founder_diseases=0
         @test tr_result(yes, "A", "Richer with trade") == "pass" && occursin("The ratio passes again", yes)
         @test tr_result(no, "A", "Richer with trade") == "fail" && occursin("not confirmed", no)
         @test occursin("## Trade on ÷ off", yes)
+        # a missing ratio is said, and neither passes nor fails
+        gone = Sugarscape.trade_report(; label="c", confirm=true, off,
+            base=Sugarscape.TradeArm("A", study("cnone", vi1("cnone"; agents=zeros(0, 13))), nothing, nothing))
+        @test tr_result(gone, "A", "Richer with trade") == "missing"
+        @test occursin("The ratio is missing: no seed has a matched cell, so it can't be read, pass or fail.", gone)
+        @test !occursin("passes again", gone) && !occursin("not confirmed", gone)
         # an unfinished study run is not read, pass or fail
         for ratio in (1.2, 1.0)
             folder = vi1("cu$ratio"; ratio)
@@ -429,6 +505,16 @@ const TR_NODISEASE = replace(TR_XXL, "founder_diseases=1" => "founder_diseases=0
             e.msg
         end
         @test occursin("covers seeds 81 to 100 over 500 periods, not the baseline's 80 to 99 over 500", msg)
+        # the same seeds and periods, but the snapshot read over another window (an older folder)
+        old = Sugarscape.TradeArm("old", study("old", tr_folder(dir, "trade-old-VI-1-s80-20-p500"; window=(401, 500))),
+                                  arm_nod, base_iva3)
+        msg = try
+            screen([old])
+            ""
+        catch e
+            e.msg
+        end
+        @test occursin("reads its snapshot over t = 401–500, not the baseline's t = 481–500", msg)
     end
 
     @testset "folders it can't read" begin
