@@ -140,6 +140,7 @@ const TR_NODISEASE = replace(TR_XXL, "founder_diseases=1" => "founder_diseases=0
             arm("nd18"; nodisease=study("nd18", nod("nd18"; trades=900.0))),
             arm("sick50"; hs=150.0, ss=50.0), arm("sick48"; hs=140.0, ss=50.0), arm("sick40"; hs=100.0, ss=50.0),
             arm("tr95"; low=950.0), arm("trnear"; low=i -> i == 1 ? 890.0 : 1000.0), arm("trfail"; low=900.0 * 0.95),
+            arm("trmean"; low=940.0), arm("trboth"; low=i -> i == 1 ? 890.0 : 945.0),
             arm("x9at18"; diseases=i -> i <= 18 ? 3.0 : 0.0), arm("x9at17"; diseases=i -> i <= 17 ? 3.0 : 0.0),
             arm("x10at18"; sick=i -> i <= 18 ? 0.08 : 0.3), arm("x10at17"; sick=i -> i <= 17 ? 0.08 : 0.3),
             arm("x6at15"; price_sd=0.3), arm("x6near"; price_sd=0.31), arm("x6fail"; price_sd=0.4),
@@ -158,7 +159,9 @@ const TR_NODISEASE = replace(TR_XXL, "founder_diseases=1" => "founder_diseases=0
         @test tr_result(r, "sick48", "Sick agents still trade") == "near"
         @test tr_result(r, "sick40", "Sick agents still trade") == "fail"
         @test tr_result(r, "tr95", "Trough") == "pass"
-        @test tr_result(r, "trnear", "Trough") == "near"  # the mean is far enough, one seed below
+        @test tr_result(r, "trnear", "Trough") == "near"  # the mean meets its bar, exactly one seed below
+        @test tr_result(r, "trmean", "Trough") == "near"  # the mean 940, within 5% of 950, no seed below
+        @test tr_result(r, "trboth", "Trough") == "fail"  # the mean 942.25 short and one seed below: both miss
         @test tr_result(r, "trfail", "Trough") == "fail"  # every seed below 90% of today's lowest
         @test tr_result(r, "x9at18", "Disease: X9") == "pass"
         @test tr_result(r, "x9at17", "Disease: X9") == "near"
@@ -168,13 +171,13 @@ const TR_NODISEASE = replace(TR_XXL, "founder_diseases=1" => "founder_diseases=0
         @test tr_result(r, "x6near", "Prices: X6") == "near"
         @test tr_result(r, "x6fail", "Prices: X6") == "fail"
         @test tr_result(r, "r110", "Extinction") == "pass"
-        # every arm has every row, and only the two arms made to fail the trough fail it
+        # every arm has every row, and only the four arms made to fail the trough fail it
         for a in arms, row in ("Richer with trade", "Healthy trade", "Without disease", "Sick agents still trade",
                                "Trough", "Disease: X9", "Disease: X10 per seed", "Prices: X6", "Extinction")
             res = tr_result(r, a.name, row)
             @test res != "missing"
         end
-        @test count(a -> tr_result(r, a.name, "Trough") == "pass", arms) == length(arms) - 2
+        @test count(a -> tr_result(r, a.name, "Trough") == "pass", arms) == length(arms) - 4
         # with arms passing, one is chosen and no near arm is offered
         @test occursin("Chosen: ", r) && !occursin("Near passing", r)
     end
@@ -279,6 +282,22 @@ const TR_NODISEASE = replace(TR_XXL, "founder_diseases=1" => "founder_diseases=0
         @test !occursin("has trade on", r)
         on_off = Sugarscape.trade_report(; label="t", base, arms=[arm("A")], off=base.vi1, xl)
         @test occursin("**The trade-off folder trade-today-VI-1-s80-20-p500 has trade on", on_off) && occursin("has trade on", on_off)
+        # an off folder with seed 80 extinct from t = 200 and seed 99 unfinished: both named, in all three modes
+        name = "trade-gone-off-VI-1-s80-20-p500"
+        folder = tr_folder(dir, name; extra="trade: off", ratio=1.0, price=NaN,
+                           pop=i -> i == 1 ? vcat(fill(1000.0, 200), zeros(301)) : 1000.0,
+                           agents=i -> i == 1 ? zeros(0, 11) : tr_agents(1.0))
+        rm(joinpath(folder, "seed99.csv"))
+        gone_off = study("gone-off", folder)
+        reports = [Sugarscape.trade_report(; label="t", base, arms=[arm("A")], off=gone_off, xl),
+                   Sugarscape.trade_report(; label="p", part1=true, base, off=gone_off, xl),
+                   Sugarscape.trade_report(; label="c", confirm=true, off=gone_off,
+                                           base=Sugarscape.TradeArm("A", base.vi1, nothing, nothing))]
+        for g in reports
+            @test occursin("**Unfinished: 1 of 20 seeds of the trade-off run ($name) have not run.", g)
+            @test occursin("**Seed 80 of the trade-off run ($name) went extinct at t = 200: it is left out of trade on ÷ off.**", g)
+            @test !occursin("has trade on", g) && !occursin("NaN", g)
+        end
     end
 
     @testset "confirmation" begin

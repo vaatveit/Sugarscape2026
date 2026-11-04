@@ -455,7 +455,8 @@ figure is settled ([`SETTLE_DIGITS`](@ref)) before it meets its bar. Near is a f
 - Without disease: trades per head with no disease at least `NO_DISEASE_FACTOR` times the baseline's.
 - Sick agents still trade: sick agents' trades per head at least `SICK_TRADE_FACTOR` times the baseline's.
 - Trough: over all seeds, the mean at least `TROUGH_MEAN_SHARE` of the baseline's and no seed below `TROUGH_LOW_SHARE`
-  of the baseline's lowest. Near if the mean is at least `1 - NEAR_BY` of its bar and no more than one seed is below.
+  of the baseline's lowest. Near only when one of the two misses: the mean at least `1 - NEAR_BY` of its bar with no seed
+  below, or exactly one seed below with the mean meeting its bar. Missing both ways is a fail.
 - Disease: X9 and X10 per seed, each at least `ceil(LIST_SHARE n)` of the `n` seeds, two rows.
 - Prices: X6 at most `X6_BAR`. Near if at most `1 + NEAR_BY` of it.
 - Extinction: no seed extinct. Never near: it is the user's bar.
@@ -470,7 +471,9 @@ function screen_trade(f, base)
     mean_bar, low_bar = settle(TROUGH_MEAN_SHARE * base.trough), settle(TROUGH_LOW_SHARE * base.lowest)
     trough = settle(f.trough)
     below = count(<(low_bar), f.lows)
-    trough_pass = trough >= mean_bar && below == 0
+    mean_ok = trough >= mean_bar
+    trough_pass = mean_ok && below == 0
+    trough_near = (!mean_ok && trough >= settle((1 - NEAR_BY) * mean_bar) && below == 0) || (mean_ok && below == 1)
     x6 = settle(f.x6)
     x6_pass = x6 <= X6_BAR
     return [
@@ -483,11 +486,10 @@ function screen_trade(f, base)
                      "at least ×$(fmt(NO_DISEASE_FACTOR)) today's $(finite_text(base.nodisease_tph)) = $(finite_text(nd_bar))"),
         at_least_row("Sick agents still trade", f.sick_tph, sick_bar,
                      "at least ×$(fmt(SICK_TRADE_FACTOR)) today's $(finite_text(base.sick_tph)) = $(finite_text(sick_bar))"),
-        ScreenRow("Trough", "mean $(edge_text(trough, mean_bar, trough >= mean_bar)), lowest $(whole_cell(f.lowest))",
+        ScreenRow("Trough", "mean $(edge_text(trough, mean_bar, mean_ok)), lowest $(whole_cell(f.lowest))",
                   "mean at least $(percent(TROUGH_MEAN_SHARE)) of today's $(places(base.trough, TROUGH_DIGITS)) = " *
                   "$(fmt(mean_bar)), none below $(percent(TROUGH_LOW_SHARE)) of today's lowest " *
-                  "$(whole_cell(base.lowest)) = $(fmt(low_bar))", trough_pass,
-                  !trough_pass && trough >= settle((1 - NEAR_BY) * mean_bar) && below <= 1),
+                  "$(whole_cell(base.lowest)) = $(fmt(low_bar))", trough_pass, trough_near),
         count_row("Disease: X9", f.x9, n, need, ", a disease circulating at t = $X9_T"),
         count_row("Disease: X10 per seed", f.x10, n, need,
                   " inside $(SICK_BAND[1])–$(SICK_BAND[2]), $(period_text(SCREEN_SICK...))"),
@@ -560,16 +562,19 @@ end
 
 # ---- the report
 
-# A run's lines up front: its seeds unfinished and its extinct seeds.
-function seed_lines(r::TradeRun, who::AbstractString, effect::AbstractString)
+const EXTINCT_EFFECT = "it is left out of every ratio and reading over seeds, and counted only in the trough, X9, X10 " *
+                       "and extinction"
+
+# A run's lines up front: its seeds unfinished (`effect` says what that does) and its extinct seeds (`extinct` says
+# what is done with each).
+function seed_lines(r::TradeRun, who::AbstractString, effect::AbstractString; extinct::AbstractString=EXTINCT_EFFECT)
     lines = String[]
     finished(r.run) || push!(lines, "**Unfinished: $(r.run.planned - length(r.seeds)) of $(r.run.planned) seeds of " *
                                     "$who have not run. $effect**", "")
     for s in r.seeds
         e = extinct_at(s.list.series)
         e === nothing && continue
-        push!(lines, "**Seed $(seed_id(s)) of $who went extinct at t = $e: it is left out of every ratio and reading " *
-                     "over seeds, and counted only in the trough, X9, X10 and extinction.**", "")
+        push!(lines, "**Seed $(seed_id(s)) of $who went extinct at t = $e: $extinct.**", "")
     end
     return lines
 end
@@ -591,10 +596,14 @@ function arm_lines(a::TradeArm, f, effect)
     return lines
 end
 
-# The bold line for a trade-off folder that isn't one.
+# The lines up front for the trade-off run: its seeds unfinished or extinct, which trade on ÷ off leaves out, and a
+# folder that has trade on.
 function off_lines(off::TradeRun)
-    off.trade_off && return String[]
-    return ["**The trade-off folder $(off.run.folder) has trade on: its fingerprint has no `trade: off` line.**", ""]
+    lines = seed_lines(off, "the trade-off run ($(off.run.folder))", "Trade on ÷ off reads only those finished.";
+                       extinct="it is left out of trade on ÷ off")
+    off.trade_off ||
+        push!(lines, "**The trade-off folder $(off.run.folder) has trade on: its fingerprint has no `trade: off` line.**", "")
+    return lines
 end
 
 const MATCH_TEXT = "Traders against similar non-traders: the agents alive and healthy throughout the snapshot's window " *
