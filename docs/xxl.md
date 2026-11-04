@@ -66,6 +66,9 @@ settings with the experiment's own disease list.
 | `disease_count` | none | none | **3** | 12 |
 | `founder_diseases` | none | none | **1** | 12 |
 | `disease_lengths` | none | none | **(9, 10)** | 12 |
+| `trade_move` | none | none | none | 13 |
+| `trade_blend` λ | 1 | 1 | 1 | 13 |
+| `trade_guard` k | none | none | none | 13 |
 
 `max_metabolism`, `founder_placement`, `free_step` and `founder_ages` are the stage-1 survival switches. Each was tried
 at a candidate setting, and the scorecard decided which to keep:
@@ -80,8 +83,9 @@ at a candidate setting, and the scorecard decided which to keep:
 
 The xxl version of a regular experiment is its xl version (docs/xl.md) with these set to the default column. For a
 base experiment without seasons the season gradient is set to false, for one without sex or without finite lives
-`founder_ages` is set to `"book"`, and for one without disease the three list settings are set to none, so a fingerprint
-never names a rule that can't apply.
+`founder_ages` is set to `"book"`, for one without disease the three list settings are set to none, and for one without
+trade the three trade move settings are set to none (`trade_blend` to 1), so a fingerprint never names a rule that can't
+apply.
 
 **Refused combinations.** A configuration xxl doesn't define is refused, not run under book rules:
 - `vision_shape` other than `"lattice"` or `"disc"`; `landscape` other than `"xl"` or `"generated"`;
@@ -92,6 +96,8 @@ never names a rule that can't apply.
 - a disease count below 1; founder diseases below 0 or above the count; a disease length range that isn't lo ≤ hi with
   lo ≥ 1, or whose hi reaches `immune_length`; any of the three on an experiment without disease, or disagreeing with
   the configuration;
+- a trade move other than none, `"own"` or `"local"`; a trade blend outside 0–1; a trade guard below 0; a trade blend
+  other than 1 or a trade guard without a trade move; a trade move on an experiment without trade;
 - memory without speed; travel cost above 0 without speed; a free step above 0 without speed; word of mouth without
   memory (> 0);
 - the season gradient without seasons, or with `winter_growback = "pulse"`;
@@ -380,6 +386,32 @@ is still skipped for a disease it's immune to. For an experiment without disease
 **Stage 4:** studied in "Stage 4: the disease list" below, which recommends 3 diseases of length 9–10 with 1 offered to each
 founder. The user adopted it, so the defaults use that list. Under `--xxl` it reaches every experiment with disease: VI-1,
 which stage 4 measured, and V-1, V-2 and `VAR-inttrade/VI-1`, which it didn't.
+
+## Rule 13: movement that counts on trade
+
+**Book setting:** `trade_move` is none, `trade_blend` is 1 and `trade_guard` is none: an agent scores a site by the
+welfare of the sugar and spice it would hold after eating there, as in the book, whatever trade lets it do.
+
+**xxl** (`trade_move` set; it needs trade): an agent under trade scores a site by the value of the site's goods at the
+price it expects to trade at, instead of by the welfare of its own bundle. Three settings shape it:
+
+| Setting | Values | What it does |
+|---|---|---|
+| `trade_move` | none / `"own"` / `"local"` | Which price p the agent expects. `"own"`: its last trade price, falling back to its MRS when it has not traded. `"local"`: the mean log price of the trades within its vision over the last few periods, falling back to its MRS when there are none. None leaves the rule off |
+| `trade_blend` λ | 0 to 1 | How far the score moves from the book's welfare score toward the value at p; 1 is the full rule, 0 the book's |
+| `trade_guard` k | periods, or none | An agent whose sugar or spice would last fewer than k periods at its metabolism scores by the book's rule, so it doesn't gamble on a trade it may not find |
+
+`trade_blend` and `trade_guard` change nothing unless `trade_move` is set. Speed and travel cost don't change. For an
+experiment without trade the transform sets all three back to their book values.
+
+**Refused:** an unknown `trade_move`; a `trade_blend` outside 0–1; a `trade_guard` below 0; `trade_blend` other than 1 or
+`trade_guard` set without a `trade_move`; `trade_move` on an experiment without trade, if it reaches `Config` directly.
+
+**Fingerprint:** the `xxl` line names a trade move setting only when it is off its book value, after the disease list:
+`trade_move="local" trade_guard=5`, with `trade_blend=0.5` between them when it isn't 1. A run with the rule off has the
+fingerprint it always had.
+
+**Stage 5:** the settings are in; the rule that uses them, and what it does to the runs, is measured in stage 5.
 
 ## The metrics
 

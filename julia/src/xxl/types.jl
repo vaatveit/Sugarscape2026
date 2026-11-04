@@ -6,14 +6,19 @@ const VISION_SHAPES = ("lattice", "disc")
 const LANDSCAPES = ("xl", "generated")
 const FOUNDER_PLACEMENTS = ("random", "viable")
 const XXL_FOUNDER_AGES = ("book", "young")
+const TRADE_MOVES = ("own", "local")
 
 """
     XxlRules(; kw...)
 
-The sixteen xxl settings: the nine of the first spec ("The rules"), the four stage-1 survival switches of the
-revised spec ("The changes") and the three stage-4 disease list settings (`disease_count`, `founder_diseases` and
-`disease_lengths`), each at the book's value by default. The three list settings are `nothing` at the book's value:
-they leave the experiment's own disease list, founder count and lengths as they are. The defaults are the book's
+The nineteen xxl settings: the nine of the first spec ("The rules"), the four stage-1 survival switches of the
+revised spec ("The changes"), the three stage-4 disease list settings (`disease_count`, `founder_diseases` and
+`disease_lengths`) and the three stage-5 trade move settings (`trade_move`, `trade_blend` and `trade_guard`), each at
+the book's value by default. The three list settings are `nothing` at the book's value:
+they leave the experiment's own disease list, founder count and lengths as they are. `trade_move` is `nothing` (the
+book's welfare score), `"own"` or `"local"` (the price an agent expects when it scores a site by trade); `trade_blend`
+is a weight in [0, 1] (1 is the full rule) and `trade_guard` a number of periods or `nothing`; both need `trade_move`.
+The defaults are the book's
 settings, so `XxlRules()` changes nothing;
 [`XXL_V1`](@ref) is the xxl column of the first spec's table and [`XXL_DEFAULTS`](@ref) the defaults stages 1 and 4 chose.
 `Config.xxl` holds one, or `nothing` for the plain book rules.
@@ -35,6 +40,9 @@ Base.@kwdef struct XxlRules
     disease_count::Union{Nothing,Int} = nothing
     founder_diseases::Union{Nothing,Int} = nothing
     disease_lengths::Union{Nothing,Tuple{Int,Int}} = nothing
+    trade_move::Union{Nothing,String} = nothing
+    trade_blend::Float64 = 1.0
+    trade_guard::Union{Nothing,Int} = nothing
 end
 
 function Base.:(==)(a::XxlRules, b::XxlRules)
