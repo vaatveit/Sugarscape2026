@@ -299,6 +299,13 @@ const TR_NODISEASE = replace(TR_XXL, "founder_diseases=1" => "founder_diseases=0
         @test d().decided && d(; ratio=1.2, lo=1.05).decided
         @test !d(; ratio=NaN, lo=NaN).decided && d(; ratio=NaN, lo=NaN).row === nothing
         @test d(; ratio=NaN, lo=NaN, healthy_trade=0.3).row === nothing
+        @test d(; ratio=NaN, lo=NaN).missing == [:richer] && isempty(d().missing)
+        # so does any word's figure: each named, no row (row 3 would hold without the missing one)
+        for (k, kw) in ((:common, (; healthy_trade=NaN)), (:mostly_sick, (; sick_share=NaN)), (:small, (; gap_ratio=NaN)))
+            x = d(; kw...)
+            @test !x.decided && x.row === nothing && x.missing == [k]
+        end
+        @test d(; ratio=NaN, lo=NaN, gap_ratio=NaN).missing == [:richer, :small]
 
         part1(name; kw...) = Sugarscape.trade_report(; label="p", part1=true, off, xl,
             base=Sugarscape.TradeArm("today", study(name, vi1(name; kw...)), base_nod, base_iva3))
@@ -341,6 +348,22 @@ const TR_NODISEASE = replace(TR_XXL, "founder_diseases=1" => "founder_diseases=0
         @test occursin("No row of the table fires: the matched ratio is missing, so the decision can't be made.", none)
         @test occursin("against at least 1.10 with its interval above 1: missing", none)
         @test occursin("Whether today meets the Richer with trade bar can't be said: the matched ratio is missing.", none)
+        # each other word's figure missing: said up front, named, no row fires (row 5 would without it)
+        @test occursin("Healthy agents trade with each other, but it doesn't pay", part1("p1all"; ratio=1.0))
+        for (name, kw, figure) in (
+                ("p1nocommon", (; hh10_strict=NaN),
+                 "the share of strictly healthy agents with a strictly healthy partner (\"common\")"),
+                ("p1nosick", (; HH=0.0, HX=0.0),
+                 "the share of strictly healthy agents' exchanges with a partner who isn't (\"mostly with sick partners\")"),
+                ("p1nogap", (; gap_strict=NaN), "the strictly healthy MRS gap ratio (\"small\")"))
+            r = part1(name; ratio=1.0, kw...)
+            line = "**$(uppercasefirst(figure)) is missing, so Part 1's decision can't be made and no row of its table fires.**"
+            @test occursin(line, r) && findfirst(line, r).start < findfirst("## Runs", r).start
+            @test !occursin("The row that fires", r) && !occursin("doesn't pay", r)
+            @test occursin("No row of the table fires: $figure is missing, so the decision can't be made.", r)
+            @test occursin(": missing. Recovering included", r)  # the word itself reads missing
+            @test !occursin("Whether today meets", r) && occursin("Today doesn't meet the Richer with trade bar", r)
+        end
     end
 
     @testset "the matched ratio over the strictly healthy" begin
@@ -379,8 +402,18 @@ const TR_NODISEASE = replace(TR_XXL, "founder_diseases=1" => "founder_diseases=0
         on = study("spice-on", vi1("spice-on"; price, agents=holding(10.0, 10.0)))
         off_run = study("spice-off", vi1("spice-off"; extra="trade: off", price=NaN, agents=holding(10.0, 0.0)))
         readings = Dict(Sugarscape.on_off(on, off_run))
-        @test readings["Healthy agents' mean resources at t = 500"].ratio ≈ 1.5
+        @test readings["Strictly healthy agents' mean resources at t = 500"].ratio ≈ 1.5
+        @test readings["The same, recovering included (a reading)"].ratio ≈ 1.5
         @test readings["Population"].ratio ≈ 1.0
+        # the strict reading leaves out the recovering: six more agents on, recovering in the window, with 30 sugar.
+        # Strictly 15 ÷ 10; recovering included (6·15 + 6·30) ÷ 12 = 22.5 against 10
+        recovering = holding(30.0, 0.0)
+        recovering[:, 1] .+= 6
+        recovering[:, 13] .= 1
+        mixed = study("spice-mixed", vi1("spice-mixed"; price, agents=vcat(holding(10.0, 10.0), recovering)))
+        both = Dict(Sugarscape.on_off(mixed, off_run))
+        @test both["Strictly healthy agents' mean resources at t = 500"].ratio ≈ 1.5
+        @test both["The same, recovering included (a reading)"].ratio ≈ 2.25
     end
 
     @testset "an extinct seed" begin
@@ -419,7 +452,8 @@ const TR_NODISEASE = replace(TR_XXL, "founder_diseases=1" => "founder_diseases=0
     @testset "trade on ÷ off" begin
         r = screen([arm("A")])
         # healthy agents end with 64 / 6 on and 10 off, valued at the on run's price; the same population
-        @test occursin("| today | Healthy agents' mean resources at t = 500 | 1.067 |", r)
+        @test occursin("| today | Strictly healthy agents' mean resources at t = 500 | 1.067 |", r)
+        @test occursin("| today | The same, recovering included (a reading) | 1.067 |", r)
         @test occursin("| today | Population | 1 |", r)
         @test !occursin("has trade on", r)
         on_off = Sugarscape.trade_report(; label="t", base, arms=[arm("A")], off=base.vi1, xl)

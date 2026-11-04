@@ -616,7 +616,19 @@ const PART1_ROWS = [
 ]
 
 """
-    part1_decision(; ratio, lo, healthy_trade, sick_share, gap_ratio) -> (; words, row, decided)
+Each Part 1 word's figure as named when it is missing, and why when there is one to give: the line up front is
+"<figure> is missing<why>, so Part 1's decision can't be made…".
+"""
+const PART1_FIGURES = (
+    richer=("the matched ratio", ": no seed has a matched cell"),
+    common=("the share of strictly healthy agents with a strictly healthy partner (\"common\")", ""),
+    mostly_sick=("the share of strictly healthy agents' exchanges with a partner who isn't (\"mostly with sick partners\")",
+                 ""),
+    small=("the strictly healthy MRS gap ratio (\"small\")", ""),
+)
+
+"""
+    part1_decision(; ratio, lo, healthy_trade, sick_share, gap_ratio) -> (; words, row, decided, missing)
 
 The words of Part 1's table applied by the bars, each figure settled first, healthy read as strictly healthy (the
 user's, after Part 1): **richer** when the matched `ratio` is at least `RICHER_BAR` and its interval's low end `lo`
@@ -624,11 +636,15 @@ above 1; healthy–healthy trade **common** when `healthy_trade` (`healthy_healt
 **mostly with sick partners** when `sick_share` (with a partner not strictly healthy) is more than `MOSTLY_SICK`; MRS
 gaps **small** when `gap_ratio` (strictly healthy ÷ sick) is at most `SMALL_GAP`. `row` is the first of
 [`PART1_ROWS`](@ref) that holds, in the table's order (a trade mostly with healthy partners is "trade with each
-other"), or `nothing` when none does: richer, not common, and not mostly with sick partners. A missing `ratio` (no seed
-with a matched cell) decides nothing: `decided` is false and `row` is `nothing`.
+other"), or `nothing` when none does: richer, not common, and not mostly with sick partners. A missing figure (not
+finite: a `ratio` with no seed's matched cell, or any of the other three) decides nothing: `missing` names the words
+whose figure is missing, in the table's order (the keys of [`PART1_FIGURES`](@ref)), `decided` is false and `row` is
+`nothing`.
 """
 function part1_decision(; ratio, lo, healthy_trade, sick_share, gap_ratio)
-    decided = isfinite(settle(ratio))
+    figures = (; richer=ratio, common=healthy_trade, mostly_sick=sick_share, small=gap_ratio)
+    absent = [k for k in keys(figures) if !isfinite(settle(figures[k]))]
+    decided = isempty(absent)
     words = (; richer=settle(ratio) >= RICHER_BAR && settle(lo) > 1, common=settle(healthy_trade) >= COMMON_SHARE,
              mostly_sick=settle(sick_share) > MOSTLY_SICK, small=settle(gap_ratio) <= SMALL_GAP)
     row = !decided ? nothing :
@@ -637,7 +653,7 @@ function part1_decision(; ratio, lo, healthy_trade, sick_share, gap_ratio)
           words.mostly_sick && words.small ? 3 :
           words.mostly_sick ? 4 :
           !words.richer ? 5 : nothing
-    return (; words, row, decided)
+    return (; words, row, decided, missing=absent)
 end
 
 # ---- the report
@@ -663,18 +679,27 @@ function seed_lines(r::TradeRun, who::AbstractString, effect::AbstractString; ex
     return lines
 end
 
-# What a missing matched ratio does, said up front: in Part 1 and in screening.
-const MISSING_PART1 = "**The matched ratio is missing: no seed has a matched cell, so Part 1's decision can't be made " *
-                      "and no row of its table fires.**"
+# Part 1's lines up front for its missing figures (`d` its decision): one for each, naming it.
+function part1_missing_lines(d)
+    lines = String[]
+    for k in d.missing
+        name, why = PART1_FIGURES[k]
+        push!(lines, "**$(uppercasefirst(name)) is missing$why, so Part 1's decision can't be made and no row of its " *
+                     "table fires.**", "")
+    end
+    return lines
+end
+
+# What a missing matched ratio does in screening, said up front.
 missing_screen(name) = "**The matched ratio of $name is missing: no seed has a matched cell, so its Richer with trade " *
                        "row reads missing and it can't pass.**"
 
 # The lines up front for an arm (`f` its figures): `missing_line` when the matched ratio (the bar's, over the strictly
-# healthy) is missing, else each VI-1 seed it leaves out for want of a cell; its three folders' seeds; and a no-disease
-# folder with disease.
-function arm_lines(a::TradeArm, f, effect; missing_line::AbstractString=missing_screen(a.name))
+# healthy) is missing (none if it is `nothing`: Part 1 says so itself), else each VI-1 seed it leaves out for want of a
+# cell; its three folders' seeds; and a no-disease folder with disease.
+function arm_lines(a::TradeArm, f, effect; missing_line::Union{Nothing,AbstractString}=missing_screen(a.name))
     lines = String[]
-    ratio_missing(f) && push!(lines, missing_line, "")
+    ratio_missing(f) && missing_line !== nothing && push!(lines, missing_line, "")
     for (r, world, extinct) in ((a.vi1, "VI-1", EXTINCT_EFFECT), (a.nodisease, "no disease", EXTINCT_NODISEASE),
                                 (a.iva3, "IV-A3", EXTINCT_IVA3))
         r === nothing || append!(lines, seed_lines(r, "$(a.name), $world", effect; extinct))
@@ -806,18 +831,19 @@ end
     on_off(on, off) -> Vector{(name, (; ratio, lo, hi))}
 
 The trade-off reading: `on`'s mean ÷ `off`'s, over the seeds that never went extinct, each side resampled alone
-([`bootstrap_ratio_apart`](@ref)): healthy agents' mean resources at the window's end (the snapshot's agents), the
-population over `READ_WINDOW`, and the total resources over it (population × (mean sugar + mean spice ÷ p̄)). With trade
-off there is no price, so both sides are valued at `on`'s p̄, the mean over its seeds of their mean price over its window.
+([`bootstrap_ratio_apart`](@ref)): strictly healthy agents' mean resources at the window's end (the snapshot's agents
+with neither recovering flag, [`strict_rows`](@ref), by the user's decision after Part 1), the same over the whole
+snapshot, recovering included (a reading), the population over `READ_WINDOW`, and the total resources over it
+(population × (mean sugar + mean spice ÷ p̄)). With trade off there is no price, so both sides are valued at `on`'s p̄,
+the mean over its seeds of their mean price over its window.
 """
 function on_off(on::TradeRun, off::TradeRun)
     lo, hi = READ_WINDOW
     ons, offs = live_seeds(on), live_seeds(off)
     p = nanmean(Float64[window_price(s, on.window...) for s in ons])
-    function healthy(s)
-        a = s.agents
-        return size(a, 1) == 0 ? NaN : mean_of([a[i, 8] + a[i, 9] / p for i in axes(a, 1)])
-    end
+    resources(a) = size(a, 1) == 0 ? NaN : mean_of([a[i, 8] + a[i, 9] / p for i in axes(a, 1)])
+    healthy(s) = resources(strict_rows(s.agents))
+    healthy_wide(s) = resources(s.agents)
     function total(s)
         pop, sugar, spice = s.list.series.population, s.list.sugar, seed_column(s, "mean_spice")
         return nanmean([pop[t + 1] * (sugar[t + 1] + spice[t + 1] / p) for t in lo:hi])
@@ -825,17 +851,19 @@ function on_off(on::TradeRun, off::TradeRun)
     population(s) = window_population(s.list.series, lo, hi)
     figures(f, seeds) = filter(!isnan, Float64[f(s) for s in seeds])
     return [(name, bootstrap_ratio_apart(figures(f, ons), figures(f, offs)))
-            for (name, f) in (("Healthy agents' mean resources at t = $(on.window[2])", healthy), ("Population", population),
+            for (name, f) in (("Strictly healthy agents' mean resources at t = $(on.window[2])", healthy),
+                              ("The same, recovering included (a reading)", healthy_wide), ("Population", population),
                               ("Total resources", total))]
 end
 
 # The trade-off section: each run on ÷ the shared trade-off run.
 function on_off_lines(runs::Vector{Pair{String,TradeRun}}, off::TradeRun)
     lines = [
-        "Healthy agents' mean resources, population and total resources with trade on ÷ off ($(off.run.folder), " *
-        "$(length(live_seeds(off))) seeds), resampling each side independently since seeds don't pair once trade " *
-        "changes the draws. A reading, not a bar. With trade off there is no price, so both sides are valued at the " *
-        "trade-on run's mean price.",
+        "Strictly healthy agents' mean resources (the snapshot's agents recovering neither at its start nor in it, by " *
+        "the user's decision after Part 1; the whole snapshot, recovering included, beside it as a reading), " *
+        "population and total resources with trade on ÷ off ($(off.run.folder), $(length(live_seeds(off))) seeds), " *
+        "resampling each side independently since seeds don't pair once trade changes the draws. A reading, not a " *
+        "bar. With trade off there is no price, so both sides are valued at the trade-on run's mean price.",
         "",
         row_text(["Run", "Reading", "On ÷ off", "95% interval", "Against 1"]), "|" * "---|"^5,
     ]
@@ -907,7 +935,8 @@ The trade study's report as markdown, in one of three modes:
 Healthy, in every bar and Part 1's words, is strictly healthy, no disease for 10 periods (the user's, after Part 1).
 The spec's wider readings, a recovering agent counted as healthy, are printed beside them and decide nothing. A
 missing matched ratio (no seed with a matched cell) decides nothing either: Part 1 fires no row, screening's Richer row
-reads missing and the arm can't pass, and confirmation neither passes nor fails it. Confirmation reads its ratio only
+reads missing and the arm can't pass, and confirmation neither passes nor fails it. Nor does any other Part 1 word's
+missing figure: Part 1 names it up front and fires no row. Confirmation reads its ratio only
 once every planned seed has run. The snapshot's windows are the folders' own, from their fingerprints.
 
 Up front, in bold: a missing matched ratio, seeds unfinished (an arm with any cannot pass or be chosen), seeds extinct
@@ -966,11 +995,12 @@ function part1_report(label, base::TradeArm, off::TradeRun, xl)
     f = arm_figures(base, xl)
     d = part1_decision(; ratio=f.matched.ratio, lo=f.matched.lo, healthy_trade=f.healthy_trade,
                        sick_share=f.sick_share, gap_ratio=f.gap_ratio)
-    yes(b) = b ? "yes" : "no"
     w = d.words
+    word(k) = k in d.missing ? "missing" : w[k] ? "yes" : "no"
     lines = ["# Trade, Part 1: $label", ""]
-    append!(lines, arm_lines(base, f, "Its readings cover only those finished."; missing_line=MISSING_PART1),
-            off_lines(off), xl_lines(xl))
+    append!(lines, part1_missing_lines(d),
+            arm_lines(base, f, "Its readings cover only those finished."; missing_line=nothing), off_lines(off),
+            xl_lines(xl))
     push!(lines, "## Runs", "", row_text(["Run", "Folder", "Seeds", "Periods"]), "|---|---|---|---|")
     for (what, r) in (("Trade on", base.vi1), ("Trade off", off), ("No disease", base.nodisease), ("IV-A3", base.iva3))
         r === nothing || push!(lines, row_text([what, r.run.folder, "$(length(r.seeds)) of $(r.run.planned)", r.run.periods]))
@@ -982,21 +1012,22 @@ function part1_report(label, base::TradeArm, off::TradeRun, xl)
           "included, is beside each and decides nothing.", "",
           "- **Richer** with trade: traders ÷ similar non-traders, strictly healthy, $(matched_cell(f.matched)), " *
           "against at least $(two_places(RICHER_BAR)) with its interval above 1: " *
-          "$(d.decided ? yes(w.richer) : "missing"). Recovering included, a reading: $(matched_cell(f.matched_wide))",
+          "$(word(:richer)). Recovering included, a reading: $(matched_cell(f.matched_wide))",
           "- Healthy–healthy trade **common**: $(places(f.healthy_trade, 3)) of strictly healthy agents traded with a " *
           "strictly healthy partner in the last 10 periods, $(period_text(HEALTHY_TRADE_T...)), against at least " *
-          "$(percent(COMMON_SHARE)): $(yes(w.common)). Recovering included, a reading: " *
+          "$(percent(COMMON_SHARE)): $(word(:common)). Recovering included, a reading: " *
           "$(places(f.healthy_trade_wide, 3))",
           "- Healthy trade **mostly with sick partners**: $(places(f.sick_share, 3)) of strictly healthy agents' " *
           "exchanges have a partner who isn't (recovering or sick), $(period_text(READ_WINDOW...)), against more than " *
-          "$(percent(MOSTLY_SICK)): $(yes(w.mostly_sick)). Recovering included, a reading: " *
+          "$(percent(MOSTLY_SICK)): $(word(:mostly_sick)). Recovering included, a reading: " *
           "$(places(f.sick_share_wide, 3))",
           "- Healthy MRS gaps **small**: the strictly healthy median |log MRS gap| ÷ the sick one is " *
-          "$(places(f.gap_ratio, 3)), against at most $(fmt(SMALL_GAP)): $(yes(w.small)). Recovering included, a " *
+          "$(places(f.gap_ratio, 3)), against at most $(fmt(SMALL_GAP)): $(word(:small)). Recovering included, a " *
           "reading: $(places(f.gap_ratio_wide, 3))", "")
     if !d.decided
-        push!(lines, "No row of the table fires: the matched ratio is missing, so the decision can't be made. What " *
-                     "next is the user's call.")
+        names = [first(PART1_FIGURES[k]) for k in d.missing]
+        push!(lines, "No row of the table fires: $(join(names, " and ")) $(length(names) == 1 ? "is" : "are") missing, " *
+                     "so the decision can't be made. What next is the user's call.")
     elseif d.row === nothing
         push!(lines, "No row of the table fires: healthy agents are richer with trade, but healthy–healthy trade isn't " *
                      "common and healthy trade isn't mostly with sick partners. What next is the user's call.")
@@ -1005,7 +1036,8 @@ function part1_report(label, base::TradeArm, off::TradeRun, xl)
         push!(lines, "The row that fires, the first in the table's order that holds: **$result.** $reading.")
     end
     push!(lines, "", "## Bars today already meets", "",
-          !d.decided ? "Whether today meets the Richer with trade bar can't be said: the matched ratio is missing." :
+          :richer in d.missing ? "Whether today meets the Richer with trade bar can't be said: the matched ratio is " *
+                                 "missing." :
           w.richer ? "Today already meets the Richer with trade bar. Part 1 may correct a bar met today: any change is " *
                      "recorded in the ledger and put to the user before screening." :
           "Today doesn't meet the Richer with trade bar.",
