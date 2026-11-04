@@ -88,35 +88,80 @@ end
 
 Pushes the pair correlation at each of `CLUSTER_RADII`: the ordered pairs of agents at a shell-r offset, over what
 N agents placed at random on the capacity >= 1 sites would give, N (N - 1) P_r. Above 1 is clustered. `NaN` with
-fewer than two agents.
+fewer than two agents. The pairs are counted a row of sites at a time ([`pairs_at`](@ref)).
 """
 function clustering!(out, m::Model)
-    agents, grid = m.agents, m.grid
-    n = length(agents)
+    n = length(m.agents)
     if n < 2
         for _ in CLUSTER_RADII
             push!(out, NaN)
         end
         return out
     end
-    w, h = m.config.width, m.config.height
     shares = shell_shares!(m)
+    rows = OccupancyRows(m)
     for (i, r) in enumerate(CLUSTER_RADII)
-        offs = shell_offsets(m, r)
-        observed = 0
-        for a in agents
-            for (dx, dy) in offs
-                xx, yy = a.x + 1 + dx, a.y + 1 + dy
-                xx < 1 && (xx += w)
-                xx > w && (xx -= w)
-                yy < 1 && (yy += h)
-                yy > h && (yy -= h)
-                observed += grid[xx, yy] !== nothing
-            end
-        end
-        push!(out, observed / (n * (n - 1) * shares[i]))
+        push!(out, pairs_at(rows, shell_offsets(m, r)) / (n * (n - 1) * shares[i]))
     end
     return out
+end
+
+# Who is where, a bit per site. Row y's sites x = 0 … w - 1 are `words` words of `from` (from the agents' positions),
+# and in `to` (from the grid) the row is written twice end to end, so that its sites x + s, wrapped, read as whole words.
+struct OccupancyRows
+    w::Int
+    h::Int
+    words::Int
+    from::Matrix{UInt64}
+    to::Matrix{UInt64}
+end
+
+function OccupancyRows(m::Model)
+    w, h = size(m.grid)
+    words = cld(w, 64)
+    from = zeros(UInt64, words, h)
+    to = zeros(UInt64, cld(2w, 64) + 1, h)
+    for a in m.agents
+        @inbounds from[a.x >> 6 + 1, a.y + 1] |= one(UInt64) << (a.x & 63)
+    end
+    for y in 1:h, x in 0:(w - 1)
+        @inbounds m.grid[x + 1, y] === nothing && continue
+        for b in (x, x + w)
+            @inbounds to[b >> 6 + 1, y] |= one(UInt64) << (b & 63)
+        end
+    end
+    return OccupancyRows(w, h, words, from, to)
+end
+
+"""
+    pairs_at(rows, offsets) -> Int
+
+How many agents stand at each offset (dx, dy) of every agent, over all `offsets`: for each, the sum over rows y of the
+agents in row y whose site (x + dx, y + dy), wrapped, is occupied. A word is 64 sites, so a row is a few `&` and
+`count_ones`. The same count as reading the grid at each offset of each agent.
+"""
+function pairs_at(o::OccupancyRows, offsets::Vector{Tuple{Int,Int}})
+    w, h, words = o.w, o.h, o.words
+    # Every row's sites x + dx, wrapped, for one dx at a time. Past x = w - 1 the last word holds stray bits, but `from`
+    # has none there, so the `&` drops them.
+    shifted = Matrix{UInt64}(undef, words, h)
+    total = 0
+    for dx in unique(first.(offsets))
+        q, b = mod(dx, w) >> 6, mod(dx, w) & 63
+        for y in 1:h, k in 1:words  # a shift of 64 or more gives 0, so b == 0 needs no case of its own
+            @inbounds shifted[k, y] = (o.to[q + k, y] >> b) | (o.to[q + k + 1, y] << (64 - b))
+        end
+        for (ex, dy) in offsets
+            ex == dx || continue
+            for y in 1:h
+                yy = mod(y - 1 + dy, h) + 1
+                for k in 1:words
+                    @inbounds total += count_ones(o.from[k, y] & shifted[k, yy])
+                end
+            end
+        end
+    end
+    return total
 end
 
 """
