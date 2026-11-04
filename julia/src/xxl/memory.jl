@@ -14,7 +14,8 @@ more recent sighting, then the smaller (x, y).
 end
 
 # One agent's ranking in progress: `a.memory` being rebuilt, best first, with each kept entry's value and what its two
-# powers are of. Building one empties `a.memory`.
+# powers are of. Building one empties `a.memory`. `price`'s rule 13 blend and price, if any, carry over (a move's
+# `SiteWelfare`); the holdings are the agent's now.
 struct Ranking
     a::Agent
     sw::SiteWelfare
@@ -30,16 +31,16 @@ struct Ranking
     kb::Vector{Float64}
 end
 
-function Ranking(m::Model, a::Agent)
+function Ranking(m::Model, a::Agent, price::SiteWelfare=NO_WELFARE)
     cfg = m.config
     two = cfg.spice
-    sw = two ? SiteWelfare(m, a) : NO_WELFARE
+    sw = two ? priced(SiteWelfare(m, a), price.lambda, price.inv_p) : NO_WELFARE
     cap = cfg.xxl.memory
     return Ranking(
         a,
         sw,
         two,
-        two && sw.use1 && sw.use2,
+        two && sw.use1 && sw.use2 && sw.lambda == 0,  # surely_less holds for the book's welfare only
         sugar_burn(a),
         cfg.xxl.travel_cost,
         cfg.xxl.free_step,
@@ -115,15 +116,17 @@ function rank_pool!(m::Model, a::Agent)
 end
 
 """
-    remember!(m, a)
+    remember!(m, a; sw=NO_WELFARE)
 
 Updates agent `a`'s memory after its move (spec, rule 3). It ranks, as [`rank_pool!`](@ref) does, the site it stands on
 and the sites it looked at this move (`m.looked`), which count as seen now at their current resources and pollution (the
 site it harvested is as it is after harvest), then the rest of its memory. One entry per site: the newest sighting, and a
 fresh look wins over a remembered entry of the same period. Entries older than `memory_span` periods are dropped first.
-The sites are ranked without being pooled, as most lose at once; `m.pool` holds only the memory's entries.
+The sites are ranked without being pooled, as most lose at once; `m.pool` holds only the memory's entries. `sw` is the
+move's [`SiteWelfare`](@ref): under rule 13 the entries are valued at the move's blend and price (our call), with the
+holdings as they are after the harvest.
 """
-function remember!(m::Model, a::Agent)
+function remember!(m::Model, a::Agent; sw::SiteWelfare=NO_WELFARE)
     ls = m.landscape
     span = m.config.xxl.memory_span
     spice = m.config.spice
@@ -140,7 +143,7 @@ function remember!(m::Model, a::Agent)
         end
         dup || push!(rest, e)
     end
-    r = Ranking(m, a)
+    r = Ranking(m, a, sw)
     c1, c2 = rank_entry!(r, 0.0, seen(ls, spice, ax, ay, m.t), Inf, Inf)
     for (x, y) in looked
         ((x == ax) & (y == ay)) && continue

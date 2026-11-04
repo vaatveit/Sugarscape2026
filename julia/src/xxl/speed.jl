@@ -21,7 +21,9 @@ trip_cost(c::Float64, free::Float64, d::Float64) = d <= free ? 0.0 : c * d
     net_value(a, sw, two, c, free, d, sugar, spice) -> Float64
 
 The core of [`net_value`](@ref)`(m, a, x, y, d, sugar, spice)`, with the agent's part of welfare (`sw`), whether spice is
-on (`two`), the travel cost per site (`c`) and the free step (`free`) already in hand, so a move builds them once.
+on (`two`), the travel cost per site (`c`) and the free step (`free`) already in hand, so a move builds them once. With
+spice and an `sw` of rule 13 (`sw.lambda > 0`), the two powers' parts (A, B) score [`trade_value`](@ref) instead of
+the welfare alone; starving on the way is still `-Inf`.
 """
 function net_value(
     a::Agent,
@@ -44,7 +46,8 @@ function net_value(
     A < 0 && return -Inf
     left = sw.use1 ? A^sw.e1 : 1.0
     right = sw.use2 ? B^sw.e2 : 1.0
-    return left * right
+    sw.lambda == 0 && return left * right
+    return trade_value(sw.lambda, sw.inv_p, left * right, A, B)  # rule 13
 end
 
 """
@@ -125,7 +128,8 @@ highest [`net_value`](@ref), ties going to the nearest by torus distance, then a
 replaces the choice with probability 1/c, one draw each); `target_remembered` records whether the target is a
 remembered site beyond vision. It steps toward the target with [`step_site`](@ref), harvests where it lands, and with
 memory then [`remember!`](@ref)s. `travel_free` records whether the target is within `free_step` (revised spec, stage 1,
-item 3); [`metabolize!`](@ref) charges the distance moved unless it is.
+item 3); [`metabolize!`](@ref) charges the distance moved unless it is. With rule 13 the sites are valued at the price
+`SiteWelfare(m, a, looked)` expects from this look, and the remembered sites, now and in `remember!`, at the same price.
 """
 function speed_move!(m::Model, a::Agent)
     ls = m.landscape
@@ -134,19 +138,21 @@ function speed_move!(m::Model, a::Agent)
     w, h = ls.width, ls.height
     a.moved_dist = 0.0
     a.target_remembered = false
-    sw = spice ? SiteWelfare(m, a) : NO_WELFARE
+    looked = look!(m, a)
+    sw = spice ? SiteWelfare(m, a, looked) : NO_WELFARE  # after the look, for rule 13's local price; it draws nothing
     best_x, best_y, best_d = a.x, a.y, 0.0
     best = site_value(a, sw, spice, c, free, ls, a.x, a.y, 0.0)
     ties = 1
     memory = xxl_on(m.config, :memory)
-    two_powers = spice && sw.use1 && sw.use2  # most sites then lose without a power being taken (surely_less)
+    # Most sites then lose without a power being taken (surely_less), which holds for the book's welfare only.
+    two_powers = spice && sw.use1 && sw.use2 && sw.lambda == 0
     m1 = sugar_burn(a)
     b1, b2 = Inf, Inf
     if two_powers
         A, B = site_parts(a, sw, m1, c, free, ls, a.x, a.y, 0.0)
         b1, b2 = prune_weights(sw.e1, sw.e2, A, B)
     end
-    for (x, y) in look!(m, a)
+    for (x, y) in looked
         @inbounds m.grid[x + 1, y + 1] === nothing || continue  # the agent's own site is occupied by itself
         d = torus_dist(w, h, a.x, a.y, x, y)
         if two_powers
@@ -192,7 +198,7 @@ function speed_move!(m::Model, a::Agent)
     a.moved = (x, y) != (a.x, a.y)
     move_agent!(m, a, x, y)
     harvest!(m, a, x, y)
-    memory && remember!(m, a)
+    memory && remember!(m, a; sw)
     return nothing
 end
 

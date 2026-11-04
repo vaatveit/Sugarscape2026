@@ -18,7 +18,7 @@ function expected_price(m::Model, a::Agent, looked::Vector{Tuple{Int,Int}})
     if m.config.xxl.trade_move == "own"
         return isfinite(a.last_price) ? a.last_price : own_mrs()
     end
-    since = m.t - LOCAL_PRICE_PERIODS + 1
+    since = max(m.t - LOCAL_PRICE_PERIODS + 1, 0)  # never back to site_price_t's -1, no exchange yet
     total, n = 0.0, 0
     site_x, site_y = a.x + 1, a.y + 1
     if @inbounds m.site_price_t[site_x, site_y] >= since

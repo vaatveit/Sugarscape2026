@@ -79,7 +79,9 @@ function move!(m::Model, a::Agent)
     a.moved_dist = 0.0
     a.target_remembered = false
     best_x, best_y, best_d = a.x, a.y, 0
-    sw = spice ? SiteWelfare(m, a) : NO_WELFARE  # the agent's part of welfare_score, once per move
+    # The agent's part of welfare_score, once per move. Rule 13's local price reads the agent's own site only: this
+    # loop keeps no list of the sites it looks at (our call).
+    sw = spice ? SiteWelfare(m, a, NO_SITES) : NO_WELFARE
     best = spice ? score(sw, ls, a.x + 1, a.y + 1) : site_score(ls, a.x + 1, a.y + 1)
     stride = m.config.look_stride
     for d in random_directions(m.rng)
