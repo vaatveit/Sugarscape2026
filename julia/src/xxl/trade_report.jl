@@ -1,0 +1,1059 @@
+# xxl (stage 5): the trade study's report (docs/superpowers/specs/2026-11-03-xxl-trade-design.md, "Part 1" and "Part 3").
+# Finished study folders (julia/src/xxl/trade_study.jl) read against bars fixed before any screening run: Part 1's
+# readings and the row of "What Part 1 decides" that fires, the screening's reading table, choice and result row, and the
+# confirmation's matched ratio, each with the trade-off reading beside it. It reads only finished CSVs and runs nothing,
+# so the bars are code that can be tested before any result exists (julia/xxl_trade_report.jl is its command line).
+
+# The bars, fixed before any screening run (my call, from the spec's reading table and Part 1's words).
+const RICHER_BAR = 1.10  # traders ÷ similar non-traders, with the interval above 1
+const HEALTHY_TRADE_BAR = 0.25  # healthy_healthy_10, mean over t = 451–500
+const NO_DISEASE_FACTOR = 2.0  # trades per head with no disease, against today's
+const SICK_TRADE_FACTOR = 0.5  # sick agents' trades per head, against today's
+const TROUGH_MEAN_SHARE = 0.95
+const TROUGH_LOW_SHARE = 0.90
+const X6_BAR = 1.5  # mean over seeds of the end (last 100 periods) price_sd, ÷ xl's
+const GINI_NOTE = 0.03  # a rise beyond this is said up front
+const MOSTLY_SICK = 0.5  # Part 1: share of healthy agents' exchanges with a sick partner
+const SMALL_GAP = 0.5  # Part 1: healthy median gap ÷ sick median gap at most this
+const CELL_MIN = 6  # agents in a matched cell, at least
+const AGE_BAND = 10
+
+const READ_WINDOW = (301, 500)  # the periods Part 1's readings are taken over
+const HEALTHY_TRADE_T = (451, 500)  # the periods the healthy-trade bar reads
+const STUDY_END = 500  # a VI-1 folder (on, off, no disease) is read to this period
+const SEED_EXTRA = ("mean_spice", "price_sd", "mean_moved")  # the CSV's columns read besides `read_list_run`'s
+
+"""
+    TradeSeed(list, header, rows, trade, agents)
+
+One whole seed of a study folder: its [`ListSeed`](@ref); its CSV (`header`, `rows` from t = 0); its trade readings,
+`trade[column][t]` for t ≥ 1 (see [`TRADE_COLUMNS`](@ref)); and its agent snapshot, one row an agent in the order of
+[`TRADE_AGENT_COLUMNS`](@ref).
+"""
+struct TradeSeed
+    list::ListSeed
+    header::Vector{String}
+    rows::Matrix{Float64}
+    trade::Dict{String,Vector{Float64}}
+    agents::Matrix{Float64}
+end
+
+"""
+    TradeRun(run, window, trade_off, seeds)
+
+A study folder read for the report: the [`ListRun`](@ref) [`read_list_run`](@ref) makes of it, the snapshot's `window`
+from its fingerprint, whether the fingerprint says `trade: off`, and its whole seeds in `run.seeds`' order.
+"""
+struct TradeRun
+    run::ListRun
+    window::Tuple{Int,Int}
+    trade_off::Bool
+    seeds::Vector{TradeSeed}
+end
+
+"""
+    TradeArm(name, vi1, nodisease, iva3)
+
+An arm of the study: its VI-1 folder, and its no-disease and IV-A3 folders (`nothing` for confirmation, which reads only
+VI-1).
+"""
+struct TradeArm
+    name::String
+    vi1::TradeRun
+    nodisease::Union{Nothing,TradeRun}
+    iva3::Union{Nothing,TradeRun}
+end
+
+"""
+    read_trade_run(name, folder) -> TradeRun
+
+A study folder (`run_trade_arm`'s), its whole seeds only (see [`read_list_run`](@ref)). `ArgumentError` for a folder whose
+fingerprint names no trade readings, a whole seed without its trade readings or snapshot, or a file without the columns
+the report reads.
+"""
+function read_trade_run(name::AbstractString, folder::AbstractString)
+    run = read_list_run(name, folder)
+    m = match(r"^trade readings: window=\((\d+), (\d+)\)"m, run.fingerprint)
+    m === nothing && throw(ArgumentError("$folder is not a trade study folder: its fingerprint names no trade readings"))
+    window = (parse(Int, m.captures[1]), parse(Int, m.captures[2]))
+    seeds = TradeSeed[]
+    for s in run.seeds
+        k = s.series.seed
+        header, rows = read_seed_csv(joinpath(folder, "seed$k.csv"))
+        for c in SEED_EXTRA
+            c in header || throw(ArgumentError("seed $k of $folder lacks the $c column"))
+        end
+        tpath, apath = trade_path(folder, k, "trade"), trade_path(folder, k, "agents")
+        (isfile(tpath) && isfile(apath)) ||
+            throw(ArgumentError("seed $k of $folder has its CSV but not its trade readings and snapshot"))
+        th, tm = read_seed_csv(tpath)
+        (th == TRADE_COLUMNS && tm[:, 1] == 1:(run.periods)) ||
+            throw(ArgumentError("$tpath isn't the trade readings of t = 1 to $(run.periods)"))
+        ah, am = read_seed_csv(apath)
+        ah == TRADE_AGENT_COLUMNS || throw(ArgumentError("$apath doesn't have the snapshot's columns"))
+        push!(seeds, TradeSeed(s, header, rows, Dict(c => tm[:, j] for (j, c) in enumerate(th)), am))
+    end
+    return TradeRun(run, window, occursin(r"^trade: off[ \t\r]*$"m, run.fingerprint), seeds)
+end
+
+"""The arm of the three folders `vi1`, `nodisease` and `iva3`, each read by [`read_trade_run`](@ref)."""
+function read_trade_arm(name::AbstractString, vi1, nodisease, iva3)
+    return TradeArm(name, read_trade_run(name, vi1), read_trade_run(name, nodisease), read_trade_run(name, iva3))
+end
+
+"""
+    read_xl_prices(folder) -> (; folder, prices)
+
+The xl reference for X6: per seed of an xl folder (the scorecard's `scorecard-xl-s<first>-<seeds>/VI-1`), the end price
+sd, the mean of `price_sd` over the last [`END_PERIODS`](@ref) periods (see [`end_mean`](@ref)), in the order of the seeds.
+`ArgumentError` for a folder with no seed CSV or one without `price_sd`.
+"""
+function read_xl_prices(folder::AbstractString)
+    isdir(folder) || throw(ArgumentError("$folder is not a folder"))
+    files = sort!([(parse(Int, m.captures[1]), f) for f in readdir(folder)
+                   for m in (match(r"^seed(\d+)\.csv$", f),) if m !== nothing])
+    isempty(files) && throw(ArgumentError("$folder holds no xl seed"))
+    prices = map(files) do (_, f)
+        header, M = read_seed_csv(joinpath(folder, f))
+        j = findfirst(==("price_sd"), header)
+        j === nothing && throw(ArgumentError("$(joinpath(folder, f)) lacks the price_sd column"))
+        return end_mean(M, j)
+    end
+    path = rstrip(folder, ['/', '\\'])
+    return (; folder="$(basename(dirname(path)))/$(basename(path))", prices)
+end
+
+# ---- a seed's readings
+
+seed_id(s::TradeSeed) = s.list.series.seed
+is_extinct(s::TradeSeed) = extinct_at(s.list.series) !== nothing
+
+"""The seeds of `r` that never went extinct: the only ones a ratio or a reading over seeds reads."""
+live_seeds(r::TradeRun) = [s for s in r.seeds if !is_extinct(s)]
+
+"""Column `name` of a seed's CSV, indexed `[t + 1]`."""
+seed_column(s::TradeSeed, name::AbstractString) = @view s.rows[:, findfirst(==(name), s.header)]
+
+"""The mean of a seed's CSV column `name` over periods `lo` to `hi`, skipping NaN."""
+seed_mean(s::TradeSeed, name, lo, hi) = nanmean(seed_column(s, name)[(lo + 1):(hi + 1)])
+
+"""The seed's mean of `mean_price` over periods `lo` to `hi`, skipping NaN: p̄, the price its resources are valued at."""
+window_price(s::TradeSeed, lo, hi) = nanmean(@view s.list.price[(lo + 1):(hi + 1)])
+
+"""The sum of trade-readings column `name` over periods `lo` to `hi`, skipping NaN."""
+trade_sum(s::TradeSeed, name, lo, hi) = sum((x for x in @view(s.trade[name][lo:hi]) if !isnan(x)); init=0.0)
+
+"""The sum of trade-readings column `name` over periods `lo` to `hi` per head (the population summed over them)."""
+function per_head(s::TradeSeed, name, lo, hi)
+    heads = sum(@view s.list.series.population[(lo + 1):(hi + 1)])
+    return heads == 0 ? NaN : trade_sum(s, name, lo, hi) / heads
+end
+
+"""
+Sick agents' trades per head over periods `lo` to `hi`: `exchanges_hs + 2 exchanges_ss` over `sick`, each summed over them;
+NaN if no agent was sick. It reads slightly high: an exchange counts a sick agent who died later in its period, while
+`sick` counts only the living.
+"""
+function sick_trades_per_head(s::TradeSeed, lo, hi)
+    sick = trade_sum(s, "sick", lo, hi)
+    return sick == 0 ? NaN : (trade_sum(s, "exchanges_hs", lo, hi) + 2trade_sum(s, "exchanges_ss", lo, hi)) / sick
+end
+
+"""
+The share of healthy agents' exchanges over periods `lo` to `hi` that had a sick partner, `hs ÷ (hs + 2 hh)` summed over
+them, from the exchanges (`exchanges_hs`, `exchanges_hh`), or with `pairs=true` the share random pairing of neighbours
+would give (`pairs_hs`, `pairs_hh`). NaN if there are none.
+"""
+function sick_partner_share(s::TradeSeed, lo, hi; pairs::Bool=false)
+    hs = trade_sum(s, pairs ? "pairs_hs" : "exchanges_hs", lo, hi)
+    hh = trade_sum(s, pairs ? "pairs_hh" : "exchanges_hh", lo, hi)
+    return hs + 2hh == 0 ? NaN : hs / (hs + 2hh)
+end
+
+"""The shares of the exchanges (or with `pairs=true` the neighbour pairs) over `lo` to `hi` that are hh, hs and ss."""
+function pair_shares(s::TradeSeed, lo, hi; pairs::Bool=false)
+    v = [trade_sum(s, (pairs ? "pairs_" : "exchanges_") * k, lo, hi) for k in ("hh", "hs", "ss")]
+    total = sum(v)
+    return total == 0 ? fill(NaN, 3) : v ./ total
+end
+
+"""A seed's share of healthy agents with a healthy partner in the last 10 periods, the mean over `HEALTHY_TRADE_T`."""
+healthy_trade(s::TradeSeed) = nanmean(@view s.trade["healthy_healthy_10"][HEALTHY_TRADE_T[1]:HEALTHY_TRADE_T[2]])
+
+"""A seed's median |log MRS gap| (`gap_healthy` or `gap_sick`), the mean over the tenth periods in `lo` to `hi`."""
+mrs_gap(s::TradeSeed, name, lo, hi) = nanmean(@view s.trade[name][lo:hi])
+
+"""
+The recovering agents over periods `lo` to `hi`, a group of their own: their share of the agents, and the exchanges with
+a recovering agent in them per recovering agent, each summed over the periods; NaN where there are none.
+"""
+function recovering_readings(s::TradeSeed, lo, hi)
+    recovering = trade_sum(s, "recovering", lo, hi)
+    agents = recovering + trade_sum(s, "healthy", lo, hi) + trade_sum(s, "sick", lo, hi)
+    return [agents == 0 ? NaN : recovering / agents,
+            recovering == 0 ? NaN : trade_sum(s, "exchanges_recovering", lo, hi) / recovering]
+end
+
+# ---- traders against similar non-traders
+
+"""
+What an agent's holdings are worth: `:priced` is `sugar + spice / price` (the spec's resources), `:raw` `sugar + spice`,
+`:welfare` the book's Cobb-Douglas welfare without cultural preferences, `sugar^(m1 / (m1 + m2)) spice^(m2 / (m1 + m2))`
+for its sugar and spice metabolisms `m1` and `m2`, a holding below 0 counting as 0.
+"""
+function holding_value(sugar, spice, m1, m2, value::Symbol, price)
+    value === :priced && return sugar + spice / price
+    value === :raw && return sugar + spice
+    value === :welfare && return max(sugar, 0.0)^(m1 / (m1 + m2)) * max(spice, 0.0)^(m2 / (m1 + m2))
+    throw(ArgumentError("value is :priced, :raw or :welfare, not $(repr(value))"))
+end
+
+"""
+    matched_ratio(rows, mean_price; value=:priced) -> (; ratio, kept, dropped)
+
+Traders against similar non-traders in one seed's snapshot (`rows` in the order of [`TRADE_AGENT_COLUMNS`](@ref)), the
+agents alive and healthy throughout the window. Resources are [`holding_value`](@ref)'s `value`, at `mean_price` (p̄,
+the seed's mean price over the window). The agents fall into cells of the same metabolism, spice metabolism, vision,
+age band (`age_start ÷ AGE_BAND`) and quintile of start resources, the quintile's edges the 20%, 40%, 60% and 80% points
+of the seed's start resources (an agent on an edge falls below it, so that equal agents share one). In each cell of at
+least [`CELL_MIN`](@ref) agents, ordered by `exchanges` and then id, the last third (rounded down) are traders and the
+first third non-traders. `ratio` is Σ n_c · traders' mean end resources ÷ Σ n_c · non-traders', over the cells kept, NaN
+if none is; `kept` and `dropped` count the agents in the cells kept and in those too small. Cells are summed in order of
+their key, so the rows' order doesn't change the figure.
+"""
+function matched_ratio(rows::AbstractMatrix{<:Real}, mean_price::Real; value::Symbol=:priced)
+    n = size(rows, 1)
+    n == 0 && return (; ratio=NaN, kept=0, dropped=0)
+    value === :priced && !(isfinite(mean_price) && mean_price > 0) && return (; ratio=NaN, kept=0, dropped=n)
+    id, m1, m2, vision, age = (view(rows, :, j) for j in 1:5)
+    start = [holding_value(rows[i, 6], rows[i, 7], m1[i], m2[i], value, mean_price) for i in 1:n]
+    final = [holding_value(rows[i, 8], rows[i, 9], m1[i], m2[i], value, mean_price) for i in 1:n]
+    exchanges = view(rows, :, 10)
+    sorted = sort(start)
+    edges = [quantile_of(sorted, q) for q in (0.2, 0.4, 0.6, 0.8)]
+    cells = Dict{Tuple{Float64,Float64,Float64,Int,Int},Vector{Int}}()
+    for i in 1:n
+        key = (m1[i], m2[i], vision[i], floor(Int, age[i] / AGE_BAND), 1 + count(<(start[i]), edges))
+        push!(get!(cells, key, Int[]), i)
+    end
+    traders = non_traders = 0.0
+    kept = dropped = 0
+    for key in sort!(collect(keys(cells)))
+        members = cells[key]
+        c = length(members)
+        if c < CELL_MIN
+            dropped += c
+            continue
+        end
+        sort!(members; by=i -> (exchanges[i], id[i]))
+        third = c ÷ 3
+        non_traders += c * mean_of(final[members[1:third]])
+        traders += c * mean_of(final[members[(c - third + 1):c]])
+        kept += c
+    end
+    return (; ratio=kept == 0 ? NaN : traders / non_traders, kept, dropped)
+end
+
+"""
+    bootstrap_mean(v; reps=BOOT_REPS, seed=BOOT_SEED) -> (; mean, lo, hi)
+
+The mean of `v` with the 2.5% and 97.5% percentiles of the mean over `reps` resamples of `v` with replacement, drawn
+from a `Xoshiro(seed)` of their own. NaN throughout for an empty `v`.
+"""
+function bootstrap_mean(v::Vector{Float64}; reps::Int=BOOT_REPS, seed::Int=BOOT_SEED)
+    isempty(v) && return (; mean=NaN, lo=NaN, hi=NaN)
+    rng = Xoshiro(seed)
+    n = length(v)
+    draws = Vector{Float64}(undef, reps)
+    for r in 1:reps
+        a = 0.0
+        for _ in 1:n
+            a += v[rand(rng, 1:n)]
+        end
+        draws[r] = a / n
+    end
+    lo, hi = percentile_interval(draws)
+    return (; mean=mean_of(v), lo, hi)
+end
+
+"""
+    matched_over_seeds(run; value=:priced) -> (; ratio, lo, hi, per_seed, kept, dropped, left_out)
+
+[`matched_ratio`](@ref) of each seed of `run` at its own p̄ over the snapshot's window, then the mean over seeds with a
+bootstrap of that mean ([`bootstrap_mean`](@ref)). A seed that went extinct, or that has no cell kept, is left out, and
+`left_out` says why for each. `kept` and `dropped` are summed over the seeds read.
+"""
+function matched_over_seeds(r::TradeRun; value::Symbol=:priced)
+    ratios, left = Float64[], String[]
+    kept = dropped = 0
+    for s in r.seeds
+        e = extinct_at(s.list.series)
+        if e !== nothing
+            push!(left, "seed $(seed_id(s)) went extinct at t = $e")
+            continue
+        end
+        m = matched_ratio(s.agents, window_price(s, r.window...); value)
+        kept += m.kept
+        dropped += m.dropped
+        isfinite(m.ratio) ? push!(ratios, m.ratio) :
+            push!(left, "seed $(seed_id(s)) has " * (m.kept == 0 ? "no matched cell" : "no finite ratio"))
+    end
+    b = bootstrap_mean(ratios)
+    return (; ratio=b.mean, b.lo, b.hi, per_seed=ratios, kept, dropped, left_out=left)
+end
+
+# ---- an arm's figures
+
+"""
+The Rule 13 settings of a folder, from its fingerprint's `xxl` line: `move` (`nothing`, "own" or "local"), `blend` (1
+unless named) and `guard` (`nothing` unless named).
+"""
+function rule13_of(fingerprint::AbstractString)
+    m = match(r"^xxl (?!map )[^\n]*"m, fingerprint)
+    line = m === nothing ? "" : m.match
+    move, blend, guard = (match(p, line) for p in (r"\btrade_move=\"(\w+)\"", r"\btrade_blend=([0-9.eE+-]+)",
+                                                     r"\btrade_guard=(\d+)"))
+    return (; move=move === nothing ? nothing : String(move.captures[1]),
+            blend=blend === nothing ? 1.0 : parse(Float64, blend.captures[1]),
+            guard=guard === nothing ? nothing : parse(Int, guard.captures[1]))
+end
+
+"""A rule's settings as text: `local, blend 0.5, guard 5`, or `the book's` without Rule 13."""
+function rule13_text(rule)
+    rule.move === nothing && return "the book's"
+    return "$(rule.move), blend $(fmt(rule.blend)), guard $(rule.guard === nothing ? "none" : rule.guard)"
+end
+
+"""`run` with only the seeds that never went extinct, for [`list_readings`](@ref)."""
+function live_list(r::TradeRun)
+    l = r.run
+    return ListRun(l.name, l.count, l.founder, l.lengths, l.planned, l.periods, [s.list for s in live_seeds(r)],
+                   l.folder, l.fingerprint)
+end
+
+# The figures of `list_readings` that `arm_figures` takes, for an arm whose every seed went extinct.
+const NO_READINGS = (; births_100=NaN, population=NaN, spread=NaN, gini=NaN, sugar=NaN, price=NaN,
+                     per_seed=(; population=Float64[], gini=Float64[], sugar=Float64[]))
+
+"""
+    arm_figures(arm, xl) -> NamedTuple
+
+Every figure the report reads of an arm, over its seeds that never went extinct unless said: from VI-1 over
+`READ_WINDOW` the trades per head (all, and by pair: hh, hs, ss), the shares of exchanges and of neighbour pairs by
+pair, the share of healthy agents' exchanges with a sick partner and random pairing's, sick agents' trades per head, the
+median MRS gaps and the recovering agents ([`recovering_readings`](@ref)); the healthy trade over `HEALTHY_TRADE_T`; the
+matched ratio three ways ([`matched_over_seeds`](@ref)); the trough over t ≤ `SCREEN_END`, X9, X10 per seed and the
+seeds extinct, over all seeds; the population, its spread,
+Gini, mean sugar, mean spice, mean price and distance walked (`mean_moved`) over `READ_WINDOW`; X6 against `xl` (NaN
+without it); trades per head with no disease over `READ_WINDOW`; and from IV-A3 its trades per head and mean price over
+its snapshot's window and its end population over its last `END_PERIODS` periods. `per_seed` holds the seeds' figures
+for the ratios between arms.
+"""
+function arm_figures(a::TradeArm, xl)
+    r = a.vi1
+    lo, hi = READ_WINDOW
+    ss = live_seeds(r)
+    per(f, seeds=ss) = Float64[f(s) for s in seeds]
+    reads = isempty(ss) ? NO_READINGS : list_readings(live_list(r); lo, hi)
+    lows = Float64[screen_lowest(s.list) for s in r.seeds]
+    j = isempty(ss) ? 0 : findfirst(==("price_sd"), ss[1].header)
+    ends = isempty(ss) ? Float64[] : per(s -> end_mean(s.rows, j))
+    x6 = xl === nothing || isempty(ends) ? NaN : mean_of(ends) / mean_of(xl.prices)
+    nd = a.nodisease === nothing ? TradeSeed[] : live_seeds(a.nodisease)
+    iv = a.iva3 === nothing ? TradeSeed[] : live_seeds(a.iva3)
+    iw = a.iva3 === nothing ? (1, 1) : a.iva3.window
+    iend = a.iva3 === nothing ? 0 : a.iva3.run.periods
+    shares(f) = [nanmean(per(s -> f(s)[k])) for k in 1:3]
+    per_seed = (;
+        tph=per(s -> trades_per_head(s.list, lo, hi)),
+        sick_tph=per(s -> sick_trades_per_head(s, lo, hi)),
+        healthy_trade=per(healthy_trade),
+        sick_share=per(s -> sick_partner_share(s, lo, hi)),
+        nodisease_tph=per(s -> trades_per_head(s.list, lo, hi), nd),
+        iva3_tph=per(s -> trades_per_head(s.list, iw...), iv),
+        iva3_price=per(s -> window_price(s, iw...), iv),
+        iva3_end=per(s -> window_population(s.list.series, iend - END_PERIODS + 1, iend), iv),
+        population=reads.per_seed.population,
+        gini=reads.per_seed.gini,
+        sugar=reads.per_seed.sugar,
+        spice=per(s -> seed_mean(s, "mean_spice", lo, hi)),
+        walked=per(s -> seed_mean(s, "mean_moved", lo, hi)),
+        trough=Float64[screen_lowest(s.list) for s in ss],
+    )
+    gap_h, gap_s = nanmean(per(s -> mrs_gap(s, "gap_healthy", lo, hi))), nanmean(per(s -> mrs_gap(s, "gap_sick", lo, hi)))
+    return (;
+        name=a.name, n=length(r.seeds), live=length(ss), rule=rule13_of(r.run.fingerprint),
+        finished=all(x -> x === nothing || finished(x.run), (r, a.nodisease, a.iva3)),
+        matched=matched_over_seeds(r), matched_raw=matched_over_seeds(r; value=:raw),
+        matched_welfare=matched_over_seeds(r; value=:welfare),
+        tph=nanmean(per_seed.tph),
+        tph_pairs=[nanmean(per(s -> per_head(s, "exchanges_$k", lo, hi))) for k in ("hh", "hs", "ss")],
+        exchange_shares=shares(s -> pair_shares(s, lo, hi)), random_shares=shares(s -> pair_shares(s, lo, hi; pairs=true)),
+        sick_share=nanmean(per_seed.sick_share), random_sick_share=nanmean(per(s -> sick_partner_share(s, lo, hi; pairs=true))),
+        recovering=[nanmean(per(s -> recovering_readings(s, lo, hi)[k])) for k in 1:2],
+        healthy_trade=nanmean(per_seed.healthy_trade), sick_tph=nanmean(per_seed.sick_tph),
+        gap_healthy=gap_h, gap_sick=gap_s, gap_ratio=gap_h / gap_s,
+        nodisease_tph=nanmean(per_seed.nodisease_tph),
+        nodisease_hh=nanmean(per(s -> per_head(s, "exchanges_hh", lo, hi), nd)),
+        iva3_tph=nanmean(per_seed.iva3_tph), iva3_price=nanmean(per_seed.iva3_price), iva3_end=nanmean(per_seed.iva3_end),
+        lows, trough=mean_of(lows), lowest=minimum(lows), trough_t=mean_of(Float64[screen_lowest_t(s.list) for s in r.seeds]),
+        births_100=reads.births_100, population=reads.population, spread=reads.spread, gini=reads.gini,
+        sugar=reads.sugar, spice=nanmean(per_seed.spice), price=reads.price, x6, walked=nanmean(per_seed.walked),
+        x9=count(s -> s.list.circulating[X9_T + 1] > 0, r.seeds), x10=count(s -> in_band(screen_sick(s.list)), r.seeds),
+        extinct=count(is_extinct, r.seeds),
+        per_seed,
+    )
+end
+
+# ---- the bars
+
+"""
+`x` (already settled) for a bar's row: four significant figures, and more while the rounded figure would meet `bar` (`at
+least` it, else `at most`) when `x` does not, or miss it when `x` does; `—` if it is not finite.
+"""
+function edge_text(x::Real, bar::Real, pass::Bool; at_least::Bool=true)
+    isfinite(x) || return "—"
+    meets(y) = at_least ? y >= bar : y <= bar
+    d = 4
+    while d < SETTLE_DIGITS && meets(round(x; sigdigits=d)) != pass
+        d += 1
+    end
+    y = round(x; sigdigits=d)
+    return isinteger(y) && abs(y) < 1e15 ? string(Int(y)) : string(y)
+end
+
+"""`x` to two places, the zeros kept: `1.10`."""
+function two_places(x::Real)
+    s = string(round(x; digits=2))
+    whole, frac = occursin('.', s) ? split(s, '.') : (s, "")
+    return "$whole.$(rpad(frac, 2, '0'))"
+end
+
+"""`x` as a whole percentage: `25%`."""
+percent(x::Real) = "$(round(Int, 100x))%"
+
+# A row of the reading table for a figure `x` that must be at least `bar`: near if it is at least `1 - NEAR_BY` of it.
+function at_least_row(name, x, bar, bar_text)
+    x, bar = settle(x), settle(bar)
+    pass = x >= bar
+    return ScreenRow(name, edge_text(x, bar, pass), bar_text, pass, !pass && x >= settle((1 - NEAR_BY) * bar))
+end
+
+# A row for seeds counted against `need` of `n`: near if one seed short.
+count_row(name, k, n, need, what) = ScreenRow(name, "$k of $n", "at least $need of $n$what", k >= need, k == need - 1)
+
+"""
+    screen_trade(arm, base) -> Vector{ScreenRow}
+
+The reading table of an arm's figures (see [`arm_figures`](@ref)) against the baseline's, in the spec's order. Every
+figure is settled ([`SETTLE_DIGITS`](@ref)) before it meets its bar. Near is a failing row that misses by no more than
+`NEAR_BY` of its bar, or by one seed:
+
+- Richer with trade: the matched ratio at least `RICHER_BAR` and its interval's low end above 1. Near if the ratio is at
+  least `1 - NEAR_BY` of the bar and the low end above `1 - NEAR_BY`.
+- Healthy trade: at least `HEALTHY_TRADE_BAR`.
+- Without disease: trades per head with no disease at least `NO_DISEASE_FACTOR` times the baseline's.
+- Sick agents still trade: sick agents' trades per head at least `SICK_TRADE_FACTOR` times the baseline's.
+- Trough: over all seeds, the mean at least `TROUGH_MEAN_SHARE` of the baseline's and no seed below `TROUGH_LOW_SHARE`
+  of the baseline's lowest. Near if the mean is at least `1 - NEAR_BY` of its bar and no more than one seed is below.
+- Disease: X9 and X10 per seed, each at least `ceil(LIST_SHARE n)` of the `n` seeds, two rows.
+- Prices: X6 at most `X6_BAR`. Near if at most `1 + NEAR_BY` of it.
+- Extinction: no seed extinct. Never near: it is the user's bar.
+"""
+function screen_trade(f, base)
+    n, need = f.n, seeds_needed(f.n)
+    m = f.matched
+    ratio, lo = settle(m.ratio), settle(m.lo)
+    richer = ratio >= RICHER_BAR && lo > 1
+    richer_near = !richer && ratio >= settle((1 - NEAR_BY) * RICHER_BAR) && lo > 1 - NEAR_BY
+    nd_bar, sick_bar = NO_DISEASE_FACTOR * base.nodisease_tph, SICK_TRADE_FACTOR * base.sick_tph
+    mean_bar, low_bar = settle(TROUGH_MEAN_SHARE * base.trough), settle(TROUGH_LOW_SHARE * base.lowest)
+    trough = settle(f.trough)
+    below = count(<(low_bar), f.lows)
+    trough_pass = trough >= mean_bar && below == 0
+    x6 = settle(f.x6)
+    x6_pass = x6 <= X6_BAR
+    return [
+        ScreenRow("Richer with trade", "$(edge_text(ratio, RICHER_BAR, ratio >= RICHER_BAR)), interval " *
+                  interval_text(m.lo, m.hi), "at least $(two_places(RICHER_BAR)), its 95% interval above 1", richer,
+                  richer_near),
+        at_least_row("Healthy trade", f.healthy_trade, HEALTHY_TRADE_BAR,
+                     "at least $(percent(HEALTHY_TRADE_BAR)) of healthy agents, $(period_text(HEALTHY_TRADE_T...))"),
+        at_least_row("Without disease", f.nodisease_tph, nd_bar,
+                     "at least ×$(fmt(NO_DISEASE_FACTOR)) today's $(finite_text(base.nodisease_tph)) = $(finite_text(nd_bar))"),
+        at_least_row("Sick agents still trade", f.sick_tph, sick_bar,
+                     "at least ×$(fmt(SICK_TRADE_FACTOR)) today's $(finite_text(base.sick_tph)) = $(finite_text(sick_bar))"),
+        ScreenRow("Trough", "mean $(edge_text(trough, mean_bar, trough >= mean_bar)), lowest $(whole_cell(f.lowest))",
+                  "mean at least $(percent(TROUGH_MEAN_SHARE)) of today's $(places(base.trough, TROUGH_DIGITS)) = " *
+                  "$(fmt(mean_bar)), none below $(percent(TROUGH_LOW_SHARE)) of today's lowest " *
+                  "$(whole_cell(base.lowest)) = $(fmt(low_bar))", trough_pass,
+                  !trough_pass && trough >= settle((1 - NEAR_BY) * mean_bar) && below <= 1),
+        count_row("Disease: X9", f.x9, n, need, ", a disease circulating at t = $X9_T"),
+        count_row("Disease: X10 per seed", f.x10, n, need,
+                  " inside $(SICK_BAND[1])–$(SICK_BAND[2]), $(period_text(SCREEN_SICK...))"),
+        ScreenRow("Prices: X6", edge_text(x6, X6_BAR, x6_pass; at_least=false), "at most $(fmt(X6_BAR))", x6_pass,
+                  !x6_pass && x6 <= settle((1 + NEAR_BY) * X6_BAR)),
+        ScreenRow("Extinction", "$(f.extinct) of $n", "none", f.extinct == 0, false),
+    ]
+end
+
+"""Whether an arm passes screening: every row passes and every planned seed of its three folders finished."""
+trade_passes(f, rows) = f.finished && all(r -> r.pass, rows)
+
+"""Whether an arm is near: every planned seed finished, exactly one row fails, and that row is near."""
+function trade_near(f, rows)
+    failing = [r for r in rows if !r.pass]
+    return f.finished && length(failing) == 1 && failing[1].near
+end
+
+"""
+    choose_trade_arm(figures, base) -> Union{Nothing,Int}
+
+The place in `figures` of the arm to take to confirmation, or `nothing` if none passes. Among those that pass, in the
+spec's order: the largest matched ratio, then the smallest rise in Gini over the baseline's, then the higher trough
+(mean), then the simpler rule (no blend over a blend, then own price over local).
+"""
+function choose_trade_arm(figures, base)
+    passing = [i for i in eachindex(figures) if trade_passes(figures[i], screen_trade(figures[i], base))]
+    isempty(passing) && return nothing
+    order(f) = (-settle(f.matched.ratio), settle(f.gini - base.gini), -settle(f.trough), f.rule.blend == 1 ? 0 : 1,
+                f.rule.move == "own" ? 0 : 1)
+    return passing[argmin([order(figures[i]) for i in passing])]
+end
+
+# ---- Part 1
+
+"""The rows of the spec's "What Part 1 decides", in its order: (result, reading)."""
+const PART1_ROWS = [
+    ("Healthy agents are richer with trade today by the bar, and healthy–healthy trade is common",
+     "The premise is wrong. Stop and report; what next is the user's call"),
+    ("Healthy agents are richer with trade today, but mostly by trading with sick partners",
+     "Go on to Part 2. Riches from selling to the sick are still trade that follows sickness, which is what the user " *
+     "objected to, and the no-disease bar tests it"),
+    ("Healthy trade is mostly with sick partners, and healthy MRS gaps are small", "The diagnosis holds. Go on to Part 2"),
+    ("Healthy trade is mostly with sick partners, but healthy MRS gaps aren't small",
+     "Go on to Part 2, and say the diagnosis was only half right: something besides movement keeps healthy neighbours " *
+     "from trading"),
+    ("Healthy agents trade with each other, but it doesn't pay", "Go on to Part 2, and say the diagnosis was only half right"),
+]
+
+"""
+    part1_decision(; ratio, lo, healthy_trade, sick_share, gap_ratio) -> (; words, row)
+
+The words of Part 1's table applied by the bars, each figure settled first: **richer** when the matched `ratio` is at least
+`RICHER_BAR` and its interval's low end `lo` above 1; healthy–healthy trade **common** when `healthy_trade` is at least
+`HEALTHY_TRADE_BAR`; **mostly with sick partners** when `sick_share` is more than `MOSTLY_SICK`; MRS gaps **small**
+when `gap_ratio` (healthy ÷ sick) is at most `SMALL_GAP`. `row` is the first of [`PART1_ROWS`](@ref) that holds, in the
+table's order (a trade mostly with healthy partners is "trade with each other"), or `nothing` when none does: richer, not
+common, and not mostly with sick partners.
+"""
+function part1_decision(; ratio, lo, healthy_trade, sick_share, gap_ratio)
+    words = (; richer=settle(ratio) >= RICHER_BAR && settle(lo) > 1, common=settle(healthy_trade) >= HEALTHY_TRADE_BAR,
+             mostly_sick=settle(sick_share) > MOSTLY_SICK, small=settle(gap_ratio) <= SMALL_GAP)
+    row = words.richer && words.common ? 1 :
+          words.richer && words.mostly_sick ? 2 :
+          words.mostly_sick && words.small ? 3 :
+          words.mostly_sick ? 4 :
+          !words.richer ? 5 : nothing
+    return (; words, row)
+end
+
+# ---- the report
+
+# A run's lines up front: its seeds unfinished and its extinct seeds.
+function seed_lines(r::TradeRun, who::AbstractString, effect::AbstractString)
+    lines = String[]
+    finished(r.run) || push!(lines, "**Unfinished: $(r.run.planned - length(r.seeds)) of $(r.run.planned) seeds of " *
+                                    "$who have not run. $effect**", "")
+    for s in r.seeds
+        e = extinct_at(s.list.series)
+        e === nothing && continue
+        push!(lines, "**Seed $(seed_id(s)) of $who went extinct at t = $e: it is left out of every ratio and reading " *
+                     "over seeds, and counted only in the trough, X9, X10 and extinction.**", "")
+    end
+    return lines
+end
+
+# The lines up front for an arm (`f` its figures): its three folders' seeds, a VI-1 seed the matched ratio leaves out
+# for want of a cell, and a no-disease folder with disease.
+function arm_lines(a::TradeArm, f, effect)
+    lines = String[]
+    for (r, world) in ((a.vi1, "VI-1"), (a.nodisease, "no disease"), (a.iva3, "IV-A3"))
+        r === nothing || append!(lines, seed_lines(r, "$(a.name), $world", effect))
+    end
+    for why in f.matched.left_out
+        occursin("went extinct", why) ||
+            push!(lines, "**The matched ratio of $(a.name) leaves out $why (cells of at least $CELL_MIN agents).**", "")
+    end
+    a.nodisease === nothing || a.nodisease.run.founder == 0 ||
+        push!(lines, "**The no-disease folder of $(a.name), $(a.nodisease.run.folder), has founder diseases " *
+                     "$(a.nodisease.run.founder), not 0.**", "")
+    return lines
+end
+
+# The bold line for a trade-off folder that isn't one.
+function off_lines(off::TradeRun)
+    off.trade_off && return String[]
+    return ["**The trade-off folder $(off.run.folder) has trade on: its fingerprint has no `trade: off` line.**", ""]
+end
+
+const MATCH_TEXT = "Traders against similar non-traders: the agents alive and healthy throughout the snapshot's window " *
+    "(the last $TRADE_SNAPSHOT periods), in cells of the same metabolism, spice metabolism, vision, age band " *
+    "($AGE_BAND periods) and quintile of resources at its start; in each cell of at least $CELL_MIN, the third with " *
+    "most exchanges (ties by id) against the third with fewest, their mean resources at its end, pooled over cells by " *
+    "cell size. Resources are sugar + spice ÷ p̄, p̄ the seed's mean price over the window. The mean over seeds has a " *
+    "2.5% to 97.5% interval of $BOOT_REPS resamples of the seeds (random seed $BOOT_SEED)."
+
+const SICK_BIAS_TEXT = "Sick agents' trades per head is (exchanges_hs + 2·exchanges_ss) ÷ sick, each summed over " *
+    "$(period_text(READ_WINDOW...)). It reads slightly high: it counts the exchanges of sick agents who died later in the " *
+    "same period, while sick counts only the living. Recovering agents (no disease, one in the last 10 periods) count " *
+    "as healthy in the pairs, exchanges and gaps, and not in the healthy trade or the snapshot."
+
+matched_cell(m) = isfinite(m.ratio) ? "$(fmt(m.ratio)) $(interval_text(m.lo, m.hi))" : "—"
+slashed(v) = join((places(x, 3) for x in v), " / ")
+
+# The readings table: a row per reading, a column per arm (the baseline first).
+function readings_lines(figs)
+    rows = [
+        ("Traders ÷ similar non-traders, resources at p̄", f -> matched_cell(f.matched)),
+        ("Traders ÷ similar non-traders, raw sugar + spice", f -> matched_cell(f.matched_raw)),
+        ("Traders ÷ similar non-traders, welfare", f -> matched_cell(f.matched_welfare)),
+        ("Agents matched: kept, dropped", f -> "$(f.matched.kept), $(f.matched.dropped)"),
+        ("Trades per head", f -> places(f.tph, 3)),
+        ("Trades per head: hh / hs / ss", f -> slashed(f.tph_pairs)),
+        ("Share of exchanges: hh / hs / ss", f -> slashed(f.exchange_shares)),
+        ("Share of neighbour pairs (random pairing): hh / hs / ss", f -> slashed(f.random_shares)),
+        ("Healthy agents' exchanges with a sick partner", f -> places(f.sick_share, 3)),
+        ("The same by random pairing", f -> places(f.random_sick_share, 3)),
+        ("Healthy agents with a healthy partner in 10 periods, $(period_text(HEALTHY_TRADE_T...))",
+         f -> places(f.healthy_trade, 3)),
+        ("Sick agents' trades per head", f -> places(f.sick_tph, 3)),
+        ("Recovering agents: share of agents / exchanges with one per recovering agent", f -> slashed(f.recovering)),
+        ("Median MRS gap: healthy / sick / ratio", f -> slashed([f.gap_healthy, f.gap_sick, f.gap_ratio])),
+        ("Trades per head, no disease: all / hh", f -> slashed([f.nodisease_tph, f.nodisease_hh])),
+        ("IV-A3: trades per head / mean price", f -> slashed([f.iva3_tph, f.iva3_price])),
+        ("IV-A3: end population (S5's reading)", f -> whole_cell(f.iva3_end)),
+        ("Trough, mean / lowest / at t", f -> "$(places(f.trough, TROUGH_DIGITS)) / $(whole_cell(f.lowest)) / " *
+                                             places(f.trough_t, 1)),
+        ("Births to t = 100", f -> whole_cell(f.births_100)),
+        ("Population / spread", f -> "$(whole_cell(f.population)) / $(places(f.spread, 3))"),
+        ("Gini", f -> places(f.gini, 3)),
+        ("Mean sugar / mean spice", f -> "$(places(f.sugar, 2)) / $(places(f.spice, 2))"),
+        ("Mean price / X6", f -> slashed([f.price, f.x6])),
+        ("Distance walked per agent per period", f -> places(f.walked, 3)),
+        ("X9 / X10 per seed / extinct", f -> "$(f.x9) / $(f.x10) / $(f.extinct) of $(f.n)"),
+    ]
+    lines = [row_text(["Reading"; [f.name for f in figs]]), "|" * "---|"^(length(figs) + 1)]
+    for (name, cell) in rows
+        push!(lines, row_text([name; [cell(f) for f in figs]]))
+    end
+    return lines
+end
+
+const READINGS_TEXT = "Over the seeds that never went extinct, from VI-1 over $(period_text(READ_WINDOW...)) unless " *
+    "the row says otherwise; the trough, X9, X10 and extinction over every seed, the trough over t ≤ $SCREEN_END. hh, hs " *
+    "and ss are healthy–healthy, healthy–sick and sick–sick. The no-disease world is read over the same periods, IV-A3 " *
+    "over its last 100 (its snapshot's window), its end population as S5 reads it. X6 is the mean over seeds of the " *
+    "end price sd (the last 100 periods) ÷ the same for xl. "
+
+const RATIO_MEASURES_TRADE = (("Trades per head", :tph), ("Sick agents' trades per head", :sick_tph),
+                              ("Healthy trade", :healthy_trade), ("Trades per head, no disease", :nodisease_tph),
+                              ("IV-A3 trades per head", :iva3_tph), ("IV-A3 end population (S5's reading)", :iva3_end),
+                              ("Trough", :trough), ("Population", :population), ("Gini", :gini),
+                              ("Mean sugar", :sugar), ("Mean spice", :spice), ("Distance walked", :walked))
+
+# Each arm's mean ÷ the baseline's, per measure, each side resampled alone.
+function trade_ratio_lines(figs, base)
+    lines = [row_text(["Arm", "Reading", "Ratio", "95% interval", "Against 1"]), "|" * "---|"^5]
+    for f in figs, (name, key) in RATIO_MEASURES_TRADE
+        b = bootstrap_ratio_apart(filter(!isnan, getproperty(f.per_seed, key)),
+                                  filter(!isnan, getproperty(base.per_seed, key)))
+        push!(lines, row_text([f.name, name, finite_text(b.ratio), interval_text(b.lo, b.hi),
+                               state_text(interval_state(b.lo, b.hi, 1), b.lo, b.hi)]))
+    end
+    return lines
+end
+
+"""
+    on_off(on, off) -> Vector{(name, (; ratio, lo, hi))}
+
+The trade-off reading: `on`'s mean ÷ `off`'s, over the seeds that never went extinct, each side resampled alone
+([`bootstrap_ratio_apart`](@ref)): healthy agents' mean resources at the window's end (the snapshot's agents), the
+population over `READ_WINDOW`, and the total resources over it (population × (mean sugar + mean spice ÷ p̄)). With trade
+off there is no price, so both sides are valued at `on`'s p̄, the mean over its seeds of their mean price over its window.
+"""
+function on_off(on::TradeRun, off::TradeRun)
+    lo, hi = READ_WINDOW
+    ons, offs = live_seeds(on), live_seeds(off)
+    p = nanmean(Float64[window_price(s, on.window...) for s in ons])
+    function healthy(s)
+        a = s.agents
+        return size(a, 1) == 0 ? NaN : mean_of([a[i, 8] + a[i, 9] / p for i in axes(a, 1)])
+    end
+    function total(s)
+        pop, sugar, spice = s.list.series.population, s.list.sugar, seed_column(s, "mean_spice")
+        return nanmean([pop[t + 1] * (sugar[t + 1] + spice[t + 1] / p) for t in lo:hi])
+    end
+    population(s) = window_population(s.list.series, lo, hi)
+    figures(f, seeds) = filter(!isnan, Float64[f(s) for s in seeds])
+    return [(name, bootstrap_ratio_apart(figures(f, ons), figures(f, offs)))
+            for (name, f) in (("Healthy agents' mean resources at t = $(on.window[2])", healthy), ("Population", population),
+                              ("Total resources", total))]
+end
+
+# The trade-off section: each run on ÷ the shared trade-off run.
+function on_off_lines(runs::Vector{Pair{String,TradeRun}}, off::TradeRun)
+    lines = [
+        "Healthy agents' mean resources, population and total resources with trade on ÷ off ($(off.run.folder), " *
+        "$(length(live_seeds(off))) seeds), resampling each side independently since seeds don't pair once trade " *
+        "changes the draws. A reading, not a bar. With trade off there is no price, so both sides are valued at the " *
+        "trade-on run's mean price.",
+        "",
+        row_text(["Run", "Reading", "On ÷ off", "95% interval", "Against 1"]), "|" * "---|"^5,
+    ]
+    for (name, on) in runs, (reading, b) in on_off(on, off)
+        push!(lines, row_text([name, reading, finite_text(b.ratio), interval_text(b.lo, b.hi),
+                               state_text(interval_state(b.lo, b.hi, 1), b.lo, b.hi)]))
+    end
+    return lines
+end
+
+# The matched ratio three ways, with the seeds each leaves out.
+function matched_lines(name, f)
+    lines = [MATCH_TEXT, "", row_text(["Run", "Resources", "Mean over seeds", "95% interval", "Seeds", "Kept", "Dropped"]),
+             "|" * "---|"^7]
+    for (what, m) in (("sugar + spice ÷ p̄", f.matched), ("raw sugar + spice", f.matched_raw),
+                      ("welfare", f.matched_welfare))
+        push!(lines, row_text([name, what, finite_text(m.ratio), interval_text(m.lo, m.hi), length(m.per_seed), m.kept,
+                               m.dropped]))
+    end
+    left = f.matched.left_out
+    push!(lines, "", isempty(left) ? "No seed is left out." : "Left out: $(join(left, "; ")).")
+    return lines
+end
+
+# The rows of a reading table as lines, for one arm or several.
+function table_lines(figs, base)
+    lines = [row_text(["Arm", "Row", "Reading", "Bar", "Result"]), "|" * "---|"^5]
+    for f in figs, row in screen_trade(f, base)
+        push!(lines, row_text([f.name, row.name, row.value, row.bar, row.pass ? "pass" : row.near ? "near" : "fail"]))
+    end
+    return lines
+end
+
+"""
+    check_trade_run(r, what; vi1=true)
+
+`ArgumentError` unless `r` has a finished seed and, for a VI-1 folder, reaches t = `STUDY_END`.
+"""
+function check_trade_run(r::TradeRun, what::AbstractString; vi1::Bool=true)
+    isempty(r.seeds) && throw(ArgumentError("$what ($(r.run.folder)) has no finished seed"))
+    vi1 && r.run.periods < STUDY_END &&
+        throw(ArgumentError("$what ($(r.run.folder)) stops at t = $(r.run.periods), short of t = $STUDY_END"))
+    return nothing
+end
+
+function check_trade_arm(a::TradeArm)
+    check_trade_run(a.vi1, "$(a.name), VI-1")
+    a.nodisease === nothing || check_trade_run(a.nodisease, "$(a.name), no disease")
+    a.iva3 === nothing || check_trade_run(a.iva3, "$(a.name), IV-A3"; vi1=false)
+    return nothing
+end
+
+"""
+    trade_report(; label, base, off, xl=nothing, arms=TradeArm[], part1=false, confirm=false) -> String
+
+The trade study's report as markdown, in one of three modes:
+
+- **Part 1** (`part1`): today's `base` arm (VI-1 on, no disease, IV-A3), the trade-off run `off` and the xl reference `xl`
+  ([`read_xl_prices`](@ref)): the words of "What Part 1 decides" applied by the bars and the row that fires
+  ([`part1_decision`](@ref)), the bars today already meets (Part 1 may correct them), the readings, the matched ratio
+  three ways and the trade-off reading.
+- **Screening** (the default): the `arms` against the baseline `base`, with `off` and `xl`: the arms and their Rule 13,
+  the reading table ([`screen_trade`](@ref)), the choice ([`choose_trade_arm`](@ref)) and the result row that fires, the
+  readings with the baseline's first, the arms' ratios to the baseline's and the trade-off reading of every run.
+- **Confirmation** (`confirm`): the study run `base.vi1` and the trade-off run `off`: the matched ratio against its bar,
+  the result row and the trade-off reading.
+
+Up front, in bold: seeds unfinished (an arm with any cannot pass or be chosen), seeds extinct (left out of every ratio and
+reading over seeds, counted in the trough, X9, X10 and extinction), seeds the matched ratio finds no cell in, a trade-off
+folder whose fingerprint has trade on, and a rise in Gini beyond `GINI_NOTE`. `ArgumentError` for a folder with no
+finished seed, or a VI-1 folder that stops short of t = `STUDY_END`.
+"""
+function trade_report(;
+    label::AbstractString, base::TradeArm, off::TradeRun, xl=nothing, arms::Vector{TradeArm}=TradeArm[],
+    part1::Bool=false, confirm::Bool=false,
+)
+    part1 && confirm && throw(ArgumentError("a report is Part 1's or confirmation's, not both"))
+    check_trade_arm(base)
+    foreach(check_trade_arm, arms)
+    check_trade_run(off, "the trade-off run")
+    part1 && return part1_report(label, base, off, xl)
+    confirm && return confirm_report(label, base, off)
+    xl === nothing && throw(ArgumentError("screening needs the xl reference"))
+    for a in [base; arms]
+        (a.nodisease === nothing || a.iva3 === nothing) &&
+            throw(ArgumentError("screening needs three folders of $(a.name): VI-1, no disease and IV-A3"))
+    end
+    return screen_report(label, base, arms, off, xl)
+end
+
+function part1_report(label, base::TradeArm, off::TradeRun, xl)
+    f = arm_figures(base, xl)
+    d = part1_decision(; ratio=f.matched.ratio, lo=f.matched.lo, healthy_trade=f.healthy_trade,
+                       sick_share=f.sick_share, gap_ratio=f.gap_ratio)
+    yes(b) = b ? "yes" : "no"
+    w = d.words
+    lines = ["# Trade, Part 1: $label", ""]
+    append!(lines, arm_lines(base, f, "Its readings cover only those finished."), off_lines(off))
+    push!(lines, "## Runs", "", row_text(["Run", "Folder", "Seeds", "Periods"]), "|---|---|---|---|")
+    for (what, r) in (("Trade on", base.vi1), ("Trade off", off), ("No disease", base.nodisease), ("IV-A3", base.iva3))
+        r === nothing || push!(lines, row_text([what, r.run.folder, "$(length(r.seeds)) of $(r.run.planned)", r.run.periods]))
+    end
+    xl === nothing || push!(lines, row_text(["xl", xl.folder, length(xl.prices), "—"]))
+    push!(lines, "", "## What Part 1 decides", "",
+          "The words of the table, set before Part 1 ran, applied by the bars:", "",
+          "- **Richer** with trade: traders ÷ similar non-traders $(matched_cell(f.matched)), against at least " *
+          "$(two_places(RICHER_BAR)) with its interval above 1: $(yes(w.richer))",
+          "- Healthy–healthy trade **common**: $(places(f.healthy_trade, 3)) of healthy agents with a healthy partner in " *
+          "the last 10 periods, $(period_text(HEALTHY_TRADE_T...)), against at least $(percent(HEALTHY_TRADE_BAR)): " *
+          yes(w.common),
+          "- Healthy trade **mostly with sick partners**: $(places(f.sick_share, 3)) of healthy agents' exchanges have a " *
+          "sick partner, $(period_text(READ_WINDOW...)), against more than $(percent(MOSTLY_SICK)): $(yes(w.mostly_sick))",
+          "- Healthy MRS gaps **small**: the healthy median |log MRS gap| ÷ the sick one is $(places(f.gap_ratio, 3)), " *
+          "against at most $(fmt(SMALL_GAP)): $(yes(w.small))", "")
+    if d.row === nothing
+        push!(lines, "No row of the table fires: healthy agents are richer with trade, but healthy–healthy trade isn't " *
+                     "common and healthy trade isn't mostly with sick partners. What next is the user's call.")
+    else
+        result, reading = PART1_ROWS[d.row]
+        push!(lines, "The row that fires, the first in the table's order that holds: **$result.** $reading.")
+    end
+    met = [name for (name, ok) in (("Richer with trade", w.richer), ("Healthy trade", w.common)) if ok]
+    push!(lines, "", "## Bars today already meets", "",
+          isempty(met) ? "Today meets neither the Richer with trade bar nor the Healthy trade bar." :
+          join(("Today already meets the $name bar." for name in met), " ") * " Part 1 may correct a bar met today: " *
+          "any change is recorded in the ledger and put to the user before screening.",
+          "", "## Readings", "", READINGS_TEXT * SICK_BIAS_TEXT, "")
+    append!(lines, readings_lines([f]))
+    push!(lines, "", "## Traders against similar non-traders", "")
+    append!(lines, matched_lines(base.name, f))
+    push!(lines, "", "## Trade on ÷ off", "")
+    append!(lines, on_off_lines([base.name => base.vi1], off))
+    return join(lines, "\n") * "\n"
+end
+
+function confirm_report(label, base::TradeArm, off::TradeRun)
+    f = arm_figures(base, nothing)
+    row = screen_trade(f, f)[1]  # Richer with trade reads nothing of the baseline
+    lines = ["# Trade confirmation: $label", ""]
+    append!(lines, seed_lines(base.vi1, "$(base.name), VI-1", "Its readings cover only those finished."), off_lines(off))
+    push!(lines, "## Runs", "", row_text(["Run", "Folder", "Seeds", "Periods"]), "|---|---|---|---|",
+          row_text(["Study run", base.vi1.run.folder, "$(length(base.vi1.seeds)) of $(base.vi1.run.planned)",
+                    base.vi1.run.periods]),
+          row_text(["Trade off", off.run.folder, "$(length(off.seeds)) of $(off.run.planned)", off.run.periods]),
+          "", "## Richer with trade, confirmed", "",
+          row_text(["Arm", "Row", "Reading", "Bar", "Result"]), "|" * "---|"^5,
+          row_text([base.name, row.name, row.value, row.bar, row.pass ? "pass" : "fail"]), "",
+          row.pass && finished(base.vi1.run) ? "The ratio passes again on the new seeds." :
+          "The ratio fails on the new seeds: report it as not confirmed.",
+          "", "Extinction (0 of 60) and the scorecard (13 of 13 on both) are read from their own runs.", "",
+          "## Traders against similar non-traders", "")
+    append!(lines, matched_lines(base.name, f))
+    push!(lines, "", "## Trade on ÷ off", "")
+    append!(lines, on_off_lines([base.name => base.vi1], off))
+    return join(lines, "\n") * "\n"
+end
+
+function screen_report(label, base::TradeArm, arms::Vector{TradeArm}, off::TradeRun, xl)
+    bf = arm_figures(base, xl)
+    figs = [arm_figures(a, xl) for a in arms]
+    lines = ["# Trade screening: $label", ""]
+    append!(lines, arm_lines(base, bf, "The bars against today's rest on the seeds finished."), off_lines(off))
+    for (a, f) in zip(arms, figs)
+        append!(lines, arm_lines(a, f, "Its readings cover only those finished, and it cannot pass or be chosen."))
+    end
+    for f in figs
+        rise = settle(f.gini - bf.gini)
+        rise > GINI_NOTE && push!(lines, "**Gini rises by $(fmt(rise)) in $(f.name) ($(places(bf.gini, 3)) today, " *
+                                         "$(places(f.gini, 3))): more than $(fmt(GINI_NOTE)).**", "")
+    end
+    push!(lines, "## Arms", "", row_text(["Arm", "Rule 13", "VI-1", "No disease", "IV-A3"]), "|---|---|---|---|---|")
+    for (a, f) in zip([base; arms], [bf; figs])
+        push!(lines, row_text([a === base ? "$(a.name) (baseline)" : a.name, rule13_text(f.rule),
+                               ("$(r.run.folder) ($(length(r.seeds)) of $(r.run.planned))"
+                                for r in (a.vi1, a.nodisease, a.iva3))...]))
+    end
+    push!(lines, "", "## Reading table", "",
+          "Each arm against today's. Near is a failing row missed by no more than $(percent(NEAR_BY)) of its bar or " *
+          "by one seed. Every figure is rounded to $SETTLE_DIGITS places before it meets its bar.", "")
+    append!(lines, table_lines(figs, bf))
+    push!(lines, "", "## Choice", "")
+    rows = [screen_trade(f, bf) for f in figs]
+    passing = [f.name for (f, r) in zip(figs, rows) if trade_passes(f, r)]
+    near = ["$(f.name) ($(first(x.name for x in r if !x.pass)))" for (f, r) in zip(figs, rows) if trade_near(f, r)]
+    chosen = choose_trade_arm(figs, bf)
+    if chosen !== nothing
+        push!(lines, "Chosen: $(figs[chosen].name). Passing: $(join(passing, ", ")).", "",
+              "Among those that pass: the largest ratio of traders to similar non-traders, then the smallest rise in " *
+              "Gini, then the higher trough, then the simpler rule (no blend over a blend, own price over local).", "",
+              "Result: one or more arms pass: take the choice to confirmation.")
+    elseif !isempty(near)
+        push!(lines, "No arm passes. Near passing: $(join(near, "; ")).", "",
+              "Result: none passes, but one is near. One further round of at most 3 arms around it, named in the " *
+              "ledger before running, on the same seeds. No more without the user. If this is already that round: " *
+              "stop, as below.")
+    else
+        push!(lines, "No arm passes. No arm is near.", "",
+              "Result: Stop. Report what failed and what that says about the idea. What next is the user's call. " *
+              "No confirmation run.")
+    end
+    waiting = [f.name for f in figs if !f.finished]
+    isempty(waiting) || push!(lines, "", "Not eligible, unfinished: $(join(waiting, ", ")).")
+    for (f, r) in zip(figs, rows)
+        settle(f.tph) > settle(bf.tph) && !r[1].pass &&
+            push!(lines, "", "$(f.name): trades per head rise ($(places(f.tph, 3)) against today's " *
+                             "$(places(bf.tph, 3))) but healthy agents aren't richer by the bar: more trade isn't the goal.")
+    end
+    push!(lines, "", "## Readings", "", READINGS_TEXT * SICK_BIAS_TEXT, "")
+    append!(lines, readings_lines([bf; figs]))
+    push!(lines, "", MATCH_TEXT, "", "## Ratios to today's", "",
+          "Each arm's mean ÷ today's, with the 2.5% to 97.5% range of $BOOT_REPS resamples (random seed $BOOT_SEED), " *
+          "resampling each side independently since seeds don't pair. A seed with no figure is left out.", "")
+    append!(lines, trade_ratio_lines(figs, bf))
+    push!(lines, "", "## Trade on ÷ off", "")
+    append!(lines, on_off_lines([a.name => a.vi1 for a in [base; arms]], off))
+    return join(lines, "\n") * "\n"
+end
+
+# ---- the command line
+
+const TRADE_REPORT_USAGE =
+    "usage: julia --project=julia julia/xxl_trade_report.jl --part1 --on FOLDER --off FOLDER --nodisease FOLDER " *
+    "--iva3 FOLDER --xl FOLDER [--out DIR] [--label NAME]\n" *
+    "       julia --project=julia julia/xxl_trade_report.jl --base NAME=VI1,NODISEASE,IVA3 " *
+    "--arms NAME=VI1,NODISEASE,IVA3,... --off FOLDER --xl FOLDER [--out DIR] [--label NAME]\n" *
+    "       julia --project=julia julia/xxl_trade_report.jl --confirm --vi1 FOLDER --off FOLDER [--out DIR] [--label NAME]"
+
+# `NAME=VI1,NODISEASE,IVA3,NAME=...` as `NAME => [three folders]` pairs: an item with `=` starts an arm.
+function trade_arm_specs(v::AbstractString)
+    arms = Pair{String,Vector{String}}[]
+    for item in split(v, ",")
+        eq = findfirst('=', item)
+        if eq === nothing
+            (isempty(arms) || isempty(item)) && throw(ArgumentError("an arm is NAME=VI1,NODISEASE,IVA3, not $(repr(v))"))
+            push!(last(arms[end]), String(item))
+        else
+            (eq == 1 || eq == lastindex(item)) && throw(ArgumentError("an arm is NAME=VI1,NODISEASE,IVA3, not $(repr(item))"))
+            push!(arms, String(item[1:prevind(item, eq)]) => [String(item[nextind(item, eq):end])])
+        end
+    end
+    for (name, folders) in arms
+        length(folders) == 3 ||
+            throw(ArgumentError("arm $name needs three folders (VI-1, no disease, IV-A3), not $(length(folders))"))
+    end
+    return arms
+end
+
+"""
+The report's command line, in one of three modes (see [`TRADE_REPORT_USAGE`](@ref)): `--part1` with `--on`, `--off`,
+`--nodisease`, `--iva3` and `--xl`; `--confirm` with `--vi1` and `--off`; else screening, with `--base` (one arm),
+`--arms` (`NAME=VI1,NODISEASE,IVA3`, comma-separated, repeatable), `--off` and `--xl`. Every folder is under `--out`
+(default `results-julia-xxl`); `--label` defaults to `part1`, `confirm` or `screen`. Returns `(; mode, folders, base,
+arms, out, label)`, `folders` by option name without its dashes. Throws `ArgumentError` on a usage error.
+"""
+function trade_report_args(args::Vector{String})
+    folders, part1, confirm = Dict{String,String}(), false, false
+    base, arms, out, label = nothing, Pair{String,Vector{String}}[], RESULTS_XXL, nothing
+    i = 1
+    while i <= length(args)
+        a = args[i]
+        if a == "--part1"
+            part1 = true
+        elseif a == "--confirm"
+            confirm = true
+        elseif a in ("--on", "--off", "--nodisease", "--iva3", "--xl", "--vi1", "--base", "--arms", "--out", "--label")
+            i += 1
+            i <= length(args) || throw(ArgumentError("$a needs a value"))
+            v = args[i]
+            if a == "--base"
+                b = trade_arm_specs(v)
+                length(b) == 1 || throw(ArgumentError("--base is one arm"))
+                base = b[1]
+            elseif a == "--arms"
+                append!(arms, trade_arm_specs(v))
+            elseif a == "--out"
+                out = v
+            elseif a == "--label"
+                (occursin(r"[/\\]", v) || isempty(v)) && throw(ArgumentError("--label is a name, not $(repr(v))"))
+                label = v
+            else
+                haskey(folders, a[3:end]) && throw(ArgumentError("$a is given twice"))
+                folders[a[3:end]] = v
+            end
+        else
+            throw(ArgumentError("unexpected argument $a"))
+        end
+        i += 1
+    end
+    part1 && confirm && throw(ArgumentError("--part1 and --confirm are different reports"))
+    mode = part1 ? :part1 : confirm ? :confirm : :screen
+    need = mode == :part1 ? ["on", "off", "nodisease", "iva3", "xl"] : mode == :confirm ? ["vi1", "off"] : ["off", "xl"]
+    for k in keys(folders)
+        k in need || throw(ArgumentError("--$k is not for the $mode report"))
+    end
+    for k in need
+        haskey(folders, k) || throw(ArgumentError("--$k is needed"))
+    end
+    if mode == :screen
+        base === nothing && throw(ArgumentError("--base is needed"))
+        isempty(arms) && throw(ArgumentError("--arms is needed"))
+        allunique([first(base); first.(arms)]) || throw(ArgumentError("an arm is named twice"))
+    else
+        (base === nothing && isempty(arms)) || throw(ArgumentError("--base and --arms are for screening"))
+    end
+    return (; mode, folders, base, arms, out, label=something(label, String(mode)))
+end
+
+"""
+    trade_report_main(args) -> exit code
+
+The command line of julia/xxl_trade_report.jl: reads the folders' finished seeds, writes [`trade_report`](@ref)'s
+markdown to `<out>/trade-<label>.md` and prints it with where it went. It runs nothing. Returns 2 on a usage error, a
+folder that is missing or isn't a study folder, a folder with no finished seed, or a VI-1 folder that stops short of t =
+`STUDY_END`. Anything that goes wrong after is thrown with its stack trace.
+"""
+function trade_report_main(args::Vector{String})
+    a, kw = try
+        a = trade_report_args(args)
+        function study(name, folder)
+            path = joinpath(a.out, folder)
+            isdir(path) || throw(ArgumentError("$path is not a folder"))
+            return read_trade_run(name, path)
+        end
+        arm(spec) = TradeArm(first(spec), (study(first(spec), f) for f in last(spec))...)
+        f = a.folders
+        off = study("off", f["off"])
+        kw = if a.mode == :part1
+            (; part1=true, base=TradeArm("today", study("today", f["on"]), study("today", f["nodisease"]),
+                                         study("today", f["iva3"])), xl=read_xl_prices(joinpath(a.out, f["xl"])), off)
+        elseif a.mode == :confirm
+            (; confirm=true, base=TradeArm("study", study("study", f["vi1"]), nothing, nothing), off)
+        else
+            (; base=arm(a.base), arms=TradeArm[arm(s) for s in a.arms], xl=read_xl_prices(joinpath(a.out, f["xl"])), off)
+        end
+        check_trade_arm(kw.base)
+        haskey(kw, :arms) && foreach(check_trade_arm, kw.arms)
+        check_trade_run(off, "the trade-off run")
+        a, kw
+    catch e
+        e isa ArgumentError || rethrow()
+        println(stderr, TRADE_REPORT_USAGE, "\n", e.msg)
+        return 2
+    end
+    report = trade_report(; label=a.label, kw...)
+    path = joinpath(a.out, "trade-$(a.label).md")
+    write_atomic(path, report)
+    println(report, "-> ", path)
+    return 0
+end
