@@ -258,3 +258,17 @@ list D did.
 - How the trace and screening readings are produced: a tool in `julia/` or scripts kept beside the results, so long as the figures can be
   recomputed from saved files.
 - Whether the new score can stay as fast as today's. A slower score is acceptable for the study; a large slowdown is worth reporting.
+
+## Changes after Part 1 (2026-11-04)
+
+Part 1's first run showed three problems, decided before any screening run. The text above stays as it was set.
+
+- **The snapshot window is 20 periods, not 100** (**the user's**): VI-1's agents live 60–100 periods, so almost none were alive at
+  both ends of t = 401–500 and every snapshot came out empty. Traders against similar non-traders now reads t = 481–500 (IV-A3: t =
+  281–300), which keeps about a third of the agents; the other windows don't change.
+- **The healthy-trade bar is dropped** (**the user's**): today already meets it (0.983 against 25%). Its share stays as a reading.
+- **The bars read strictly healthy agents** (**the user's**): no disease for 10 periods, since recovering agents, about a third, still
+  hold the fee's skew. The Richer bar and Part 1's words read the strictly healthy; the wider reading above, recovering included, is
+  shown beside each and decides nothing.
+- **"Common" stays a Part 1 word, not a screening bar** (*my call*): the strictly healthy agents with a strictly healthy partner in a
+  10-period window, t = 451–500, against 25%, the old bar's value, so that Part 1's table keeps its meaning.
