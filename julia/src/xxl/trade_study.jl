@@ -196,10 +196,11 @@ end
 const TRADE_USAGE = "usage: julia --project=julia julia/xxl_trade_study.jl --label NAME [--set field=value]... [--trade-off] [--experiment VI-1|IV-A3] [--seeds N] [--first-seed K] [--periods P] [--jobs J] [--out DIR]\n       julia --project=julia julia/xxl_trade_study.jl --xl [--seeds N] [--first-seed K] [--periods P] [--jobs J] [--out DIR]"
 
 """
-The study's command line: `--label NAME` (required for an arm), repeated `--set field=value` (any [`XxlRules`](@ref) field
-of the xxl defaults, read as the scorecard reads it, by [`rule_setting`](@ref)), `--trade-off` (a [`CreditOptions`](@ref)
-in `options`), `--experiment VI-1|IV-A3`, `--seeds N` (20), `--first-seed K` (80), `--periods P` (500), `--jobs J` (1)
-and `--out DIR`; or `--xl`, the xl reference, which takes only the last four and `--seeds`. Throws `ArgumentError` on a usage error.
+The study's command line: `--label NAME` (required for an arm; a name, without `/` or `\\`), repeated `--set
+field=value` (any [`XxlRules`](@ref) field of the xxl defaults, read as the scorecard reads it, by
+[`rule_setting`](@ref)), `--trade-off` (a [`CreditOptions`](@ref) in `options`), `--experiment VI-1|IV-A3`, `--seeds N`
+(20), `--first-seed K` (80), `--periods P` (500), `--jobs J` (1) and `--out DIR`; or `--xl`, the xl reference, which
+takes only the last four and `--seeds`. Throws `ArgumentError` on a usage error.
 """
 function trade_study_args(args::Vector{String})
     sets, label, xl, trade_off, experiment = Pair{Symbol,Any}[], nothing, false, false, "VI-1"
@@ -220,6 +221,8 @@ function trade_study_args(args::Vector{String})
             if a == "--set"
                 push!(sets, rule_setting(v))
             elseif a == "--label"
+                # a name in the folder's name, so no path
+                (occursin(r"[/\\]", v) || isempty(v)) && throw(ArgumentError("--label is a name, not $(repr(v))"))
                 label = v
             elseif a == "--experiment"
                 experiment = v

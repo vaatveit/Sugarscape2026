@@ -142,7 +142,8 @@ end
 
     for bad in (String[], ["--seeds", "3"], ["--label"], ["--label", "x", "--experiment", "II-4"],
                 ["--label", "x", "--seeds", "0"], ["--label", "x", "--periods", "2"], ["--label", "x", "--set", "nope=1"],
-                ["--label", "x", "--bogus"], ["--xl", "--trade-off"], ["--xl", "--label", "x"], ["--xl", "--set", "free_step=2"])
+                ["--label", "x", "--bogus"], ["--xl", "--trade-off"], ["--xl", "--label", "x"], ["--xl", "--set", "free_step=2"],
+                ["--label", "a/b"], ["--label", "a\\b"], ["--label", ""])
         @test_throws ArgumentError trade_study_args(bad)
     end
     quiet(f) = redirect_stderr(f, devnull)
@@ -174,12 +175,9 @@ end
     exp = with_steps(find_experiment(load_registry(), "VI-1"), 4)
     folder = result_dir(joinpath(out, scorecard_name("xl", 80, 2) * "-p4"), "VI-1")
     mkpath(folder)
-    write(joinpath(folder, "fingerprint.txt"), "julia
-" * exp.xl_fingerprint)
+    write(joinpath(folder, "fingerprint.txt"), "julia\n" * exp.xl_fingerprint)
     for k in (80, 81)
-        write(joinpath(folder, "seed$k.csv"), join(fill("t,x", 6), "
-") * "
-")
+        write(joinpath(folder, "seed$k.csv"), join(fill("t,x", 6), "\n") * "\n")
     end
     @test xl_current(folder, exp, 80:81)
     before = [mtime(joinpath(folder, n)) for n in readdir(folder)]
