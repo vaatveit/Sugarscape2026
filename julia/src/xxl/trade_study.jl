@@ -5,9 +5,14 @@
 # the extinction test's own, so `read_list_run` reads it.
 
 const TRADE_EXPERIMENTS = ("VI-1", "IV-A3")  # the experiments the study runs
-const TRADE_SNAPSHOT = 100  # the agent snapshot covers the last this many periods
+# The agent snapshot covers the last this many periods (the user's, after Part 1: VI-1's agents live 60–100 periods, so
+# almost none are alive at both ends of 100; 20 keeps about a third).
+const TRADE_SNAPSHOT = 20
 
-"""The periods of the agent snapshot: the last [`TRADE_SNAPSHOT`](@ref) of the run, t = 401–500 for 500 periods."""
+"""
+The periods of the agent snapshot: the last [`TRADE_SNAPSHOT`](@ref) of the run, t = 481–500 for VI-1's 500 periods and
+281–300 for IV-A3's 300.
+"""
 trade_window(periods::Int) = (max(1, periods - TRADE_SNAPSHOT + 1), periods)
 
 """`trade-<label>-<experiment, with / as _>-s<first>-<seeds>-p<periods>`: the folder name of a study arm."""

@@ -1,6 +1,6 @@
 # The trade study (docs/superpowers/specs/2026-11-03-xxl-trade-design.md): runs VI-1 (or IV-A3) under one xxl rule set with the
 # trade readings kept, into results-julia-xxl/trade-<label>-<experiment>-s<first>-<seeds>-p<periods>/: per seed the usual
-# CSV, <seed>-trade.csv (one row a period) and <seed>-agents.csv (the last 100 periods' agents). Running the same command
+# CSV, <seed>-trade.csv (one row a period) and <seed>-agents.csv (the last 20 periods' agents). Running the same command
 # again skips the seeds done and reruns from period 0 any cut short. --set field=value (repeatable) changes any xxl rule
 # from the defaults, --trade-off turns trade off in the world. --xl runs the xl reference (VI-1's xl version, the one the
 # scorecard keeps) instead, and skips it when it is already there.

@@ -27,8 +27,9 @@ const TS_RULES = replace_rules(XXL_DEFAULTS; trade_move="local", trade_guard=5)
 ts_arm(out; rules=TS_RULES, kw...) = run_trade_arm(rules; label="t", seeds=1, first_seed=20, periods=12, out=out, io=devnull, kw...)
 
 @testset "xxl trade study: the window and the name" begin
-    @test trade_window(500) == (401, 500)
-    @test trade_window(300) == (201, 300)
+    @test trade_window(500) == (481, 500)  # 20 periods, the user's
+    @test trade_window(300) == (281, 300)
+    @test trade_window(20) == (1, 20)
     @test trade_window(12) == (1, 12)
     @test trade_name("a", "VI-1", 80, 20, 500) == "trade-a-VI-1-s80-20-p500"
     @test trade_name("a", "II-5/x", 1, 2, 3) == "trade-a-II-5_x-s1-2-p3"
