@@ -181,4 +181,46 @@ const S_SITE, P_SITE = (9, 7), (7, 9)
         @test (a.x, a.y) == S_SITE
         @test (a.memory[1].x, a.memory[1].y) == (5, 7)
     end
+
+    @testset "the move keeps its blend and price for word of mouth" begin
+        m, a = trade_world(trade_rules(; trade_move="own"); last_price=2.0)
+        move!(m, a)
+        @test (m.move_lambda, m.move_inv_p) == (1.0, 0.5)
+        for rules in (trade_rules(), trade_rules(; trade_move="own", trade_guard=5))  # off, and guarded (spice 2)
+            m, a = trade_world(rules; last_price=2.0)
+            m.move_lambda, m.move_inv_p = 1.0, 0.5  # as another agent's move left them
+            move!(m, a)
+            @test (m.move_lambda, m.move_inv_p) == (0.0, 0.0)
+        end
+    end
+
+    @testset "word of mouth ranks at the move's price" begin
+        # Room for one entry. The agent at (10, 10) remembers S-like (sugar 20) 5 east; its neighbour's best is P-like
+        # (6, 6) 5 north. From here, two periods away: S is (68, 2), P (54, 8). The book's welfare keeps P (√432 over
+        # √136); at a price of 1, S is worth 70 against 62.
+        function hearing(rules)
+            m = tiny_model(zeros(Int, 30, 30); spice=true, trade=true, xxl=replace_rules(rules; memory=1), vision=(3, 3))
+            a = put_agent(m, 10, 10; vision=3, sugar=50.0)
+            a.speed, a.spice, a.metabolism, a.spice_metabolism, a.foresight = 3, 3.0, 1, 1, 0
+            a.last_price = 1.0
+            m.t = 5
+            a.memory = [Remembered(15, 10, 20.0, 0.0, 0.0, 4)]
+            b = put_agent(m, 25, 25)
+            b.memory = [Remembered(10, 15, 6.0, 6.0, 0.0, 4)]
+            a.neighbors = [b]
+            return m, a
+        end
+        m, a = hearing(trade_rules(; trade_move="own"))
+        sw = SiteWelfare(m, a, m.looked)
+        @test sw.lambda == 1.0 && sw.inv_p == 1.0
+        m.move_lambda, m.move_inv_p = sw.lambda, sw.inv_p  # as the agent's move this turn set them
+        word_of_mouth!(m, a)
+        @test [(e.x, e.y) for e in a.memory] == [(15, 10)]  # the rule's entry stays
+        m, a = hearing(trade_rules(; trade_move="own"))  # the rule on, but the move set no price (guarded, say)
+        word_of_mouth!(m, a)
+        @test [(e.x, e.y) for e in a.memory] == [(10, 15)]
+        m, a = hearing(trade_rules())  # the rule off: the book's best evicts it
+        word_of_mouth!(m, a)
+        @test [(e.x, e.y) for e in a.memory] == [(10, 15)]
+    end
 end

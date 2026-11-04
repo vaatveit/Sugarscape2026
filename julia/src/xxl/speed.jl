@@ -129,7 +129,8 @@ replaces the choice with probability 1/c, one draw each); `target_remembered` re
 remembered site beyond vision. It steps toward the target with [`step_site`](@ref), harvests where it lands, and with
 memory then [`remember!`](@ref)s. `travel_free` records whether the target is within `free_step` (revised spec, stage 1,
 item 3); [`metabolize!`](@ref) charges the distance moved unless it is. With rule 13 the sites are valued at the price
-`SiteWelfare(m, a, looked)` expects from this look, and the remembered sites, now and in `remember!`, at the same price.
+`SiteWelfare(m, a, looked)` expects from this look, and the remembered sites, now and in `remember!`, at the same price;
+the move's blend and price stay in `m.move_lambda` and `m.move_inv_p` for [`word_of_mouth!`](@ref) to rank at.
 """
 function speed_move!(m::Model, a::Agent)
     ls = m.landscape
@@ -140,6 +141,7 @@ function speed_move!(m::Model, a::Agent)
     a.target_remembered = false
     looked = look!(m, a)
     sw = spice ? SiteWelfare(m, a, looked) : NO_WELFARE  # after the look, for rule 13's local price; it draws nothing
+    m.move_lambda, m.move_inv_p = sw.lambda, sw.inv_p  # for word of mouth this turn (0 and 0 off the rule)
     best_x, best_y, best_d = a.x, a.y, 0.0
     best = site_value(a, sw, spice, c, free, ls, a.x, a.y, 0.0)
     ties = 1
