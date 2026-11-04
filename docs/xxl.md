@@ -1508,8 +1508,41 @@ What this means for the record:
 - The extinction-risk test ("Stage 2: the chance of extinction") is to be rerun whenever the defaults change. The list D confirmation run is that test for
   list D, but on the draws before the skip, so a reference rerun under today's code is the record to keep. The old defaults'
   folders (`extinction-defaults-s20-60-p2000`, `loans-defaults-s20-10-p2000`) hold the default label, so a rerun needs a new
-  `--label` or those folders moved.
+  `--label` or those folders moved. The rerun is below.
 - V-1, V-2 and `VAR-inttrade/VI-1` take the list too under `--xxl`, and nothing here measured them.
+
+**The reference rerun.** Run on 2026-11-03 at b6a6d66, the commit that adopted list D, with label `list-d-default`: both scorecards and the
+60-seed extinction test, then `xxl_disease_list.jl --base extinction-list-d-s20-60-p2000 --arms rerun=extinction-list-d-default-s20-60-p2000
+--label reference` to read it against the confirmation. It is the record of today's defaults.
+- **Extinction test: pass.** 0 of 60 seeds (20–79) extinct over 2,000 periods, so the chance of extinction is under 4.87% at 95% confidence,
+  against a bar of 5%. No living seed is falling at the end. The trough averages 8,552, at about t = 61, and its lowest is 7,341, in seed 46.
+- **Scorecards: 13 of 13 on both,** seeds 0–19 and 20–39. Against the confirmation's scorecards, S2 reads 0.388 and 0.375 against 0.383 and
+  0.371, X10 0.081 and 0.074 against 0.086 and 0.076, X7 3,237 and 2,846 against 2,991 and 2,795, and X9 1 and 1 against 1 and 0.95.
+  S4 and S5 come from II-4 and IV-A3, which have no sex, and read the same, as they must. X1 reads the same to the digits shown.
+- **The same world as the confirmation, within noise.** Every ratio of the rerun's mean to the confirmation's has 1 inside its 95% range, at
+  t ≤ 500 and in both later windows:
+
+| Reading | Confirmation | Rerun | Ratio [95%] |
+|---|---|---|---|
+| Trough, mean | 8,532.5 | 8,552.2 | 1.002 [0.986, 1.018] |
+| Births to t = 100 | 19,297 | 19,362 | 1.003 [0.983, 1.024] |
+| Share sick, t = 451–500 | 0.081 | 0.076 | 0.932 [0.761, 1.141] |
+| Population, t = 1,501–2,000 | 74,659 | 75,046 | 1.005 [0.987, 1.024] |
+| Gini, t = 1,501–2,000 | 0.234 | 0.234 | 1.001 [0.993, 1.009] |
+| Mean sugar, t = 1,501–2,000 | 25.41 | 25.29 | 0.995 [0.979, 1.012] |
+| Trades per head, t = 1,501–2,000 | 1.153 | 1.125 | 0.975 [0.882, 1.076] |
+| Mean price, t = 1,501–2,000 | 1.198 | 1.194 | 0.997 [0.973, 1.021] |
+
+- **The band and the trough bar.** The share sick is inside 0.01–0.2 at the end in 59 of 60 seeds, against 58. The report's one "near" row
+  is screening's trough bar: the rerun's lowest seed, 7,341, is 1.2% under the confirmation's 7,427. That bar asks a new list to be no worse
+  than the baseline, not two runs to match, and the means match, so I don't read it as a difference.
+- **Losing disease.** At t = 2,000 the rerun has 3 diseases in 45 seeds, 2 in 14 and none in 1, against 49, 9, 1 and 1 with 1 disease. 15
+  seeds end under 3 diseases, against 11, and 8 seeds are in both. Seed 32 loses all three again, but slowly, at t = 59, 305 and 1,198 instead
+  of by t = 77, so X9 at t ≤ 500 reads 60 of 60 against 59. Seed 69 again loses one late, at t = 823 against 804. Seed 57, which lost two,
+  keeps all three. A seed's founders and their diseases are drawn before any mate search, so they are the same in both runs; the overlap
+  suggests a seed's start matters to whether it loses disease, but the draws after matter too.
+- **Run time.** Same machine, 5 workers: 29 and 31 min for the scorecards, and 6 h 41 min for the extinction test, against 54 and 61 min and
+  13 h 43 min for the confirmation. That's the eight speedups merged before list D together with the skip.
 
 ## Results of the first rules (`XXL_V1`)
 
