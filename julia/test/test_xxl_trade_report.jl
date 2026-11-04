@@ -102,7 +102,7 @@ const TR_NODISEASE = replace(TR_XXL, "founder_diseases=1" => "founder_diseases=0
     study(name, folder) = Sugarscape.read_trade_run(name, folder)
     base_nod, arm_nod = study("today", nod("today"; trades=500.0)), study("A", nod("A"))  # 0.5 and 1.0 trades per head
     base_iva3 = study("today", iva3("today"))
-    base = Sugarscape.TradeArm("today", study("today", vi1("today")), base_nod, base_iva3)
+    base = Sugarscape.TradeArm("today", study("today", vi1("today"; ratio=1.0)), base_nod, base_iva3)  # today's matched ratio is 1
     off = study("today-off", vi1("today-off"; extra="trade: off", ratio=1.0, price=NaN))
     xl = Sugarscape.read_xl_prices(tr_xl(dir))
     arm(name; nodisease=arm_nod, kw...) = Sugarscape.TradeArm(name, study(name, vi1(name; kw...)), nodisease, base_iva3)
@@ -200,10 +200,12 @@ const TR_NODISEASE = replace(TR_XXL, "founder_diseases=1" => "founder_diseases=0
 
     @testset "the bars as printed" begin
         r = screen([arm("A")])
-        @test occursin("at least 1.10, its 95% interval above 1", r)
+        @test occursin("at least 1.10 with its interval above 1, and at least 1.05 × today's (1 → 1.05) with arm ÷ today's " *
+                       "interval above 1", r)
         @test !occursin("| A | Healthy trade |", r) && !occursin("agents with no disease, t = 451", r)
         # the bar's ratio is the strictly healthy's; the wider one, recovering included, is printed beside it
-        @test occursin("| A | Richer with trade | 1.2, interval [1.2, 1.2] (recovering included: 1.2, a reading) |", r)
+        @test occursin("| A | Richer with trade | 1.2, interval [1.2, 1.2]; ÷ today's: 1.2, interval [1.2, 1.2] " *
+                       "(recovering included: 1.2, a reading) |", r)
         @test occursin("| Traders ÷ similar non-traders, recovering included, resources at p̄ |", r)
         # the healthy trade stays as a reading, both ways
         @test occursin("| Strictly healthy agents with a strictly healthy partner in 10 periods, t = 451–500 | 0.2 |", r)
@@ -212,7 +214,10 @@ const TR_NODISEASE = replace(TR_XXL, "founder_diseases=1" => "founder_diseases=0
         @test occursin("mean at least 95% of today's", r) && occursin("none below 90% of today's lowest", r)
         @test occursin("at most 1.5", r) && occursin("at least 18 of 20", r)
         # the text comes from the constants
-        @test occursin("at least $(Sugarscape.two_places(Sugarscape.RICHER_BAR)),", r)
+        @test occursin("at least $(Sugarscape.two_places(Sugarscape.RICHER_BAR)) with", r)
+        @test occursin("and at least $(Sugarscape.fmt(Sugarscape.BEAT_TODAY)) × today's", r)
+        # arm ÷ today's ratio is also among the ratios to today's
+        @test occursin("| A | Traders ÷ similar non-traders, strictly healthy | 1.2 | [1.2, 1.2] |", r)
         # the sick agents' reading names its bias, and healthy is said to be strictly healthy
         @test occursin("died later in the same period", r)
         @test occursin("healthy means strictly healthy (no disease for 10 periods) in every bar and Part 1 word, " *
@@ -227,7 +232,7 @@ const TR_NODISEASE = replace(TR_XXL, "founder_diseases=1" => "founder_diseases=0
         mix(strict, recovering; flags=(0, 1)) = vcat(tr_agents(strict), tr_agents(recovering; vision=4, first=7, recovering=flags))
         r = screen([arm("strict-fails"; agents=mix(1.0, 2.0)), arm("strict-passes"; agents=mix(1.2, 0.5; flags=(1, 0)))])
         @test tr_result(r, "strict-fails", "Richer with trade") == "fail"  # recovering included it would be 1.5
-        @test occursin("| strict-fails | Richer with trade | 1, interval [1, 1] (recovering included: 1.5, a reading) |", r)
+        @test occursin("| strict-fails | Richer with trade | 1, interval [1, 1]; ÷ today's: 1, interval [1, 1] (recovering included: 1.5, a reading) |", r)
         @test tr_result(r, "strict-passes", "Richer with trade") == "pass"  # recovering included it would be 0.85
         @test occursin("Chosen: strict-passes.", r)
         # the choice ranks by the strict ratio: 1.3 strictly beats 1.2, though the wider ones are 1.05 and 1.6
@@ -250,6 +255,58 @@ const TR_NODISEASE = replace(TR_XXL, "founder_diseases=1" => "founder_diseases=0
         @test occursin("No arm passes. No arm is near.", alone)
         # a recovering-only snapshot is missing too: the bar reads none of it
         @test tr_result(screen([arm("rec"; agents=tr_agents(1.5; recovering=(0, 1)))]), "rec", "Richer with trade") == "missing"
+    end
+
+    @testset "the Richer bar beats today: each of its three conditions at its edge" begin
+        alt(a, b) = i -> isodd(i) ? a : b  # seeds alternate between two matched ratios (the mean is their midpoint)
+        # `rich(today_ratio, arms...)` screens arms against a baseline whose per-seed matched ratios are `today_ratio`
+        function rich(today_ratio, arms...)
+            b = Sugarscape.TradeArm("today", study("b2", vi1("b2"; ratio=today_ratio)), base_nod, base_iva3)
+            report = Sugarscape.trade_report(; label="t", base=b, arms=collect(arms), off, xl)
+            return report, [tr_result(report, a.name, "Richer with trade") for a in arms]
+        end
+        # 1. the matched ratio at least 1.10, its interval above 1 (today's 1, so 1.05 × today's is not what binds)
+        _, res = rich(1.0, arm("e1-110"; ratio=1.1), arm("e1-1099"; ratio=1.0999), arm("e1-1045"; ratio=1.045),
+                      arm("e1-1044"; ratio=1.044))
+        @test res == ["pass", "near", "near", "fail"]  # at the bar; just under; at 95% of it; just under that
+        # its interval: low end 1.04 passes, exactly 1 is not above it, 0.96 is within 5% of 1, 0.92 is not
+        _, res = rich(1.0, arm("e1-i104"; ratio=alt(0.8, 1.6)), arm("e1-i100"; ratio=alt(0.7, 1.7)),
+                      arm("e1-i096"; ratio=alt(0.6, 1.8)), arm("e1-i092"; ratio=alt(0.5, 1.9)))
+        @test res == ["pass", "near", "near", "fail"]
+        # 2. at least 1.05 × today's: today's 1.1 asks 1.155 (1.1 → 1.155 is shown), 95% of it is 1.09725
+        r, res = rich(1.1, arm("e2-1155"; ratio=1.155), arm("e2-1154"; ratio=1.1549), arm("e2-10973"; ratio=1.0973),
+                      arm("e2-10972"; ratio=1.0972), arm("e2-110"; ratio=1.1))
+        @test res == ["pass", "near", "near", "fail", "near"]  # the last ties today: past 1.10, not past today (÷ is 1)
+        @test occursin("at least 1.05 × today's (1.1 → 1.155)", r)
+        # a ratio far short of 1.05 × today's is not near though 1.10 is met
+        _, res = rich(1.5, arm("e2-far"; ratio=1.2))
+        @test res == ["fail"]
+        # 3. arm ÷ today's interval above 1: today's seeds alternate about 1, the arm's are all 1.2
+        r, res = rich(alt(0.6, 1.4), arm("e3-pass"; ratio=1.2))
+        @test res == ["pass"]
+        @test occursin("| e3-pass | Richer with trade | 1.2, interval [1.2, 1.2]; ÷ today's: 1.2, interval [1.034", r)
+        _, res = rich(alt(0.5, 1.5), arm("e3-100"; ratio=1.2))   # the interval's low end is exactly 1: not above
+        @test res == ["near"]
+        _, res = rich(alt(0.4, 1.6), arm("e3-097"; ratio=1.2))   # 0.968, within 5% of 1
+        @test res == ["near"]
+        _, res = rich(alt(0.3, 1.7), arm("e3-094"; ratio=1.2))   # 0.9375, beyond it
+        @test res == ["fail"]
+        # near needs all three within 5%: the interval is the only miss here, and it is near
+        r, _ = rich(alt(0.4, 1.6), arm("e3-097"; ratio=1.2))
+        @test occursin("No arm passes. Near passing: e3-097 (Richer with trade).", r)
+        # a missing today's ratio: every arm reads missing, can't pass or be near, and the report says so
+        r, res = rich(1.0, arm("m1"))
+        none_today = Sugarscape.TradeArm("today", study("tnone", vi1("tnone"; agents=zeros(0, 13))), base_nod, base_iva3)
+        m = Sugarscape.trade_report(; label="t", base=none_today, arms=[arm("m1")], off, xl)
+        @test tr_result(m, "m1", "Richer with trade") == "missing"
+        @test occursin("**Today's matched ratio is missing, so every arm's Richer with trade row, which asks an arm to " *
+                       "beat today's, reads missing and no arm can pass.**", m)
+        @test occursin("No arm passes. No arm is near.", m) && !occursin("Chosen", m)
+        @test occursin("| m1 | Richer with trade | 1.2, interval [1.2, 1.2]; today's matched ratio is missing", m)
+        @test !occursin("Today's matched ratio is missing", r)
+        # the choice order is unchanged: the largest matched ratio first
+        r, _ = rich(1.0, arm("o1"; ratio=1.2), arm("o2"; ratio=1.4))
+        @test occursin("Chosen: o2. Passing: o1, o2.", r)
     end
 
     @testset "the choice and the result rows" begin
@@ -451,9 +508,11 @@ const TR_NODISEASE = replace(TR_XXL, "founder_diseases=1" => "founder_diseases=0
 
     @testset "trade on ÷ off" begin
         r = screen([arm("A")])
-        # healthy agents end with 64 / 6 on and 10 off, valued at the on run's price; the same population
-        @test occursin("| today | Strictly healthy agents' mean resources at t = 500 | 1.067 |", r)
-        @test occursin("| today | The same, recovering included (a reading) | 1.067 |", r)
+        # today's agents end with 10 / 10 on and 10 off (its matched ratio is 1); A's with 64 / 6 on against 10 off, valued
+        # at the on run's price; the same population
+        @test occursin("| today | Strictly healthy agents' mean resources at t = 500 | 1 |", r)
+        @test occursin("| A | Strictly healthy agents' mean resources at t = 500 | 1.067 |", r)
+        @test occursin("| A | The same, recovering included (a reading) | 1.067 |", r)
         @test occursin("| today | Population | 1 |", r)
         @test !occursin("has trade on", r)
         on_off = Sugarscape.trade_report(; label="t", base, arms=[arm("A")], off=base.vi1, xl)
@@ -468,7 +527,8 @@ const TR_NODISEASE = replace(TR_XXL, "founder_diseases=1" => "founder_diseases=0
         reports = [Sugarscape.trade_report(; label="t", base, arms=[arm("A")], off=gone_off, xl),
                    Sugarscape.trade_report(; label="p", part1=true, base, off=gone_off, xl),
                    Sugarscape.trade_report(; label="c", confirm=true, off=gone_off,
-                                           base=Sugarscape.TradeArm("A", base.vi1, nothing, nothing))]
+                                           base=Sugarscape.TradeArm("A", base.vi1, nothing, nothing),
+                                           today=Sugarscape.TradeArm("today", base.vi1, nothing, nothing))]
         for g in reports
             @test occursin("**Unfinished: 1 of 20 seeds of the trade-off run ($name) have not run.", g)
             @test occursin("**Seed 80 of the trade-off run ($name) went extinct at t = 200: it is left out of trade on ÷ off.**", g)
@@ -476,28 +536,49 @@ const TR_NODISEASE = replace(TR_XXL, "founder_diseases=1" => "founder_diseases=0
         end
     end
 
-    @testset "confirmation" begin
-        confirm(ratio) = Sugarscape.trade_report(; label="c", confirm=true, off,
-            base=Sugarscape.TradeArm("A", study("c$ratio", vi1("c$ratio"; ratio)), nothing, nothing))
+    @testset "confirmation beats Part 1's today, on other seeds" begin
+        # the study's seeds 20-79 (60 of them) against today's, Part 1's, seeds 80-99 (base: its matched ratio is 1)
+        study60(ratio) = study("c$ratio", tr_folder(dir, "trade-c$ratio-VI-1-s20-60-p500"; n=60, ratio))
+        today = Sugarscape.TradeArm("today", base.vi1, nothing, nothing)
+        confirm(ratio; today=today, study=study60(ratio)) = Sugarscape.trade_report(; label="c", confirm=true, off, today,
+            base=Sugarscape.TradeArm("A", study, nothing, nothing))
         yes, no = confirm(1.2), confirm(1.0)
         @test tr_result(yes, "A", "Richer with trade") == "pass" && occursin("The ratio passes again", yes)
         @test tr_result(no, "A", "Richer with trade") == "fail" && occursin("not confirmed", no)
         @test occursin("## Trade on ÷ off", yes)
-        # a missing ratio is said, and neither passes nor fails
-        gone = Sugarscape.trade_report(; label="c", confirm=true, off,
-            base=Sugarscape.TradeArm("A", study("cnone", vi1("cnone"; agents=zeros(0, 13))), nothing, nothing))
+        # the row is screening's: three conditions, the arm ÷ today ratio and its interval
+        @test occursin("| A | Richer with trade | 1.2, interval [1.2, 1.2]; ÷ today's: 1.2, interval [1.2, 1.2] " *
+                       "(recovering included: 1.2, a reading) | at least 1.10 with its interval above 1, and at least 1.05 " *
+                       "× today's (1 → 1.05) with arm ÷ today's interval above 1 | pass |", yes)
+        # today's figure is said to come from other seeds
+        @test occursin("Today's matched ratio comes from other seeds: Part 1's, seeds 80 to 99, the screening baseline's, " *
+                       "not a run of today's rules on the study's seeds 20 to 79.", yes)
+        @test occursin("| Today (Part 1's) | $(base.vi1.run.folder) | 20 of 20 | 500 |", yes)
+        # a ratio that meets 1.10 but not 1.05 × today's fails: today's 1.2 asks 1.26
+        rich = Sugarscape.TradeArm("today", study("rich", vi1("rich"; ratio=1.2)), nothing, nothing)
+        @test tr_result(confirm(1.2; today=rich), "A", "Richer with trade") == "fail"
+        @test tr_result(confirm(1.26; today=rich), "A", "Richer with trade") == "pass"
+        # a missing ratio, the study's or today's, is said, and neither passes nor fails
+        gone = confirm(1.2; study=study("cnone", tr_folder(dir, "trade-cnone-VI-1-s20-60-p500"; n=60, agents=zeros(0, 13))))
         @test tr_result(gone, "A", "Richer with trade") == "missing"
         @test occursin("The ratio is missing: no seed has a matched cell, so it can't be read, pass or fail.", gone)
         @test !occursin("passes again", gone) && !occursin("not confirmed", gone)
+        nothing_today = Sugarscape.TradeArm("today", study("tnone", vi1("tnone"; agents=zeros(0, 13))), nothing, nothing)
+        tgone = confirm(1.2; today=nothing_today)
+        @test tr_result(tgone, "A", "Richer with trade") == "missing"
+        @test occursin("Today's matched ratio is missing: no seed has a matched cell", tgone)
+        @test !occursin("passes again", tgone) && !occursin("not confirmed", tgone)
         # an unfinished study run is not read, pass or fail
         for ratio in (1.2, 1.0)
-            folder = vi1("cu$ratio"; ratio)
-            rm(joinpath(folder, "seed99.csv"))
-            u = Sugarscape.trade_report(; label="c", confirm=true, off,
-                base=Sugarscape.TradeArm("A", study("cu$ratio", folder), nothing, nothing))
+            folder = tr_folder(dir, "trade-cu$ratio-VI-1-s20-60-p500"; n=60, ratio)
+            rm(joinpath(folder, "seed79.csv"))
+            u = confirm(ratio; study=study("cu$ratio", folder))
             @test occursin("The study run is unfinished, so the ratio is not read", u)
             @test !occursin("fails on the new seeds", u) && !occursin("passes again", u)
         end
+        # confirmation needs today's run
+        @test_throws ArgumentError Sugarscape.trade_report(; label="c", confirm=true, off,
+            base=Sugarscape.TradeArm("A", study60(1.2), nothing, nothing))
     end
 
     @testset "the xl reference reads whole seeds only" begin
@@ -576,9 +657,16 @@ const TR_NODISEASE = replace(TR_XXL, "founder_diseases=1" => "founder_diseases=0
         @test_throws ArgumentError Sugarscape.trade_report_args(["--base", "t=v,n,i", "--arms", "a,b,c", "--off", "o", "--xl", "x"])
         p = Sugarscape.trade_report_args(["--part1", "--on", "a", "--off", "b", "--nodisease", "c", "--iva3", "d", "--xl", "e"])
         @test p.mode == :part1 && p.label == "part1" && p.folders["nodisease"] == "c"
-        c = Sugarscape.trade_report_args(["--confirm", "--vi1", "a", "--off", "b", "--label", "x"])
-        @test c.mode == :confirm && c.label == "x"
-        @test usage(["--confirm", "--vi1", "missing", "--off", "missing", "--out", dir]) == 2
+        c = Sugarscape.trade_report_args(["--confirm", "--vi1", "a", "--base", "t", "--off", "b", "--label", "x"])
+        @test c.mode == :confirm && c.label == "x" && c.folders == Dict("vi1" => "a", "base" => "t", "off" => "b")
+        @test c.base === nothing && isempty(c.arms)
+        @test_throws ArgumentError Sugarscape.trade_report_args(["--confirm", "--vi1", "a", "--off", "b"])  # no --base
+        @test_throws ArgumentError Sugarscape.trade_report_args(["--confirm", "--vi1", "a", "--base", "t", "--off", "b",
+                                                                 "--arms", "A=a,b,c"])
+        @test_throws ArgumentError Sugarscape.trade_report_args(["--part1", "--on", "a", "--off", "b", "--nodisease", "c",
+                                                                 "--iva3", "d", "--xl", "e", "--base", "t"])
+        @test usage(["--confirm", "--vi1", "a", "--off", "b"]) == 2
+        @test usage(["--confirm", "--vi1", "missing", "--base", "missing", "--off", "missing", "--out", dir]) == 2
         # a real screening
         args = ["--base", "today=trade-today-VI-1-s80-20-p500,trade-today-nodisease-VI-1-s80-20-p500,trade-today-IV-A3-s80-20-p300",
                 "--arms", "A=trade-A-VI-1-s80-20-p500,trade-A-nodisease-VI-1-s80-20-p500,trade-today-IV-A3-s80-20-p300",
@@ -598,5 +686,16 @@ const TR_NODISEASE = replace(TR_XXL, "founder_diseases=1" => "founder_diseases=0
         other[4] = "A=trade-s81-VI-1-s81-20-p500,trade-A-nodisease-VI-1-s80-20-p500,trade-today-IV-A3-s80-20-p300"
         @test usage([other; ["--label", "other"]]) == 2
         @test !isfile(joinpath(dir, "trade-other.md"))
+        # a real confirmation: the study's folder (made in "confirmation beats Part 1's today"), today's VI-1 as --base
+        cargs = ["--confirm", "--vi1", "trade-c1.2-VI-1-s20-60-p500", "--base", "trade-today-VI-1-s80-20-p500",
+                 "--off", "trade-today-off-VI-1-s80-20-p500", "--out", dir]
+        ccode = redirect_stdout(() -> Sugarscape.trade_report_main(cargs), devnull)
+        confirmed = Base.read(joinpath(dir, "trade-confirm.md"), String)
+        @test ccode == 0 && occursin("The ratio passes again on the new seeds.", confirmed)
+        @test occursin("comes from other seeds: Part 1's, seeds 80 to 99", confirmed)
+        # a --base folder that doesn't name its seeds is a usage error, not a stack trace
+        mkpath(joinpath(dir, "trade-unnamed"))
+        cp(joinpath(dir, "trade-today-VI-1-s80-20-p500"), joinpath(dir, "trade-unnamed"); force=true)
+        @test usage([cargs[1:3]; ["--base", "trade-unnamed"]; cargs[6:end]; ["--label", "unnamed"]]) == 2
     end
 end

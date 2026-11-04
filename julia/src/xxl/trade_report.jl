@@ -12,6 +12,9 @@
 
 # The bars, fixed before any screening run (my call, from the spec's reading table and Part 1's words).
 const RICHER_BAR = 1.10  # traders ÷ similar non-traders, strictly healthy, with the interval above 1
+# Screening and confirmation also ask an arm to beat today (the user's, after Part 1's rerun): its matched ratio at least
+# this times today's, and arm ÷ today's interval above 1
+const BEAT_TODAY = 1.05
 # Part 1's "common" only, not a screening bar (controller's ruling after Part 1): healthy_healthy_10_strict, the mean
 # over t = 451–500, at least this
 const COMMON_SHARE = 0.25
@@ -416,6 +419,7 @@ function arm_figures(a::TradeArm, xl)
     iw = a.iva3 === nothing ? (1, 1) : a.iva3.window
     iend = a.iva3 === nothing ? 0 : a.iva3.run.periods
     shares(f) = [nanmean(per(s -> f(s)[k])) for k in 1:3]
+    matched = matched_over_seeds(r; strict=true)
     per_seed = (;
         tph=per(s -> trades_per_head(s.list, lo, hi)),
         sick_tph=per(s -> sick_trades_per_head(s, lo, hi)),
@@ -432,13 +436,14 @@ function arm_figures(a::TradeArm, xl)
         spice=per(s -> seed_mean(s, "mean_spice", lo, hi)),
         walked=per(s -> seed_mean(s, "mean_moved", lo, hi)),
         trough=Float64[screen_lowest(s.list) for s in ss],
+        matched=matched.per_seed,
     )
     gap(name) = nanmean(per(s -> mrs_gap(s, name, lo, hi)))
     gap_t, gap_h, gap_s = gap("gap_strict"), gap("gap_healthy"), gap("gap_sick")
     return (;
         name=a.name, n=length(r.seeds), live=length(ss), rule=rule13_of(r.run.fingerprint),
         finished=all(x -> x === nothing || finished(x.run), (r, a.nodisease, a.iva3)),
-        matched=matched_over_seeds(r; strict=true), matched_raw=matched_over_seeds(r; value=:raw, strict=true),
+        matched, matched_raw=matched_over_seeds(r; value=:raw, strict=true),
         matched_welfare=matched_over_seeds(r; value=:welfare, strict=true), matched_wide=matched_over_seeds(r),
         tph=nanmean(per_seed.tph),
         tph_pairs=[nanmean(per(s -> per_head(s, "exchanges_$k", lo, hi))) for k in ("hh", "hs", "ss")],
@@ -506,13 +511,61 @@ const RICHER_ROW = "Richer with trade"
 """Whether an arm's matched ratio (the bar's, over the strictly healthy) is missing: no seed has a matched cell."""
 ratio_missing(f) = !isfinite(settle(f.matched.ratio))
 
+"""Whether the Richer row can't be read: the arm's matched ratio is missing, or today's (`base`'s)."""
+richer_missing(f, base) = ratio_missing(f) || ratio_missing(base)
+
 """
-A reading-table row's result for an arm `f`: pass, near or fail, and missing for the Richer row when the matched ratio
-is ([`ratio_missing`](@ref)). A missing ratio decides nothing: the arm can't pass, but it hasn't failed the bar either.
+A reading-table row's result for an arm `f` against `base` (today): pass, near or fail, and missing for the Richer row
+when the arm's matched ratio or today's is ([`richer_missing`](@ref)). A missing ratio decides nothing: the arm can't
+pass, but it hasn't failed the bar either.
 """
-function row_result(f, row::ScreenRow)
-    row.name == RICHER_ROW && ratio_missing(f) && return "missing"
+function row_result(f, base, row::ScreenRow)
+    row.name == RICHER_ROW && richer_missing(f, base) && return "missing"
     return row.pass ? "pass" : row.near ? "near" : "fail"
+end
+
+"""
+    richer_row(f, today) -> ScreenRow
+
+The Richer row for an arm `f` against today's matched ratio `today` (a [`matched_over_seeds`](@ref) result, strictly
+healthy). It passes when all three hold, each figure settled ([`SETTLE_DIGITS`](@ref)) before it meets its bar:
+
+1. the arm's matched ratio is at least `RICHER_BAR`, its own 95% interval's low end above 1;
+2. it is at least `BEAT_TODAY` times today's;
+3. the arm's mean ÷ today's mean over the seeds' matched ratios ([`bootstrap_ratio_apart`](@ref), each side resampled
+   alone since seeds don't pair once the rules differ) has its 95% interval's low end above 1.
+
+Near if it doesn't pass and every one of the three misses by no more than `NEAR_BY` of its threshold (the ratio at least
+`1 - NEAR_BY` of the bar and the low end above `1 - NEAR_BY`; the ratio at least `1 - NEAR_BY` of `BEAT_TODAY` times
+today's; arm ÷ today's low end above `1 - NEAR_BY`). A missing figure, the arm's or today's, makes the row read missing:
+it can neither pass nor be near ([`row_result`](@ref)). The arm ÷ today ratio and its interval are in the row's reading.
+"""
+function richer_row(f, today)
+    m = f.matched
+    ratio, lo, t = settle(m.ratio), settle(m.lo), settle(today.ratio)
+    vs = bootstrap_ratio_apart(m.per_seed, today.per_seed)
+    vs_lo = settle(vs.lo)
+    beat_bar = settle(BEAT_TODAY * t)
+    lost = !isfinite(ratio) || !isfinite(t)
+    pass = !lost && ratio >= RICHER_BAR && lo > 1 && ratio >= beat_bar && vs_lo > 1
+    near = !lost && !pass && ratio >= settle((1 - NEAR_BY) * RICHER_BAR) && lo > 1 - NEAR_BY &&
+           ratio >= settle((1 - NEAR_BY) * beat_bar) && vs_lo > 1 - NEAR_BY
+    value = if !isfinite(ratio)
+        "—, no seed has a matched cell"
+    elseif !isfinite(t)
+        "$(edge_text(ratio, RICHER_BAR, ratio >= RICHER_BAR)), interval $(interval_text(m.lo, m.hi)); today's matched " *
+        "ratio is missing"
+    else
+        shown = argmax(length, (edge_text(ratio, RICHER_BAR, ratio >= RICHER_BAR),
+                                edge_text(ratio, beat_bar, ratio >= beat_bar)))
+        "$shown, interval $(interval_text(m.lo, m.hi)); ÷ today's: $(finite_text(vs.ratio)), interval " *
+        "$(interval_text(vs.lo, vs.hi))"
+    end
+    todays = isfinite(t) ? " ($(fmt(t)) → $(fmt(beat_bar)))" : " (today's is missing)"
+    bar = "at least $(two_places(RICHER_BAR)) with its interval above 1, and at least $(fmt(BEAT_TODAY)) × today's" *
+          "$todays with arm ÷ today's interval above 1"
+    return ScreenRow(RICHER_ROW, "$value (recovering included: $(finite_text(f.matched_wide.ratio)), a reading)", bar,
+                     pass, near)
 end
 
 """
@@ -522,10 +575,11 @@ The reading table of an arm's figures (see [`arm_figures`](@ref)) against the ba
 figure is settled ([`SETTLE_DIGITS`](@ref)) before it meets its bar. Near is a failing row that misses by no more than
 `NEAR_BY` of its bar, or by one seed:
 
-- Richer with trade: the matched ratio over the strictly healthy at least `RICHER_BAR` and its interval's low end above
-  1. Near if the ratio is at least `1 - NEAR_BY` of the bar and the low end above `1 - NEAR_BY`. The ratio recovering
-  included is printed beside it and decides nothing. With no seed's matched cell the ratio is missing: the row neither
-  passes nor is near, and [`row_result`](@ref) reads it as missing, not as a fail.
+- Richer with trade ([`richer_row`](@ref)), against the baseline's matched ratio: at least `RICHER_BAR` with its interval
+  above 1, at least `BEAT_TODAY` times today's, and arm ÷ today's interval above 1. Near if all three miss by no more
+  than `NEAR_BY` of their thresholds and one misses. The ratio recovering included is printed beside it and decides
+  nothing. With no seed's matched cell, the arm's or today's, the ratio is missing: the row neither passes nor is near,
+  and [`row_result`](@ref) reads it as missing, not as a fail.
 - Without disease: trades per head with no disease at least `NO_DISEASE_FACTOR` times the baseline's.
 - Sick agents still trade: sick agents' trades per head at least `SICK_TRADE_FACTOR` times the baseline's.
 - Trough: over all seeds, the mean at least `TROUGH_MEAN_SHARE` of the baseline's and no seed below `TROUGH_LOW_SHARE`
@@ -540,12 +594,6 @@ The healthy-trade bar is dropped (the user's, after Part 1): its share is a read
 """
 function screen_trade(f, base)
     n, need = f.n, seeds_needed(f.n)
-    m = f.matched
-    ratio, lo = settle(m.ratio), settle(m.lo)
-    richer = ratio >= RICHER_BAR && lo > 1
-    richer_near = !richer && ratio >= settle((1 - NEAR_BY) * RICHER_BAR) && lo > 1 - NEAR_BY
-    richer_value = ratio_missing(f) ? "—, no seed has a matched cell" :
-                   "$(edge_text(ratio, RICHER_BAR, ratio >= RICHER_BAR)), interval $(interval_text(m.lo, m.hi))"
     nd_bar, sick_bar = NO_DISEASE_FACTOR * base.nodisease_tph, SICK_TRADE_FACTOR * base.sick_tph
     mean_bar, low_bar = settle(TROUGH_MEAN_SHARE * base.trough), settle(TROUGH_LOW_SHARE * base.lowest)
     trough = settle(f.trough)
@@ -556,8 +604,7 @@ function screen_trade(f, base)
     x6 = settle(f.x6)
     x6_pass = x6 <= X6_BAR
     return [
-        ScreenRow(RICHER_ROW, "$richer_value (recovering included: $(finite_text(f.matched_wide.ratio)), a reading)",
-                  "at least $(two_places(RICHER_BAR)), its 95% interval above 1", richer, richer_near),
+        richer_row(f, base.matched),
         at_least_row("Without disease", f.nodisease_tph, nd_bar,
                      "at least ×$(fmt(NO_DISEASE_FACTOR)) today's $(finite_text(base.nodisease_tph)) = $(finite_text(nd_bar))"),
         at_least_row("Sick agents still trade", f.sick_tph, sick_bar,
@@ -812,7 +859,7 @@ const RATIO_MEASURES_TRADE = (("Trades per head", :tph), ("Sick agents' trades p
                               ("Healthy trade, strictly healthy", :healthy_trade),
                               ("Trades per head, no disease", :nodisease_tph),
                               ("IV-A3 trades per head", :iva3_tph), ("IV-A3 end population (S5's reading)", :iva3_end),
-                              ("Trough", :trough), ("Population", :population), ("Gini", :gini),
+                              ("Trough", :trough), ("Traders ÷ similar non-traders, strictly healthy", :matched), ("Population", :population), ("Gini", :gini),
                               ("Mean sugar", :sugar), ("Mean spice", :spice), ("Distance walked", :walked))
 
 # Each arm's mean ÷ the baseline's, per measure, each side resampled alone.
@@ -893,7 +940,7 @@ end
 function table_lines(figs, base)
     lines = [row_text(["Arm", "Row", "Reading", "Bar", "Result"]), "|" * "---|"^5]
     for f in figs, row in screen_trade(f, base)
-        push!(lines, row_text([f.name, row.name, row.value, row.bar, row_result(f, row)]))
+        push!(lines, row_text([f.name, row.name, row.value, row.bar, row_result(f, base, row)]))
     end
     return lines
 end
@@ -918,7 +965,7 @@ function check_trade_arm(a::TradeArm)
 end
 
 """
-    trade_report(; label, base, off, xl=nothing, arms=TradeArm[], part1=false, confirm=false) -> String
+    trade_report(; label, base, off, xl=nothing, arms=TradeArm[], part1=false, confirm=false, today=nothing) -> String
 
 The trade study's report as markdown, in one of three modes:
 
@@ -929,13 +976,14 @@ The trade study's report as markdown, in one of three modes:
 - **Screening** (the default): the `arms` against the baseline `base`, with `off` and `xl`: the arms and their Rule 13,
   the reading table ([`screen_trade`](@ref)), the choice ([`choose_trade_arm`](@ref)) and the result row that fires, the
   readings with the baseline's first, the arms' ratios to the baseline's and the trade-off reading of every run.
-- **Confirmation** (`confirm`): the study run `base.vi1` and the trade-off run `off`: the matched ratio against its bar,
-  the result row and the trade-off reading.
+- **Confirmation** (`confirm`): the study run `base.vi1`, today's run `today.vi1` (Part 1's, on other seeds: there is no
+  matched run of today's rules on the study's) and the trade-off run `off`: the Richer row ([`richer_row`](@ref)) of the
+  study's matched ratio against today's, the result row and the trade-off reading.
 
 Healthy, in every bar and Part 1's words, is strictly healthy, no disease for 10 periods (the user's, after Part 1).
 The spec's wider readings, a recovering agent counted as healthy, are printed beside them and decide nothing. A
-missing matched ratio (no seed with a matched cell) decides nothing either: Part 1 fires no row, screening's Richer row
-reads missing and the arm can't pass, and confirmation neither passes nor fails it. Nor does any other Part 1 word's
+missing matched ratio (no seed with a matched cell), the arm's or today's, decides nothing either: Part 1 fires no row,
+screening's Richer row reads missing and the arm can't pass, and confirmation neither passes nor fails it. Nor does any other Part 1 word's
 missing figure: Part 1 names it up front and fires no row. Confirmation reads its ratio only
 once every planned seed has run. The snapshot's windows are the folders' own, from their fingerprints.
 
@@ -948,14 +996,18 @@ snapshot window than the baseline's of the same world ([`check_same_seeds`](@ref
 """
 function trade_report(;
     label::AbstractString, base::TradeArm, off::TradeRun, xl=nothing, arms::Vector{TradeArm}=TradeArm[],
-    part1::Bool=false, confirm::Bool=false,
+    part1::Bool=false, confirm::Bool=false, today::Union{Nothing,TradeArm}=nothing,
 )
     part1 && confirm && throw(ArgumentError("a report is Part 1's or confirmation's, not both"))
     check_trade_arm(base)
     foreach(check_trade_arm, arms)
     check_trade_run(off, "the trade-off run")
     part1 && return part1_report(label, base, off, xl)
-    confirm && return confirm_report(label, base, off)
+    if confirm
+        today === nothing && throw(ArgumentError("confirmation needs today's VI-1 run (Part 1's) to beat"))
+        check_trade_arm(today)
+        return confirm_report(label, base, today, off)
+    end
     xl === nothing && throw(ArgumentError("screening needs the xl reference"))
     for a in [base; arms]
         (a.nodisease === nothing || a.iva3 === nothing) &&
@@ -1051,21 +1103,33 @@ function part1_report(label, base::TradeArm, off::TradeRun, xl)
     return join(lines, "\n") * "\n"
 end
 
-function confirm_report(label, base::TradeArm, off::TradeRun)
+function confirm_report(label, base::TradeArm, today::TradeArm, off::TradeRun)
     f = arm_figures(base, nothing)
-    row = screen_trade(f, f)[1]  # Richer with trade reads nothing of the baseline
+    tf = arm_figures(today, nothing)
+    row = richer_row(f, tf.matched)  # today's matched ratio is Part 1's, on other seeds
+    s, t = folder_seeds(base.vi1), folder_seeds(today.vi1)
     lines = ["# Trade confirmation: $label", ""]
-    append!(lines, seed_lines(base.vi1, "$(base.name), VI-1", "Its readings cover only those finished."), off_lines(off))
+    append!(lines, seed_lines(base.vi1, "$(base.name), VI-1", "Its readings cover only those finished."),
+            seed_lines(today.vi1, "today, VI-1", "Its matched ratio covers only those finished."), off_lines(off))
     push!(lines, "## Runs", "", row_text(["Run", "Folder", "Seeds", "Periods"]), "|---|---|---|---|",
           row_text(["Study run", base.vi1.run.folder, "$(length(base.vi1.seeds)) of $(base.vi1.run.planned)",
                     base.vi1.run.periods]),
+          row_text(["Today (Part 1's)", today.vi1.run.folder, "$(length(today.vi1.seeds)) of $(today.vi1.run.planned)",
+                    today.vi1.run.periods]),
           row_text(["Trade off", off.run.folder, "$(length(off.seeds)) of $(off.run.planned)", off.run.periods]),
+          "", "Today's matched ratio comes from other seeds: Part 1's, seeds $(t[1]) to $(t[1] + t[2] - 1), the screening " *
+              "baseline's, not a run of today's rules on the study's seeds $(s[1]) to $(s[1] + s[2] - 1). The comparison " *
+              "resamples each side alone.",
           "", "## Richer with trade, confirmed", "",
           row_text(["Arm", "Row", "Reading", "Bar", "Result"]), "|" * "---|"^5,
-          row_text([base.name, row.name, row.value, row.bar, row.pass ? "pass" : ratio_missing(f) ? "missing" : "fail"]),
+          row_text([base.name, row.name, row.value, row.bar,
+                    row.pass ? "pass" : richer_missing(f, tf) ? "missing" : "fail"]),
           "",
           !finished(base.vi1.run) ? "The study run is unfinished, so the ratio is not read: run its remaining seeds." :
+          !finished(today.vi1.run) ? "Today's run is unfinished, so the ratio is not read: run its remaining seeds." :
           ratio_missing(f) ? "The ratio is missing: no seed has a matched cell, so it can't be read, pass or fail." :
+          ratio_missing(tf) ? "Today's matched ratio is missing: no seed has a matched cell, so the ratio can't be read, " *
+                              "pass or fail." :
           row.pass ? "The ratio passes again on the new seeds." :
           "The ratio fails on the new seeds: report it as not confirmed.",
           "", "Healthy means strictly healthy (no disease for 10 periods), by the user's decision after Part 1.",
@@ -1083,6 +1147,9 @@ function screen_report(label, base::TradeArm, arms::Vector{TradeArm}, off::Trade
     lines = ["# Trade screening: $label", ""]
     append!(lines, arm_lines(base, bf, "The bars against today's rest on the seeds finished."), off_lines(off),
             xl_lines(xl))
+    ratio_missing(bf) && !isempty(figs) &&
+        push!(lines, "**Today's matched ratio is missing, so every arm's Richer with trade row, which asks an arm to beat " *
+                     "today's, reads missing and no arm can pass.**", "")
     for (a, f) in zip(arms, figs)
         append!(lines, arm_lines(a, f, "Its readings cover only those finished, and it cannot pass or be chosen."))
     end
@@ -1127,7 +1194,7 @@ function screen_report(label, base::TradeArm, arms::Vector{TradeArm}, off::Trade
     waiting = [f.name for f in figs if !f.finished]
     isempty(waiting) || push!(lines, "", "Not eligible, unfinished: $(join(waiting, ", ")).")
     for (f, r) in zip(figs, rows)
-        settle(f.tph) > settle(bf.tph) && !r[1].pass && !ratio_missing(f) &&
+        settle(f.tph) > settle(bf.tph) && !r[1].pass && !richer_missing(f, bf) &&
             push!(lines, "", "$(f.name): trades per head rise ($(places(f.tph, 3)) against today's " *
                              "$(places(bf.tph, 3))) but healthy agents aren't richer by the bar: more trade isn't the goal.")
     end
@@ -1149,7 +1216,7 @@ const TRADE_REPORT_USAGE =
     "--iva3 FOLDER --xl FOLDER [--out DIR] [--label NAME]\n" *
     "       julia --project=julia julia/xxl_trade_report.jl --base NAME=VI1,NODISEASE,IVA3 " *
     "--arms NAME=VI1,NODISEASE,IVA3,... --off FOLDER --xl FOLDER [--out DIR] [--label NAME]\n" *
-    "       julia --project=julia julia/xxl_trade_report.jl --confirm --vi1 FOLDER --off FOLDER [--out DIR] [--label NAME]"
+    "       julia --project=julia julia/xxl_trade_report.jl --confirm --vi1 FOLDER --base FOLDER --off FOLDER [--out DIR] [--label NAME]"
 
 # `NAME=VI1,NODISEASE,IVA3,NAME=...` as `NAME => [three folders]` pairs: an item with `=` starts an arm.
 function trade_arm_specs(v::AbstractString)
@@ -1173,14 +1240,15 @@ end
 
 """
 The report's command line, in one of three modes (see [`TRADE_REPORT_USAGE`](@ref)): `--part1` with `--on`, `--off`,
-`--nodisease`, `--iva3` and `--xl`; `--confirm` with `--vi1` and `--off`; else screening, with `--base` (one arm),
-`--arms` (`NAME=VI1,NODISEASE,IVA3`, comma-separated, repeatable), `--off` and `--xl`. Every folder is under `--out`
+`--nodisease`, `--iva3` and `--xl`; `--confirm` with `--vi1`, `--base` (today's VI-1 folder, Part 1's, on other seeds)
+and `--off`; else screening, with `--base` (one arm, `NAME=VI1,NODISEASE,IVA3`), `--arms` (the same, comma-separated,
+repeatable), `--off` and `--xl`. Every folder is under `--out`
 (default `results-julia-xxl`); `--label` defaults to `part1`, `confirm` or `screen`. Returns `(; mode, folders, base,
 arms, out, label)`, `folders` by option name without its dashes. Throws `ArgumentError` on a usage error.
 """
 function trade_report_args(args::Vector{String})
     folders, part1, confirm = Dict{String,String}(), false, false
-    base, arms, out, label = nothing, Pair{String,Vector{String}}[], RESULTS_XXL, nothing
+    base_raw, arms, out, label = nothing, Pair{String,Vector{String}}[], RESULTS_XXL, nothing
     i = 1
     while i <= length(args)
         a = args[i]
@@ -1193,9 +1261,8 @@ function trade_report_args(args::Vector{String})
             i <= length(args) || throw(ArgumentError("$a needs a value"))
             v = args[i]
             if a == "--base"
-                b = trade_arm_specs(v)
-                length(b) == 1 || throw(ArgumentError("--base is one arm"))
-                base = b[1]
+                base_raw === nothing || throw(ArgumentError("--base is given twice"))
+                base_raw = v
             elseif a == "--arms"
                 append!(arms, trade_arm_specs(v))
             elseif a == "--out"
@@ -1214,7 +1281,16 @@ function trade_report_args(args::Vector{String})
     end
     part1 && confirm && throw(ArgumentError("--part1 and --confirm are different reports"))
     mode = part1 ? :part1 : confirm ? :confirm : :screen
-    need = mode == :part1 ? ["on", "off", "nodisease", "iva3", "xl"] : mode == :confirm ? ["vi1", "off"] : ["off", "xl"]
+    need = mode == :part1 ? ["on", "off", "nodisease", "iva3", "xl"] : mode == :confirm ? ["vi1", "base", "off"] : ["off", "xl"]
+    base = nothing
+    if mode == :confirm
+        base_raw === nothing || (folders["base"] = base_raw)  # today's VI-1 folder
+    elseif base_raw !== nothing
+        mode == :part1 && throw(ArgumentError("--base is not for the part1 report"))
+        b = trade_arm_specs(base_raw)
+        length(b) == 1 || throw(ArgumentError("--base is one arm"))
+        base = b[1]
+    end
     for k in keys(folders)
         k in need || throw(ArgumentError("--$k is not for the $mode report"))
     end
@@ -1226,7 +1302,7 @@ function trade_report_args(args::Vector{String})
         isempty(arms) && throw(ArgumentError("--arms is needed"))
         allunique([first(base); first.(arms)]) || throw(ArgumentError("an arm is named twice"))
     else
-        (base === nothing && isempty(arms)) || throw(ArgumentError("--base and --arms are for screening"))
+        isempty(arms) || throw(ArgumentError("--arms is for screening"))
     end
     return (; mode, folders, base, arms, out, label=something(label, String(mode)))
 end
@@ -1254,13 +1330,19 @@ function trade_report_main(args::Vector{String})
             (; part1=true, base=TradeArm("today", study("today", f["on"]), study("today", f["nodisease"]),
                                          study("today", f["iva3"])), xl=read_xl_prices(joinpath(a.out, f["xl"])), off)
         elseif a.mode == :confirm
-            (; confirm=true, base=TradeArm("study", study("study", f["vi1"]), nothing, nothing), off)
+            (; confirm=true, base=TradeArm("study", study("study", f["vi1"]), nothing, nothing), off,
+               today=TradeArm("today", study("today", f["base"]), nothing, nothing))
         else
             (; base=arm(a.base), arms=TradeArm[arm(s) for s in a.arms], xl=read_xl_prices(joinpath(a.out, f["xl"])), off)
         end
         check_trade_arm(kw.base)
         haskey(kw, :arms) && foreach(check_trade_arm, kw.arms)
         haskey(kw, :arms) && check_same_seeds(kw.base, kw.arms)
+        if haskey(kw, :today)  # confirmation: both folders name their seeds, which the report says
+            check_trade_arm(kw.today)
+            folder_seeds(kw.base.vi1)
+            folder_seeds(kw.today.vi1)
+        end
         check_trade_run(off, "the trade-off run")
         a, kw
     catch e
