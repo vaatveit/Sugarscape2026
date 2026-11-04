@@ -8,11 +8,12 @@ const DECLINE_LINE = 0.9  # a seed is falling when its last quarter's mean is be
 const EXTINCTION_LAST = 200  # births and deaths are counted over the last this many periods
 
 """
-    CreditOptions(; credit_off=false, inheritance=false, claims_outlive_lender=false, credit_reach=1.0, lender_limit=false)
+    CreditOptions(; credit_off=false, inheritance=false, claims_outlive_lender=false, credit_reach=1.0, lender_limit=false,
+                  trade_off=false)
 
-The credit study's changes to the world of an extinction run: credit off, a dead lender's loans passing to its heirs (rule I, which also passes on its wealth), the
-loans standing after the lender's death, the borrower's credited income scaled by `credit_reach`, and the half-wealth
-limit on a lender. At the defaults the world is VI-1's own. Which combinations are allowed is for [`validate`](@ref) to
+The study options, the changes to the world of an extinction run: credit off, a dead lender's loans passing to its heirs (rule I, which also passes on its wealth), the
+loans standing after the lender's death, the borrower's credited income scaled by `credit_reach`, the half-wealth
+limit on a lender, and trade off (`trade_off`, which Rule 13 then has nothing to count on; see [`to_xxl`](@ref)). At the defaults the world is VI-1's own. Which combinations are allowed is for [`validate`](@ref) to
 say, when [`with_options`](@ref) applies them.
 """
 Base.@kwdef struct CreditOptions
@@ -21,9 +22,10 @@ Base.@kwdef struct CreditOptions
     claims_outlive_lender::Bool = false
     credit_reach::Float64 = 1.0
     lender_limit::Bool = false
+    trade_off::Bool = false
 end
 
-"""The options that differ from the defaults as comma-joined text (`credit off, inheritance`); `""` at the defaults."""
+"""The credit options that differ from the defaults as comma-joined text (`credit off, inheritance`); `""` at the defaults. `trade_off` is not among them: the fingerprint names it on a line of its own."""
 function options_text(o::CreditOptions)
     parts = String[]
     o.credit_off && push!(parts, "credit off")
@@ -50,6 +52,7 @@ function with_options(exp::Experiment, o::CreditOptions)
         claims_outlive_lender=o.claims_outlive_lender || cfg.claims_outlive_lender,
         credit_reach=o.credit_reach != 1.0 ? o.credit_reach : cfg.credit_reach,
         lender_limit=o.lender_limit || cfg.lender_limit,
+        trade=o.trade_off ? false : cfg.trade,
     )
     return Experiment(exp.id, exp.title, exp.rules, exp.steps, exp.seeds, swap(exp.config), exp.fingerprint,
                       swap(exp.xl_config), exp.xl_fingerprint)
@@ -255,11 +258,12 @@ end
 """
 What an extinction run was produced from: the xxl fingerprint, the checksum of the package's source (so that a change
 to the code is a different run) and the periods (`with_steps` keeps the original `steps=` in the text). A line names
-the credit `options`, only when some differ from the defaults, so that a default run's fingerprint keeps its shape.
+the credit `options`, only when some differ from the defaults, and a line `trade: off` follows it with trade off, so that
+a default run's fingerprint keeps its shape.
 """
 function extinction_fingerprint(exp::Experiment, rules::XxlRules, periods::Int; options::CreditOptions=CreditOptions())
     text = options_text(options)
-    named = isempty(text) ? "" : "credit options: $text\n"
+    named = (isempty(text) ? "" : "credit options: $text\n") * (options.trade_off ? "trade: off\n" : "")
     return xxl_fingerprint(exp, rules) * named *
            "code sha256=$(source_sha256(dirname(@__DIR__)))\nperiods=$periods\n"
 end
