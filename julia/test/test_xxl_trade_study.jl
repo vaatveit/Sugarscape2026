@@ -158,14 +158,28 @@ end
     @test redirect_stderr(() -> trade_study_main(other), devnull) == 1
 end
 
+@testset "xxl trade study: rules the experiment refuses are a usage error, before any folder" begin
+    out = mktempdir()
+    args = ["--label", "bad", "--set", "trade_move=local", "--set", "trade_blend=1.5", "--seeds", "1", "--periods", "6",
+            "--out", out]
+    @test redirect_stderr(() -> trade_study_main(args), devnull) == 1
+    @test isempty(readdir(out))
+    @test_throws ArgumentError run_trade_arm(replace_rules(XXL_DEFAULTS; trade_move="local", trade_blend=1.5);
+                                             label="bad", seeds=1, periods=6, out=out, io=devnull)
+    @test isempty(readdir(out))
+end
+
 @testset "xxl trade study: the xl reference is skipped when it is there" begin
     out = mktempdir()
     exp = with_steps(find_experiment(load_registry(), "VI-1"), 4)
-    folder = result_dir(joinpath(out, scorecard_name("xl", 80, 2)), "VI-1")
+    folder = result_dir(joinpath(out, scorecard_name("xl", 80, 2) * "-p4"), "VI-1")
     mkpath(folder)
-    write(joinpath(folder, "fingerprint.txt"), "julia\n" * exp.xl_fingerprint)
+    write(joinpath(folder, "fingerprint.txt"), "julia
+" * exp.xl_fingerprint)
     for k in (80, 81)
-        write(joinpath(folder, "seed$k.csv"), join(fill("t,x", 6), "\n") * "\n")
+        write(joinpath(folder, "seed$k.csv"), join(fill("t,x", 6), "
+") * "
+")
     end
     @test xl_current(folder, exp, 80:81)
     before = [mtime(joinpath(folder, n)) for n in readdir(folder)]
@@ -174,4 +188,17 @@ end
     @test occursin("reusing", String(take!(log)))
     @test [mtime(joinpath(folder, n)) for n in readdir(folder)] == before
     @test readdir(folder) == ["fingerprint.txt", "seed80.csv", "seed81.csv"]
+end
+
+@testset "xxl trade study: the xl reference keeps the scorecard's folder for the scorecard's length" begin
+    out = mktempdir()
+    # Another length goes to a folder of its own and really runs (VI-1's xl version, 4 periods, 1 seed).
+    folder = run_trade_xl(; first_seed=3, seeds=1, periods=4, out=out, io=devnull)
+    @test folder == result_dir(joinpath(out, scorecard_name("xl", 3, 1) * "-p4"), "VI-1")
+    exp = with_steps(find_experiment(load_registry(), "VI-1"), 4)
+    @test xl_current(folder, exp, 3:3)
+    @test !ispath(joinpath(out, scorecard_name("xl", 3, 1)))
+    # At the registry's steps the path is the scorecard's own (checked, not run).
+    @test Sugarscape.trade_xl_folder(out, find_experiment(load_registry(), "VI-1"), 3, 1, 500) ==
+          result_dir(joinpath(out, scorecard_name("xl", 3, 1)), "VI-1")
 end

@@ -89,6 +89,7 @@ function trade_plan(
     experiment in TRADE_EXPERIMENTS ||
         throw(ArgumentError("--experiment is $(join(TRADE_EXPERIMENTS, " or ")), not $(repr(experiment))"))
     exp = with_options(with_steps(find_experiment(load_registry(), experiment), periods), options)
+    to_xxl(exp.config, rules)  # rules the experiment refuses fail here, before a folder is made
     folder = joinpath(out, trade_name(label, experiment, first_seed, seeds, periods))
     return (; exp, folder, fingerprint=trade_fingerprint(exp, rules, periods, options))
 end
@@ -158,24 +159,34 @@ function run_trade_arm(
 end
 
 """
+The folder of the xl reference for `exp` over `periods`: the scorecard's own (`<out>/scorecard-xl-s<first>-<seeds>/<id>`,
+see [`scorecard_name`](@ref)) when `periods` is the experiment's registry steps, else beside it with `-p<periods>` added to
+the name, so that the scorecard's runs are only ever written at their own length.
+"""
+function trade_xl_folder(out::AbstractString, exp::Experiment, first_seed::Int, seeds::Int, periods::Int)
+    name = scorecard_name("xl", first_seed, seeds)
+    periods == find_experiment(load_registry(), exp.id).steps || (name *= "-p$periods")
+    return result_dir(joinpath(out, name), exp.id)
+end
+
+"""
     run_trade_xl(; first_seed=80, seeds=20, periods=500, jobs=1, out=RESULTS_XXL, io=stdout) -> String
 
 The study's xl reference: VI-1's xl version over `periods`, seeds `first_seed` to `first_seed + seeds - 1`, into the
-folder the scorecard keeps its xl runs in (`<out>/scorecard-xl-s<first>-<seeds>/VI-1`, see [`scorecard_name`](@ref)), and
-skipped when that folder already holds them ([`xl_current`](@ref)). Returns the folder.
+folder the scorecard keeps its xl runs in ([`trade_xl_folder`](@ref); for `periods` other than VI-1's 500 a folder of its
+own), skipped when that folder already holds them ([`xl_current`](@ref)). Returns the folder.
 """
 function run_trade_xl(;
     first_seed::Int=80, seeds::Int=20, periods::Int=500, jobs::Int=1, out::AbstractString=RESULTS_XXL, io::IO=stdout
 )
     check_extinction_size(; seeds=seeds, first_seed=first_seed, periods=periods, jobs=jobs)
     exp = with_steps(find_experiment(load_registry(), "VI-1"), periods)
-    xl_out = joinpath(out, scorecard_name("xl", first_seed, seeds))
-    folder = result_dir(xl_out, exp.id)
+    folder = trade_xl_folder(out, exp, first_seed, seeds, periods)
     if xl_current(folder, exp, first_seed:(first_seed + seeds - 1))
         println(io, "$(exp.id) xl: reusing $folder")
     else
         t0 = time_ns()
-        run_experiment(exp; seeds=seeds, first_seed=first_seed, jobs=jobs, out=xl_out, xl=true)
+        run_experiment(exp; seeds=seeds, first_seed=first_seed, jobs=jobs, out=dirname(folder), xl=true)
         println(io, "$(exp.id) xl: $seeds seeds -> $folder ($(round(Int, seconds_since(t0))) s)")
     end
     flush(io)
