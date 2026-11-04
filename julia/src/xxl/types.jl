@@ -18,10 +18,9 @@ the book's value by default. The three list settings are `nothing` at the book's
 they leave the experiment's own disease list, founder count and lengths as they are. `trade_move` is `nothing` (the
 book's welfare score), `"own"` or `"local"` (the price an agent expects when it scores a site by trade); `trade_blend`
 is a weight in [0, 1] (1 is the full rule) and `trade_guard` a number of periods or `nothing`; both need `trade_move`.
-The defaults are the book's
-settings, so `XxlRules()` changes nothing;
-[`XXL_V1`](@ref) is the xxl column of the first spec's table and [`XXL_DEFAULTS`](@ref) the defaults stages 1 and 4 chose.
-`Config.xxl` holds one, or `nothing` for the plain book rules.
+The defaults are the book's settings, so `XxlRules()` changes nothing; [`XXL_V1`](@ref) is the xxl column of the first
+spec's table and [`XXL_DEFAULTS`](@ref) the defaults stages 1 and 4 chose. `Config.xxl` holds one, or `nothing` for the
+plain book rules.
 """
 Base.@kwdef struct XxlRules
     vision_shape::String = "lattice"

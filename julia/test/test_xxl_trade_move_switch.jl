@@ -50,6 +50,7 @@ using Sugarscape: run_extinction
             (; trade_move="market"),
             (; trade_move="own", trade_blend=-0.1),
             (; trade_move="own", trade_blend=1.5),
+            (; trade_move="own", trade_blend=NaN),
             (; trade_move="own", trade_guard=-1),
             (; trade_blend=0.5),  # no trade_move to blend
             (; trade_guard=5),  # no trade_move to guard

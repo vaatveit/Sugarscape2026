@@ -344,7 +344,7 @@ function validate_xxl(c::Config, r::XxlRules)
         r.disease_lengths != c.disease_length &&
         bad("disease_lengths $(r.disease_lengths) and disease_length $(c.disease_length) go together")
     r.trade_move !== nothing && check_option(:trade_move, r.trade_move, TRADE_MOVES)
-    (r.trade_blend < 0 || r.trade_blend > 1) &&
+    !(0 <= r.trade_blend <= 1) &&  # NaN too
         bad("trade_blend must be between 0 and 1, not $(r.trade_blend)")
     r.trade_guard !== nothing &&
         r.trade_guard < 0 &&

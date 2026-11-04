@@ -7,11 +7,13 @@ const LOCAL_PRICE_PERIODS = 10
 """
     expected_price(m, a, looked) -> Float64
 
-The price, in spice per sugar (the unit of `Exchange.price`), that agent `a` expects to trade at after a move. `looked`
-is the sites it looked at (`look!`'s list, 0-based). With `trade_move = "own"`: its last price if it has made an exchange,
-else its MRS. With `"local"`: the geometric mean of the latest prices at its own site and the looked-at sites that had
-an exchange in the last [`LOCAL_PRICE_PERIODS`](@ref) periods (a site counts once), else its MRS. `NaN` if there is no
-price and the MRS isn't one (`valid_mrs`).
+The price, in spice per sugar (the unit of `Exchange.price`), that agent `a` expects to trade at after a move. Rule 13
+only: it reads `m.config.xxl.trade_move`, and with `"local"` the model's site prices, which only that rule keeps.
+`looked` is the sites it looked at, 0-based and already wrapped into the world, as [`look!`](@ref) gives them: they index
+the site prices unchecked. With `trade_move = "own"`: its last price if it has made an exchange, else its MRS. With
+`"local"`: the geometric mean of the latest prices at its own site and the looked-at sites that had an exchange in the
+last [`LOCAL_PRICE_PERIODS`](@ref) periods (a site counts once), else its MRS. `NaN` if there is no price and the MRS
+isn't one (`valid_mrs`).
 """
 function expected_price(m::Model, a::Agent, looked::Vector{Tuple{Int,Int}})
     own_mrs() = (v = mrs(a, m.config.cultural_preferences); valid_mrs(v) ? v : NaN)
