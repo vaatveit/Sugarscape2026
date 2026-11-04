@@ -7,9 +7,9 @@
 # Health, at the end of each period: sick has an active disease, recovering has none but had one in the last
 # `RECOVERING_PERIODS` periods, healthy is the rest. An exchange is classed by its two agents' health at the end of its
 # own period, though one of them may have died later in it: a dead agent keeps its diseases. The exchange counts
-# (`exchanges_hh`, `_hs`, `_ss`) and the neighbour pairs take a recovering agent as healthy, as the spec reads the pairs;
-# `healthy_healthy_10` and the snapshot's `exchanges_healthy_partner` take only the healthy, which is the column
-# `healthy` (our call).
+# (`exchanges_hh`, `_hs`, `_ss`), the neighbour pairs (`pairs_*`) and the MRS gaps (`gap_healthy`, `gap_sick`) take a
+# recovering agent as healthy, as the spec reads the pairs; `healthy_healthy_10` and the snapshot's
+# `exchanges_healthy_partner` take only the healthy, which is the column `healthy` (our call).
 
 """How many periods after its last disease an agent still counts as recovering."""
 const RECOVERING_PERIODS = 10
@@ -246,8 +246,8 @@ end
 
 """
 Fills the neighbour columns of `row` for period `t`: the unordered neighbour pairs by health (recovering as healthy), and
-the median |log MRS gap| over the (agent, neighbour) pairs whose first agent is healthy, and whose is sick, with both
-MRSs valid. `neighbors_of` returns the model's scratch list, so each agent's is used up before the next call.
+the median |log MRS gap| over the (agent, neighbour) pairs whose first agent is not sick (`gap_healthy`; recovering as
+healthy) and whose is sick (`gap_sick`), with both MRSs valid. `neighbors_of` returns the model's scratch list, so each agent's is used up before the next call.
 """
 function read_neighbours!(row::Vector{Float64}, r::TradeReadings, m::Model, t::Int)
     cultural = m.config.cultural_preferences
@@ -268,7 +268,6 @@ function read_neighbours!(row::Vector{Float64}, r::TradeReadings, m::Model, t::I
                     hh += 1
                 end
             end
-            ha == RECOVERING && continue
             mb = mrs(b, cultural)
             valid_mrs(ma) && valid_mrs(mb) || continue
             push!(ha == SICK ? r.gaps_sick : r.gaps_healthy, abs(log(ma) - log(mb)))

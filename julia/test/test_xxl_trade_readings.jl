@@ -38,10 +38,22 @@ end
 val(row, name) = row[findfirst(==(name), TR_HEADER)]
 agent_val(row, name) = row[findfirst(==(name), TR_AGENT_HEADER)]
 
-# A short VI-1 world (50 x 50, 200 agents, disease on), stepped with the observer after each period.
-function tr_run(periods; window=(21, 30))
+# VI-1 under the xxl defaults with Rule 13 on (local price, guard 5), shrunk to 50 x 50 and 200 agents: the xl landscape
+# gives way to the book map, and the vision (6, 10) keeps the speed (1, 6) valid. Disc vision, speed, memory, a radius of
+# 1.5 and the generated founders' disease list are all in play, so agents walk and the neighbours are not von Neumann.
+function tr_config()
     vi1 = find_experiment(TR_REG, "VI-1")
-    m = Model(replace_config(vi1.config; seed=vi1.config.seed))
+    rules = replace_rules(XXL_DEFAULTS; landscape="xl", trade_move="local", trade_guard=5)
+    return replace_config(
+        to_xxl(vi1.config, rules);
+        width=50, height=50, initial_population=200, vision=(6, 10), look_stride=1, sugar_map="sugar-map.txt",
+    )
+end
+
+# A short VI-1 world as `tr_config` gives it, stepped with the observer after each period.
+function tr_run(periods; window=(21, 30))
+    cfg = tr_config()
+    m = Model(replace_config(cfg; seed=cfg.seed))
     r = TradeReadings(; window=window)
     trade_period!(r, m)  # period 0, as timed_seed does
     log = NamedTuple[]
@@ -51,6 +63,7 @@ function tr_run(periods; window=(21, 30))
         sick = Set(a.id for a in m.agents if !isempty(a.diseases))
         traders = Set(x.id for e in m.trade_log for x in (e.a, e.b) if !isempty(x.diseases))
         push!(log, (t=m.t, exchanges=length(m.trade_log), n=length(m.agents), alive=Set(a.id for a in m.agents),
+            walked=isempty(m.agents) ? NaN : sum(a.moved_dist for a in m.agents) / length(m.agents),
             sick=sick, sick_traders=length(traders), partners=[(e.a.id, e.b.id) for e in m.trade_log]))
     end
     return m, r, log
@@ -86,8 +99,7 @@ end
         @test val(row, "exchanges_ss") == n(ss)
         @test val(row, "exchanges_recovering") == n(rh)
         @test val(row, "sick_traders") == 3  # one sick agent in hs, two in ss; the recovered one is not sick
-        @test (val(row, "healthy"), val(row, "recovering"), val(row, "sick")) == (5, 1, 3) ||
-            (val(row, "healthy"), val(row, "recovering"), val(row, "sick")) == (4, 1, 3)
+        @test (val(row, "healthy"), val(row, "recovering"), val(row, "sick")) == (4, 1, 3)
     end
 
     @testset "healthy_healthy_10 counts the period of the exchange and the nine after" begin
@@ -121,16 +133,26 @@ end
         c = tr_trader(m, 3, 3; sugar=10.0, spice=10.0)
         e = tr_trader(m, 3, 4; sugar=10.0, spice=10.0, sick=true)
         d = tr_trader(m, 4, 1; sugar=10.0, spice=10.0, sick=true)  # alone
+        f = tr_trader(m, 2, 3; sugar=10.0, spice=8.0, sick=true)  # next to c; cured after period 1: recovering in 10
         r = TradeReadings(; window=(1, 10))
-        rows = [tr_period!(r, m, t, () -> t == 1 && bargain!(m, a, b)) for t in 1:10]
+        rows = [
+            tr_period!(r, m, t, () -> (t == 2 && empty!(f.diseases); t == 1 && bargain!(m, a, b))) for t in 1:10
+        ]
         pair_cols = ("pairs_hh", "pairs_hs", "pairs_ss", "gap_healthy", "gap_sick")
         @test all(t -> all(k -> isnan(val(rows[t], k)), pair_cols), 1:9)
         row = rows[10]
-        @test (val(row, "pairs_hh"), val(row, "pairs_hs"), val(row, "pairs_ss")) == (1, 1, 0)
+        @test val(row, "recovering") == 1  # f
+        # a-b, and c-f (a recovering agent counts as healthy); c-e is healthy-sick
+        @test (val(row, "pairs_hh"), val(row, "pairs_hs"), val(row, "pairs_ss")) == (2, 1, 0)
         gap_ab = abs(log(mrs(a)) - log(mrs(b)))
         @test gap_ab > 0
         @test val(row, "gap_sick") ≈ abs(log(mrs(e)) - log(mrs(c)))  # e's one neighbour
-        @test val(row, "gap_healthy") ≈ sort([gap_ab, gap_ab, abs(log(mrs(c)) - log(mrs(e)))])[2]  # a-b, b-a, c-e
+        # a-b, b-a, c-e, and with the recovering f as a first agent and as a neighbour: f-c, c-f
+        gap_cf = abs(log(mrs(c)) - log(mrs(f)))
+        @test gap_cf ≈ log(1.25) && !(gap_cf ≈ gap_ab)
+        @test val(row, "gap_healthy") ≈ sort([gap_ab, gap_ab, abs(log(mrs(c)) - log(mrs(e))), gap_cf, gap_cf])[3]
+        gap_ce = abs(log(mrs(c)) - log(mrs(e)))
+        @test !(val(row, "gap_healthy") ≈ sort([gap_ab, gap_ab, gap_ce])[2])  # f's gaps count: without them it would differ
     end
 
     @testset "pairs and gaps leave out what has no MRS, and the walk is the mean distance" begin
@@ -181,6 +203,7 @@ end
             @test isnan(val(row, "healthy_healthy_10")) || 0 <= val(row, "healthy_healthy_10") <= 1
             @test val(row, "exchanges_recovering") <= val(row, "exchanges")
             @test val(row, "sick_traders") == step.sick_traders
+            @test isequal(val(row, "walked"), step.walked)
             on_tenth = Int(row[1]) % 10 == 0
             pair_cols = ("pairs_hh", "pairs_hs", "pairs_ss", "gap_healthy", "gap_sick")
             if on_tenth
@@ -190,6 +213,7 @@ end
             end
         end
         @test any(row -> val(row, "healthy_healthy_10") > 0, rows)
+        @test any(row -> val(row, "walked") > 0, rows)  # the xxl agents walk
         @test sum(row -> val(row, "exchanges"), rows) > 0 && sum(row -> val(row, "sick"), rows) > 0
         @test any(row -> val(row, "recovering") > 0, rows) && any(row -> val(row, "exchanges_hs") > 0, rows)
         @test any(row -> Int(row[1]) % 10 == 0 && !isnan(val(row, "gap_healthy")) && val(row, "gap_healthy") >= 0, rows)
@@ -261,6 +285,30 @@ end
         watched, _ = Sugarscape.timed_seed(vi1, 0; trade_readings=r)
         @test isequal(plain, watched)
         @test length(r.rows) == 30 && !isempty(agent_rows(r)[2])
+    end
+
+    @testset "the xxl run is the same with the observer, through timed_seed and by hand" begin
+        vi1 = find_experiment(TR_REG, "VI-1")
+        cfg = tr_config()
+        small = Experiment(vi1.id, vi1.title, vi1.rules, 30, vi1.seeds, cfg, vi1.fingerprint, vi1.xl_config, vi1.xl_fingerprint)
+        plain, _ = Sugarscape.timed_seed(small, 0)
+        r = TradeReadings(; window=(21, 30))
+        watched, _ = Sugarscape.timed_seed(small, 0; trade_readings=r)
+        @test isequal(plain, watched) && length(plain) == 31
+        @test length(r.rows) == 30 && !isempty(agent_rows(r)[2])
+        # step by hand, two models of one seed: the metrics and the random stream agree in every period
+        seeded = replace_config(cfg; seed=cfg.seed)
+        a, b = Model(seeded), Model(seeded)
+        o = TradeReadings(; window=(21, 30))
+        trade_period!(o, b)
+        for _ in 1:30
+            step!(a)
+            step!(b)
+            trade_period!(o, b)
+            @test isequal(collect_metrics(a), collect_metrics(b)) && a.rng == b.rng
+        end
+        state(m) = [(x.id, x.x, x.y, x.sugar, x.spice, x.age) for x in m.agents]
+        @test state(a) == state(b)
         # the same readings from stepping by hand
         _, by_hand, _ = tr_run(30)
         @test isequal(trade_rows(r)[2], trade_rows(by_hand)[2]) && isequal(agent_rows(r)[2], agent_rows(by_hand)[2])
