@@ -13,23 +13,26 @@ const TR_SEED_COLUMNS = "t,population,agents_ever,fraction_sick,diseases_circula
 """
 An agent snapshot of one matched cell of 6 (all starting with 10 sugar and 10 spice): the two with fewest exchanges end
 with 10 sugar, the middle two with 10, the two with most with `10r`, so that its matched ratio is `r` at any price.
+`vision` and `first` (the first id) set the cell apart from another, `recovering` the two recovering flags of all six.
 """
-function tr_agents(r)
+function tr_agents(r; vision=3, first=1, recovering=(0, 0))
     ends = [10.0, 10.0, 10.0, 10.0, 10r, 10r]
-    return permutedims(hcat((Float64[i, 2, 2, 3, 20, 10, 10, ends[i], 0, i - 1, 0] for i in 1:6)...))
+    return permutedims(hcat((Float64[first + i - 1, 2, 2, vision, 20, 10, 10, ends[i], 0, i - 1, 0, recovering...]
+                             for i in 1:6)...))
 end
 
 """
 A study folder of `n` seeds under `dir/name` (first seed from the name's `-s<k>-`), shaped like `run_trade_arm`'s: a
 fingerprint with `xxl` (the rules line, `settings` added at its end), `extra` (such as `trade: off`), the periods and the
 readings' window, and per seed its CSV, its trade readings and its agent snapshot. Every keyword is a number held
-throughout, or a function of the seed's place (1, 2, ...) giving one; `pop` may also give a whole population (t = 0 to
-`periods`). The population is 2,000 at t = 0, `low` (else `pop`) at t = 1 and `pop` after. The trade readings hold the
-same row every period, the pairs and gaps only at every tenth. `agents` gives a seed's snapshot, else `tr_agents(ratio)`.
+throughout, or a function of the seed's place (1, 2, ...) giving one; `pop` and the CSV's other columns may also give a
+whole column (t = 0 to `periods`). The population is 2,000 at t = 0, `low` (else `pop`) at t = 1 and `pop` after. The
+trade readings hold the same row every period, the pairs and gaps only at every tenth. `agents` gives a seed's
+snapshot, else `tr_agents(ratio)`.
 """
 function tr_folder(dir, name; n=20, periods=500, xxl=TR_XXL, settings="", extra="", pop=1000.0, low=nothing,
                    sick=0.08, diseases=3.0, gini=0.3, sugar=40.0, spice=30.0, trades=1000.0, price=1.0, price_sd=0.2,
-                   moved=1.5, healthy=900.0, sick_n=80.0, hh=600.0, hs=300.0, ss=100.0, hh10=0.3,
+                   moved=1.5, healthy=900.0, sick_n=80.0, hh=600.0, hs=300.0, ss=100.0, hh10=0.3, hh10_strict=0.2,
                    pairs=(800.0, 150.0, 50.0), gaps=(0.1, 0.4), ratio=1.2, agents=nothing)
     folder = joinpath(dir, name)
     mkpath(folder)
@@ -39,7 +42,7 @@ function tr_folder(dir, name; n=20, periods=500, xxl=TR_XXL, settings="", extra=
           "code sha256=code-a\nperiods=$periods\ntrade readings: window=($(max(1, periods - 99)), $periods)\n")
     first_seed = parse(Int, match(r"-s(\d+)-", name).captures[1])
     each(x, i) = x isa Function ? x(i) : x
-    column(x) = fill(Float64(x), periods + 1)
+    column(x) = x isa AbstractVector ? Float64.(x) : fill(Float64(x), periods + 1)
     for i in 1:n
         k = first_seed + i - 1
         p = each(pop, i)
@@ -53,7 +56,7 @@ function tr_folder(dir, name; n=20, periods=500, xxl=TR_XXL, settings="", extra=
         rows = map(1:periods) do t
             tenth = t % 10 == 0
             return Float64[t, each(healthy, i), 20, each(sick_n, i), h + s + x, h, s, x, 10, 70, each(hh10, i), 1.0,
-                           (tenth ? y : (NaN, NaN, NaN))..., (tenth ? z : (NaN, NaN))...]
+                           (tenth ? y : (NaN, NaN, NaN))..., (tenth ? z : (NaN, NaN))..., each(hh10_strict, i)]
         end
         write(joinpath(folder, "seed$k-trade.csv"),
               join(Sugarscape.TRADE_COLUMNS, ",") * "\n" * join((join(r, ",") * "\n" for r in rows)))
@@ -128,8 +131,17 @@ const TR_NODISEASE = replace(TR_XXL, "founder_diseases=1" => "founder_diseases=0
         aged = vcat((permutedims(Float64[i, 2, 2, 3, ages[i], 10, 10, 10, 0, i, 0]) for i in 1:7)...)
         a = Sugarscape.matched_ratio(aged, 1.0)
         @test a.kept == 6 && a.dropped == 1
-        e = Sugarscape.matched_ratio(zeros(0, 11), 1.0)
+        e = Sugarscape.matched_ratio(zeros(0, 13), 1.0)
         @test isnan(e.ratio) && e.kept == 0 && e.dropped == 0
+        # two kept cells of different sizes, pooled by cell size: a cell of 6 (thirds of 2: 10 against 20) and one of
+        # 7 (thirds of 2, the middle 3: 2 against 30). Σ n · mean is 6·20 + 7·30 over 6·10 + 7·2; pooling the agents (or
+        # the cells' means) unweighted would give 100 / 24.
+        ends6, ends7 = [10, 10, 15, 15, 20, 20], [2, 2, 9, 9, 9, 30, 30]
+        two = vcat((row(i, 3, i, ends6[i], 0) for i in 1:6)..., (row(6 + i, 4, i, ends7[i], 0) for i in 1:7)...)
+        w2 = Sugarscape.matched_ratio(two, 1.0)
+        @test w2.kept == 13 && w2.dropped == 0
+        @test w2.ratio ≈ (6 * 20 + 7 * 30) / (6 * 10 + 7 * 2)
+        @test !(w2.ratio ≈ 100 / 24)
     end
 
     @testset "each bar at its edge" begin
@@ -185,7 +197,10 @@ const TR_NODISEASE = replace(TR_XXL, "founder_diseases=1" => "founder_diseases=0
     @testset "the bars as printed" begin
         r = screen([arm("A")])
         @test occursin("at least 1.10, its 95% interval above 1", r)
-        @test occursin("at least 25% of healthy agents", r)
+        @test occursin("at least 25% of agents with no disease", r)
+        # the strict share is printed beside the bar's, and the strict matched ratio beside the bar's
+        @test occursin("| A | Healthy trade | 0.3 (strictly healthy: 0.2, a reading) |", r)
+        @test occursin("| Traders ÷ similar non-traders, strictly healthy, resources at p̄ |", r)
         @test occursin("at least ×2 today's", r) && occursin("at least ×0.5 today's", r)
         @test occursin("mean at least 95% of today's", r) && occursin("none below 90% of today's lowest", r)
         @test occursin("at most 1.5", r) && occursin("at least 18 of 20", r)
@@ -253,18 +268,75 @@ const TR_NODISEASE = replace(TR_XXL, "founder_diseases=1" => "founder_diseases=0
         @test occursin("Today already meets the Richer with trade bar", wrong)
         @test !occursin("Today already meets", holds)
         @test occursin("## Trade on ÷ off", wrong) && occursin("## Traders against similar non-traders", wrong)
+        # "common" reads the spec's share (recovering agents included); the strict one is beside it and decides nothing
+        @test occursin("**common**: 0.3 of agents with no active disease (recovering included)", wrong)
+        @test occursin("Of the strictly healthy with a strictly healthy partner, a reading: 0.2", wrong)
+        strict_common = part1("p1strict"; hh10=0.3, hh10_strict=0.1)
+        @test occursin("The premise is wrong", strict_common)  # 0.3 is common, though the strict 0.1 isn't
+        @test occursin("| sugar + spice ÷ p̄, strictly healthy (a reading) |", wrong)
+    end
+
+    @testset "the matched ratio over the strictly healthy" begin
+        # a second cell of 6 (vision 4) at ratio 2, every agent of it recovering in the window: the bar's ratio pools
+        # both cells, (6·12 + 6·20) ÷ (6·10 + 6·10); the strict reading has the first cell alone
+        rows = vcat(tr_agents(1.2), tr_agents(2.0; vision=4, first=7, recovering=(0, 1)))
+        @test size(Sugarscape.strict_rows(rows), 1) == 6
+        @test size(Sugarscape.strict_rows(vcat(tr_agents(1.2), tr_agents(2.0; vision=4, first=7, recovering=(1, 0)))), 1) == 6
+        mixed = study("mixed", vi1("mixed"; agents=rows))
+        @test Sugarscape.matched_over_seeds(mixed).ratio ≈ 192 / 120
+        @test Sugarscape.matched_over_seeds(mixed; strict=true).ratio ≈ 1.2
+    end
+
+    @testset "p̄ is the mean price over the snapshot's window" begin
+        # the price is 5 before t = 401 and 2 over the window, t = 401–500. Every agent starts with 10 and 10; the
+        # third with fewest exchanges ends with 10 sugar, the third with most with 20 spice: 20 / 2 = 10, a ratio of 1
+        # at the window's price (0.45 at the whole run's mean price, 0.4 at 5)
+        price = vcat(fill(5.0, 401), fill(2.0, 100))
+        ends = [(10.0, 0.0), (10.0, 0.0), (10.0, 0.0), (10.0, 0.0), (0.0, 20.0), (0.0, 20.0)]
+        agents = permutedims(hcat((Float64[i, 2, 2, 3, 20, 10, 10, ends[i]..., i - 1, 0, 0, 0] for i in 1:6)...))
+        windowed = study("pbar", vi1("pbar"; price, agents))
+        s = windowed.seeds[1]
+        @test windowed.window == (401, 500) && Sugarscape.window_price(s, windowed.window...) == 2.0
+        @test Sugarscape.matched_over_seeds(windowed).ratio ≈ 1.0
+        @test Sugarscape.matched_over_seeds(windowed; value=:raw).ratio ≈ 2.0
+    end
+
+    @testset "trade on ÷ off values the spice at the on run's p̄" begin
+        # on: the snapshot's agents end with 10 sugar and 10 spice, at p̄ = 2 over the window (5 before it), so 15;
+        # off: 10 sugar and no spice, 10. Leaving out the spice would give 1, the whole run's price 1.2
+        price = vcat(fill(5.0, 401), fill(2.0, 100))
+        holding(sugar, spice) = permutedims(hcat((Float64[i, 2, 2, 3, 20, 10, 10, sugar, spice, i - 1, 0, 0, 0] for i in 1:6)...))
+        on = study("spice-on", vi1("spice-on"; price, agents=holding(10.0, 10.0)))
+        off_run = study("spice-off", vi1("spice-off"; extra="trade: off", price=NaN, agents=holding(10.0, 0.0)))
+        readings = Dict(Sugarscape.on_off(on, off_run))
+        @test readings["Healthy agents' mean resources at t = 500"].ratio ≈ 1.5
+        @test readings["Population"].ratio ≈ 1.0
     end
 
     @testset "an extinct seed" begin
         gone = arm("gone"; pop=i -> i == 1 ? vcat(fill(1000.0, 200), zeros(301)) : 1000.0,
-                   agents=i -> i == 1 ? zeros(0, 11) : tr_agents(1.2))
+                   agents=i -> i == 1 ? zeros(0, 13) : tr_agents(1.2))
         m = Sugarscape.matched_over_seeds(gone.vi1)
         @test m.left_out == ["seed 80 went extinct at t = 200"] && length(m.per_seed) == 19 && m.kept == 19 * 6
         @test m.ratio ≈ 1.2
         r = screen([gone])
         @test occursin("**Seed 80 of gone, VI-1 went extinct at t = 200", r)
-        @test tr_result(r, "gone", "Extinction") == "fail" && tr_result(r, "gone", "Richer with trade") == "pass"
+        # one extinct seed misses the row by one seed: near (here the trough is near too, its lowest 0, so the arm isn't)
+        @test tr_result(r, "gone", "Extinction") == "near" && tr_result(r, "gone", "Richer with trade") == "pass"
         @test !occursin("NaN", r)
+        two = arm("two"; pop=i -> i <= 2 ? vcat(fill(1000.0, 200), zeros(301)) : 1000.0,
+                  agents=i -> i <= 2 ? zeros(0, 13) : tr_agents(1.2))
+        @test tr_result(screen([two]), "two", "Extinction") == "fail"
+        # an extinct IV-A3 seed: left out of its trades per head and price, 0 in its end population, as S5 reads it
+        iva3_gone = study("iva3-gone", iva3("iva3-gone"; pop=i -> i == 1 ? vcat(fill(1000.0, 100), zeros(201)) : 1000.0,
+                                            agents=i -> i == 1 ? zeros(0, 13) : tr_agents(1.2)))
+        a3 = Sugarscape.TradeArm("a3", study("a3", vi1("a3")), arm_nod, iva3_gone)
+        f = Sugarscape.arm_figures(a3, xl)
+        @test f.iva3_end ≈ 19 * 1000 / 20 && length(f.per_seed.iva3_end) == 20 && length(f.per_seed.iva3_tph) == 19
+        r3 = screen([a3])
+        @test occursin("**Seed 80 of a3, IV-A3 went extinct at t = 100: it is left out of IV-A3's trades per head and " *
+                       "mean price, and counts in its end population with what it has there, 0 once it died out", r3)
+        @test !occursin("a3, IV-A3 went extinct at t = 100: it is left out of every ratio", r3)
         # an unfinished seed: the arm is flagged and can't be chosen
         short = arm("short")
         folder = joinpath(dir, "trade-short-VI-1-s80-20-p500")
@@ -286,7 +358,7 @@ const TR_NODISEASE = replace(TR_XXL, "founder_diseases=1" => "founder_diseases=0
         name = "trade-gone-off-VI-1-s80-20-p500"
         folder = tr_folder(dir, name; extra="trade: off", ratio=1.0, price=NaN,
                            pop=i -> i == 1 ? vcat(fill(1000.0, 200), zeros(301)) : 1000.0,
-                           agents=i -> i == 1 ? zeros(0, 11) : tr_agents(1.0))
+                           agents=i -> i == 1 ? zeros(0, 13) : tr_agents(1.0))
         rm(joinpath(folder, "seed99.csv"))
         gone_off = study("gone-off", folder)
         reports = [Sugarscape.trade_report(; label="t", base, arms=[arm("A")], off=gone_off, xl),
@@ -307,6 +379,56 @@ const TR_NODISEASE = replace(TR_XXL, "founder_diseases=1" => "founder_diseases=0
         @test tr_result(yes, "A", "Richer with trade") == "pass" && occursin("The ratio passes again", yes)
         @test tr_result(no, "A", "Richer with trade") == "fail" && occursin("not confirmed", no)
         @test occursin("## Trade on ÷ off", yes)
+        # an unfinished study run is not read, pass or fail
+        for ratio in (1.2, 1.0)
+            folder = vi1("cu$ratio"; ratio)
+            rm(joinpath(folder, "seed99.csv"))
+            u = Sugarscape.trade_report(; label="c", confirm=true, off,
+                base=Sugarscape.TradeArm("A", study("cu$ratio", folder), nothing, nothing))
+            @test occursin("The study run is unfinished, so the ratio is not read", u)
+            @test !occursin("fails on the new seeds", u) && !occursin("passes again", u)
+        end
+    end
+
+    @testset "the xl reference reads whole seeds only" begin
+        xdir = mktempdir()
+        folder = tr_xl(xdir)
+        write(joinpath(folder, "seed99.csv"), "t,population,price_sd\n" * join(("$t,1000,9\n" for t in 0:300)))  # cut short
+        x = Sugarscape.read_xl_prices(folder)
+        @test x.partial == [99] && length(x.prices) == 19 && all(==(0.2), x.prices)
+        r = Sugarscape.trade_report(; label="t", base, arms=[arm("A")], off, xl=x)
+        @test occursin("**The xl reference scorecard-xl-s80-20/VI-1 has seeds that aren't whole, left out of X6: 99.**", r)
+        @test !occursin("aren't whole", screen([arm("A")]))
+        # a folder of other periods beside the scorecard's names them: -p4 is t = 0 to 4
+        short = joinpath(xdir, "scorecard-xl-s80-2-p4", "VI-1")
+        mkpath(short)
+        write(joinpath(short, "seed80.csv"), "t,price_sd\n" * join(("$t,0.5\n" for t in 0:4)))
+        write(joinpath(short, "seed81.csv"), "t,price_sd\n" * join(("$t,0.5\n" for t in 0:500)))
+        s = Sugarscape.read_xl_prices(short)
+        @test s.prices == [0.5] && s.partial == [81]
+        rm(joinpath(short, "seed80.csv"))
+        @test_throws ArgumentError Sugarscape.read_xl_prices(short)  # no whole seed
+    end
+
+    @testset "screening refuses an arm on other seeds" begin
+        for (name, folder) in (("s81", "trade-s81-VI-1-s81-20-p500"), ("n19", "trade-n19-VI-1-s80-19-p500"),
+                               ("p600", "trade-p600-VI-1-s80-20-p600"))
+            n = name == "n19" ? 19 : 20
+            periods = name == "p600" ? 600 : 500
+            other = Sugarscape.TradeArm(name, study(name, tr_folder(dir, folder; n, periods)), arm_nod, base_iva3)
+            @test_throws ArgumentError screen([other])
+        end
+        nd19 = study("nd19", tr_folder(dir, "trade-nd19-nodisease-VI-1-s80-19-p500"; n=19, xxl=TR_NODISEASE))
+        @test_throws ArgumentError screen([arm("A"; nodisease=nd19)])
+        iva3_81 = study("i81", tr_folder(dir, "trade-i81-IV-A3-s81-20-p300"; periods=300))
+        @test_throws ArgumentError screen([Sugarscape.TradeArm("i81", study("A", vi1("A")), arm_nod, iva3_81)])
+        msg = try
+            screen([Sugarscape.TradeArm("s81", study("s81", joinpath(dir, "trade-s81-VI-1-s81-20-p500")), arm_nod, base_iva3)])
+            ""
+        catch e
+            e.msg
+        end
+        @test occursin("covers seeds 81 to 100 over 500 periods, not the baseline's 80 to 99 over 500", msg)
     end
 
     @testset "folders it can't read" begin
@@ -351,5 +473,10 @@ const TR_NODISEASE = replace(TR_XXL, "founder_diseases=1" => "founder_diseases=0
         written = Base.read(file, String)
         @test printed == written * "-> " * file * "\n"
         @test occursin("Chosen: A.", written) && !isfile(file * ".tmp")
+        # an arm on other seeds is a usage error (its folder is made in "screening refuses an arm on other seeds")
+        other = copy(args)
+        other[4] = "A=trade-s81-VI-1-s81-20-p500,trade-A-nodisease-VI-1-s80-20-p500,trade-today-IV-A3-s80-20-p300"
+        @test usage([other; ["--label", "other"]]) == 2
+        @test !isfile(joinpath(dir, "trade-other.md"))
     end
 end

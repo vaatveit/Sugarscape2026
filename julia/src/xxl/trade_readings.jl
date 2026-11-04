@@ -6,15 +6,20 @@
 #
 # Health, at the end of each period: sick has an active disease, recovering has none but had one in the last
 # `RECOVERING_PERIODS` periods, healthy is the rest. An exchange is classed by its two agents' health at the end of its
-# own period, though one of them may have died later in it: a dead agent keeps its diseases. The exchange counts
-# (`exchanges_hh`, `_hs`, `_ss`), the neighbour pairs (`pairs_*`) and the MRS gaps (`gap_healthy`, `gap_sick`) take a
-# recovering agent as healthy, as the spec reads the pairs; `healthy_healthy_10` and the snapshot's
-# `exchanges_healthy_partner` take only the healthy, which is the column `healthy` (our call).
+# own period, though one of them may have died later in it: a dead agent keeps its diseases. The spec's healthy is no
+# active disease, so a recovering agent counts as healthy in the exchange counts (`exchanges_hh`, `_hs`, `_ss`), the
+# neighbour pairs (`pairs_*`), the MRS gaps (`gap_healthy`, `gap_sick`), `healthy_healthy_10` and the snapshot, and is
+# also counted as a group of its own (`recovering`, `exchanges_recovering`, and the snapshot's two recovering flags).
+# The columns `healthy`, `recovering` and `sick` are the three groups apart. `healthy_healthy_10_strict` is the same
+# share among the strictly healthy, neither sick nor recovering, with a strictly healthy partner: a reading beside it.
 
 """How many periods after its last disease an agent still counts as recovering."""
 const RECOVERING_PERIODS = 10
 
-"""Periods a healthy-with-healthy exchange keeps its two agents counted in `healthy_healthy_10`: this one and 9 before."""
+"""
+Periods an exchange between two agents with no active disease keeps them counted in `healthy_healthy_10` (and one
+between two strictly healthy agents in `healthy_healthy_10_strict`): this one and 9 before.
+"""
 const HEALTHY_PARTNER_PERIODS = 10
 
 """Every this many periods the neighbour pairs and MRS gaps are read."""
@@ -41,6 +46,7 @@ const TRADE_COLUMNS = [
     "pairs_ss",
     "gap_healthy",
     "gap_sick",
+    "healthy_healthy_10_strict",
 ]
 
 "The columns of an agent's snapshot row, `agent_rows`."
@@ -56,9 +62,14 @@ const TRADE_AGENT_COLUMNS = [
     "spice_end",
     "exchanges",
     "exchanges_healthy_partner",
+    "recovering_start",
+    "recovering_in_window",
 ]
 
-"""An agent of the snapshot as it stood at the end of the period before the window, and its exchanges since."""
+"""
+An agent of the snapshot as it stood at the end of the period before the window, and since then its exchanges, those
+with a partner with no active disease, and whether it was recovering at the end of any period of the window.
+"""
 mutable struct WindowAgent
     metabolism::Float64
     spice_metabolism::Float64
@@ -66,22 +77,26 @@ mutable struct WindowAgent
     age::Float64
     sugar::Float64
     spice::Float64
+    recovering_start::Bool
     exchanges::Int
     healthy_partner::Int
+    recovering_in_window::Bool
 end
 
 """
     TradeReadings(; window)
 
 The trade observer of a run. `window = (first, last)` is the periods the agent snapshot covers: the agents alive at the
-end of period `first - 1` and of `last`, and never sick or recovering from `first` to `last`, get a row in
-[`agent_rows`](@ref), with their holdings at both ends and their exchanges over the window. [`trade_rows`](@ref) has a row
-for every period run, t ≥ 1. Feed it with [`trade_period!`](@ref).
+end of period `first - 1` and of `last`, with no active disease at the end of any period from `first` to `last` (a
+recovering agent qualifies), get a row in [`agent_rows`](@ref), with their holdings at both ends, their exchanges over the
+window, and whether they were recovering at its start and in it, so that the strictly healthy can be told apart.
+[`trade_rows`](@ref) has a row for every period run, t ≥ 1. Feed it with [`trade_period!`](@ref).
 """
 mutable struct TradeReadings
     window::Tuple{Int,Int}
     last_sick::Dict{Int,Int}  # agent id => the last period it was seen sick
-    healthy_partner::Dict{Int,Int}  # agent id => the last period it had an exchange with a healthy partner
+    well_partner::Dict{Int,Int}  # agent id => the last period it and its partner in an exchange had no active disease
+    healthy_partner::Dict{Int,Int}  # agent id => the same with both strictly healthy (neither sick nor recovering)
     rows::Vector{Vector{Float64}}
     candidates::Dict{Int,WindowAgent}  # the snapshot's agents so far, by id
     agents::Vector{Vector{Float64}}  # the snapshot's rows, once the window is over
@@ -95,6 +110,7 @@ function TradeReadings(; window::Tuple{Int,Int})
         throw(ArgumentError("the window needs 1 <= first <= last, got $window"))
     return TradeReadings(
         window,
+        Dict{Int,Int}(),
         Dict{Int,Int}(),
         Dict{Int,Int}(),
         Vector{Float64}[],
@@ -144,8 +160,14 @@ function trade_period!(r::TradeReadings, m::Model)
         state = health(r, a, t)
         if state == HEALTHY
             healthy += 1
+        elseif state == RECOVERING
+            recovering += 1
+            if in_window
+                w = get(r.candidates, a.id, nothing)
+                w === nothing || (w.recovering_in_window = true)
+            end
         else
-            state == RECOVERING ? (recovering += 1) : (sick += 1)
+            sick += 1
             in_window && delete!(r.candidates, a.id)
         end
         moved += a.moved_dist
@@ -164,6 +186,8 @@ function trade_period!(r::TradeReadings, m::Model)
             hs += 1
         else
             hh += 1
+            r.well_partner[e.a.id] = t
+            r.well_partner[e.b.id] = t
         end
         (ha == RECOVERING || hb == RECOVERING) && (with_recovering += 1)
         if ha == HEALTHY && hb == HEALTHY
@@ -171,16 +195,22 @@ function trade_period!(r::TradeReadings, m::Model)
             r.healthy_partner[e.b.id] = t
         end
         if in_window
-            count_exchange!(r, e.a, hb == HEALTHY)
-            count_exchange!(r, e.b, ha == HEALTHY)
+            count_exchange!(r, e.a, !sb)
+            count_exchange!(r, e.b, !sa)
         end
     end
 
-    recent = 0  # healthy agents with a healthy partner in the last HEALTHY_PARTNER_PERIODS periods
+    # Agents with no active disease who had a partner with none in the last HEALTHY_PARTNER_PERIODS periods, and the
+    # strictly healthy who had a strictly healthy one.
+    recent = recent_strict = 0
+    since = t - HEALTHY_PARTNER_PERIODS
     for a in m.agents
-        health(r, a, t) == HEALTHY || continue
-        get(r.healthy_partner, a.id, -HEALTHY_PARTNER_PERIODS) > t - HEALTHY_PARTNER_PERIODS && (recent += 1)
+        state = health(r, a, t)
+        state == SICK && continue
+        get(r.well_partner, a.id, since) > since && (recent += 1)
+        state == HEALTHY && get(r.healthy_partner, a.id, since) > since && (recent_strict += 1)
     end
+    well = healthy + recovering
 
     n = length(m.agents)
     row = Float64[
@@ -194,9 +224,10 @@ function trade_period!(r::TradeReadings, m::Model)
         ss,
         with_recovering,
         length(r.sick_seen),
-        healthy == 0 ? NaN : recent / healthy,
+        well == 0 ? NaN : recent / well,
         n == 0 ? NaN : moved / n,
         NaN, NaN, NaN, NaN, NaN,
+        healthy == 0 ? NaN : recent_strict / healthy,
     ]
     t % NEIGHBOUR_EVERY == 0 && read_neighbours!(row, r, m, t)
     push!(r.rows, row)
@@ -214,12 +245,17 @@ function count_exchange!(r::TradeReadings, a::Agent, partner_healthy::Bool)
     return nothing
 end
 
-"""The start of the snapshot: every living agent as it stands at the end of the period before the window."""
+"""
+The start of the snapshot: every living agent as it stands at the end of the period before the window, with whether it
+is recovering then.
+"""
 function keep_start!(r::TradeReadings, m::Model)
     empty!(r.candidates)
+    t = m.t
     for a in m.agents
         r.candidates[a.id] = WindowAgent(
-            a.metabolism, a.spice_metabolism, a.vision, a.age, a.sugar, a.spice, 0, 0
+            a.metabolism, a.spice_metabolism, a.vision, a.age, a.sugar, a.spice, health(r, a, t) == RECOVERING, 0, 0,
+            false,
         )
     end
     return nothing
@@ -235,7 +271,7 @@ function finish_snapshot!(r::TradeReadings, m::Model)
             r.agents,
             Float64[
                 a.id, w.metabolism, w.spice_metabolism, w.vision, w.age, w.sugar, w.spice, a.sugar, a.spice,
-                w.exchanges, w.healthy_partner,
+                w.exchanges, w.healthy_partner, w.recovering_start, w.recovering_in_window,
             ],
         )
     end
@@ -281,6 +317,7 @@ end
 """Drops the records too old to matter, so a long run's tables stay the size of its living."""
 function forget_old!(r::TradeReadings, t::Int)
     filter!(p -> t - p.second <= RECOVERING_PERIODS, r.last_sick)
+    filter!(p -> t - p.second < HEALTHY_PARTNER_PERIODS, r.well_partner)
     filter!(p -> t - p.second < HEALTHY_PARTNER_PERIODS, r.healthy_partner)
     return nothing
 end

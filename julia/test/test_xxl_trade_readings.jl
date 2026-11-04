@@ -9,11 +9,11 @@ const TR_REG = load_registry()
 const TR_HEADER = [
     "t", "healthy", "recovering", "sick", "exchanges", "exchanges_hh", "exchanges_hs", "exchanges_ss",
     "exchanges_recovering", "sick_traders", "healthy_healthy_10", "walked",
-    "pairs_hh", "pairs_hs", "pairs_ss", "gap_healthy", "gap_sick",
+    "pairs_hh", "pairs_hs", "pairs_ss", "gap_healthy", "gap_sick", "healthy_healthy_10_strict",
 ]
 const TR_AGENT_HEADER = [
     "id", "metabolism", "spice_metabolism", "vision", "age_start", "sugar_start", "spice_start", "sugar_end",
-    "spice_end", "exchanges", "exchanges_healthy_partner",
+    "spice_end", "exchanges", "exchanges_healthy_partner", "recovering_start", "recovering_in_window",
 ]
 
 # A 5 x 5 market with no sugar; `trader` puts an agent that trades with a partner of the opposite holdings.
@@ -64,7 +64,8 @@ function tr_run(periods; window=(21, 30))
         traders = Set(x.id for e in m.trade_log for x in (e.a, e.b) if !isempty(x.diseases))
         push!(log, (t=m.t, exchanges=length(m.trade_log), n=length(m.agents), alive=Set(a.id for a in m.agents),
             walked=isempty(m.agents) ? NaN : sum(a.moved_dist for a in m.agents) / length(m.agents),
-            sick=sick, sick_traders=length(traders), partners=[(e.a.id, e.b.id) for e in m.trade_log]))
+            sick=sick, sick_traders=length(traders), partners=[(e.a.id, e.b.id) for e in m.trade_log],
+            partners_sick=[(!isempty(e.a.diseases), !isempty(e.b.diseases)) for e in m.trade_log]))
     end
     return m, r, log
 end
@@ -121,9 +122,35 @@ end
         @test health(3) == (3, 1, 1) && health(12) == (3, 1, 1)  # sick last in period 2: recovering in 3-12
         @test health(13) == (4, 0, 1) && health(14) == (4, 0, 1)
         hh10(t) = val(rows[t], "healthy_healthy_10")
-        @test hh10(1) == 0 && hh10(2) == 0
-        @test all(t -> hh10(t) ≈ 2 / 3, 3:12)  # a and b of the three healthy agents, through period 12
-        @test hh10(13) == 0 && hh10(14) == 0  # not in 13: d is healthy by then, and a, b are out of the window
+        strict(t) = val(rows[t], "healthy_healthy_10_strict")
+        @test hh10(1) == 0 && hh10(2) == 0 && strict(1) == 0 && strict(2) == 0
+        @test all(t -> hh10(t) ≈ 2 / 4, 3:12)  # a and b of the four with no disease (d recovering), through period 12
+        @test all(t -> strict(t) ≈ 2 / 3, 3:12)  # a and b of the three strictly healthy
+        @test hh10(13) == 0 && hh10(14) == 0  # not in 13: a, b are out of the window
+        @test strict(13) == 0 && strict(14) == 0
+    end
+
+    @testset "a recovering agent's exchange counts in healthy_healthy_10, not in the strict share" begin
+        m = tr_market()
+        h = tr_trader(m, 1, 1; sugar=5.0, spice=8.0)
+        q = tr_trader(m, 1, 2; sugar=15.0, spice=2.0, sick=true)  # sick in period 1, recovering from 2
+        c = tr_trader(m, 3, 3; sugar=10.0, spice=10.0)
+        r = TradeReadings(; window=(1, 5))
+        tr_period!(r, m, 1)
+        empty!(q.diseases)
+        row = tr_period!(r, m, 2, () -> bargain!(m, h, q))
+        @test val(row, "exchanges") > 0 && val(row, "exchanges_hh") == val(row, "exchanges")
+        @test (val(row, "healthy"), val(row, "recovering"), val(row, "sick")) == (2, 1, 0)
+        @test val(row, "healthy_healthy_10") ≈ 2 / 3  # h and q, of h, q and c
+        @test val(row, "healthy_healthy_10_strict") == 0  # h's partner was recovering, and q isn't strictly healthy
+        # with no one healthy or no one without disease, the shares are undefined
+        m = tr_market()
+        q = tr_trader(m, 1, 2; sugar=15.0, spice=2.0, sick=true)
+        r = TradeReadings(; window=(1, 5))
+        @test isnan(val(tr_period!(r, m, 1), "healthy_healthy_10"))
+        empty!(q.diseases)
+        row = tr_period!(r, m, 2)
+        @test val(row, "healthy_healthy_10") == 0 && isnan(val(row, "healthy_healthy_10_strict"))
     end
 
     @testset "pairs and gaps, every tenth period" begin
@@ -167,25 +194,43 @@ end
         @test isnan(val(tr_period!(TradeReadings(; window=(1, 10)), tiny_model(zeros(Int, 3, 3)), 1), "walked"))
     end
 
-    @testset "the snapshot counts the exchanges and those with a healthy partner" begin
+    @testset "the snapshot counts the exchanges and those with a partner with no disease" begin
         m = tr_market()
         a = tr_trader(m, 0, 0; sugar=5.0, spice=8.0)
         b = tr_trader(m, 0, 1; sugar=15.0, spice=2.0)
         f = tr_trader(m, 2, 0; sugar=5.0, spice=8.0)
         g = tr_trader(m, 2, 1; sugar=15.0, spice=2.0, sick=true)
         h = tr_trader(m, 4, 3; sugar=5.0, spice=8.0)  # never trades
-        r = TradeReadings(; window=(2, 4))
+        q = tr_trader(m, 0, 3; sugar=5.0, spice=8.0, sick=true)  # sick in period 1: recovering at the start and after
+        u = tr_trader(m, 0, 4; sugar=15.0, spice=2.0)
+        p = tr_trader(m, 3, 0; sugar=10.0, spice=10.0, sick=true)  # sick at the start, cured in the window's first period
+        r = TradeReadings(; window=(3, 5))
         tr_period!(r, m, 1)
-        tr_period!(r, m, 2, () -> bargain!(m, f, g))
-        tr_period!(r, m, 3, () -> bargain!(m, a, b))
+        empty!(q.diseases)
+        tr_period!(r, m, 2)
+        empty!(p.diseases)
+        tr_period!(r, m, 3, () -> bargain!(m, f, g))
+        tr_period!(r, m, 4, () -> (bargain!(m, a, b); bargain!(m, q, u)))
         @test isempty(agent_rows(r)[2])  # the window is not over
-        tr_period!(r, m, 4, () -> bargain!(m, a, b))
+        tr_period!(r, m, 5, () -> bargain!(m, a, b))
         _, rows = agent_rows(r)
         by_id = Dict(Int(row[1]) => row for row in rows)
-        @test sort(collect(keys(by_id))) == sort([a.id, b.id, f.id, h.id])  # g was sick
+        # g was sick in the window; q and p were recovering, and with no active disease they are kept
+        @test sort(collect(keys(by_id))) == sort([a.id, b.id, f.id, h.id, q.id, u.id, p.id])
         @test agent_val(by_id[a.id], "exchanges") == agent_val(by_id[a.id], "exchanges_healthy_partner") > 0
         @test agent_val(by_id[f.id], "exchanges") > 0 && agent_val(by_id[f.id], "exchanges_healthy_partner") == 0
         @test agent_val(by_id[h.id], "exchanges") == 0 && agent_val(by_id[h.id], "exchanges_healthy_partner") == 0
+        # a recovering partner has no active disease, so it counts for u, and u counts for q
+        @test agent_val(by_id[u.id], "exchanges") == agent_val(by_id[u.id], "exchanges_healthy_partner") > 0
+        @test agent_val(by_id[q.id], "exchanges") == agent_val(by_id[q.id], "exchanges_healthy_partner") > 0
+        flags(x) = (agent_val(by_id[x.id], "recovering_start"), agent_val(by_id[x.id], "recovering_in_window"))
+        @test flags(q) == (1, 1)
+        @test flags(p) == (0, 1)  # sick, not recovering, at the end of period 2
+        @test all(x -> flags(x) == (0, 0), (a, b, f, h, u))
+        # the strict snapshot, neither sick nor recovering at its start or in it, is those with both flags 0
+        strict = [id for (id, row) in by_id
+                  if agent_val(row, "recovering_start") == 0 && agent_val(row, "recovering_in_window") == 0]
+        @test sort(strict) == sort([a.id, b.id, f.id, h.id, u.id])
         @test agent_val(by_id[a.id], "sugar_start") == 5.0 && agent_val(by_id[a.id], "sugar_end") == a.sugar != 5.0
     end
 
@@ -198,9 +243,12 @@ end
             @test val(row, "exchanges") == val(row, "exchanges_hh") + val(row, "exchanges_hs") + val(row, "exchanges_ss")
             @test val(row, "healthy") + val(row, "recovering") + val(row, "sick") == step.n
             @test val(row, "sick") == length(step.sick)
-            # a share of the healthy: undefined (NaN) in the first periods, when everyone caught a founder's disease
-            @test isnan(val(row, "healthy_healthy_10")) == (val(row, "healthy") == 0)
+            # a share of those with no disease (of the strictly healthy): undefined (NaN) in the first periods, when
+            # everyone caught a founder's disease
+            @test isnan(val(row, "healthy_healthy_10")) == (val(row, "healthy") + val(row, "recovering") == 0)
             @test isnan(val(row, "healthy_healthy_10")) || 0 <= val(row, "healthy_healthy_10") <= 1
+            @test isnan(val(row, "healthy_healthy_10_strict")) == (val(row, "healthy") == 0)
+            @test isnan(val(row, "healthy_healthy_10_strict")) || 0 <= val(row, "healthy_healthy_10_strict") <= 1
             @test val(row, "exchanges_recovering") <= val(row, "exchanges")
             @test val(row, "sick_traders") == step.sick_traders
             @test isequal(val(row, "walked"), step.walked)
@@ -213,40 +261,54 @@ end
             end
         end
         @test any(row -> val(row, "healthy_healthy_10") > 0, rows)
+        @test any(row -> val(row, "healthy_healthy_10_strict") > 0, rows)
         @test any(row -> val(row, "walked") > 0, rows)  # the xxl agents walk
         @test sum(row -> val(row, "exchanges"), rows) > 0 && sum(row -> val(row, "sick"), rows) > 0
         @test any(row -> val(row, "recovering") > 0, rows) && any(row -> val(row, "exchanges_hs") > 0, rows)
         @test any(row -> Int(row[1]) % 10 == 0 && !isnan(val(row, "gap_healthy")) && val(row, "gap_healthy") >= 0, rows)
     end
 
-    @testset "on a VI-1 run: the snapshot is who was alive and healthy throughout" begin
+    @testset "on a VI-1 run: the snapshot is who was alive with no disease throughout" begin
         m, r, log = tr_run(30)
         header, rows = agent_rows(r)
-        @test header == TR_AGENT_HEADER && !isempty(rows) && all(row -> length(row) == 11, rows)
+        @test header == TR_AGENT_HEADER && !isempty(rows) && all(row -> length(row) == 13, rows)
         ids = [Int(row[1]) for row in rows]
         @test issorted(ids) && allunique(ids)
         at(t) = log[t]
-        # Sick in 21-30, or in the 10 periods before one of them (recovering), is out.
+        # Sick in 21-30 is out; recovering in one of them (sick in the 10 periods before) is in, and flagged, as is
+        # recovering at the end of period 20.
         last_sick = Dict{Int,Int}()
-        out = Set{Int}()
+        out, recovered, at_start = Set{Int}(), Set{Int}(), Set{Int}()
         for step in log
             for id in step.sick
                 last_sick[id] = step.t
             end
-            if step.t >= 21
+            recovering(id) = !(id in step.sick) && step.t - get(last_sick, id, -99) <= 10
+            if step.t == 20
+                foreach(id -> recovering(id) && push!(at_start, id), step.alive)
+            elseif step.t >= 21
                 for id in step.alive
-                    (id in step.sick || step.t - get(last_sick, id, -99) <= 10) && push!(out, id)
+                    id in step.sick && push!(out, id)
+                    recovering(id) && push!(recovered, id)
                 end
             end
         end
-        took_part = Dict{Int,Int}()
-        for step in log[21:30], pair in step.partners, id in pair
-            took_part[id] = get(took_part, id, 0) + 1
+        took_part, well_partner = Dict{Int,Int}(), Dict{Int,Int}()
+        for step in log[21:30], ((x, y), (sx, sy)) in zip(step.partners, step.partners_sick)
+            took_part[x] = get(took_part, x, 0) + 1
+            took_part[y] = get(took_part, y, 0) + 1
+            sy || (well_partner[x] = get(well_partner, x, 0) + 1)
+            sx || (well_partner[y] = get(well_partner, y, 0) + 1)
         end
-        @test Set(ids) == setdiff(intersect(at(20).alive, at(30).alive), out)
-        @test length(ids) < length(intersect(at(20).alive, at(30).alive))  # the sick and the recovering were left out
+        both = intersect(at(20).alive, at(30).alive)
+        @test Set(ids) == setdiff(both, out)
+        @test length(ids) < length(both)  # the sick were left out
+        flagged = Set(Int(row[1]) for row in rows if agent_val(row, "recovering_in_window") == 1)
+        @test flagged == intersect(Set(ids), recovered) && !isempty(flagged)  # recovering agents are kept
+        @test Set(Int(row[1]) for row in rows if agent_val(row, "recovering_start") == 1) == intersect(Set(ids), at_start)
         for row in rows
             @test agent_val(row, "exchanges") == get(took_part, Int(row[1]), 0)
+            @test agent_val(row, "exchanges_healthy_partner") == get(well_partner, Int(row[1]), 0)
             @test agent_val(row, "exchanges_healthy_partner") <= agent_val(row, "exchanges")
         end
         @test sum(row -> agent_val(row, "exchanges"), rows) <= sum(values(took_part))
