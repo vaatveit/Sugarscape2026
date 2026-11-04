@@ -66,9 +66,9 @@ settings with the experiment's own disease list.
 | `disease_count` | none | none | **3** | 12 |
 | `founder_diseases` | none | none | **1** | 12 |
 | `disease_lengths` | none | none | **(9, 10)** | 12 |
-| `trade_move` | none | none | none | 13 |
-| `trade_blend` λ | 1 | 1 | 1 | 13 |
-| `trade_guard` k | none | none | none | 13 |
+| `trade_move` (expected price: `"own"` or `"local"`) | none | none | none | 13 |
+| `trade_blend` λ (score W^(1−λ)·V^λ) | 1 | 1 | 1 | 13 |
+| `trade_guard` k (periods of sugar or spice) | none | none | none | 13 |
 
 `max_metabolism`, `founder_placement`, `free_step` and `founder_ages` are the stage-1 survival switches. Each was tried
 at a candidate setting, and the scorecard decided which to keep:
@@ -392,14 +392,29 @@ which stage 4 measured, and V-1, V-2 and `VAR-inttrade/VI-1`, which it didn't.
 **Book setting:** `trade_move` is none, `trade_blend` is 1 and `trade_guard` is none: an agent scores a site by the
 welfare of the sugar and spice it would hold after eating there, as in the book, whatever trade lets it do.
 
-**xxl** (`trade_move` set; it needs trade): an agent under trade scores a site by the value of the site's goods at the
-price it expects to trade at, instead of by the welfare of its own bundle. Three settings shape it:
+**xxl** (`trade_move` set; it needs trade): an agent under trade scores a site by the value of the bundle it would hold
+there at the price it expects to trade at, instead of by the welfare of that bundle alone. Three settings shape it:
 
 | Setting | Values | What it does |
 |---|---|---|
-| `trade_move` | none / `"own"` / `"local"` | Which price p the agent expects. `"own"`: its last trade price, falling back to its MRS when it has not traded. `"local"`: the mean log price of the trades within its vision over the last few periods, falling back to its MRS when there are none. None leaves the rule off |
-| `trade_blend` λ | 0 to 1 | How far the score moves from the book's welfare score toward the value at p; 1 is the full rule, 0 the book's |
-| `trade_guard` k | periods, or none | An agent whose sugar or spice would last fewer than k periods at its metabolism scores by the book's rule, so it doesn't gamble on a trade it may not find |
+| `trade_move` | none / `"own"` / `"local"` | Which price p the agent expects, in spice per sugar. `"own"`: its last trade price, which never ages, falling back to its MRS when it has not traded. `"local"`: the geometric mean (the mean log) of the latest exchange price at its own site and at each site it looked at this move, counting only sites with an exchange in the last 10 periods, falling back to its MRS when there are none. None leaves the rule off |
+| `trade_blend` λ | 0 to 1 | How far the score moves from the book's welfare W toward the value V at p: the score is W^(1−λ)·V^λ, so 1 is the full rule and 0 the book's |
+| `trade_guard` k | periods, or none | An agent whose sugar or spice would last fewer than k periods at its burn (`sugar_burn`, the disease fees included, for sugar; its spice metabolism for spice) scores by the book's rule, so it doesn't gamble on a trade it may not find |
+
+**The score.** For a site, (A, B) is the bundle the agent would hold after the trip: its holdings as the book's score
+counts them (the foresight clamp; with speed, less the travel cost and what it burns on the way), plus the site's sugar
+and spice, devalued by pollution. W is the book's welfare of (A, B), A^e₁·B^e₂, and V = A + B/p is what the bundle is
+worth in sugar at the expected price p. The score is W^(1−λ)·V^λ: both W and V grow in proportion with the bundle, so
+the blend needs no units (*my call*). A site where the agent would starve on the way is still worth nothing. When there
+is no valid price (no trade price and no MRS, as when it holds no spice) or the guard holds, the move uses the book's
+score as it stands.
+
+**Where it applies.** The site score of all three moves. `speed_move!` and `xxl_move!` read the local price from the
+sites of their look; the book's lattice loop (`move!` without round vision or speed) keeps no list of what it looks at,
+so its local price reads the agent's own site only (*my call*). Under memory the remembered sites are valued at the
+move's price, both when the move picks its target and when it updates the memory after, and word of mouth ranks the
+agent's memory and its neighbours' best at the same move's price, so the memory stays ranked as the move would rank it
+(*my call*). Combat's move uses the book's score.
 
 `trade_blend` and `trade_guard` change nothing unless `trade_move` is set. Speed and travel cost don't change. For an
 experiment without trade the transform sets all three back to their book values.
