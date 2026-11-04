@@ -105,6 +105,7 @@ include("xxl/loan_report.jl")
 include("xxl/loan_run.jl")
 include("xxl/credit_compare.jl")
 include("xxl/disease_list.jl")
+include("xxl/trade_study.jl")
 include("xxl/experiments.jl")
 
 end
