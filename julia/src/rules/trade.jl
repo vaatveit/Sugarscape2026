@@ -10,6 +10,10 @@ the agent with the higher MRS buys sugar with spice (p > 1: p spice for 1 sugar;
 exchange happens only if both agents' welfare strictly rises and their MRSs don't cross (fn 17); otherwise
 bargaining ends. An MRS of 0, infinity, or undefined means no trade (our call). trade_rounding="down" rounds the
 amount of p or 1/p down to a whole unit (VAR-inttrade); the price stays p. Each exchange goes to `m.trade_log`.
+
+xxl rule 13 reads the prices back: each exchange leaves its price as both agents' `last_price`, and, when the model
+keeps a local price (`m.site_price` isn't empty), its log and period at both agents' sites, the latest exchange at a
+site standing. None of this draws or touches the exchange itself.
 """
 function bargain!(m::Model, a::Agent, b::Agent)
     cultural = m.config.cultural_preferences
@@ -37,6 +41,12 @@ function bargain!(m::Model, a::Agent, b::Agent)
             return nothing
         end
         push!(m.trade_log, Exchange(price, sugar, spice, hi, lo))
+        hi.last_price = lo.last_price = price
+        if !isempty(m.site_price)
+            lp = log(price)
+            m.site_price[hi.x + 1, hi.y + 1], m.site_price_t[hi.x + 1, hi.y + 1] = lp, m.t
+            m.site_price[lo.x + 1, lo.y + 1], m.site_price_t[lo.x + 1, lo.y + 1] = lp, m.t
+        end
     end
 end
 

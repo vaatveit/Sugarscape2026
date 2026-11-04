@@ -54,6 +54,9 @@ mutable struct Model{R<:AbstractRNG}
     loans_rolled::Int  # of those, the ones whose unpaid rest rolled into a new loan
     loan_trace::Union{Nothing,LoanTrace}  # xxl: the opt-in record of every loan's life (xxl/loan_trace.jl)
     lend_left::Dict{Int,Float64}  # lender_limit: each lender's remaining limit this period, by id (lending_left)
+    # Rule 13's local price (xxl/trade_price.jl), the world's size with trade_move = "local", else 0 x 0.
+    site_price::Matrix{Float64}  # xxl: log of the latest exchange's price at each site, [x + 1, y + 1]
+    site_price_t::Matrix{Int}  # xxl: the period of that exchange, -1 for none yet
 end
 
 """
@@ -81,6 +84,7 @@ function Model(
         reverse(cap; dims=1)
     end
     ls = Landscape(cap, spice_cap)
+    local_prices = xxl_on(cfg, :trade_move) && cfg.xxl.trade_move == "local"
     m = Model(
         cfg,
         rng,
@@ -122,6 +126,8 @@ function Model(
         0,
         nothing,
         Dict{Int,Float64}(),
+        local_prices ? zeros(cfg.width, cfg.height) : zeros(0, 0),
+        local_prices ? fill(-1, cfg.width, cfg.height) : zeros(Int, 0, 0),
     )
     cfg.disease_list > 0 && init_disease_list!(m)
     place_initial_population!(m)
