@@ -10,7 +10,7 @@ const TR_HEADER = [
     "t", "healthy", "recovering", "sick", "exchanges", "exchanges_hh", "exchanges_hs", "exchanges_ss",
     "exchanges_recovering", "sick_traders", "healthy_healthy_10", "walked",
     "pairs_hh", "pairs_hs", "pairs_ss", "gap_healthy", "gap_sick", "healthy_healthy_10_strict",
-    "exchanges_HH", "exchanges_HX", "gap_strict", "pairs_HH", "pairs_HX",
+    "exchanges_HH", "exchanges_HX", "gap_strict", "pairs_HH", "pairs_HX", "meetings", "meeting_price_sd",
 ]
 # The columns read only every tenth period, NaN otherwise.
 const TR_TENTH = ("pairs_hh", "pairs_hs", "pairs_ss", "gap_healthy", "gap_sick", "gap_strict", "pairs_HH", "pairs_HX")
@@ -44,9 +44,9 @@ agent_val(row, name) = row[findfirst(==(name), TR_AGENT_HEADER)]
 # VI-1 under the xxl defaults with Rule 13 on (local price, guard 5), shrunk to 50 x 50 and 200 agents: the xl landscape
 # gives way to the book map, and the vision (6, 10) keeps the speed (1, 6) valid. Disc vision, speed, memory, a radius of
 # 1.5 and the generated founders' disease list are all in play, so agents walk and the neighbours are not von Neumann.
-function tr_config()
+function tr_config(; trade_price=nothing)
     vi1 = find_experiment(TR_REG, "VI-1")
-    rules = replace_rules(XXL_DEFAULTS; landscape="xl", trade_move="local", trade_guard=5)
+    rules = replace_rules(XXL_DEFAULTS; landscape="xl", trade_move="local", trade_guard=5, trade_price=trade_price)
     return replace_config(
         to_xxl(vi1.config, rules);
         width=50, height=50, initial_population=200, vision=(6, 10), look_stride=1, sugar_map="sugar-map.txt",
@@ -346,6 +346,60 @@ end
             @test row[2] == a.metabolism && row[3] == a.spice_metabolism && row[4] == a.vision
             @test row[8] == a.sugar && row[9] == a.spice
             @test row[5] + 10 == a.age  # 21 to 30 is ten periods older than the end of period 20
+        end
+    end
+
+    @testset "meetings: runs of exchanges between the same two agents" begin
+        m = tr_market()
+        a, b = tr_trader(m, 0, 0; sugar=5.0, spice=8.0), tr_trader(m, 0, 1; sugar=15.0, spice=2.0)
+        c, d = tr_trader(m, 2, 0; sugar=5.0, spice=8.0), tr_trader(m, 2, 1; sugar=15.0, spice=2.0)
+        ex(p, x, y) = Exchange(p, 1.0, p, x, y)
+        r = TradeReadings(; window=(1, 5))
+        # three exchanges a-b, two c-d, one b-a later (the other agent's turn): three meetings
+        row = tr_period!(r, m, 1, () -> append!(m.trade_log,
+            [ex(2.0, a, b), ex(2.0, a, b), ex(2.0, a, b), ex(0.5, c, d), ex(0.5, c, d), ex(4.0, b, a)]))
+        @test val(row, "exchanges") == 6 && val(row, "meetings") == 3
+        prices = log.([2.0, 0.5, 4.0])
+        mean = sum(prices) / 3
+        @test val(row, "meeting_price_sd") ≈ sqrt(sum((prices .- mean) .^ 2) / 3)
+        # a meeting's price is its first exchange's
+        row = tr_period!(r, m, 2, () -> append!(m.trade_log, [ex(2.0, a, b), ex(3.0, a, b), ex(0.5, c, d)]))
+        @test val(row, "meetings") == 2
+        @test val(row, "meeting_price_sd") ≈ abs(log(2.0) - log(0.5)) / 2
+        # one meeting or none: no sd
+        row = tr_period!(r, m, 3, () -> append!(m.trade_log, [ex(2.0, a, b), ex(2.0, b, a)]))
+        @test val(row, "meetings") == 1 && isnan(val(row, "meeting_price_sd"))
+        row = tr_period!(r, m, 4)
+        @test val(row, "meetings") == 0 && isnan(val(row, "meeting_price_sd"))
+    end
+
+    @testset "on a VI-1 run: meetings, with Rule 14 on and off" begin
+        for (rule, one_price) in (("meeting", true), (nothing, false))
+            m = Model(tr_config(; trade_price=rule))
+            r = TradeReadings(; window=(21, 30))
+            trade_period!(r, m)
+            exchanges = meetings_total = mixed = 0
+            for _ in 1:30
+                step!(m)
+                trade_period!(r, m)
+                row = r.rows[end]
+                meetings = Vector{Vector{Float64}}()
+                last = nothing
+                for e in m.trade_log
+                    key = minmax(e.a.id, e.b.id)
+                    key == last ? push!(meetings[end], e.price) : push!(meetings, [e.price])
+                    last = key
+                end
+                @test val(row, "meetings") == length(meetings) <= val(row, "exchanges")
+                # With Rule 14 on, a run holds one price, bar the odd run of two meetings: the pair's two turns can
+                # come one right after the other, and the definition cannot tell them apart.
+                mixed += count(p -> !all(==(p[1]), p), meetings)
+                exchanges += length(m.trade_log)
+                meetings_total += val(row, "meetings")
+            end
+            @test exchanges == sum(row -> val(row, "exchanges"), r.rows)
+            @test meetings_total > 0
+            one_price ? (@test mixed * 50 <= meetings_total) : (@test mixed > 0)  # prices vary within a meeting
         end
     end
 

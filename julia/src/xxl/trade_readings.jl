@@ -14,7 +14,11 @@
 # share among the strictly healthy, neither sick nor recovering, with a strictly healthy partner. The last columns read
 # the strictly healthy apart from the rest: `exchanges_HH` (both), `exchanges_HX` (exactly one), `gap_strict` (the MRS
 # gaps of the strictly healthy) and `pairs_HH`, `pairs_HX` (the neighbour pairs). Which of these decide is the report's
-# (julia/src/xxl/trade_report.jl): by the user's decision after Part 1, the strict ones.
+# (julia/src/xxl/trade_report.jl): by the user's decision after Part 1, the strict ones. The last two columns read the
+# meetings (stage 5b): `bargain!` runs a pair's whole meeting before the next pair's, so a meeting is a maximal run of
+# consecutive exchanges in `m.trade_log` between the same two agents (the same pair can meet again later in the period,
+# on the other agent's turn: a new meeting). `meetings` counts them; `meeting_price_sd` is the population sd of the log
+# of their prices, each taken from its first exchange (NaN with fewer than two meetings).
 
 """How many periods after its last disease an agent still counts as recovering."""
 const RECOVERING_PERIODS = 10
@@ -55,6 +59,8 @@ const TRADE_COLUMNS = [
     "gap_strict",
     "pairs_HH",
     "pairs_HX",
+    "meetings",
+    "meeting_price_sd",
 ]
 
 "The columns of an agent's snapshot row, `agent_rows`."
@@ -225,6 +231,8 @@ function trade_period!(r::TradeReadings, m::Model)
     end
     well = healthy + recovering
 
+    meetings, meeting_sd = meeting_readings(m.trade_log)
+
     n = length(m.agents)
     row = Float64[
         t,
@@ -244,6 +252,8 @@ function trade_period!(r::TradeReadings, m::Model)
         strict_both,
         strict_one,
         NaN, NaN, NaN,
+        meetings,
+        meeting_sd,
     ]
     t % NEIGHBOUR_EVERY == 0 && read_neighbours!(row, r, m, t)
     push!(r.rows, row)
@@ -251,6 +261,26 @@ function trade_period!(r::TradeReadings, m::Model)
     t == w2 && finish_snapshot!(r, m)
     t % 100 == 0 && forget_old!(r, t)
     return nothing
+end
+
+"""
+The number of meetings in `exchanges` (maximal runs of consecutive exchanges between the same two agents) and the
+population sd of the log of their prices, each meeting's price taken from its first exchange; the sd is NaN with fewer
+than two meetings.
+"""
+function meeting_readings(exchanges::Vector{Exchange})
+    prices = Float64[]
+    prev = (0, 0)
+    for e in exchanges
+        pair = minmax(e.a.id, e.b.id)
+        pair == prev && continue
+        prev = pair
+        push!(prices, log(e.price))
+    end
+    n = length(prices)
+    n < 2 && return n, NaN
+    mean = sum(prices) / n
+    return n, sqrt(sum(x -> (x - mean)^2, prices) / n)
 end
 
 function count_exchange!(r::TradeReadings, a::Agent, partner_healthy::Bool)

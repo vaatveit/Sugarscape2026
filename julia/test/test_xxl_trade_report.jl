@@ -62,7 +62,7 @@ function tr_folder(dir, name; n=20, periods=500, window=nothing, xxl=TR_XXL, set
             tenth = t % 10 == 0
             return Float64[t, each(healthy, i), 20, each(sick_n, i), h + s + x, h, s, x, 10, 70, each(hh10, i), 1.0,
                            (tenth ? y : (NaN, NaN, NaN))..., (tenth ? z : (NaN, NaN))..., each(hh10_strict, i),
-                           each(HH, i), each(HX, i), (tenth ? (g, q...) : (NaN, NaN, NaN))...]
+                           each(HH, i), each(HX, i), (tenth ? (g, q...) : (NaN, NaN, NaN))..., 5, 0.1]
         end
         write(joinpath(folder, "seed$k-trade.csv"),
               join(Sugarscape.TRADE_COLUMNS, ",") * "\n" * join((join(r, ",") * "\n" for r in rows)))
