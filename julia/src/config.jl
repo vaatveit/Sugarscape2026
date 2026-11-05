@@ -349,6 +349,8 @@ function validate_xxl(c::Config, r::XxlRules)
     r.trade_guard !== nothing &&
         r.trade_guard < 0 &&
         bad("trade_guard must be >= 0, not $(r.trade_guard)")
+    r.trade_price !== nothing && check_option(:trade_price, r.trade_price, TRADE_PRICES)
+    r.trade_price !== nothing && !c.trade && bad("trade_price needs trade")
     if r.trade_move === nothing
         r.trade_blend != 1.0 && bad("trade_blend needs trade_move")
         r.trade_guard !== nothing && bad("trade_guard needs trade_move")

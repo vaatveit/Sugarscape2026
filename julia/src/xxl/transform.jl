@@ -9,7 +9,7 @@ gradient is turned off for it, and a run without sex or without finite lives has
 `founder_ages` is reset to `"book"`; the generated landscape swaps in `sugar-map-xxl.txt`. The disease list settings
 set `disease_list`, `diseases_per_agent` and `disease_length` where they are not `nothing`; a run without disease
 has no list to size, so they are reset to `nothing` for it. A run without trade has no trades to move toward, so
-`trade_move` and `trade_guard` are reset to `nothing` and `trade_blend` to 1 for it.
+`trade_move`, `trade_guard` and `trade_price` are reset to `nothing` and `trade_blend` to 1 for it.
 """
 function to_xxl(cfg::Config, rules::XxlRules=XXL_DEFAULTS)
     xl = to_xl(cfg)
@@ -23,7 +23,7 @@ function to_xxl(cfg::Config, rules::XxlRules=XXL_DEFAULTS)
     )
     cfg.trade || (
         rules = replace_rules(
-            rules; trade_move=nothing, trade_blend=1.0, trade_guard=nothing
+            rules; trade_move=nothing, trade_blend=1.0, trade_guard=nothing, trade_price=nothing
         )
     )
     return replace_config(
@@ -40,7 +40,7 @@ end
     xxl_on(cfg, feature) -> Bool
 
 Whether `feature` (`:disc`, `:speed`, `:memory`, `:word_of_mouth`, `:radius`, `:gradient`, `:generated`,
-`:metabolism_cap`, `:viable`, `:free_step`, `:young` or `:trade_move`) is away
+`:metabolism_cap`, `:viable`, `:free_step`, `:young`, `:trade_move` or `:trade_price`) is away
 from its book setting. False for every feature when `cfg.xxl` is `nothing`. Inlined, so that at a call site with a
 literal feature the hot paths pay only the `nothing` check.
 """
@@ -59,6 +59,7 @@ literal feature the hot paths pay only the `nothing` check.
     feature === :free_step && return r.free_step > 0
     feature === :young && return r.founder_ages == "young"
     feature === :trade_move && return r.trade_move !== nothing
+    feature === :trade_price && return r.trade_price !== nothing
     return throw(ArgumentError("unknown xxl feature $(repr(feature))"))
 end
 

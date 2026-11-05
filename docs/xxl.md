@@ -69,6 +69,7 @@ settings with the experiment's own disease list.
 | `trade_move` (expected price: `"own"` or `"local"`) | none | none | none | 13 |
 | `trade_blend` λ (score W^(1−λ)·V^λ) | 1 | 1 | 1 | 13 |
 | `trade_guard` k (periods of sugar or spice) | none | none | none | 13 |
+| `trade_price` (`"meeting"`: one price per meeting) | none | none | none | 14 |
 
 `max_metabolism`, `founder_placement`, `free_step` and `founder_ages` are the stage-1 survival switches. Each was tried
 at a candidate setting, and the scorecard decided which to keep:
@@ -427,6 +428,38 @@ experiment without trade the transform sets all three back to their book values.
 fingerprint it always had.
 
 **Stage 5:** measured in "Stage 5: trade": no version passed screening, and the rule changed almost nothing.
+
+## Rule 14: the meeting's price
+
+**Book setting:** `trade_price` is none: in rule T the two neighbours trade one unit at a time, and the price is the geometric mean
+of their two current MRSs, worked out again before every unit.
+
+**xxl** (`trade_price` set; it needs trade): the price is set once, when the meeting starts, and every unit of the meeting trades at it.
+
+| Value | What a meeting does |
+|---|---|
+| none | The book's rule T: the price is recomputed before every unit, so it follows the two MRSs as each unit moves them together |
+| `"meeting"` | The price is the geometric mean of the two MRSs when the meeting starts, worked out once. Which agent buys sugar (the one with the higher MRS then) is fixed for the meeting too. The meeting ends at the first unit that fails a test |
+
+**What stays.** Only the price changes. The unit sizes are the book's (price p above 1: 1 sugar for p spice; p below 1: 1/p sugar
+for 1 spice; whole units with `trade_rounding = "down"`), and so are the tests on each unit: holdings stay positive, the buyer's MRS
+stays at or above the seller's, and both welfares strictly rise. A meeting whose starting MRSs aren't both valid, or are equal, doesn't
+trade, as now. Each accepted unit still goes to the trade log with its price, so `last_price` and every metric read it as before.
+Trading once with each neighbour, in random order, is unchanged.
+
+**Why.** *The user's reasoning:* it isn't realistic for the MRS to set a new price during a single bargaining session. The price
+should be set when the session starts and apply to every unit exchanged. *My call:* with a price fixed per meeting, prices differ
+between meetings by who meets whom, so an agent can sell dearly to a neighbour in need and buy cheaply from one with a good to spare,
+which the moving price squeezes out. The stage-5b screening tests whether that makes healthy traders richer.
+
+**Rule 13** stays off and isn't combined with this. For an experiment without trade the transform sets `trade_price` back to none.
+
+**Refused:** a `trade_price` other than `"meeting"` (or none); `trade_price` on an experiment without trade, if it reaches `Config`
+directly.
+
+**Fingerprint:** the `xxl` line names it only when it is on, after the disease list and Rule 13's settings: `trade_price="meeting"`.
+A run with the rule off has the fingerprint it always had. `--set trade_price=meeting` reads it in the extinction, scorecard and
+trade study commands.
 
 ## The metrics
 
