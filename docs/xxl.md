@@ -450,9 +450,10 @@ Trading once with each neighbour, in random order, is unchanged.
 **Why.** *The user's reasoning:* it isn't realistic for the MRS to set a new price during a single bargaining session. The price
 should be set when the session starts and apply to every unit exchanged. *My call:* with a price fixed per meeting, prices differ
 between meetings by who meets whom, so an agent can sell dearly to a neighbour in need and buy cheaply from one with a good to spare,
-which the moving price squeezes out. The stage-5b screening tests whether that makes healthy traders richer.
+which the moving price squeezes out. Measured in "Stage 5b: the meeting's price": it didn't make healthy traders richer, while a
+meeting moved only 1.68 units on average.
 
-**Rule 13** stays off and isn't combined with this. For an experiment without trade the transform sets `trade_price` back to none.
+**Rule 13:** the code allows both rules at once, but the study doesn't combine them. For an experiment without trade the transform sets `trade_price` back to none.
 
 **Refused:** a `trade_price` other than `"meeting"` (or none); `trade_price` on an experiment without trade, if it reaches `Config`
 directly.
@@ -1750,6 +1751,77 @@ using about 18 of the machine's 24 threads.
    it is. Each is a new rule change, with its own design.
 4. **The branch keeps Rule 13 off by default**, and with it off every run is unchanged, so merging it costs nothing but code. Whether to
    merge, keep it on its branch, or drop it is the user's call.
+
+**The user's ruling** (2026-11-05): no version of Rule 13 is adopted, and the next step investigates trades larger than one unit. The
+check above wasn't run: stage 5b made it moot.
+
+## Stage 5b: the meeting's price
+
+The user asked to investigate trades larger than one unit, with this reasoning (**the user's**): it isn't realistic for the MRS to set a
+new price during a single bargaining session; the price should be set when the session starts and apply to every unit, and there has to
+be a way for the seller to profit, not just break even. I pointed out that a meeting already trades until the MRSs would cross, so the
+change is to the price, not to how much a step holds. I proposed, and the user agreed, Rule 14 (above): the book's geometric-mean price,
+computed once when the meeting starts. The design is
+[docs/superpowers/specs/2026-11-05-xxl-meeting-price-design.md](superpowers/specs/2026-11-05-xxl-meeting-price-design.md). Nothing here
+changes `XXL_DEFAULTS`.
+
+**The short answer.** Rule 14 fails screening, so by the design this step stops with no confirmation run. Healthy traders end slightly
+richer than today's against similar non-traders, 1.103 against 1.09, but not by the bar and not clearly; trade with no disease doesn't
+move at all. The reason is in the new reading: **a meeting moves 1.68 units on average.** With one or two units a meeting, a price fixed
+for the meeting can hardly differ from one recomputed each unit.
+
+**The run.** One arm, M (`trade_price = "meeting"`), under `XXL_DEFAULTS`, seeds 80–99, 500 periods, in VI-1, the no-disease world and
+IV-A3 (`results-julia-xxl/trade-screen-meeting.md`). The baseline is stage 5's Part 1 rerun, made at commit 9bf328c on `xxl-trade`;
+with Rule 14 off the code makes the same runs, so the comparison isolates the rule. The bars are stage 5's as the user left them.
+
+| Row | M | Bar | Result |
+|---|---|---|---|
+| Richer with trade | 1.103 [1.07, 1.139]; ÷ today's 1.012 [0.964, 1.062] | at least 1.10, interval above 1; at least 1.145; ÷ today's interval above 1 | near |
+| Without disease | 0.3077 trades per head | at least 0.6166 (×2 today's 0.3083) | fail |
+| Sick agents still trade | 7.357 | at least 3.767 | pass |
+| Trough | mean 8,590, lowest 8,018 | mean at least 8,117, none below 7,224 | pass |
+| X9 / X10 per seed / X6 / extinction | 20 / 19 of 20 / 1.153 / 0 of 20 | 18 / 18 / at most 1.5 / none | pass |
+
+The report's own verdict text follows stage 5's results table, so I applied stage 5b's by hand (*my call*, from the design): an arm is
+near only if every failing row misses by no more than 5% of its bar. The no-disease row misses by half, so M is neither a pass nor near:
+it fails, and the second version (a price leaning towards the agent who needs the trade less) is the user's call. The report's own text
+reaches the same "stop".
+
+**Readings, against today's:** trades per head 1.64 against 1.69, sick agents' 7.36 against 7.53, and IV-A3's trades per head 0.945 of
+today's, the one ratio clearly below 1 (interval [0.924, 0.966]). Population, Gini, distance walked and the trough match today's. Units
+per meeting are 1.68, and the price spread across a period's meetings is 0.47 in log price: prices do differ from meeting to meeting, but
+each meeting is too small for that to make anyone rich. Today's units per meeting weren't recorded (the baseline's readings predate the
+column). Back-to-back meetings of one pair count as one, so units per meeting read about 0.3% high.
+
+**Against my guess.** I guessed each meeting would move fewer units than today's, trade per head would fall, the no-disease bar would
+fail, and the matched ratio would rise to about 1.12. Trade fell a little (within noise), the no-disease bar failed, and the ratio rose to
+1.103, also within noise. The guess got the direction of everything, but it didn't foresee that meetings average only 1.68 units.
+
+**Why meetings are so short, as I read it** (*my call*, not tested). One unit changes the buying agent's log MRS by about 1/sugar +
+p/spice, and the selling agent's by about as much the other way. With mean holdings of about 28 sugar and 37 spice and a price near 1.4,
+that is about 0.07 each, so one unit narrows the pair's gap by about 0.15. The median gap between strictly healthy neighbours' log MRSs is
+0.068 (over all neighbour pairs, not only those that trade), so for a typical healthy pair one whole unit overshoots about twofold, and
+the book's tests refuse it. The meetings that do happen are presumably between pairs with wider gaps, or poorer agents, whose steps are
+larger still. The unit isn't too small for healthy agents to profit; it is too large. Trades of a fraction of a unit would let two
+neighbours with a small gap take several steps.
+
+### What this doesn't show
+
+- One map pair, 20 seeds, 500 periods, one arm.
+- Units per meeting under today's rule weren't measured, so how much shorter Rule 14's meetings are is not known.
+- The reasoning about unit size is arithmetic on means, not a measurement; holdings and gaps vary widely between agents, and 1/sugar
+  grows fast for poorer agents, so the step a unit takes is far from uniform.
+
+### Run time
+
+Same machine, 5 workers, no memory stops: 44 minutes for the three runs and the report, 16 for VI-1 and 21 for the no-disease world.
+
+### My recommendation, not a decision
+
+1. **Don't adopt Rule 14.** It changed nothing the user asked for.
+2. **Next, smaller units** (the user's choice of next step, after this result): let a step trade a fraction of a unit, so that healthy
+   neighbours with a small gap can trade further before their MRSs cross. It is a new rule with its own design.
+3. **The branch keeps Rule 14 off by default** and changes no run with it off. Whether to merge it is the user's call.
 
 ## Results of the first rules (`XXL_V1`)
 
