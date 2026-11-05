@@ -426,7 +426,7 @@ experiment without trade the transform sets all three back to their book values.
 `trade_move="local" trade_guard=5`, with `trade_blend=0.5` between them when it isn't 1. A run with the rule off has the
 fingerprint it always had.
 
-**Stage 5:** the settings are in; the rule that uses them, and what it does to the runs, is measured in stage 5.
+**Stage 5:** measured in "Stage 5: trade": no version passed screening, and the rule changed almost nothing.
 
 ## The metrics
 
@@ -1590,6 +1590,133 @@ What this means for the record:
   suggests a seed's start matters to whether it loses disease, but the draws after matter too.
 - **Run time.** Same machine, 5 workers: 29 and 31 min for the scorecards, and 6 h 41 min for the extinction test, against 54 and 61 min and
   13 h 43 min for the confirmation. That's the eight speedups merged before list D together with the skip.
+
+## Stage 5: trade
+
+Stage 4 recommended judging trade once disease was settled, and the user went on with it. Under list D trade passes its checks (X5,
+X6), but it follows sickness: stage 3 found trades per head of 0.2–0.3 in seeds with no disease against about 2.4 with six. The user
+ruled that this isn't trade working as intended: **some healthy agents should trade in order to get rich**, and a healthy agent who
+trades should end up with more resources than one who doesn't (both **the user's**). The way to get there that the user accepted was my
+proposal: gather what is plentiful where you stand and trade it for the other good instead of walking for it. That needs movement that
+counts on trade, so this stage built Rule 13 and screened five versions of it. The design is
+[docs/superpowers/specs/2026-11-03-xxl-trade-design.md](superpowers/specs/2026-11-03-xxl-trade-design.md), with the changes made after
+Part 1 at its end. Nothing here changes `XXL_DEFAULTS`.
+
+**The short answer.** Rule 13 changed almost nothing. No version passed screening and none came near, so by the design the stage stops
+here, with no confirmation run. No arm's reading is clearly above or below today's except for small rises in trade (about 1% with no
+disease, 2–4% in IV-A3), and distance walked is within 1.5% in every arm. Healthy traders
+already hold about 9% more than similar healthy agents who trade least, and no arm raised that. With no disease, trades per head stayed
+at 0.31, where the bar asked for twice that. What to try next is the user's call.
+
+**What was built** (on branch `xxl-trade`): Rule 13 (above); an observer that records, each period, who trades with whom by health and,
+for a window, every agent's holdings at its start and end; `julia/xxl_trade_study.jl`, which runs an arm with it; and
+`julia/xxl_trade_report.jl`, which applies the bars. With Rule 13 off and no observer, runs give the same bytes as on `main`: the pinned
+same-run digests and `XXL_V1` goldens, recorded on `main`'s code, pass unchanged.
+
+**The comparison the bar reads** (**the user's**: similar traders against similar non-traders in the same world, not the world with trade
+against the world without it, which credit showed can turn a gain into more agents rather than richer ones). Agents alive throughout a
+window and strictly healthy in it are put in cells of the same metabolisms, vision, age band and fifth of resources at the window's
+start. In each cell of at least 6, the third with the most exchanges is set against the third with the fewest, and the reading is their
+mean resources at the window's end, sugar + spice ÷ the window's mean price, pooled over cells. Matching makes this fairer, not a
+randomised test.
+
+### Part 1: who trades, and does it pay
+
+**The first run measured nothing on its main question.** The window was t = 401–500, and VI-1's agents live 60–100 periods, so almost
+none were alive at both ends: every VI-1 snapshot was empty. The report then read the missing figure as "not richer" and picked a row of
+the design's table on it. That was a bug, now fixed: a missing figure decides nothing. The user then made three decisions (all **the
+user's**):
+- the window is the last 20 periods (t = 481–500), which keeps about a third of agents;
+- the healthy-trade bar is dropped: 92% of strictly healthy agents traded with a strictly healthy partner within 10 periods (98% with
+  recovering agents counted as healthy), against a bar of 25%. The reason I gave when asking: trades are one unit at a time, so nearly
+  everyone trades a little;
+- the bars count only **strictly healthy** agents, with no disease for 10 periods. The design counted recovering agents as healthy, but
+  they were 32% of agents. The reason I gave when asking: their holdings are still skewed by the fee, so their trade is largely
+  disease-driven. The design's wider reading is shown beside each figure.
+
+**The rerun, seeds 80–99, 500 periods** (`results-julia-xxl/trade-part1b.md`):
+
+| Reading, t = 301–500 unless marked | Strictly healthy | Recovering counted as healthy |
+|---|---|---|
+| Traders ÷ similar non-traders, resources at the mean price, t = 481–500 | 1.09 [1.051, 1.133] | 1.089 [1.05, 1.133] |
+| Agents matched, 20 seeds | 331,595 (815 in cells too small) | 442,651 |
+| Healthy agents' exchanges with a partner who isn't healthy | 0.534 (random pairing 0.275) | 0.195 (random 0.084) |
+| Healthy ÷ sick median gap in log MRS to neighbours | 0.225 | 0.266 |
+| Trades per head with both healthy / with one | 0.259 / 0.612 | 1.039 / 0.531 |
+
+With no disease, trades per head are 0.308. Sick agents make 7.5 exchanges each per period, and recovering agents 3.3. The design's
+table picked "healthy trade is mostly with sick partners, and healthy MRS gaps are small": **the diagnosis holds**, go on to screening.
+Trade on against trade off moves nothing measurable: strictly healthy agents' resources 1.017 [0.976, 1.062], population 0.989, total
+resources 1.008, all straddling 1.
+
+Today already sits at 1.09 against the Richer bar of 1.10, so a version that only matched today would sit at the bar. The user changed
+the bar (**the user's**): an arm must reach 1.10 with its interval above 1, **and** at least 1.05 × today's (1.145), **and** the interval
+of its ratio ÷ today's must be above 1.
+
+### Screening
+
+VI-1 under `XXL_DEFAULTS` plus each arm, seeds 80–99, 500 periods, with the same arm in the no-disease world and in IV-A3
+(`results-julia-xxl/trade-screen.md`). The arms were the design's, all *my call*:
+
+| Arm | Expected price | Blend | Guard | Traders ÷ non-traders | ÷ today's | Trades per head, no disease | Trades per head |
+|---|---|---|---|---|---|---|---|
+| Today | — | — | — | 1.09 [1.051, 1.133] | — | 0.308 | 1.687 |
+| A | local | 1 | 5 | 1.083 [1.049, 1.122] | 0.993 [0.946, 1.043] | 0.311 | 1.728 |
+| B | own | 1 | 5 | 1.095 [1.055, 1.139] | 1.004 [0.953, 1.059] | 0.310 | 1.698 |
+| C | local | 0.5 | 5 | 1.087 [1.052, 1.125] | 0.997 [0.948, 1.048] | 0.310 | 1.586 |
+| D | local | 1 | none | 1.08 [1.044, 1.121] | 0.991 [0.942, 1.042] | 0.311 | 1.636 |
+| E | local | 1 | 15 | 1.083 [1.045, 1.125] | 0.993 [0.943, 1.047] | 0.312 | 1.504 |
+
+- **Fails, every arm:** Richer with trade (B's row alone is near), and trade without disease (0.310–0.312 against a bar of 0.617). One
+  failed bar is enough, so no arm is near and there's no further round.
+- **Passes, every arm:** sick agents still trade (7.42–7.58 per head against 7.53), the trough (means 8,485–8,555 against 8,544, lowest
+  7,768 against a floor of 7,224), X9 and X10 per seed (at least 18 of 20), X6 (1.15–1.17), and no extinction.
+- **Nothing else moved clearly.** Against today's, every ratio's interval straddles 1 except trades per head with no disease, up about 1%
+  in A, D and E, and IV-A3's trades per head, up 2–4% in A, C and D. Trades per head over all agents fell in C and E (0.94 and 0.89 of
+  today's), but their intervals are wide and straddle 1; E's mean price is 1.35 against 1.39. Distance walked is 1.19–1.21 against 1.21.
+  Population, Gini, mean sugar and mean spice are within about 2%.
+
+### What happened against my guess
+
+I guessed, before measuring, that healthy traders today would end within 5% of similar non-traders, and that Rule 13 at a local price
+with a guard would double trade with no disease and leave healthy traders at least 10% richer. Healthy traders today are already 9%
+richer, and Rule 13 changed neither figure.
+
+**Why, as I read it** (*my call*, not tested). Valuing a site at the expected price p ranks sites by sugar + spice ÷ p. To first order
+the book's welfare does the same at the agent's own MRS (its marginal rate at the agent's holdings is the MRS). Trade evens MRSs out:
+healthy neighbours' log MRSs differ by a median of 0.07. If an agent's own MRS likewise sits close to the market's p, and a site's goods
+are small next to what an agent holds so the book's diminishing returns barely bite, the two scores pick almost the same site and Rule 13
+seldom changes where an agent goes. Two things this doesn't settle: the 0.07 is between neighbours, not between an agent and p; and sick
+agents' gap is 0.29, so the argument predicts Rule 13 moves sick agents more, which screening didn't measure. A check would count how
+often a move's target differs between the two scores, on one seed. It needs a small counting script and about 7 minutes of running, and
+it hasn't been run: the user asked to hold it until they say.
+
+### What this doesn't show
+
+- All of it is on one map pair. Where sugar and spice sit decides how much specialising could pay, so this limit matters more here than
+  in earlier stages.
+- Matching traders with non-traders isn't a randomised test: who trades most may differ in ways the cells don't hold.
+- The window is 20 periods, so the comparison reads a short stretch of a life.
+- Screening ran on 20 seeds, 500 periods. An effect too small to see there isn't ruled out, but it would be too small to meet the user's bar.
+- The explanation above is untested.
+
+### Run time
+
+Same machine, 5 workers, no memory stops: the first Part 1 took 1 h 23 min, 12 of them for VI-1's xl reference, which its rerun reused;
+the rerun took 1 h 8 min, and screening 8 h 47 min. With Rule 13 on a run takes about 1.45 times as long. Screening's VI-1 runs slowed
+from arm B on (25 min for A, 43–59 for the others); when I looked at 20:47, three processes of another project, started at 19:18, were
+using about 18 of the machine's 24 threads.
+
+### My recommendation, not a decision
+
+1. **Don't adopt any version of Rule 13.** None changed anything the user asked for.
+2. **Run the check first**, if the user agrees: one seed of arm A, about 7 minutes, counting how often Rule 13 changes a move's target.
+   If it seldom does, the next design needs a stronger lever than the movement score; if it often does, the reason is elsewhere.
+3. **The next design is the user's call.** Candidates I'd consider: trades of more than one unit, so that an agent far from its partner's
+   MRS can move a lot at once; a map whose sugar and spice sit further apart, so a site's goods are less balanced; or accepting trade as
+   it is. Each is a new rule change, with its own design.
+4. **The branch keeps Rule 13 off by default**, and with it off every run is unchanged, so merging it costs nothing but code. Whether to
+   merge, keep it on its branch, or drop it is the user's call.
 
 ## Results of the first rules (`XXL_V1`)
 
