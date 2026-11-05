@@ -30,13 +30,15 @@ and the CSV's other columns may also give a whole column (t = 0 to `periods`). T
 (else `pop`) at t = 1 and `pop` after. The trade readings hold the same row every period, the pairs and gaps only at
 every tenth: `hh`, `hs`, `ss`, `pairs` and `gaps` (healthy, sick) count a recovering agent as healthy, `HH`, `HX`,
 `pairs_strict` (HH, HX) and `gap_strict` are the strictly healthy's. `agents` gives a seed's snapshot, else
-`tr_agents(ratio)`.
+`tr_agents(ratio)`. `meetings` and `meeting_sd` are numbers, or functions of the period t, for the last two trade
+columns; `old` writes the trade file as stage 5's (without them), and `code` is the fingerprint's code checksum.
 """
 function tr_folder(dir, name; n=20, periods=500, window=nothing, xxl=TR_XXL, settings="", extra="", pop=1000.0,
                    low=nothing, sick=0.08, diseases=3.0, gini=0.3, sugar=40.0, spice=30.0, trades=1000.0, price=1.0,
                    price_sd=0.2, moved=1.5, healthy=900.0, sick_n=80.0, hh=600.0, hs=300.0, ss=100.0, hh10=0.3,
                    hh10_strict=0.2, HH=500.0, HX=400.0, pairs=(800.0, 150.0, 50.0), pairs_strict=(700.0, 200.0),
-                   gaps=(0.1, 0.4), gap_strict=0.12, ratio=1.2, agents=nothing)
+                   gaps=(0.1, 0.4), gap_strict=0.12, ratio=1.2, agents=nothing, meetings=5.0, meeting_sd=0.1,
+                   old=false, code="code-a")
     folder = joinpath(dir, name)
     mkpath(folder)
     lo, hi = something(window, (max(1, periods - 19), periods))
@@ -62,10 +64,12 @@ function tr_folder(dir, name; n=20, periods=500, window=nothing, xxl=TR_XXL, set
             tenth = t % 10 == 0
             return Float64[t, each(healthy, i), 20, each(sick_n, i), h + s + x, h, s, x, 10, 70, each(hh10, i), 1.0,
                            (tenth ? y : (NaN, NaN, NaN))..., (tenth ? z : (NaN, NaN))..., each(hh10_strict, i),
-                           each(HH, i), each(HX, i), (tenth ? (g, q...) : (NaN, NaN, NaN))..., 5, 0.1]
+                           each(HH, i), each(HX, i), (tenth ? (g, q...) : (NaN, NaN, NaN))...,
+                           (old ? () : (meetings isa Function ? meetings(t) : meetings,
+                                        meeting_sd isa Function ? meeting_sd(t) : meeting_sd))...]
         end
         write(joinpath(folder, "seed$k-trade.csv"),
-              join(Sugarscape.TRADE_COLUMNS, ",") * "\n" * join((join(r, ",") * "\n" for r in rows)))
+              join(old ? Sugarscape.TRADE_COLUMNS[1:(end - 2)] : Sugarscape.TRADE_COLUMNS, ",") * "\n" * join((join(r, ",") * "\n" for r in rows)))
         a = agents === nothing ? tr_agents(each(ratio, i)) : each(agents, i)
         write(joinpath(folder, "seed$k-agents.csv"),
               join(Sugarscape.TRADE_AGENT_COLUMNS, ",") * "\n" *
@@ -630,6 +634,49 @@ const TR_NODISEASE = replace(TR_XXL, "founder_diseases=1" => "founder_diseases=0
             e.msg
         end
         @test occursin("reads its snapshot over t = 401–500, not the baseline's t = 481–500", msg)
+    end
+
+    @testset "rule 14, and stage 5's folders" begin
+        meeting = "trade_price=\"meeting\""
+        # stage 5's baseline: its trade files lack the two columns, and its code checksum is older
+        old = Sugarscape.TradeArm("today", study("today", vi1("old"; ratio=1.0, old=true, code="code-old")), base_nod,
+                                  base_iva3)
+        # the arm: meetings 4 then 6 (so 5 on average, exchanges 1000 a period), and the price sd 0.2 at odd t, 0.4 at
+        # t divisible by 4, NaN at t divisible by 4 and 3 together
+        sd(t) = t % 12 == 0 ? NaN : t % 4 == 0 ? 0.4 : t % 2 == 1 ? 0.2 : 0.3
+        m = arm("M"; settings=meeting, meetings=t -> t % 2 == 0 ? 6.0 : 4.0, meeting_sd=sd)
+        report = Sugarscape.trade_report(; label="t", base=old, arms=[m], off, xl)
+        lines = split(report, "\n")
+        arms = lines[findfirst(startswith("| Arm | Trade rule"), lines):end]
+        @test occursin("| today (baseline) | the book's |", arms[3])
+        @test occursin("| M | meeting price |", arms[4])
+        row(name) = split(lines[findfirst(startswith("| $name |"), lines)], "|")
+        @test strip(row("Units per meeting")[3]) == "—"
+        @test strip(row("Price spread across meetings")[3]) == "—"
+        # t = 301 to 500: exchanges 1000 each, meetings 6 at even t and 4 at odd: 200000 / 1000 = 200
+        @test strip(row("Units per meeting")[4]) == Sugarscape.places(200.0, 3)
+        ts = filter(t -> !isnan(sd(t)), 301:500)
+        @test strip(row("Price spread across meetings")[4]) == Sugarscape.places(sum(sd, ts) / length(ts), 3)
+        @test occursin("back-to-back meetings of one pair count as one", report)
+        # the arm folder read as a baseline, and a trade file of any other columns refused
+        again = Sugarscape.TradeArm("M", study("M", vi1("M2"; settings=meeting)), base_nod, base_iva3)
+        @test Sugarscape.trade_rules_of(again.vi1.run.fingerprint).price == "meeting"
+        @test Sugarscape.trade_rules_of(base.vi1.run.fingerprint).price === nothing
+        for (name, drop) in (("one", 1), ("three", 3))
+            f = vi1("cols-$name")
+            for k in 80:99
+                p = joinpath(f, "seed$k-trade.csv")
+                text = split(read(p, String), "\n")
+                write(p, join((join(split(l, ",")[1:(end - drop)], ",") for l in text if !isempty(l)), "\n") * "\n")
+            end
+            @test_throws ArgumentError study("cols", f)
+        end
+        f = vi1("swapped")
+        for k in 80:99
+            p = joinpath(f, "seed$k-trade.csv")
+            write(p, replace(read(p, String), "meetings,meeting_price_sd" => "meeting_price_sd,meetings"; count=1))
+        end
+        @test_throws ArgumentError study("swapped", f)
     end
 
     @testset "folders it can't read" begin

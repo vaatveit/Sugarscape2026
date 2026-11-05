@@ -75,12 +75,16 @@ struct TradeArm
     iva3::Union{Nothing,TradeRun}
 end
 
+"""The columns of a trade-readings file of stage 5, before the meeting columns: [`TRADE_COLUMNS`](@ref) without the last two."""
+const STAGE5_TRADE_COLUMNS = TRADE_COLUMNS[1:(end - 2)]
+
 """
     read_trade_run(name, folder) -> TradeRun
 
 A study folder (`run_trade_arm`'s), its whole seeds only (see [`read_list_run`](@ref)). `ArgumentError` for a folder whose
 fingerprint names no trade readings, a whole seed without its trade readings or snapshot, or a file without the columns
-the report reads.
+the report reads. A trade file may have stage 5's columns ([`STAGE5_TRADE_COLUMNS`](@ref)); the two meeting columns then
+read NaN.
 """
 function read_trade_run(name::AbstractString, folder::AbstractString)
     run = read_list_run(name, folder)
@@ -98,11 +102,15 @@ function read_trade_run(name::AbstractString, folder::AbstractString)
         (isfile(tpath) && isfile(apath)) ||
             throw(ArgumentError("seed $k of $folder has its CSV but not its trade readings and snapshot"))
         th, tm = read_seed_csv(tpath)
-        (th == TRADE_COLUMNS && tm[:, 1] == 1:(run.periods)) ||
+        (th in (TRADE_COLUMNS, STAGE5_TRADE_COLUMNS) && tm[:, 1] == 1:(run.periods)) ||
             throw(ArgumentError("$tpath isn't the trade readings of t = 1 to $(run.periods)"))
         ah, am = read_seed_csv(apath)
         ah == TRADE_AGENT_COLUMNS || throw(ArgumentError("$apath doesn't have the snapshot's columns"))
-        push!(seeds, TradeSeed(s, header, rows, Dict(c => tm[:, j] for (j, c) in enumerate(th)), am))
+        trade = Dict(c => tm[:, j] for (j, c) in enumerate(th))
+        for c in TRADE_COLUMNS
+            haskey(trade, c) || (trade[c] = fill(NaN, run.periods))  # stage 5's file lacks the meeting columns
+        end
+        push!(seeds, TradeSeed(s, header, rows, trade, am))
     end
     return TradeRun(run, window, occursin(r"^trade: off[ \t\r]*$"m, run.fingerprint), seeds)
 end
@@ -167,6 +175,19 @@ window_price(s::TradeSeed, lo, hi) = nanmean(@view s.list.price[(lo + 1):(hi + 1
 
 """The sum of trade-readings column `name` over periods `lo` to `hi`, skipping NaN."""
 trade_sum(s::TradeSeed, name, lo, hi) = sum((x for x in @view(s.trade[name][lo:hi]) if !isnan(x)); init=0.0)
+
+"""
+Units per meeting over periods `lo` to `hi`: the exchanges summed over them ÷ the meetings summed over them; NaN without
+meetings (or without the column, in a stage 5 folder). A meeting is a maximal run of consecutive exchanges of one pair, so
+back-to-back meetings of one pair count as one and this reads about 0.3% high.
+"""
+function units_per_meeting(s::TradeSeed, lo, hi)
+    meetings = trade_sum(s, "meetings", lo, hi)
+    return meetings == 0 ? NaN : trade_sum(s, "exchanges", lo, hi) / meetings
+end
+
+"""The mean over periods `lo` to `hi` of the sd of log price across a period's meetings, skipping NaN (fewer than two)."""
+meeting_spread(s::TradeSeed, lo, hi) = nanmean(@view s.trade["meeting_price_sd"][lo:hi])
 
 """The sum of trade-readings column `name` over periods `lo` to `hi` per head (the population summed over them)."""
 function per_head(s::TradeSeed, name, lo, hi)
@@ -356,23 +377,30 @@ end
 # ---- an arm's figures
 
 """
-The Rule 13 settings of a folder, from its fingerprint's `xxl` line: `move` (`nothing`, "own" or "local"), `blend` (1
-unless named) and `guard` (`nothing` unless named).
+The trade rules of a folder, from its fingerprint's `xxl` line: Rule 13's `move` (`nothing`, "own" or "local"), `blend`
+(1 unless named) and `guard` (`nothing` unless named), and Rule 14's `price` (`nothing` or "meeting").
 """
-function rule13_of(fingerprint::AbstractString)
+function trade_rules_of(fingerprint::AbstractString)
     m = match(r"^xxl (?!map )[^\n]*"m, fingerprint)
     line = m === nothing ? "" : m.match
-    move, blend, guard = (match(p, line) for p in (r"\btrade_move=\"(\w+)\"", r"\btrade_blend=([0-9.eE+-]+)",
-                                                     r"\btrade_guard=(\d+)"))
+    move, blend, guard, price = (match(p, line) for p in (r"\btrade_move=\"(\w+)\"", r"\btrade_blend=([0-9.eE+-]+)",
+                                                         r"\btrade_guard=(\d+)", r"\btrade_price=\"(\w+)\""))
     return (; move=move === nothing ? nothing : String(move.captures[1]),
             blend=blend === nothing ? 1.0 : parse(Float64, blend.captures[1]),
-            guard=guard === nothing ? nothing : parse(Int, guard.captures[1]))
+            guard=guard === nothing ? nothing : parse(Int, guard.captures[1]),
+            price=price === nothing ? nothing : String(price.captures[1]))
 end
 
-"""A rule's settings as text: `local, blend 0.5, guard 5`, or `the book's` without Rule 13."""
-function rule13_text(rule)
-    rule.move === nothing && return "the book's"
-    return "$(rule.move), blend $(fmt(rule.blend)), guard $(rule.guard === nothing ? "none" : rule.guard)"
+"""
+The rules as text: `local, blend 0.5, guard 5` for Rule 13, `meeting price` for Rule 14 (both, comma-separated, if both),
+or `the book's` with neither.
+"""
+function trade_rules_text(rule)
+    parts = String[]
+    rule.move === nothing ||
+        push!(parts, "$(rule.move), blend $(fmt(rule.blend)), guard $(rule.guard === nothing ? "none" : rule.guard)")
+    rule.price === nothing || push!(parts, "$(rule.price) price")
+    return isempty(parts) ? "the book's" : join(parts, "; ")
 end
 
 """`run` with only the seeds that never went extinct, for [`list_readings`](@ref)."""
@@ -441,7 +469,7 @@ function arm_figures(a::TradeArm, xl)
     gap(name) = nanmean(per(s -> mrs_gap(s, name, lo, hi)))
     gap_t, gap_h, gap_s = gap("gap_strict"), gap("gap_healthy"), gap("gap_sick")
     return (;
-        name=a.name, n=length(r.seeds), live=length(ss), rule=rule13_of(r.run.fingerprint),
+        name=a.name, n=length(r.seeds), live=length(ss), rule=trade_rules_of(r.run.fingerprint),
         finished=all(x -> x === nothing || finished(x.run), (r, a.nodisease, a.iva3)),
         matched, matched_raw=matched_over_seeds(r; value=:raw, strict=true),
         matched_welfare=matched_over_seeds(r; value=:welfare, strict=true), matched_wide=matched_over_seeds(r),
@@ -463,6 +491,8 @@ function arm_figures(a::TradeArm, xl)
         lows, trough=mean_of(lows), lowest=minimum(lows), trough_t=mean_of(Float64[screen_lowest_t(s.list) for s in r.seeds]),
         births_100=reads.births_100, population=reads.population, spread=reads.spread, gini=reads.gini,
         sugar=reads.sugar, spice=nanmean(per_seed.spice), price=reads.price, x6, walked=nanmean(per_seed.walked),
+        units_per_meeting=nanmean(per(s -> units_per_meeting(s, lo, hi))),
+        meeting_spread=nanmean(per(s -> meeting_spread(s, lo, hi))),
         x9=count(s -> s.list.circulating[X9_T + 1] > 0, r.seeds), x10=count(s -> in_band(screen_sick(s.list)), r.seeds),
         extinct=count(is_extinct, r.seeds),
         per_seed,
@@ -836,6 +866,8 @@ function readings_lines(figs)
         ("Mean sugar / mean spice", f -> "$(places(f.sugar, 2)) / $(places(f.spice, 2))"),
         ("Mean price / X6", f -> slashed([f.price, f.x6])),
         ("Distance walked per agent per period", f -> places(f.walked, 3)),
+        ("Units per meeting", f -> places(f.units_per_meeting, 3)),
+        ("Price spread across meetings", f -> places(f.meeting_spread, 3)),
         ("X9 / X10 per seed / extinct", f -> "$(f.x9) / $(f.x10) / $(f.extinct) of $(f.n)"),
     ]
     lines = [row_text(["Reading"; [f.name for f in figs]]), "|" * "---|"^(length(figs) + 1)]
@@ -852,7 +884,11 @@ function readings_text(a::TradeArm)
     return "Over the seeds that never went extinct, from VI-1 over $(period_text(READ_WINDOW...)) unless the row says " *
            "otherwise; the trough, X9, X10 and extinction over every seed, the trough over t ≤ $SCREEN_END. The " *
            "no-disease world is read over the same periods.$iva3 X6 is the mean over seeds of the end price sd (the " *
-           "last $END_PERIODS periods) ÷ the same for xl. "
+           "last $END_PERIODS periods) ÷ the same for xl. Units per meeting is the exchanges ÷ the meetings summed over " *
+           "$(period_text(READ_WINDOW...)), and the price spread across meetings the mean over those periods of the sd of " *
+           "the log of the meetings' prices, a period with fewer than two meetings left out; both read — in a run " *
+           "without the meeting columns (stage 5's folders). A meeting is a maximal run of consecutive same-pair " *
+           "exchanges, so back-to-back meetings of one pair count as one and units per meeting reads about 0.3% high. "
 end
 
 const RATIO_MEASURES_TRADE = (("Trades per head", :tph), ("Sick agents' trades per head", :sick_tph),
@@ -1158,9 +1194,9 @@ function screen_report(label, base::TradeArm, arms::Vector{TradeArm}, off::Trade
         rise > GINI_NOTE && push!(lines, "**Gini rises by $(fmt(rise)) in $(f.name) ($(places(bf.gini, 3)) today, " *
                                          "$(places(f.gini, 3))): more than $(fmt(GINI_NOTE)).**", "")
     end
-    push!(lines, "## Arms", "", row_text(["Arm", "Rule 13", "VI-1", "No disease", "IV-A3"]), "|---|---|---|---|---|")
+    push!(lines, "## Arms", "", row_text(["Arm", "Trade rule", "VI-1", "No disease", "IV-A3"]), "|---|---|---|---|---|")
     for (a, f) in zip([base; arms], [bf; figs])
-        push!(lines, row_text([a === base ? "$(a.name) (baseline)" : a.name, rule13_text(f.rule),
+        push!(lines, row_text([a === base ? "$(a.name) (baseline)" : a.name, trade_rules_text(f.rule),
                                ("$(r.run.folder) ($(length(r.seeds)) of $(r.run.planned))"
                                 for r in (a.vi1, a.nodisease, a.iva3))...]))
     end
