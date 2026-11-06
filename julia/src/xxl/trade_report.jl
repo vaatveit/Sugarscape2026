@@ -75,8 +75,8 @@ struct TradeArm
     iva3::Union{Nothing,TradeRun}
 end
 
-"""The columns of a trade-readings file of stage 5, before the meeting columns: [`TRADE_COLUMNS`](@ref) without the last two."""
-const STAGE5_TRADE_COLUMNS = TRADE_COLUMNS[1:(end - 2)]
+"""The columns of a trade-readings file of stage 5, before the meeting columns: [`STAGE5B_TRADE_COLUMNS`](@ref) without the last two."""
+const STAGE5_TRADE_COLUMNS = STAGE5B_TRADE_COLUMNS[1:(end - 2)]
 
 """
     read_trade_run(name, folder) -> TradeRun

@@ -66,11 +66,13 @@ function tr_folder(dir, name; n=20, periods=500, window=nothing, xxl=TR_XXL, set
                            (tenth ? y : (NaN, NaN, NaN))..., (tenth ? z : (NaN, NaN))..., each(hh10_strict, i),
                            each(HH, i), each(HX, i), (tenth ? (g, q...) : (NaN, NaN, NaN))...,
                            (old ? () : (meetings isa Function ? meetings(t) : meetings,
-                                        meeting_sd isa Function ? meeting_sd(t) : meeting_sd))...]
+                                        meeting_sd isa Function ? meeting_sd(t) : meeting_sd,
+                                        0.0, 0.0, 0.0, 0.0, 0.0))...]  # the goods moved (stage 5c), unread here
         end
         write(joinpath(folder, "seed$k-trade.csv"),
-              join(old ? Sugarscape.TRADE_COLUMNS[1:(end - 2)] : Sugarscape.TRADE_COLUMNS, ",") * "\n" * join((join(r, ",") * "\n" for r in rows)))
+              join(old ? Sugarscape.STAGE5_TRADE_COLUMNS : Sugarscape.TRADE_COLUMNS, ",") * "\n" * join((join(r, ",") * "\n" for r in rows)))
         a = agents === nothing ? tr_agents(each(ratio, i)) : each(agents, i)
+        size(a, 2) == 13 && (a = hcat(a, zeros(size(a, 1))))  # the snapshot's sugar_moved_window (stage 5c), unread here
         write(joinpath(folder, "seed$k-agents.csv"),
               join(Sugarscape.TRADE_AGENT_COLUMNS, ",") * "\n" *
               join((join(a[r, :], ",") * "\n" for r in axes(a, 1))))

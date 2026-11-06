@@ -11,12 +11,14 @@ const TR_HEADER = [
     "exchanges_recovering", "sick_traders", "healthy_healthy_10", "walked",
     "pairs_hh", "pairs_hs", "pairs_ss", "gap_healthy", "gap_sick", "healthy_healthy_10_strict",
     "exchanges_HH", "exchanges_HX", "gap_strict", "pairs_HH", "pairs_HX", "meetings", "meeting_price_sd",
+    "sugar_moved", "sugar_hh", "sugar_hs", "sugar_ss", "spice_moved",
 ]
 # The columns read only every tenth period, NaN otherwise.
 const TR_TENTH = ("pairs_hh", "pairs_hs", "pairs_ss", "gap_healthy", "gap_sick", "gap_strict", "pairs_HH", "pairs_HX")
 const TR_AGENT_HEADER = [
     "id", "metabolism", "spice_metabolism", "vision", "age_start", "sugar_start", "spice_start", "sugar_end",
     "spice_end", "exchanges", "exchanges_healthy_partner", "recovering_start", "recovering_in_window",
+    "sugar_moved_window",
 ]
 
 # A 5 x 5 market with no sugar; `trader` puts an agent that trades with a partner of the opposite holdings.
@@ -44,9 +46,10 @@ agent_val(row, name) = row[findfirst(==(name), TR_AGENT_HEADER)]
 # VI-1 under the xxl defaults with Rule 13 on (local price, guard 5), shrunk to 50 x 50 and 200 agents: the xl landscape
 # gives way to the book map, and the vision (6, 10) keeps the speed (1, 6) valid. Disc vision, speed, memory, a radius of
 # 1.5 and the generated founders' disease list are all in play, so agents walk and the neighbours are not von Neumann.
-function tr_config(; trade_price=nothing)
+function tr_config(; trade_price=nothing, trade_step=1.0)
     vi1 = find_experiment(TR_REG, "VI-1")
-    rules = replace_rules(XXL_DEFAULTS; landscape="xl", trade_move="local", trade_guard=5, trade_price=trade_price)
+    rules = replace_rules(XXL_DEFAULTS; landscape="xl", trade_move="local", trade_guard=5, trade_price=trade_price,
+        trade_step=trade_step)
     return replace_config(
         to_xxl(vi1.config, rules);
         width=50, height=50, initial_population=200, vision=(6, 10), look_stride=1, sugar_map="sugar-map.txt",
@@ -248,6 +251,59 @@ end
         @test agent_val(by_id[a.id], "sugar_start") == 5.0 && agent_val(by_id[a.id], "sugar_end") == a.sugar != 5.0
     end
 
+    @testset "goods moved: sugar by pair type, spice, and per agent" begin
+        m = tr_market()
+        a, b = tr_trader(m, 0, 0; sugar=5.0, spice=8.0), tr_trader(m, 0, 1; sugar=15.0, spice=2.0)
+        c, d = tr_trader(m, 2, 0; sugar=5.0, spice=8.0), tr_trader(m, 2, 1; sugar=15.0, spice=2.0, sick=true)
+        e, f = tr_trader(m, 4, 0; sugar=5.0, spice=8.0, sick=true), tr_trader(m, 4, 1; sugar=15.0, spice=2.0, sick=true)
+        h = tr_trader(m, 4, 3; sugar=5.0, spice=8.0)  # never trades
+        ex(sugar, spice, x, y) = Exchange(1.0, sugar, spice, x, y)
+        r = TradeReadings(; window=(2, 3))
+        tr_period!(r, m, 1)
+        row = tr_period!(r, m, 2, () -> append!(m.trade_log,
+            [ex(0.1, 0.2, a, b), ex(0.3, 0.5, a, b), ex(1.0, 2.0, c, d), ex(2.0, 4.0, e, f)]))
+        @test val(row, "sugar_hh") ≈ 0.4 && val(row, "sugar_hs") == 1.0 && val(row, "sugar_ss") == 2.0
+        @test val(row, "sugar_moved") ≈ 3.4 && val(row, "spice_moved") ≈ 6.7
+        row = tr_period!(r, m, 3, () -> append!(m.trade_log, [ex(0.25, 0.5, a, d)]))
+        @test val(row, "sugar_moved") == 0.25 && val(row, "sugar_hh") == 0 && val(row, "sugar_hs") == 0.25
+        row = tr_period!(r, m, 4)
+        @test val(row, "sugar_moved") == 0 && val(row, "spice_moved") == 0
+        # the snapshot: d, e and f were sick in the window, so are not kept
+        by_id = Dict(Int(row[1]) => row for row in agent_rows(r)[2])
+        @test agent_val(by_id[b.id], "sugar_moved_window") ≈ 0.4
+        @test agent_val(by_id[h.id], "sugar_moved_window") == 0
+        @test !haskey(by_id, e.id) && !haskey(by_id, d.id)
+    end
+
+    @testset "on a VI-1 run: sugar moved is the seed CSV's sugar_traded, and the snapshot sums its exchanges" begin
+        for step_size in (1.0, 0.1)
+            m = Model(tr_config(; trade_step=step_size))
+            r = TradeReadings(; window=(6, 12))
+            trade_period!(r, m)
+            moved = Dict{Int,Float64}()
+            for _ in 1:12
+                step!(m)
+                trade_period!(r, m)
+                row = r.rows[end]
+                @test val(row, "sugar_moved") ≈ sum((e.sugar for e in m.trade_log); init=0.0)
+                @test val(row, "sugar_moved") ≈ val(row, "sugar_hh") + val(row, "sugar_hs") + val(row, "sugar_ss")
+                @test val(row, "spice_moved") ≈ sum((e.spice for e in m.trade_log); init=0.0)
+                if 6 <= m.t <= 12
+                    for e in m.trade_log, x in (e.a, e.b)
+                        moved[x.id] = get(moved, x.id, 0.0) + e.sugar
+                    end
+                end
+            end
+            @test sum(row -> val(row, "sugar_moved"), r.rows) > 0
+            _, rows = agent_rows(r)
+            @test !isempty(rows)
+            for row in rows
+                @test agent_val(row, "sugar_moved_window") ≈ get(moved, Int(row[1]), 0.0)
+            end
+            @test any(row -> agent_val(row, "sugar_moved_window") > 0, rows)
+        end
+    end
+
     @testset "on a VI-1 run: every row adds up" begin
         m, r, log, start_sick = tr_run(30)
         header, rows = trade_rows(r)
@@ -298,7 +354,7 @@ end
     @testset "on a VI-1 run: the snapshot is who was alive with no disease throughout" begin
         m, r, log = tr_run(30)
         header, rows = agent_rows(r)
-        @test header == TR_AGENT_HEADER && !isempty(rows) && all(row -> length(row) == 13, rows)
+        @test header == TR_AGENT_HEADER && !isempty(rows) && all(row -> length(row) == 14, rows)
         ids = [Int(row[1]) for row in rows]
         @test issorted(ids) && allunique(ids)
         at(t) = log[t]

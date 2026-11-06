@@ -18,7 +18,10 @@
 # meetings (stage 5b): `bargain!` runs a pair's whole meeting before the next pair's, so a meeting is a maximal run of
 # consecutive exchanges in `m.trade_log` between the same two agents (the same pair can meet again later in the period,
 # on the other agent's turn: a new meeting). `meetings` counts them; `meeting_price_sd` is the population sd of the log
-# of their prices, each taken from its first exchange (NaN with fewer than two meetings).
+# of their prices, each taken from its first exchange (NaN with fewer than two meetings). The last five read the goods
+# moved (stage 5c, where the trade step makes an exchange a fraction of a unit): `sugar_moved`, and the same by pair type
+# as `exchanges_hh/hs/ss` (`sugar_hh`, `sugar_hs`, `sugar_ss`), and `spice_moved`; the snapshot's `sugar_moved_window` is
+# the sugar an agent bought or sold in the window's exchanges. `sugar_moved` is the seed CSV's `sugar_traded`.
 
 """How many periods after its last disease an agent still counts as recovering."""
 const RECOVERING_PERIODS = 10
@@ -34,8 +37,8 @@ const NEIGHBOUR_EVERY = 10
 
 const HEALTHY, RECOVERING, SICK = 0, 1, 2
 
-"The columns of a per-period row, `trade_rows`."
-const TRADE_COLUMNS = [
+"The columns of a per-period row of stage 5b (before the goods moved), as the report tells folder formats apart."
+const STAGE5B_TRADE_COLUMNS = [
     "t",
     "healthy",
     "recovering",
@@ -63,8 +66,14 @@ const TRADE_COLUMNS = [
     "meeting_price_sd",
 ]
 
-"The columns of an agent's snapshot row, `agent_rows`."
-const TRADE_AGENT_COLUMNS = [
+"""
+The columns of a per-period row, `trade_rows`: stage 5b's, then the goods moved (stage 5c): the sugar moved in the
+period's exchanges, in all and by pair type (recovering counted as healthy, as `exchanges_hh`, `_hs`, `_ss`), and the spice.
+"""
+const TRADE_COLUMNS = [STAGE5B_TRADE_COLUMNS; ["sugar_moved", "sugar_hh", "sugar_hs", "sugar_ss", "spice_moved"]]
+
+"The columns of an agent's snapshot row of stage 5b (before `sugar_moved_window`)."
+const STAGE5B_AGENT_COLUMNS = [
     "id",
     "metabolism",
     "spice_metabolism",
@@ -81,8 +90,14 @@ const TRADE_AGENT_COLUMNS = [
 ]
 
 """
+The columns of an agent's snapshot row, `agent_rows`: stage 5b's, then the sugar the agent moved (bought or sold) in the
+window's exchanges.
+"""
+const TRADE_AGENT_COLUMNS = [STAGE5B_AGENT_COLUMNS; ["sugar_moved_window"]]
+
+"""
 An agent of the snapshot as it stood at the end of the period before the window, and since then its exchanges, those
-with a partner with no active disease, and whether it was recovering at the end of any period of the window.
+with a partner with no active disease, and whether it was recovering at the end of any period of the window, and the sugar it moved in them.
 """
 mutable struct WindowAgent
     metabolism::Float64
@@ -95,6 +110,7 @@ mutable struct WindowAgent
     exchanges::Int
     healthy_partner::Int
     recovering_in_window::Bool
+    sugar_moved::Float64
 end
 
 """
@@ -190,18 +206,24 @@ function trade_period!(r::TradeReadings, m::Model)
     end
 
     hh = hs = ss = with_recovering = strict_both = strict_one = 0
+    sugar_hh = sugar_hs = sugar_ss = sugar_all = spice_all = 0.0
     empty!(r.sick_seen)
     for e in m.trade_log
         ha, hb = health(r, e.a, t), health(r, e.b, t)
         sa, sb = ha == SICK, hb == SICK
         sa && push!(r.sick_seen, e.a.id)
         sb && push!(r.sick_seen, e.b.id)
+        sugar_all += e.sugar
+        spice_all += e.spice
         if sa && sb
             ss += 1
+            sugar_ss += e.sugar
         elseif sa || sb
             hs += 1
+            sugar_hs += e.sugar
         else
             hh += 1
+            sugar_hh += e.sugar
             r.well_partner[e.a.id] = t
             r.well_partner[e.b.id] = t
         end
@@ -214,8 +236,8 @@ function trade_period!(r::TradeReadings, m::Model)
             strict_one += 1
         end
         if in_window
-            count_exchange!(r, e.a, !sb)
-            count_exchange!(r, e.b, !sa)
+            count_exchange!(r, e.a, !sb, e.sugar)
+            count_exchange!(r, e.b, !sa, e.sugar)
         end
     end
 
@@ -254,6 +276,7 @@ function trade_period!(r::TradeReadings, m::Model)
         NaN, NaN, NaN,
         meetings,
         meeting_sd,
+        sugar_all, sugar_hh, sugar_hs, sugar_ss, spice_all,
     ]
     t % NEIGHBOUR_EVERY == 0 && read_neighbours!(row, r, m, t)
     push!(r.rows, row)
@@ -283,11 +306,12 @@ function meeting_readings(exchanges::Vector{Exchange})
     return n, sqrt(sum(x -> (x - mean)^2, prices) / n)
 end
 
-function count_exchange!(r::TradeReadings, a::Agent, partner_healthy::Bool)
+function count_exchange!(r::TradeReadings, a::Agent, partner_healthy::Bool, sugar::Float64)
     w = get(r.candidates, a.id, nothing)
     w === nothing && return nothing
     w.exchanges += 1
     partner_healthy && (w.healthy_partner += 1)
+    w.sugar_moved += sugar
     return nothing
 end
 
@@ -301,7 +325,7 @@ function keep_start!(r::TradeReadings, m::Model)
     for a in m.agents
         r.candidates[a.id] = WindowAgent(
             a.metabolism, a.spice_metabolism, a.vision, a.age, a.sugar, a.spice, health(r, a, t) == RECOVERING, 0, 0,
-            false,
+            false, 0.0,
         )
     end
     return nothing
@@ -318,6 +342,7 @@ function finish_snapshot!(r::TradeReadings, m::Model)
             Float64[
                 a.id, w.metabolism, w.spice_metabolism, w.vision, w.age, w.sugar, w.spice, a.sugar, a.spice,
                 w.exchanges, w.healthy_partner, w.recovering_start, w.recovering_in_window,
+                w.sugar_moved,
             ],
         )
     end
