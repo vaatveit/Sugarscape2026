@@ -8,7 +8,7 @@ const TR_XXL = "xxl vision_shape=\"disc\" speed=(1, 6) travel_cost=0.2 free_step
 const TR_CONFIG = "Config(width=500, spice=True, trade=True, credit=(10, 10.0), disease_list=25, diseases_per_agent=10, " *
                   "disease_length=(1, 10), immune_length=50, seed=0)"
 const TR_SEED_COLUMNS = "t,population,agents_ever,fraction_sick,diseases_circulating,gini,mean_sugar,mean_spice,trades," *
-                        "mean_price,price_sd,mean_moved"
+                        "mean_price,price_sd,mean_moved,sugar_traded,spice_traded"
 
 """
 An agent snapshot of one matched cell of 6 (all starting with 10 sugar and 10 spice): the two with fewest exchanges end
@@ -30,15 +30,20 @@ and the CSV's other columns may also give a whole column (t = 0 to `periods`). T
 (else `pop`) at t = 1 and `pop` after. The trade readings hold the same row every period, the pairs and gaps only at
 every tenth: `hh`, `hs`, `ss`, `pairs` and `gaps` (healthy, sick) count a recovering agent as healthy, `HH`, `HX`,
 `pairs_strict` (HH, HX) and `gap_strict` are the strictly healthy's. `agents` gives a seed's snapshot, else
-`tr_agents(ratio)`. `meetings` and `meeting_sd` are numbers, or functions of the period t, for the last two trade
-columns; `old` writes the trade file as stage 5's (without them), and `code` is the fingerprint's code checksum.
+`tr_agents(ratio)`. `meetings` and `meeting_sd` are numbers, or functions of the period t, for stage 5b's two trade
+columns. The goods moved (stage 5c): the CSV's `sugar_traded` and `spice_traded` are `trades` unless given;
+`sugar_pairs` (hh, hs, ss) the trade file's sugar by pair, `hh`, `hs`, `ss` unless given, their sum its `sugar_moved`
+and its `spice_moved`; a snapshot of 13 columns gains `sugar_moved_window` equal to its exchanges. `format` writes the
+trade file and snapshot as `:stage5`'s (without the meeting and goods columns), `:stage5b`'s (without the goods) or
+`:current`; `old` is `:stage5`. `code` is the fingerprint's code checksum.
 """
 function tr_folder(dir, name; n=20, periods=500, window=nothing, xxl=TR_XXL, settings="", extra="", pop=1000.0,
                    low=nothing, sick=0.08, diseases=3.0, gini=0.3, sugar=40.0, spice=30.0, trades=1000.0, price=1.0,
                    price_sd=0.2, moved=1.5, healthy=900.0, sick_n=80.0, hh=600.0, hs=300.0, ss=100.0, hh10=0.3,
                    hh10_strict=0.2, HH=500.0, HX=400.0, pairs=(800.0, 150.0, 50.0), pairs_strict=(700.0, 200.0),
                    gaps=(0.1, 0.4), gap_strict=0.12, ratio=1.2, agents=nothing, meetings=5.0, meeting_sd=0.1,
-                   old=false, code="code-a")
+                   sugar_traded=nothing, spice_traded=nothing, sugar_pairs=nothing, old=false,
+                   format=old ? :stage5 : :current, code="code-a")
     folder = joinpath(dir, name)
     mkpath(folder)
     lo, hi = something(window, (max(1, periods - 19), periods))
@@ -55,26 +60,31 @@ function tr_folder(dir, name; n=20, periods=500, window=nothing, xxl=TR_XXL, set
         population = p isa AbstractVector ? Float64.(p) :
                      vcat(2000.0, Float64(something(each(low, i), p)), fill(Float64(p), periods - 1))
         cols = [population, 100.0 .+ (0:periods), (column(each(x, i)) for x in (sick, diseases, gini, sugar, spice, trades,
-                                                                                price, price_sd, moved))...]
+                                                                                price, price_sd, moved,
+                                                                                something(sugar_traded, trades),
+                                                                                something(spice_traded, trades)))...]
         write(joinpath(folder, "seed$k.csv"),
               TR_SEED_COLUMNS * "\n" * join(("$(t - 1)," * join((c[t] for c in cols), ",") * "\n" for t in 1:(periods + 1))))
         h, s, x, y, z = each(hh, i), each(hs, i), each(ss, i), each(pairs, i), each(gaps, i)
         g, q = each(gap_strict, i), each(pairs_strict, i)
+        goods = Float64.(something(each(sugar_pairs, i), (h, s, x)))
         rows = map(1:periods) do t
             tenth = t % 10 == 0
             return Float64[t, each(healthy, i), 20, each(sick_n, i), h + s + x, h, s, x, 10, 70, each(hh10, i), 1.0,
                            (tenth ? y : (NaN, NaN, NaN))..., (tenth ? z : (NaN, NaN))..., each(hh10_strict, i),
                            each(HH, i), each(HX, i), (tenth ? (g, q...) : (NaN, NaN, NaN))...,
-                           (old ? () : (meetings isa Function ? meetings(t) : meetings,
-                                        meeting_sd isa Function ? meeting_sd(t) : meeting_sd,
-                                        0.0, 0.0, 0.0, 0.0, 0.0))...]  # the goods moved (stage 5c), unread here
+                           (format == :stage5 ? () : (meetings isa Function ? meetings(t) : meetings,
+                                                      meeting_sd isa Function ? meeting_sd(t) : meeting_sd))...,
+                           (format == :current ? (sum(goods), goods..., sum(goods)) : ())...]
         end
-        write(joinpath(folder, "seed$k-trade.csv"),
-              join(old ? Sugarscape.STAGE5_TRADE_COLUMNS : Sugarscape.TRADE_COLUMNS, ",") * "\n" * join((join(r, ",") * "\n" for r in rows)))
+        header = format == :stage5 ? Sugarscape.STAGE5_TRADE_COLUMNS :
+                 format == :stage5b ? Sugarscape.STAGE5B_TRADE_COLUMNS : Sugarscape.TRADE_COLUMNS
+        write(joinpath(folder, "seed$k-trade.csv"), join(header, ",") * "\n" * join((join(r, ",") * "\n" for r in rows)))
         a = agents === nothing ? tr_agents(each(ratio, i)) : each(agents, i)
-        size(a, 2) == 13 && (a = hcat(a, zeros(size(a, 1))))  # the snapshot's sugar_moved_window (stage 5c), unread here
+        size(a, 2) == 13 && (a = hcat(a, a[:, 10]))  # the snapshot's sugar_moved_window (stage 5c): its exchanges
+        format == :current || (a = a[:, 1:13])
         write(joinpath(folder, "seed$k-agents.csv"),
-              join(Sugarscape.TRADE_AGENT_COLUMNS, ",") * "\n" *
+              join(format == :current ? Sugarscape.TRADE_AGENT_COLUMNS : Sugarscape.STAGE5B_AGENT_COLUMNS, ",") * "\n" *
               join((join(a[r, :], ",") * "\n" for r in axes(a, 1))))
     end
     return folder
@@ -106,7 +116,7 @@ const TR_NODISEASE = replace(TR_XXL, "founder_diseases=1" => "founder_diseases=0
     nod(name; kw...) = tr_folder(dir, "trade-$name-nodisease-VI-1-s80-20-p500"; xxl=TR_NODISEASE, kw...)
     iva3(name; kw...) = tr_folder(dir, "trade-$name-IV-A3-s80-20-p300"; periods=300, kw...)
     study(name, folder) = Sugarscape.read_trade_run(name, folder)
-    base_nod, arm_nod = study("today", nod("today"; trades=500.0)), study("A", nod("A"))  # 0.5 and 1.0 trades per head
+    base_nod, arm_nod = study("today", nod("today"; trades=500.0)), study("A", nod("A"))  # 0.5 and 1.0 sugar moved per head
     base_iva3 = study("today", iva3("today"))
     base = Sugarscape.TradeArm("today", study("today", vi1("today"; ratio=1.0)), base_nod, base_iva3)  # today's matched ratio is 1
     off = study("today-off", vi1("today-off"; extra="trade: off", ratio=1.0, price=NaN))
@@ -338,10 +348,11 @@ const TR_NODISEASE = replace(TR_XXL, "founder_diseases=1" => "founder_diseases=0
         @test occursin("No arm passes. No arm is near.", far) && occursin("Stop.", far) && occursin("No confirmation run", far)
         # with the healthy-trade bar dropped, little healthy trade doesn't stop an arm
         @test occursin("Chosen: quiet.", screen([arm("quiet"; hh10=0.01, hh10_strict=0.01)]))
-        # trades that rise without healthy agents getting richer are said plainly
+        # trade that rises without healthy agents getting richer is said plainly: sugar moved, not exchanges counted
         busy = screen([arm("busy"; ratio=1.0, trades=1500.0)])
-        @test occursin("busy: trades per head rise", busy) && occursin("more trade isn't the goal", busy)
-        @test !occursin("trades per head rise", screen([arm("A")]))
+        @test occursin("busy: sugar moved per head rises", busy) && occursin("more trade isn't the goal", busy)
+        @test !occursin("per head rises", screen([arm("A")]))
+        @test !occursin("per head rises", screen([arm("steps"; ratio=1.0, trades=1500.0, sugar_traded=1000.0)]))
         # a rise in Gini beyond 0.03 is said up front; 0.03 itself is not
         up = screen([arm("up"; gini=0.34), arm("edge"; gini=0.33)])
         @test occursin("**Gini rises by 0.04 in up", up) && !occursin("in edge", up)
@@ -679,6 +690,119 @@ const TR_NODISEASE = replace(TR_XXL, "founder_diseases=1" => "founder_diseases=0
             write(p, replace(read(p, String), "meetings,meeting_price_sd" => "meeting_price_sd,meetings"; count=1))
         end
         @test_throws ArgumentError study("swapped", f)
+    end
+
+    @testset "rule 15: the report reads goods moved" begin
+        step, both = "trade_step=0.1", "trade_price=\"meeting\" trade_step=0.1"
+        # the baseline as screening mixes it: VI-1 a new run of today's rule (the goods columns and sugar_moved_window),
+        # its no-disease and IV-A3 folders stage 5's. With no disease today moves 400 sugar a period among 1,000 agents in
+        # 500 exchanges, 0.4 a head; in VI-1 sick agents move (300 + 2·100) ÷ 80 = 6.25 sugar each
+        g_nod = study("today", nod("g-today"; trades=500.0, sugar_traded=400.0, old=true))
+        g_iva3 = study("today", iva3("g-today"; old=true))
+        g_base = Sugarscape.TradeArm("today", study("today", vi1("g-today"; ratio=1.0, sugar_pairs=(600.0, 300.0, 100.0))),
+                                     g_nod, g_iva3)
+        # an arm of tenth steps: ten times today's exchanges for the same sugar in VI-1; with no disease 800 sugar a
+        # period (×2 today's) in 5,000 exchanges
+        g(name; settings=step, nd=(;), kw...) = Sugarscape.TradeArm(name,
+            study(name, vi1("g-$name"; settings, trades=10000.0, sugar_traded=1000.0, spice_traded=900.0, hh=6000.0,
+                            hs=3000.0, ss=1000.0, sugar_pairs=(600.0, 300.0, 100.0), kw...)),
+            study(name, nod("g-$name"; settings, trades=5000.0, sugar_traded=800.0, nd...)), g_iva3)
+        gscreen(arms; base=g_base) = Sugarscape.trade_report(; label="g", base, arms, off, xl)
+        cells(report, name) = (ls = split(report, "\n");
+                               strip.(split(ls[findfirst(startswith("| $name |"), ls)], "|")[3:(end - 1)]))
+        p(x) = Sugarscape.places(x, 3)
+        arms = [g("S"), g("SM"; settings=both), g("nd-ex"; nd=(; sugar_traded=600.0)),
+                g("nd-near"; nd=(; sugar_traded=780.0)), g("sick-ex"; sugar_pairs=(600.0, 100.0, 50.0)),
+                g("sick-edge"; sugar_pairs=(600.0, 150.0, 50.0)), g("sick-near"; sugar_pairs=(600.0, 140.0, 50.0))]
+        r = gscreen(arms)
+        # without disease: sugar moved per head, 0.8 against ×2 today's 0.4; its 5 exchanges a head would pass ten times over
+        @test tr_result(r, "S", "Without disease") == "pass"
+        @test tr_result(r, "nd-near", "Without disease") == "near"  # 0.78, within 5% of 0.8
+        @test tr_result(r, "nd-ex", "Without disease") == "fail"    # 0.6, though its exchanges are 10 × today's
+        @test occursin("at least ×2 today's 0.4 = 0.8", r)
+        # sick agents: (sugar_hs + 2·sugar_ss) ÷ sick against ×0.5 today's 6.25 = 3.125, whatever the exchanges
+        @test tr_result(r, "S", "Sick agents still trade") == "pass"
+        @test tr_result(r, "sick-edge", "Sick agents still trade") == "pass"  # 250 ÷ 80 = 3.125
+        @test tr_result(r, "sick-near", "Sick agents still trade") == "near"  # 3, within 5%
+        @test tr_result(r, "sick-ex", "Sick agents still trade") == "fail"    # 2.5, though its exchanges are 10 × today's
+        @test occursin("at least ×0.5 today's 6.25 = 3.125", r)
+        @test tr_result(r, "S", "Richer with trade") == "pass" && occursin("Chosen: S.", r)
+        # the arms table names Rule 15, alone and with Rule 14
+        @test occursin("| today (baseline) | the book's |", r)
+        @test occursin("| S | step 0.1 |", r) && occursin("| SM | meeting price; step 0.1 |", r)
+        @test Sugarscape.trade_rules_of(arms[1].vi1.run.fingerprint).step == 0.1
+        @test Sugarscape.trade_rules_of(g_base.vi1.run.fingerprint).step == 1.0
+        # the readings: goods by pair, spice beside sugar, exchanges shown, sugar per meeting, and the ranking each used
+        @test cells(r, "Traders ranked by")[1:2] == ["sugar moved", "sugar moved"]
+        @test cells(r, "Sugar moved per head / spice moved per head")[1:2] == ["$(p(1.0)) / $(p(1.0))", "$(p(1.0)) / $(p(0.9))"]
+        @test cells(r, "Sugar moved per head: hh / hs / ss")[1:2] == fill(join(p.((0.6, 0.3, 0.1)), " / "), 2)
+        @test cells(r, "Exchanges per head (shown, deciding nothing)")[1:2] == [p(1.0), p(10.0)]
+        @test cells(r, "Sugar per meeting")[1:2] == [p(200.0), p(200.0)]  # 1,000 sugar in 5 meetings a period
+        @test cells(r, "Sick agents' sugar moved per head (the bar) / exchanges per head")[1:2] ==
+              [join(p.((6.25, 6.25)), " / "), join(p.((6.25, 62.5)), " / ")]
+        @test cells(r, "No disease, per head: sugar moved / spice moved / exchanges / exchanges hh")[1] ==
+              join(p.((0.4, 0.5, 0.5, 0.6)), " / ")
+        @test occursin("| S | Prices: X6 | 1 | at most 1.5; price_sd weights each exchange equally", r)
+        @test occursin("X6 is weighted by exchanges", r)
+        @test occursin("| S | Sugar moved per head, no disease | 2 |", r)
+        @test occursin("the third who moved the most sugar in the window", r)
+        # traders are ranked by sugar moved: here in the reverse order of their exchanges, so the two with most
+        # exchanges, ending with 12, are the non-traders and the ratio is 10 ÷ 12, not 1.2
+        rank = g("rank"; agents=hcat(tr_agents(1.2), Float64[5, 4, 3, 2, 1, 0]))
+        @test Sugarscape.arm_figures(rank, xl).matched.ratio ≈ 10 / 12
+        @test tr_result(gscreen([rank]), "rank", "Richer with trade") == "fail"
+        # an agent who moved no sugar ranks last in its cell, however many exchanges it had: of six (exchanges 0, 1, 2,
+        # 3, 4, 9; sugar moved 1, 2, 3, 4, 5, 0) the last, ending with 40, and the first are the non-traders, the 4th and
+        # 5th (20 each) the traders: 20 ÷ 25. Ranked by exchanges it would be (20 + 40) ÷ 2 against 10
+        cell(i, ex, sugar_end, moved) = Float64[i, 2, 2, 3, 20, 10, 10, sugar_end, 0, ex, 0, 0, 0, moved]
+        six = permutedims(hcat(cell(1, 0, 10, 1), cell(2, 1, 10, 2), cell(3, 2, 10, 3), cell(4, 3, 20, 4),
+                               cell(5, 4, 20, 5), cell(6, 9, 40, 0)))
+        @test Sugarscape.matched_ratio(six, 1.0).ratio ≈ 20 / 25
+        @test Sugarscape.matched_ratio(six[:, 1:13], 1.0).ratio ≈ 3.0
+        @test Sugarscape.matched_ratio(hcat(six[:, 1:13], fill(NaN, 6)), 1.0).ratio ≈ 3.0  # a stage 5 or 5b snapshot, read
+        tied = copy(six)
+        tied[:, 14] .= 1.0
+        @test Sugarscape.matched_ratio(tied, 1.0).ratio ≈ 3.0  # ties in sugar moved by id
+        # a stage-5 VI-1 baseline: its sick agents' sugar moved is missing, so every arm's row reads missing, the arm
+        # can't pass on it (nor be near), and its traders are ranked by exchanges
+        old_base = Sugarscape.TradeArm("today", study("today", vi1("g-old"; ratio=1.0, old=true)), g_nod, g_iva3)
+        o = gscreen(arms[1:1]; base=old_base)
+        @test tr_result(o, "S", "Sick agents still trade") == "missing"
+        @test tr_result(o, "S", "Without disease") == "pass" && tr_result(o, "S", "Richer with trade") == "pass"
+        @test occursin("**Today's sick agents' sugar moved is missing", o)
+        @test occursin("No arm passes. No arm is near.", o) && !occursin("Chosen", o)
+        @test cells(o, "Traders ranked by")[1:2] == ["exchanges", "sugar moved"]
+        @test cells(o, "Sugar per meeting")[1] == "—" && !occursin("NaN", o)
+        # an arm whose VI-1 lacks the goods (stage 5b's columns): its own row reads missing, said up front
+        b5 = g("b5"; format=:stage5b)
+        rb = gscreen([b5])
+        @test tr_result(rb, "b5", "Sick agents still trade") == "missing"
+        @test occursin("**The sick agents' sugar moved of b5 is missing", rb) && !occursin("Today's sick agents'", rb)
+        @test occursin("No arm passes. No arm is near.", rb)
+        @test cells(rb, "Traders ranked by")[2] == "exchanges" && cells(rb, "Sugar per meeting")[2] == "—"
+        # the three trade-column sets and the two snapshot sets are read; any other set is refused
+        function cols!(folder, kind, f)
+            for k in 80:99
+                path = joinpath(folder, "seed$k-$kind.csv")
+                lines = [split(l, ",") for l in split(read(path, String), "\n") if !isempty(l)]
+                write(path, join((join(f(l), ",") for l in lines), "\n") * "\n")
+            end
+            return folder
+        end
+        drop(n) = l -> l[1:(end - n)]
+        @test study("x", cols!(vi1("g-cut5"), "trade", drop(5))) isa Sugarscape.TradeRun    # stage 5b's set
+        @test study("x", cols!(vi1("g-cut7"), "trade", drop(7))) isa Sugarscape.TradeRun    # stage 5's
+        @test study("x", cols!(vi1("g-cutA"), "agents", drop(1))) isa Sugarscape.TradeRun   # stage 5b's snapshot
+        @test_throws ArgumentError study("x", cols!(vi1("g-cut2"), "trade", drop(2)))
+        @test_throws ArgumentError study("x", cols!(vi1("g-cutA2"), "agents", drop(2)))
+        @test_throws ArgumentError study("x", cols!(vi1("g-wideA"), "agents", l -> [l; "0"]))
+        # every seed CSV has the goods (stage 5's too): one without sugar_traded is refused
+        nosugar = vi1("g-nosugar")
+        for k in 80:99
+            path = joinpath(nosugar, "seed$k.csv")
+            write(path, replace(read(path, String), "sugar_traded" => "sugar_other"; count=1))
+        end
+        @test_throws ArgumentError study("x", nosugar)
     end
 
     @testset "folders it can't read" begin

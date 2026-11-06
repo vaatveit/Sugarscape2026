@@ -4,6 +4,11 @@
 # confirmation's matched ratio, each with the trade-off reading beside it. It reads only finished CSVs and runs nothing,
 # so the bars are code that can be tested before any result exists (julia/xxl_trade_report.jl is its command line).
 #
+# Stage 5c (docs/superpowers/specs/2026-11-05-xxl-trade-step-design.md, Part 2), where Rule 15 makes an exchange a
+# share of the book's unit: every volume bar reads goods moved, not exchanges counted, and the matched ratio ranks
+# traders by the sugar they moved (the user's). Folders of stage 5, 5b and 5c are read alike, a column a folder lacks
+# NaN, so screening's baseline may mix them.
+#
 # Healthy, in every bar and Part 1 word, is strictly healthy: no disease for 10 periods, neither sick nor recovering
 # (julia/src/xxl/trade_readings.jl), by the user's decision after Part 1. The bar's matched ratio is over the snapshot's
 # agents with neither recovering flag, and Part 1's words read `healthy_healthy_10_strict`, `exchanges_HH`/`_HX` and
@@ -18,8 +23,8 @@ const BEAT_TODAY = 1.05
 # Part 1's "common" only, not a screening bar (controller's ruling after Part 1): healthy_healthy_10_strict, the mean
 # over t = 451–500, at least this
 const COMMON_SHARE = 0.25
-const NO_DISEASE_FACTOR = 2.0  # trades per head with no disease, against today's
-const SICK_TRADE_FACTOR = 0.5  # sick agents' trades per head, against today's
+const NO_DISEASE_FACTOR = 2.0  # sugar moved per head with no disease, against today's
+const SICK_TRADE_FACTOR = 0.5  # sugar moved in exchanges with a sick agent per sick agent, against today's
 const TROUGH_MEAN_SHARE = 0.95
 const TROUGH_LOW_SHARE = 0.90
 const X6_BAR = 1.5  # mean over seeds of the end (last 100 periods) price_sd, ÷ xl's
@@ -32,14 +37,15 @@ const AGE_BAND = 10
 const READ_WINDOW = (301, 500)  # the periods Part 1's readings are taken over
 const HEALTHY_TRADE_T = (451, 500)  # the periods the healthy trade (Part 1's "common") is read over
 const STUDY_END = 500  # a VI-1 folder (on, off, no disease) is read to this period
-const SEED_EXTRA = ("mean_spice", "price_sd", "mean_moved")  # the CSV's columns read besides `read_list_run`'s
+# the CSV's columns read besides `read_list_run`'s; `sugar_traded` and `spice_traded` are in every folder, stage 5's too
+const SEED_EXTRA = ("mean_spice", "price_sd", "mean_moved", "sugar_traded", "spice_traded")
 
 """
     TradeSeed(list, header, rows, trade, agents)
 
 One whole seed of a study folder: its [`ListSeed`](@ref); its CSV (`header`, `rows` from t = 0); its trade readings,
-`trade[column][t]` for t ≥ 1 (see [`TRADE_COLUMNS`](@ref)); and its agent snapshot, one row an agent in the order of
-[`TRADE_AGENT_COLUMNS`](@ref).
+`trade[column][t]` for t ≥ 1 (see [`TRADE_COLUMNS`](@ref)), a column its file lacks NaN; and its agent snapshot, one row
+an agent in the order of [`TRADE_AGENT_COLUMNS`](@ref), `sugar_moved_window` NaN if its file lacks it.
 """
 struct TradeSeed
     list::ListSeed
@@ -78,13 +84,21 @@ end
 """The columns of a trade-readings file of stage 5, before the meeting columns: [`STAGE5B_TRADE_COLUMNS`](@ref) without the last two."""
 const STAGE5_TRADE_COLUMNS = STAGE5B_TRADE_COLUMNS[1:(end - 2)]
 
+"""The column sets a trade-readings file may have: stage 5's, 5b's and the current one (stage 5c's)."""
+const TRADE_FILE_COLUMNS = (STAGE5_TRADE_COLUMNS, STAGE5B_TRADE_COLUMNS, TRADE_COLUMNS)
+
+"""The column sets a snapshot file may have: stage 5's and 5b's (one set), and the current one, with `sugar_moved_window`."""
+const AGENT_FILE_COLUMNS = (STAGE5B_AGENT_COLUMNS, TRADE_AGENT_COLUMNS)
+
 """
     read_trade_run(name, folder) -> TradeRun
 
 A study folder (`run_trade_arm`'s), its whole seeds only (see [`read_list_run`](@ref)). `ArgumentError` for a folder whose
 fingerprint names no trade readings, a whole seed without its trade readings or snapshot, or a file without the columns
-the report reads. A trade file may have stage 5's columns ([`STAGE5_TRADE_COLUMNS`](@ref)); the two meeting columns then
-read NaN.
+the report reads. A trade file may have stage 5's columns ([`STAGE5_TRADE_COLUMNS`](@ref)), 5b's
+([`STAGE5B_TRADE_COLUMNS`](@ref)) or the current ones, and a snapshot 5b's ([`STAGE5B_AGENT_COLUMNS`](@ref)) or the
+current ones; the columns a file lacks (the meetings, the goods moved, `sugar_moved_window`) read NaN. Any other set is
+refused.
 """
 function read_trade_run(name::AbstractString, folder::AbstractString)
     run = read_list_run(name, folder)
@@ -102,13 +116,14 @@ function read_trade_run(name::AbstractString, folder::AbstractString)
         (isfile(tpath) && isfile(apath)) ||
             throw(ArgumentError("seed $k of $folder has its CSV but not its trade readings and snapshot"))
         th, tm = read_seed_csv(tpath)
-        (th in (TRADE_COLUMNS, STAGE5_TRADE_COLUMNS) && tm[:, 1] == 1:(run.periods)) ||
+        (th in TRADE_FILE_COLUMNS && tm[:, 1] == 1:(run.periods)) ||
             throw(ArgumentError("$tpath isn't the trade readings of t = 1 to $(run.periods)"))
         ah, am = read_seed_csv(apath)
-        ah == TRADE_AGENT_COLUMNS || throw(ArgumentError("$apath doesn't have the snapshot's columns"))
+        ah in AGENT_FILE_COLUMNS || throw(ArgumentError("$apath doesn't have the snapshot's columns"))
+        ah == TRADE_AGENT_COLUMNS || (am = hcat(am, fill(NaN, size(am, 1))))  # 5b's snapshot lacks sugar_moved_window
         trade = Dict(c => tm[:, j] for (j, c) in enumerate(th))
         for c in TRADE_COLUMNS
-            haskey(trade, c) || (trade[c] = fill(NaN, run.periods))  # stage 5's file lacks the meeting columns
+            haskey(trade, c) || (trade[c] = fill(NaN, run.periods))  # stage 5's file lacks the meetings, 5b's the goods
         end
         push!(seeds, TradeSeed(s, header, rows, trade, am))
     end
@@ -195,10 +210,47 @@ function per_head(s::TradeSeed, name, lo, hi)
     return heads == 0 ? NaN : trade_sum(s, name, lo, hi) / heads
 end
 
+"""Whether a seed's trade readings have the goods moved (stage 5c's columns): a stage 5 or 5b file reads them NaN."""
+has_goods(s::TradeSeed) = !all(isnan, s.trade["sugar_moved"])
+
+"""The sum of trade-readings column `name` over periods `lo` to `hi`, NaN if the file lacks the goods ([`has_goods`](@ref))."""
+goods_sum(s::TradeSeed, name, lo, hi) = has_goods(s) ? trade_sum(s, name, lo, hi) : NaN
+
+"""
+Sugar (`"sugar_traded"`) or spice (`"spice_traded"`) moved per head over periods `lo` to `hi`: the seed CSV's column over
+its population, each summed over them; NaN if the population is 0 throughout. Every folder has both, stage 5's too.
+"""
+function moved_per_head(s::TradeSeed, name, lo, hi)
+    heads = sum(@view s.list.series.population[(lo + 1):(hi + 1)])
+    return heads == 0 ? NaN : sum(@view seed_column(s, name)[(lo + 1):(hi + 1)]) / heads
+end
+
+"""
+The sugar moved per head over periods `lo` to `hi` in exchanges of pair type `k` (`hh`, `hs` or `ss`, a recovering agent
+counted as healthy), from the trade readings; NaN without the goods ([`has_goods`](@ref)).
+"""
+pair_sugar_per_head(s::TradeSeed, k, lo, hi) = has_goods(s) ? per_head(s, "sugar_$k", lo, hi) : NaN
+
+"""
+Sick agents' sugar moved per head over periods `lo` to `hi`, what the sick-agents bar reads: `sugar_hs + 2 sugar_ss` over
+`sick`, each summed over them; NaN if no agent was sick or the trade readings lack the goods ([`has_goods`](@ref)). It
+reads slightly high, as [`sick_trades_per_head`](@ref) does.
+"""
+function sick_sugar_per_head(s::TradeSeed, lo, hi)
+    sick = trade_sum(s, "sick", lo, hi)
+    return sick == 0 ? NaN : (goods_sum(s, "sugar_hs", lo, hi) + 2goods_sum(s, "sugar_ss", lo, hi)) / sick
+end
+
+"""Sugar per meeting over periods `lo` to `hi`: `sugar_moved` ÷ `meetings`, each summed over them; NaN without either."""
+function sugar_per_meeting(s::TradeSeed, lo, hi)
+    meetings = trade_sum(s, "meetings", lo, hi)
+    return meetings == 0 ? NaN : goods_sum(s, "sugar_moved", lo, hi) / meetings
+end
+
 """
 Sick agents' trades per head over periods `lo` to `hi`: `exchanges_hs + 2 exchanges_ss` over `sick`, each summed over them;
 NaN if no agent was sick. It reads slightly high: an exchange counts a sick agent who died later in its period, while
-`sick` counts only the living.
+`sick` counts only the living. A reading; the bar reads [`sick_sugar_per_head`](@ref).
 """
 function sick_trades_per_head(s::TradeSeed, lo, hi)
     sick = trade_sum(s, "sick", lo, hi)
@@ -267,6 +319,23 @@ function holding_value(sugar, spice, m1, m2, value::Symbol, price)
     throw(ArgumentError("value is :priced, :raw or :welfare, not $(repr(value))"))
 end
 
+"""The snapshot's column of `sugar_moved_window` (stage 5c's), NaN in a stage 5 or 5b snapshot as read."""
+const SUGAR_MOVED_COLUMN = findfirst(==("sugar_moved_window"), TRADE_AGENT_COLUMNS)
+
+"""
+Whether snapshot rows rank traders by sugar moved: they have `sugar_moved_window` and it isn't NaN, as it is in a stage 5
+or 5b snapshot as read.
+"""
+ranks_by_sugar(rows::AbstractMatrix) =
+    size(rows, 2) >= SUGAR_MOVED_COLUMN && !any(isnan, view(rows, :, SUGAR_MOVED_COLUMN))
+
+"""What a run's matched ratio ranks traders by: "sugar moved" when every seed's snapshot has it, else "exchanges"."""
+function ranked_by(r::TradeRun)
+    k = count(s -> ranks_by_sugar(s.agents), r.seeds)
+    return k == length(r.seeds) ? "sugar moved" : k == 0 ? "exchanges" :
+           "sugar moved in $k of $(length(r.seeds)) seeds, exchanges in the rest"
+end
+
 """
     matched_ratio(rows, mean_price; value=:priced) -> (; ratio, kept, dropped)
 
@@ -276,10 +345,12 @@ Resources are [`holding_value`](@ref)'s `value`, at `mean_price` (p̄, the seed'
 agents fall into cells of the same metabolism, spice metabolism, vision,
 age band (`age_start ÷ AGE_BAND`) and quintile of start resources, the quintile's edges the 20%, 40%, 60% and 80% points
 of the seed's start resources (an agent on an edge falls below it, so that equal agents share one). In each cell of at
-least [`CELL_MIN`](@ref) agents, ordered by `exchanges` and then id, the last third (rounded down) are traders and the
-first third non-traders. `ratio` is Σ n_c · traders' mean end resources ÷ Σ n_c · non-traders', over the cells kept, NaN
-if none is; `kept` and `dropped` count the agents in the cells kept and in those too small. Cells are summed in order of
-their key, so the rows' order doesn't change the figure.
+least [`CELL_MIN`](@ref) agents, ordered by `sugar_moved_window` (the sugar an agent bought or sold in the window, by the
+user's decision for stage 5c) when the snapshot has it ([`ranks_by_sugar`](@ref)), else by `exchanges` (a stage 5 or 5b
+snapshot), and then id, the last third (rounded down) are traders and the first third non-traders. `ratio` is Σ n_c ·
+traders' mean end resources ÷ Σ n_c · non-traders', over the cells kept, NaN if none is; `kept` and `dropped` count the
+agents in the cells kept and in those too small. Cells are summed in order of their key, so the rows' order doesn't
+change the figure.
 """
 function matched_ratio(rows::AbstractMatrix{<:Real}, mean_price::Real; value::Symbol=:priced)
     n = size(rows, 1)
@@ -288,7 +359,7 @@ function matched_ratio(rows::AbstractMatrix{<:Real}, mean_price::Real; value::Sy
     id, m1, m2, vision, age = (view(rows, :, j) for j in 1:5)
     start = [holding_value(rows[i, 6], rows[i, 7], m1[i], m2[i], value, mean_price) for i in 1:n]
     final = [holding_value(rows[i, 8], rows[i, 9], m1[i], m2[i], value, mean_price) for i in 1:n]
-    exchanges = view(rows, :, 10)
+    moved = view(rows, :, ranks_by_sugar(rows) ? SUGAR_MOVED_COLUMN : 10)  # column 10 is `exchanges`
     sorted = sort(start)
     edges = [quantile_of(sorted, q) for q in (0.2, 0.4, 0.6, 0.8)]
     cells = Dict{Tuple{Float64,Float64,Float64,Int,Int},Vector{Int}}()
@@ -305,7 +376,7 @@ function matched_ratio(rows::AbstractMatrix{<:Real}, mean_price::Real; value::Sy
             dropped += c
             continue
         end
-        sort!(members; by=i -> (exchanges[i], id[i]))
+        sort!(members; by=i -> (moved[i], id[i]))
         third = c ÷ 3
         non_traders += c * mean_of(final[members[1:third]])
         traders += c * mean_of(final[members[(c - third + 1):c]])
@@ -378,28 +449,32 @@ end
 
 """
 The trade rules of a folder, from its fingerprint's `xxl` line: Rule 13's `move` (`nothing`, "own" or "local"), `blend`
-(1 unless named) and `guard` (`nothing` unless named), and Rule 14's `price` (`nothing` or "meeting").
+(1 unless named) and `guard` (`nothing` unless named), Rule 14's `price` (`nothing` or "meeting") and Rule 15's `step` (1
+unless named).
 """
 function trade_rules_of(fingerprint::AbstractString)
     m = match(r"^xxl (?!map )[^\n]*"m, fingerprint)
     line = m === nothing ? "" : m.match
-    move, blend, guard, price = (match(p, line) for p in (r"\btrade_move=\"(\w+)\"", r"\btrade_blend=([0-9.eE+-]+)",
-                                                         r"\btrade_guard=(\d+)", r"\btrade_price=\"(\w+)\""))
+    move, blend, guard, price, step = (match(p, line) for p in (r"\btrade_move=\"(\w+)\"", r"\btrade_blend=([0-9.eE+-]+)",
+                                                               r"\btrade_guard=(\d+)", r"\btrade_price=\"(\w+)\"",
+                                                               r"\btrade_step=([0-9.eE+-]+)"))
     return (; move=move === nothing ? nothing : String(move.captures[1]),
             blend=blend === nothing ? 1.0 : parse(Float64, blend.captures[1]),
             guard=guard === nothing ? nothing : parse(Int, guard.captures[1]),
-            price=price === nothing ? nothing : String(price.captures[1]))
+            price=price === nothing ? nothing : String(price.captures[1]),
+            step=step === nothing ? 1.0 : parse(Float64, step.captures[1]))
 end
 
 """
-The rules as text: `local, blend 0.5, guard 5` for Rule 13, `meeting price` for Rule 14 (both, comma-separated, if both),
-or `the book's` with neither.
+The rules as text: `local, blend 0.5, guard 5` for Rule 13, `meeting price` for Rule 14 and `step 0.1` for Rule 15, those
+that are on joined by semicolons (`meeting price; step 0.1`), or `the book's` with none.
 """
 function trade_rules_text(rule)
     parts = String[]
     rule.move === nothing ||
         push!(parts, "$(rule.move), blend $(fmt(rule.blend)), guard $(rule.guard === nothing ? "none" : rule.guard)")
     rule.price === nothing || push!(parts, "$(rule.price) price")
+    rule.step == 1 || push!(parts, "step $(fmt(rule.step))")
     return isempty(parts) ? "the book's" : join(parts, "; ")
 end
 
@@ -431,6 +506,12 @@ the population, its spread, Gini, mean sugar, mean spice, mean price and distanc
 trades per head and mean price over its snapshot's window and its end population over its last `END_PERIODS` periods,
 the last over every seed, an extinct one counting what it has there (0 once it died out), as S5 reads it. `per_seed`
 holds the seeds' figures for the ratios between arms.
+
+The goods moved (stage 5c), what the volume bars read: sugar and spice moved per head ([`moved_per_head`](@ref)) in
+VI-1, with no disease (`nodisease_sph`, the no-disease bar's) and in IV-A3; sugar moved per head by pair
+([`pair_sugar_per_head`](@ref)), sick agents' sugar moved per head (`sick_sph`, [`sick_sugar_per_head`](@ref), the
+sick-agents bar's) and sugar per meeting ([`sugar_per_meeting`](@ref)), NaN in a folder without the goods columns
+(`goods` says whether every live VI-1 seed has them); and what the matched ratio ranked traders by ([`ranked_by`](@ref)).
 """
 function arm_figures(a::TradeArm, xl)
     r = a.vi1
@@ -449,6 +530,9 @@ function arm_figures(a::TradeArm, xl)
     shares(f) = [nanmean(per(s -> f(s)[k])) for k in 1:3]
     matched = matched_over_seeds(r; strict=true)
     per_seed = (;
+        sph=per(s -> moved_per_head(s, "sugar_traded", lo, hi)),
+        sick_sph=per(s -> sick_sugar_per_head(s, lo, hi)),
+        nodisease_sph=per(s -> moved_per_head(s, "sugar_traded", lo, hi), nd),
         tph=per(s -> trades_per_head(s.list, lo, hi)),
         sick_tph=per(s -> sick_trades_per_head(s, lo, hi)),
         healthy_trade=per(s -> healthy_trade(s; strict=true)),
@@ -473,6 +557,13 @@ function arm_figures(a::TradeArm, xl)
         finished=all(x -> x === nothing || finished(x.run), (r, a.nodisease, a.iva3)),
         matched, matched_raw=matched_over_seeds(r; value=:raw, strict=true),
         matched_welfare=matched_over_seeds(r; value=:welfare, strict=true), matched_wide=matched_over_seeds(r),
+        ranked=ranked_by(r), goods=all(has_goods, ss),
+        sph=nanmean(per_seed.sph), spice_ph=nanmean(per(s -> moved_per_head(s, "spice_traded", lo, hi))),
+        sph_pairs=[nanmean(per(s -> pair_sugar_per_head(s, k, lo, hi))) for k in ("hh", "hs", "ss")],
+        sick_sph=nanmean(per_seed.sick_sph), sugar_per_meeting=nanmean(per(s -> sugar_per_meeting(s, lo, hi))),
+        nodisease_sph=nanmean(per_seed.nodisease_sph),
+        nodisease_spice=nanmean(per(s -> moved_per_head(s, "spice_traded", lo, hi), nd)),
+        iva3_sph=nanmean(per(s -> moved_per_head(s, "sugar_traded", iw...), iv)),
         tph=nanmean(per_seed.tph),
         tph_pairs=[nanmean(per(s -> per_head(s, "exchanges_$k", lo, hi))) for k in ("hh", "hs", "ss")],
         tph_strict=[nanmean(per(s -> per_head(s, "exchanges_$k", lo, hi))) for k in ("HH", "HX")],
@@ -544,13 +635,26 @@ ratio_missing(f) = !isfinite(settle(f.matched.ratio))
 """Whether the Richer row can't be read: the arm's matched ratio is missing, or today's (`base`'s)."""
 richer_missing(f, base) = ratio_missing(f) || ratio_missing(base)
 
+const SICK_ROW = "Sick agents still trade"
+
+"""
+Whether an arm's sick agents' sugar moved is missing: its VI-1 trade readings lack the goods columns (a stage 5 or 5b
+folder), or no agent was sick in any seed.
+"""
+sick_figure_missing(f) = !isfinite(settle(f.sick_sph))
+
+"""Whether the sick-agents row can't be read: the arm's sick agents' sugar moved is missing, or today's (`base`'s)."""
+sick_missing(f, base) = sick_figure_missing(f) || sick_figure_missing(base)
+
 """
 A reading-table row's result for an arm `f` against `base` (today): pass, near or fail, and missing for the Richer row
-when the arm's matched ratio or today's is ([`richer_missing`](@ref)). A missing ratio decides nothing: the arm can't
-pass, but it hasn't failed the bar either.
+when the arm's matched ratio or today's is ([`richer_missing`](@ref)), and for the sick-agents row when the arm's sick
+agents' sugar moved or today's is ([`sick_missing`](@ref)). A missing figure decides nothing: the arm can't pass, nor be
+near, but it hasn't failed the bar either.
 """
 function row_result(f, base, row::ScreenRow)
     row.name == RICHER_ROW && richer_missing(f, base) && return "missing"
+    row.name == SICK_ROW && sick_missing(f, base) && return "missing"
     return row.pass ? "pass" : row.near ? "near" : "fail"
 end
 
@@ -610,13 +714,17 @@ figure is settled ([`SETTLE_DIGITS`](@ref)) before it meets its bar. Near is a f
   than `NEAR_BY` of their thresholds and one misses. The ratio recovering included is printed beside it and decides
   nothing. With no seed's matched cell, the arm's or today's, the ratio is missing: the row neither passes nor is near,
   and [`row_result`](@ref) reads it as missing, not as a fail.
-- Without disease: trades per head with no disease at least `NO_DISEASE_FACTOR` times the baseline's.
-- Sick agents still trade: sick agents' trades per head at least `SICK_TRADE_FACTOR` times the baseline's.
+- Without disease: sugar moved per head with no disease ([`moved_per_head`](@ref)) at least `NO_DISEASE_FACTOR` times the
+  baseline's (stage 5c: goods moved, not exchanges counted, the user's).
+- Sick agents still trade: sick agents' sugar moved per head ([`sick_sugar_per_head`](@ref)) at least
+  `SICK_TRADE_FACTOR` times the baseline's. Missing, the arm's or the baseline's (a folder without the goods columns),
+  the row neither passes nor is near, and [`row_result`](@ref) reads it as missing.
 - Trough: over all seeds, the mean at least `TROUGH_MEAN_SHARE` of the baseline's and no seed below `TROUGH_LOW_SHARE`
   of the baseline's lowest. Near only when one of the two misses: the mean at least `1 - NEAR_BY` of its bar with no seed
   below, or exactly one seed below with the mean meeting its bar. Missing both ways is a fail.
 - Disease: X9 and X10 per seed, each at least `ceil(LIST_SHARE n)` of the `n` seeds, two rows.
-- Prices: X6 at most `X6_BAR`. Near if at most `1 + NEAR_BY` of it.
+- Prices: X6 at most `X6_BAR`. Near if at most `1 + NEAR_BY` of it. It keeps the scorecard's definition, `price_sd`
+  weighting each exchange equally, and the row says so.
 - Extinction: no seed extinct. Near with one extinct, missing the row by one seed, as the spec defines near; two or
   more fail. Near only buys the one further screening round: confirmation still needs 0 of 60 (the user's bar).
 
@@ -624,7 +732,7 @@ The healthy-trade bar is dropped (the user's, after Part 1): its share is a read
 """
 function screen_trade(f, base)
     n, need = f.n, seeds_needed(f.n)
-    nd_bar, sick_bar = NO_DISEASE_FACTOR * base.nodisease_tph, SICK_TRADE_FACTOR * base.sick_tph
+    nd_bar, sick_bar = NO_DISEASE_FACTOR * base.nodisease_sph, SICK_TRADE_FACTOR * base.sick_sph
     mean_bar, low_bar = settle(TROUGH_MEAN_SHARE * base.trough), settle(TROUGH_LOW_SHARE * base.lowest)
     trough = settle(f.trough)
     below = count(<(low_bar), f.lows)
@@ -635,10 +743,12 @@ function screen_trade(f, base)
     x6_pass = x6 <= X6_BAR
     return [
         richer_row(f, base.matched),
-        at_least_row("Without disease", f.nodisease_tph, nd_bar,
-                     "at least ×$(fmt(NO_DISEASE_FACTOR)) today's $(finite_text(base.nodisease_tph)) = $(finite_text(nd_bar))"),
-        at_least_row("Sick agents still trade", f.sick_tph, sick_bar,
-                     "at least ×$(fmt(SICK_TRADE_FACTOR)) today's $(finite_text(base.sick_tph)) = $(finite_text(sick_bar))"),
+        at_least_row("Without disease", f.nodisease_sph, nd_bar,
+                     "sugar moved per head, at least ×$(fmt(NO_DISEASE_FACTOR)) today's " *
+                     "$(finite_text(base.nodisease_sph)) = $(finite_text(nd_bar))"),
+        at_least_row(SICK_ROW, f.sick_sph, sick_bar,
+                     "sick agents' sugar moved per head, at least ×$(fmt(SICK_TRADE_FACTOR)) today's " *
+                     "$(finite_text(base.sick_sph)) = $(finite_text(sick_bar))"),
         ScreenRow("Trough", "mean $(edge_text(trough, mean_bar, mean_ok)), lowest $(whole_cell(f.lowest))",
                   "mean at least $(percent(TROUGH_MEAN_SHARE)) of today's $(places(base.trough, TROUGH_DIGITS)) = " *
                   "$(fmt(mean_bar)), none below $(percent(TROUGH_LOW_SHARE)) of today's lowest " *
@@ -646,7 +756,9 @@ function screen_trade(f, base)
         count_row("Disease: X9", f.x9, n, need, ", a disease circulating at t = $X9_T"),
         count_row("Disease: X10 per seed", f.x10, n, need,
                   " inside $(SICK_BAND[1])–$(SICK_BAND[2]), $(period_text(SCREEN_SICK...))"),
-        ScreenRow("Prices: X6", edge_text(x6, X6_BAR, x6_pass; at_least=false), "at most $(fmt(X6_BAR))", x6_pass,
+        ScreenRow("Prices: X6", edge_text(x6, X6_BAR, x6_pass; at_least=false),
+                  "at most $(fmt(X6_BAR)); price_sd weights each exchange equally, so smaller steps weight it towards " *
+                  "long meetings (the scorecard's definition, kept)", x6_pass,
                   !x6_pass && x6 <= settle((1 + NEAR_BY) * X6_BAR)),
         ScreenRow("Extinction", "$(f.extinct) of $n", "none", f.extinct == 0, f.extinct == 1),
     ]
@@ -767,6 +879,10 @@ function part1_missing_lines(d)
     return lines
 end
 
+# Why an arm's sick agents' sugar moved (`f` its figures) is missing, for the line up front.
+sick_why(f) = f.goods ? ": no agent was sick in $(period_text(READ_WINDOW...))" :
+              ": its VI-1 trade readings have no goods columns (a stage 5 or 5b folder)"
+
 # What a missing matched ratio does in screening, said up front.
 missing_screen(name) = "**The matched ratio of $name is missing: no seed has a matched cell, so its Richer with trade " *
                        "row reads missing and it can't pass.**"
@@ -808,17 +924,20 @@ function match_text(window)
            "$(period_text(window...)), and strictly healthy in it (no active disease at the end of any period of it " *
            "or of the 11 before it: recovering neither at its start nor in it), in cells of the same metabolism, spice " *
            "metabolism, vision, age band ($AGE_BAND periods) and quintile of resources at its start; in each cell of " *
-           "at least $CELL_MIN, the third with most exchanges (ties by id) against the third with fewest, their mean " *
-           "resources at its end, pooled over cells by cell size. Resources are sugar + spice ÷ p̄, p̄ the seed's mean " *
+           "at least $CELL_MIN, the third who moved the most sugar in the window (bought or sold, by the user's decision " *
+           "for stage 5c; in a snapshot without it, stage 5's or 5b's, the third with most exchanges), ties by id, " *
+           "against the third who moved the least, their mean resources at its end, pooled over cells by cell size. The " *
+           "readings say which ranking each run used. Resources are sugar + spice ÷ p̄, p̄ the seed's mean " *
            "price over the window. The mean over seeds has a 2.5% to 97.5% interval of $BOOT_REPS resamples of the " *
            "seeds (random seed $BOOT_SEED). The bar reads this, by the user's decision after Part 1. The reading " *
            "beside it, recovering included, is the same over every agent alive and with no active disease throughout " *
            "the window, the spec's wider reading, and decides nothing."
 end
 
-const HEALTH_TEXT = "Sick agents' trades per head is (exchanges_hs + 2·exchanges_ss) ÷ sick, each summed over " *
-    "$(period_text(READ_WINDOW...)). It reads slightly high: it counts the exchanges of sick agents who died later in the " *
-    "same period, while sick counts only the living. Here healthy means strictly healthy (no disease for 10 periods) " *
+const HEALTH_TEXT = "Sick agents' sugar moved per head, the bar's, is (sugar_hs + 2·sugar_ss) ÷ sick, each summed over " *
+    "$(period_text(READ_WINDOW...)), and reads — in a run without the goods columns (stage 5's and 5b's folders); their " *
+    "exchanges per head, (exchanges_hs + 2·exchanges_ss) ÷ sick, are beside it and decide nothing. Both read slightly " *
+    "high: they count the exchanges of sick agents who died later in the same period, while sick counts only the living. Here healthy means strictly healthy (no disease for 10 periods) " *
     "in every bar and Part 1 word, by the user's decision after Part 1: HH and HX are exchanges (or neighbour pairs) " *
     "with both agents strictly healthy and with exactly one, the other recovering or sick. The spec's wider reading, " *
     "which counts a recovering agent (no disease now, one in the last 10 periods) as healthy, is shown beside each and " *
@@ -837,9 +956,12 @@ function readings_lines(figs)
         ("Agents matched: kept, dropped", f -> "$(f.matched.kept), $(f.matched.dropped)"),
         ("Traders ÷ similar non-traders, recovering included, resources at p̄", f -> matched_cell(f.matched_wide)),
         ("The same: agents matched, kept, dropped", f -> "$(f.matched_wide.kept), $(f.matched_wide.dropped)"),
-        ("Trades per head", f -> places(f.tph, 3)),
-        ("Trades per head: HH / HX", f -> slashed(f.tph_strict)),
-        ("Trades per head: hh / hs / ss", f -> slashed(f.tph_pairs)),
+        ("Traders ranked by", f -> f.ranked),
+        ("Sugar moved per head / spice moved per head", f -> slashed([f.sph, f.spice_ph])),
+        ("Sugar moved per head: hh / hs / ss", f -> slashed(f.sph_pairs)),
+        ("Exchanges per head (shown, deciding nothing)", f -> places(f.tph, 3)),
+        ("Exchanges per head: HH / HX", f -> slashed(f.tph_strict)),
+        ("Exchanges per head: hh / hs / ss", f -> slashed(f.tph_pairs)),
         ("Share of exchanges: hh / hs / ss", f -> slashed(f.exchange_shares)),
         ("Share of neighbour pairs (random pairing): hh / hs / ss", f -> slashed(f.random_shares)),
         ("Strictly healthy agents' exchanges with a partner not strictly healthy", f -> places(f.sick_share, 3)),
@@ -850,13 +972,14 @@ function readings_lines(figs)
          f -> places(f.healthy_trade, 3)),
         ("The same, agents with no disease with a partner with none (recovering included)",
          f -> places(f.healthy_trade_wide, 3)),
-        ("Sick agents' trades per head", f -> places(f.sick_tph, 3)),
+        ("Sick agents' sugar moved per head (the bar) / exchanges per head", f -> slashed([f.sick_sph, f.sick_tph])),
         ("Recovering agents: share of agents / exchanges with one per recovering agent", f -> slashed(f.recovering)),
         ("Median MRS gap: strictly healthy / sick / ratio", f -> slashed([f.gap_strict, f.gap_sick, f.gap_ratio])),
         ("Median MRS gap, recovering included: healthy / sick / ratio",
          f -> slashed([f.gap_healthy, f.gap_sick, f.gap_ratio_wide])),
-        ("Trades per head, no disease: all / hh", f -> slashed([f.nodisease_tph, f.nodisease_hh])),
-        ("IV-A3: trades per head / mean price", f -> slashed([f.iva3_tph, f.iva3_price])),
+        ("No disease, per head: sugar moved / spice moved / exchanges / exchanges hh",
+         f -> slashed([f.nodisease_sph, f.nodisease_spice, f.nodisease_tph, f.nodisease_hh])),
+        ("IV-A3: sugar moved per head / exchanges per head / mean price", f -> slashed([f.iva3_sph, f.iva3_tph, f.iva3_price])),
         ("IV-A3: end population (S5's reading)", f -> whole_cell(f.iva3_end)),
         ("Trough, mean / lowest / at t", f -> "$(places(f.trough, TROUGH_DIGITS)) / $(whole_cell(f.lowest)) / " *
                                              places(f.trough_t, 1)),
@@ -864,9 +987,10 @@ function readings_lines(figs)
         ("Population / spread", f -> "$(whole_cell(f.population)) / $(places(f.spread, 3))"),
         ("Gini", f -> places(f.gini, 3)),
         ("Mean sugar / mean spice", f -> "$(places(f.sugar, 2)) / $(places(f.spice, 2))"),
-        ("Mean price / X6", f -> slashed([f.price, f.x6])),
+        ("Mean price / X6 (weighted by exchanges)", f -> slashed([f.price, f.x6])),
         ("Distance walked per agent per period", f -> places(f.walked, 3)),
         ("Units per meeting", f -> places(f.units_per_meeting, 3)),
+        ("Sugar per meeting", f -> places(f.sugar_per_meeting, 3)),
         ("Price spread across meetings", f -> places(f.meeting_spread, 3)),
         ("X9 / X10 per seed / extinct", f -> "$(f.x9) / $(f.x10) / $(f.extinct) of $(f.n)"),
     ]
@@ -888,13 +1012,22 @@ function readings_text(a::TradeArm)
            "$(period_text(READ_WINDOW...)), and the price spread across meetings the mean over those periods of the sd of " *
            "the log of the meetings' prices, a period with fewer than two meetings left out; both read — in a run " *
            "without the meeting columns (stage 5's folders). A meeting is a maximal run of consecutive same-pair " *
-           "exchanges, so back-to-back meetings of one pair count as one and units per meeting reads about 0.3% high. "
+           "exchanges, so back-to-back meetings of one pair count as one and units per meeting reads about 0.3% high. " *
+           "Volume is read in goods moved, not exchanges counted (stage 5c): sugar moved per head is the seed CSV's " *
+           "sugar_traded ÷ the population, each summed over the periods, spice moved (spice_traded) beside it, as the " *
+           "no-disease bar reads it; by pair it is the trade readings' sugar_hh, sugar_hs and sugar_ss (a recovering " *
+           "agent counted as healthy), and sugar per meeting is their sugar_moved ÷ the meetings; these read — in a run " *
+           "without the goods columns (stage 5's and 5b's folders). Exchanges per head are shown and decide nothing: a " *
+           "smaller trade step makes more, smaller exchanges. X6 is weighted by exchanges: price_sd weights each " *
+           "exchange equally, so smaller steps weight it towards long meetings; it keeps the scorecard's definition. "
 end
 
-const RATIO_MEASURES_TRADE = (("Trades per head", :tph), ("Sick agents' trades per head", :sick_tph),
+const RATIO_MEASURES_TRADE = (("Sugar moved per head", :sph), ("Sick agents' sugar moved per head", :sick_sph),
+                              ("Sugar moved per head, no disease", :nodisease_sph), ("Exchanges per head", :tph),
+                              ("Sick agents' exchanges per head", :sick_tph),
                               ("Healthy trade, strictly healthy", :healthy_trade),
-                              ("Trades per head, no disease", :nodisease_tph),
-                              ("IV-A3 trades per head", :iva3_tph), ("IV-A3 end population (S5's reading)", :iva3_end),
+                              ("Exchanges per head, no disease", :nodisease_tph),
+                              ("IV-A3 exchanges per head", :iva3_tph), ("IV-A3 end population (S5's reading)", :iva3_end),
                               ("Trough", :trough), ("Traders ÷ similar non-traders, strictly healthy", :matched), ("Population", :population), ("Gini", :gini),
                               ("Mean sugar", :sugar), ("Mean spice", :spice), ("Distance walked", :walked))
 
@@ -968,7 +1101,8 @@ function matched_lines(name, f, window)
                                m.dropped]))
     end
     left = f.matched.left_out
-    push!(lines, "", isempty(left) ? "The bar's ratio leaves no seed out." : "The bar's ratio leaves out: $(join(left, "; ")).")
+    push!(lines, "", "Traders are ranked by $(f.ranked).", "",
+          isempty(left) ? "The bar's ratio leaves no seed out." : "The bar's ratio leaves out: $(join(left, "; ")).")
     return lines
 end
 
@@ -1011,7 +1145,10 @@ The trade study's report as markdown, in one of three modes:
   matched ratio three ways and the trade-off reading.
 - **Screening** (the default): the `arms` against the baseline `base`, with `off` and `xl`: the arms and their Rule 13,
   the reading table ([`screen_trade`](@ref)), the choice ([`choose_trade_arm`](@ref)) and the result row that fires, the
-  readings with the baseline's first, the arms' ratios to the baseline's and the trade-off reading of every run.
+  readings with the baseline's first, the arms' ratios to the baseline's and the trade-off reading of every run. The
+  baseline's folders may be of different stages (stage 5c's screening: VI-1 a new run of today's rule with the goods
+  columns, the no-disease and IV-A3 folders stage 5's); each bar reads what its folder has, and a bar whose figure a
+  folder lacks reads missing.
 - **Confirmation** (`confirm`): the study run `base.vi1`, today's run `today.vi1` (Part 1's, on other seeds: there is no
   matched run of today's rules on the study's) and the trade-off run `off`: the Richer row ([`richer_row`](@ref)) of the
   study's matched ratio against today's, the result row and the trade-off reading.
@@ -1186,8 +1323,14 @@ function screen_report(label, base::TradeArm, arms::Vector{TradeArm}, off::Trade
     ratio_missing(bf) && !isempty(figs) &&
         push!(lines, "**Today's matched ratio is missing, so every arm's Richer with trade row, which asks an arm to beat " *
                      "today's, reads missing and no arm can pass.**", "")
+    sick_figure_missing(bf) && !isempty(figs) &&
+        push!(lines, "**Today's sick agents' sugar moved is missing$(sick_why(bf)), so every arm's Sick agents still " *
+                     "trade row, which reads against today's, reads missing and no arm can pass.**", "")
     for (a, f) in zip(arms, figs)
         append!(lines, arm_lines(a, f, "Its readings cover only those finished, and it cannot pass or be chosen."))
+        sick_figure_missing(f) &&
+            push!(lines, "**The sick agents' sugar moved of $(a.name) is missing$(sick_why(f)), so its Sick agents still " *
+                         "trade row reads missing and it can't pass.**", "")
     end
     for f in figs
         rise = settle(f.gini - bf.gini)
@@ -1230,9 +1373,9 @@ function screen_report(label, base::TradeArm, arms::Vector{TradeArm}, off::Trade
     waiting = [f.name for f in figs if !f.finished]
     isempty(waiting) || push!(lines, "", "Not eligible, unfinished: $(join(waiting, ", ")).")
     for (f, r) in zip(figs, rows)
-        settle(f.tph) > settle(bf.tph) && !r[1].pass && !richer_missing(f, bf) &&
-            push!(lines, "", "$(f.name): trades per head rise ($(places(f.tph, 3)) against today's " *
-                             "$(places(bf.tph, 3))) but healthy agents aren't richer by the bar: more trade isn't the goal.")
+        settle(f.sph) > settle(bf.sph) && !r[1].pass && !richer_missing(f, bf) &&
+            push!(lines, "", "$(f.name): sugar moved per head rises ($(places(f.sph, 3)) against today's " *
+                             "$(places(bf.sph, 3))) but healthy agents aren't richer by the bar: more trade isn't the goal.")
     end
     push!(lines, "", "## Readings", "", readings_text(base) * HEALTH_TEXT, "")
     append!(lines, readings_lines([bf; figs]))
