@@ -43,6 +43,12 @@ rich_pair(m) = (step_trader(m, 1, 1, 30.0, 10.0, 2, 4), step_trader(m, 1, 2, 6.0
             bargain!(m, step_pair(m)...)
             m.trade_log
         end
+        @test all(logs[2]) do e  # the book's price drifts across 1 within a meeting: judge each entry by its own price
+            e.price > 1 ? isapprox(e.sugar, 0.1) && isapprox(e.spice, 0.1 * e.price) :
+            e.price < 1 ? isapprox(e.spice, 0.1) && isapprox(e.sugar, 0.1 / e.price) :
+            isapprox(e.sugar, 0.1) && isapprox(e.spice, 0.1)
+        end
+        @test any(e -> e.price < 1, logs[2]) && any(e -> e.price > 1, logs[2])
         @test length(logs[2]) > length(logs[1])
         @test sum(e.sugar for e in logs[2]) >= sum(e.sugar for e in logs[1])
         @test length(logs[2]) < 10_000
