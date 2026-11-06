@@ -584,7 +584,7 @@ end
 
 const SCORECARD_BASES = Dict("v1" => XXL_V1, "defaults" => XXL_DEFAULTS)
 
-"""A `--set` value as the field's type reads it: `nothing` or an integer, `nothing` or `lo,hi`, else by type."""
+"""A `--set` value as the field's type reads it: `nothing` or an integer, `nothing` or a string, `nothing` or `lo,hi`, else by type."""
 function parse_rule_value(T::Type, v::AbstractString)
     T === String && return String(v)
     T === Float64 && return parse(Float64, v)
@@ -592,6 +592,7 @@ function parse_rule_value(T::Type, v::AbstractString)
     T === Bool && return parse(Bool, v)
     v == "nothing" && Nothing <: T && return nothing
     T === Union{Nothing,Int} && return parse(Int, v)
+    T === Union{Nothing,String} && return String(v)
     if T === Union{Nothing,Tuple{Int,Int}}
         parts = split(strip(v, ['(', ')']), ",")
         length(parts) == 2 ||

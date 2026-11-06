@@ -66,6 +66,11 @@ settings with the experiment's own disease list.
 | `disease_count` | none | none | **3** | 12 |
 | `founder_diseases` | none | none | **1** | 12 |
 | `disease_lengths` | none | none | **(9, 10)** | 12 |
+| `trade_move` (expected price: `"own"` or `"local"`) | none | none | none | 13 |
+| `trade_blend` λ (score W^(1−λ)·V^λ) | 1 | 1 | 1 | 13 |
+| `trade_guard` k (periods of sugar or spice) | none | none | none | 13 |
+| `trade_price` (`"meeting"`: one price per meeting) | none | none | none | 14 |
+| `trade_step` (share of the book's unit a step trades) | 1 | 1 | 1 | 15 |
 
 `max_metabolism`, `founder_placement`, `free_step` and `founder_ages` are the stage-1 survival switches. Each was tried
 at a candidate setting, and the scorecard decided which to keep:
@@ -80,8 +85,9 @@ at a candidate setting, and the scorecard decided which to keep:
 
 The xxl version of a regular experiment is its xl version (docs/xl.md) with these set to the default column. For a
 base experiment without seasons the season gradient is set to false, for one without sex or without finite lives
-`founder_ages` is set to `"book"`, and for one without disease the three list settings are set to none, so a fingerprint
-never names a rule that can't apply.
+`founder_ages` is set to `"book"`, for one without disease the three list settings are set to none, and for one without
+trade the three trade move settings are set to none (`trade_blend` to 1), so a fingerprint never names a rule that can't
+apply.
 
 **Refused combinations.** A configuration xxl doesn't define is refused, not run under book rules:
 - `vision_shape` other than `"lattice"` or `"disc"`; `landscape` other than `"xl"` or `"generated"`;
@@ -92,6 +98,8 @@ never names a rule that can't apply.
 - a disease count below 1; founder diseases below 0 or above the count; a disease length range that isn't lo ≤ hi with
   lo ≥ 1, or whose hi reaches `immune_length`; any of the three on an experiment without disease, or disagreeing with
   the configuration;
+- a trade move other than none, `"own"` or `"local"`; a trade blend outside 0–1; a trade guard below 0; a trade blend
+  other than 1 or a trade guard without a trade move; a trade move on an experiment without trade;
 - memory without speed; travel cost above 0 without speed; a free step above 0 without speed; word of mouth without
   memory (> 0);
 - the season gradient without seasons, or with `winter_growback = "pulse"`;
@@ -380,6 +388,114 @@ is still skipped for a disease it's immune to. For an experiment without disease
 **Stage 4:** studied in "Stage 4: the disease list" below, which recommends 3 diseases of length 9–10 with 1 offered to each
 founder. The user adopted it, so the defaults use that list. Under `--xxl` it reaches every experiment with disease: VI-1,
 which stage 4 measured, and V-1, V-2 and `VAR-inttrade/VI-1`, which it didn't.
+
+## Rule 13: movement that counts on trade
+
+**Book setting:** `trade_move` is none, `trade_blend` is 1 and `trade_guard` is none: an agent scores a site by the
+welfare of the sugar and spice it would hold after eating there, as in the book, whatever trade lets it do.
+
+**xxl** (`trade_move` set; it needs trade): an agent under trade scores a site by the value of the bundle it would hold
+there at the price it expects to trade at, instead of by the welfare of that bundle alone. Three settings shape it:
+
+| Setting | Values | What it does |
+|---|---|---|
+| `trade_move` | none / `"own"` / `"local"` | Which price p the agent expects, in spice per sugar. `"own"`: its last trade price, which never ages, falling back to its MRS when it has not traded. `"local"`: the geometric mean (the mean log) of the latest exchange price at its own site and at each site it looked at this move, counting only sites with an exchange in the last 10 periods, falling back to its MRS when there are none. None leaves the rule off |
+| `trade_blend` λ | 0 to 1 | How far the score moves from the book's welfare W toward the value V at p: the score is W^(1−λ)·V^λ, so 1 is the full rule and 0 the book's |
+| `trade_guard` k | periods, or none | An agent whose sugar or spice would last fewer than k periods at its burn (`sugar_burn`, the disease fees included, for sugar; its spice metabolism for spice) scores by the book's rule, so it doesn't gamble on a trade it may not find |
+
+**The score.** For a site, (A, B) is the bundle the agent would hold after the trip: its holdings as the book's score
+counts them (the foresight clamp; with speed, less the travel cost and what it burns on the way), plus the site's sugar
+and spice, devalued by pollution. W is the book's welfare of (A, B), A^e₁·B^e₂, and V = A + B/p is what the bundle is
+worth in sugar at the expected price p. The score is W^(1−λ)·V^λ: both W and V grow in proportion with the bundle, so
+the blend needs no units (*my call*). A site where the agent would starve on the way is still worth nothing. When there
+is no valid price (no trade price and no MRS, as when it holds no spice) or the guard holds, the move uses the book's
+score as it stands.
+
+**Where it applies.** The site score of all three moves. `speed_move!` and `xxl_move!` read the local price from the
+sites of their look; the book's lattice loop (`move!` without round vision or speed) keeps no list of what it looks at,
+so its local price reads the agent's own site only (*my call*). Under memory the remembered sites are valued at the
+move's price, both when the move picks its target and when it updates the memory after, and word of mouth ranks the
+agent's memory and its neighbours' best at the same move's price, so the memory stays ranked as the move would rank it
+(*my call*). Combat's move uses the book's score.
+
+`trade_blend` and `trade_guard` change nothing unless `trade_move` is set. Speed and travel cost don't change. For an
+experiment without trade the transform sets all three back to their book values.
+
+**Refused:** an unknown `trade_move`; a `trade_blend` outside 0–1; a `trade_guard` below 0; `trade_blend` other than 1 or
+`trade_guard` set without a `trade_move`; `trade_move` on an experiment without trade, if it reaches `Config` directly.
+
+**Fingerprint:** the `xxl` line names a trade move setting only when it is off its book value, after the disease list:
+`trade_move="local" trade_guard=5`, with `trade_blend=0.5` between them when it isn't 1. A run with the rule off has the
+fingerprint it always had.
+
+**Stage 5:** measured in "Stage 5: trade": no version passed screening, and the rule changed almost nothing.
+
+## Rule 14: the meeting's price
+
+**Book setting:** `trade_price` is none: in rule T the two neighbours trade one unit at a time, and the price is the geometric mean
+of their two current MRSs, worked out again before every unit.
+
+**xxl** (`trade_price` set; it needs trade): the price is set once, when the meeting starts, and every unit of the meeting trades at it.
+
+| Value | What a meeting does |
+|---|---|
+| none | The book's rule T: the price is recomputed before every unit, so it follows the two MRSs as each unit moves them together |
+| `"meeting"` | The price is the geometric mean of the two MRSs when the meeting starts, worked out once. Which agent buys sugar (the one with the higher MRS then) is fixed for the meeting too. The meeting ends at the first unit that fails a test |
+
+**What stays.** Only the price changes. The unit sizes are the book's (price p above 1: 1 sugar for p spice; p below 1: 1/p sugar
+for 1 spice; whole units with `trade_rounding = "down"`), and so are the tests on each unit: holdings stay positive, the buyer's MRS
+stays at or above the seller's, and both welfares strictly rise. A meeting whose starting MRSs aren't both valid, or are equal, doesn't
+trade, as now. Each accepted unit still goes to the trade log with its price, so `last_price` and every metric read it as before.
+Trading once with each neighbour, in random order, is unchanged.
+
+**Why.** *The user's reasoning:* it isn't realistic for the MRS to set a new price during a single bargaining session. The price
+should be set when the session starts and apply to every unit exchanged. *My call:* with a price fixed per meeting, prices differ
+between meetings by who meets whom, so an agent can sell dearly to a neighbour in need and buy cheaply from one with a good to spare,
+which the moving price squeezes out. Measured in "Stage 5b: the meeting's price": it didn't make healthy traders richer, while a
+meeting moved only 1.68 units on average.
+
+**Rule 13:** the code allows both rules at once, but the study doesn't combine them. For an experiment without trade the transform sets `trade_price` back to none.
+
+**Refused:** a `trade_price` other than `"meeting"` (or none); `trade_price` on an experiment without trade, if it reaches `Config`
+directly.
+
+**Fingerprint:** the `xxl` line names it only when it is on, after the disease list and Rule 13's settings: `trade_price="meeting"`.
+A run with the rule off has the fingerprint it always had. `--set trade_price=meeting` reads it in the extinction, scorecard and
+trade study commands.
+
+## Rule 15: the trade step
+
+**Book setting:** `trade_step` is 1: in rule T each step of a meeting trades the book's unit (price p above 1: 1 sugar for p spice;
+p below 1: 1/p sugar for 1 spice).
+
+**xxl** (`trade_step` below 1; it needs trade): each step trades that share of the book's unit, so a step of 0.1 trades a tenth of
+the sugar and a tenth of the spice the book would. The meeting goes on step by step until a step fails a test, so a smaller step means
+more steps in a meeting and a meeting that stops closer to where the two MRSs meet.
+
+| Value | What a step does |
+|---|---|
+| 1 (the book) | The book's unit: the sugar and spice of a step are what price and rounding give |
+| above 0, below 1 | The step's sugar and spice are both multiplied by it, in either price rule (the book's price recomputed before every step, or Rule 14's price for the meeting). With Rule 14 every step trades at the meeting's price |
+
+**What stays.** Only the step's size changes. Both price rules, the tests on each step (holdings stay positive, the buyer's MRS stays at
+or above the seller's, both welfares strictly rise) and trading once with each neighbour, in random order, are as they are. Each
+accepted step still goes to the trade log with its price. Volume is read in goods moved, not in exchanges counted, since a smaller step
+makes more exchanges for the same goods.
+
+**Why.** *The user's idea:* trade in smaller units. *My call:* the name and type (`trade_step`, a `Float64`). The study's step of 0.1
+was my proposal, which **the user** approved. The step's behaviour in `bargain!` is described in the design
+(`docs/superpowers/specs/2026-11-05-xxl-trade-step-design.md`). Measured in "Stage 5c: smaller trade steps": with no disease, agents moved
+more than twice as much sugar, but traders ended no richer than similar non-traders.
+
+**Rule 13:** the code allows it with Rule 13, but the study doesn't combine them. For an experiment without trade the transform sets
+`trade_step` back to 1.
+
+**Refused:** a `trade_step` at or below 0, above 1, or not finite; a `trade_step` other than 1 with `trade_rounding = "down"` (whole
+units would round a tenth to nothing; *my call*); a `trade_step` other than 1 on an experiment without trade, if it reaches `Config`
+directly.
+
+**Fingerprint:** the `xxl` line names it only when it isn't 1, after Rule 14's setting: `trade_step=0.1`. A run with the step at 1 has
+the fingerprint it always had. `--set trade_step=0.1` reads it in the extinction, scorecard and trade study commands.
 
 ## The metrics
 
@@ -1543,6 +1659,277 @@ What this means for the record:
   suggests a seed's start matters to whether it loses disease, but the draws after matter too.
 - **Run time.** Same machine, 5 workers: 29 and 31 min for the scorecards, and 6 h 41 min for the extinction test, against 54 and 61 min and
   13 h 43 min for the confirmation. That's the eight speedups merged before list D together with the skip.
+
+## Stage 5: trade
+
+Stage 4 recommended judging trade once disease was settled, and the user went on with it. Under list D trade passes its checks (X5,
+X6), but it follows sickness: stage 3 found trades per head of 0.2–0.3 in seeds with no disease against about 2.4 with six. The user
+ruled that this isn't trade working as intended: **some healthy agents should trade in order to get rich**, and a healthy agent who
+trades should end up with more resources than one who doesn't (both **the user's**). The way to get there that the user accepted was my
+proposal: gather what is plentiful where you stand and trade it for the other good instead of walking for it. That needs movement that
+counts on trade, so this stage built Rule 13 and screened five versions of it. The design is
+[docs/superpowers/specs/2026-11-03-xxl-trade-design.md](superpowers/specs/2026-11-03-xxl-trade-design.md), with the changes made after
+Part 1 at its end. Nothing here changes `XXL_DEFAULTS`.
+
+**The short answer.** Rule 13 changed almost nothing. No version passed screening and none came near, so by the design the stage stops
+here, with no confirmation run. No arm's reading is clearly above or below today's except for small rises in trade (about 1% with no
+disease, 2–4% in IV-A3), and distance walked is within 1.5% in every arm. Healthy traders
+already hold about 9% more than similar healthy agents who trade least, and no arm raised that. With no disease, trades per head stayed
+at 0.31, where the bar asked for twice that. What to try next is the user's call.
+
+**What was built** (on branch `xxl-trade`): Rule 13 (above); an observer that records, each period, who trades with whom by health and,
+for a window, every agent's holdings at its start and end; `julia/xxl_trade_study.jl`, which runs an arm with it; and
+`julia/xxl_trade_report.jl`, which applies the bars. With Rule 13 off and no observer, runs give the same bytes as on `main`: the pinned
+same-run digests and `XXL_V1` goldens, recorded on `main`'s code, pass unchanged.
+
+**The comparison the bar reads** (**the user's**: similar traders against similar non-traders in the same world, not the world with trade
+against the world without it, which credit showed can turn a gain into more agents rather than richer ones). Agents alive throughout a
+window and strictly healthy in it are put in cells of the same metabolisms, vision, age band and fifth of resources at the window's
+start. In each cell of at least 6, the third with the most exchanges is set against the third with the fewest, and the reading is their
+mean resources at the window's end, sugar + spice ÷ the window's mean price, pooled over cells. Matching makes this fairer, not a
+randomised test.
+
+### Part 1: who trades, and does it pay
+
+**The first run measured nothing on its main question.** The window was t = 401–500, and VI-1's agents live 60–100 periods, so almost
+none were alive at both ends: every VI-1 snapshot was empty. The report then read the missing figure as "not richer" and picked a row of
+the design's table on it. That was a bug, now fixed: a missing figure decides nothing. The user then made three decisions (all **the
+user's**):
+- the window is the last 20 periods (t = 481–500), which keeps about a third of agents;
+- the healthy-trade bar is dropped: 92% of strictly healthy agents traded with a strictly healthy partner within 10 periods (98% with
+  recovering agents counted as healthy), against a bar of 25%. The reason I gave when asking: trades are one unit at a time, so nearly
+  everyone trades a little;
+- the bars count only **strictly healthy** agents, with no disease for 10 periods. The design counted recovering agents as healthy, but
+  they were 32% of agents. The reason I gave when asking: their holdings are still skewed by the fee, so their trade is largely
+  disease-driven. The design's wider reading is shown beside each figure.
+
+**The rerun, seeds 80–99, 500 periods** (`results-julia-xxl/trade-part1b.md`):
+
+| Reading, t = 301–500 unless marked | Strictly healthy | Recovering counted as healthy |
+|---|---|---|
+| Traders ÷ similar non-traders, resources at the mean price, t = 481–500 | 1.09 [1.051, 1.133] | 1.089 [1.05, 1.133] |
+| Agents matched, 20 seeds | 331,595 (815 in cells too small) | 442,651 |
+| Healthy agents' exchanges with a partner who isn't healthy | 0.534 (random pairing 0.275) | 0.195 (random 0.084) |
+| Healthy ÷ sick median gap in log MRS to neighbours | 0.225 | 0.266 |
+| Trades per head with both healthy / with one | 0.259 / 0.612 | 1.039 / 0.531 |
+
+With no disease, trades per head are 0.308. Sick agents make 7.5 exchanges each per period, and recovering agents 3.3. The design's
+table picked "healthy trade is mostly with sick partners, and healthy MRS gaps are small": **the diagnosis holds**, go on to screening.
+Trade on against trade off moves nothing measurable: strictly healthy agents' resources 1.017 [0.976, 1.062], population 0.989, total
+resources 1.008, all straddling 1.
+
+Today already sits at 1.09 against the Richer bar of 1.10, so a version that only matched today would sit at the bar. The user changed
+the bar (**the user's**): an arm must reach 1.10 with its interval above 1, **and** at least 1.05 × today's (1.145), **and** the interval
+of its ratio ÷ today's must be above 1.
+
+### Screening
+
+VI-1 under `XXL_DEFAULTS` plus each arm, seeds 80–99, 500 periods, with the same arm in the no-disease world and in IV-A3
+(`results-julia-xxl/trade-screen.md`). The arms were the design's, all *my call*:
+
+| Arm | Expected price | Blend | Guard | Traders ÷ non-traders | ÷ today's | Trades per head, no disease | Trades per head |
+|---|---|---|---|---|---|---|---|
+| Today | — | — | — | 1.09 [1.051, 1.133] | — | 0.308 | 1.687 |
+| A | local | 1 | 5 | 1.083 [1.049, 1.122] | 0.993 [0.946, 1.043] | 0.311 | 1.728 |
+| B | own | 1 | 5 | 1.095 [1.055, 1.139] | 1.004 [0.953, 1.059] | 0.310 | 1.698 |
+| C | local | 0.5 | 5 | 1.087 [1.052, 1.125] | 0.997 [0.948, 1.048] | 0.310 | 1.586 |
+| D | local | 1 | none | 1.08 [1.044, 1.121] | 0.991 [0.942, 1.042] | 0.311 | 1.636 |
+| E | local | 1 | 15 | 1.083 [1.045, 1.125] | 0.993 [0.943, 1.047] | 0.312 | 1.504 |
+
+- **Fails, every arm:** Richer with trade (B's row alone is near), and trade without disease (0.310–0.312 against a bar of 0.617). One
+  failed bar is enough, so no arm is near and there's no further round.
+- **Passes, every arm:** sick agents still trade (7.42–7.58 per head against 7.53), the trough (means 8,485–8,555 against 8,544, lowest
+  7,768 against a floor of 7,224), X9 and X10 per seed (at least 18 of 20), X6 (1.15–1.17), and no extinction.
+- **Nothing else moved clearly.** Against today's, every ratio's interval straddles 1 except trades per head with no disease, up about 1%
+  in A, D and E, and IV-A3's trades per head, up 2–4% in A, C and D. Trades per head over all agents fell in C and E (0.94 and 0.89 of
+  today's), but their intervals are wide and straddle 1; E's mean price is 1.35 against 1.39. Distance walked is 1.19–1.21 against 1.21.
+  Population, Gini, mean sugar and mean spice are within about 2%.
+
+### What happened against my guess
+
+I guessed, before measuring, that healthy traders today would end within 5% of similar non-traders, and that Rule 13 at a local price
+with a guard would double trade with no disease and leave healthy traders at least 10% richer. Healthy traders today are already 9%
+richer, and Rule 13 changed neither figure.
+
+**Why, as I read it** (*my call*, not tested). Valuing a site at the expected price p ranks sites by sugar + spice ÷ p. To first order
+the book's welfare does the same at the agent's own MRS (its marginal rate at the agent's holdings is the MRS). Trade evens MRSs out:
+healthy neighbours' log MRSs differ by a median of 0.07. If an agent's own MRS likewise sits close to the market's p, and a site's goods
+are small next to what an agent holds so the book's diminishing returns barely bite, the two scores pick almost the same site and Rule 13
+seldom changes where an agent goes. Two things this doesn't settle: the 0.07 is between neighbours, not between an agent and p; and sick
+agents' gap is 0.29, so the argument predicts Rule 13 moves sick agents more, which screening didn't measure. A check would count how
+often a move's target differs between the two scores, on one seed. It needs a small counting script and about 7 minutes of running, and
+it hasn't been run: the user asked to hold it until they say.
+
+### What this doesn't show
+
+- All of it is on one map pair. Where sugar and spice sit decides how much specialising could pay, so this limit matters more here than
+  in earlier stages.
+- Matching traders with non-traders isn't a randomised test: who trades most may differ in ways the cells don't hold.
+- The window is 20 periods, so the comparison reads a short stretch of a life.
+- Screening ran on 20 seeds, 500 periods. An effect too small to see there isn't ruled out, but it would be too small to meet the user's bar.
+- The explanation above is untested.
+
+### Run time
+
+Same machine, 5 workers, no memory stops: the first Part 1 took 1 h 23 min, 12 of them for VI-1's xl reference, which its rerun reused;
+the rerun took 1 h 8 min, and screening 8 h 47 min. With Rule 13 on a run takes about 1.45 times as long. Screening's VI-1 runs slowed
+from arm B on (25 min for A, 43–59 for the others); when I looked at 20:47, three processes of another project, started at 19:18, were
+using about 18 of the machine's 24 threads.
+
+### My recommendation, not a decision
+
+1. **Don't adopt any version of Rule 13.** None changed anything the user asked for.
+2. **Run the check first**, if the user agrees: one seed of arm A, about 7 minutes, counting how often Rule 13 changes a move's target.
+   If it seldom does, the next design needs a stronger lever than the movement score; if it often does, the reason is elsewhere.
+3. **The next design is the user's call.** Candidates I'd consider: trades of more than one unit, so that an agent far from its partner's
+   MRS can move a lot at once; a map whose sugar and spice sit further apart, so a site's goods are less balanced; or accepting trade as
+   it is. Each is a new rule change, with its own design.
+4. **The branch keeps Rule 13 off by default**, and with it off every run is unchanged, so merging it costs nothing but code. Whether to
+   merge, keep it on its branch, or drop it is the user's call.
+
+**The user's ruling** (2026-11-05): no version of Rule 13 is adopted, and the next step investigates trades larger than one unit. The
+check above wasn't run: stage 5b made it moot.
+
+## Stage 5b: the meeting's price
+
+The user asked to investigate trades larger than one unit, with this reasoning (**the user's**): it isn't realistic for the MRS to set a
+new price during a single bargaining session; the price should be set when the session starts and apply to every unit, and there has to
+be a way for the seller to profit, not just break even. I pointed out that a meeting already trades until the MRSs would cross, so the
+change is to the price, not to how much a step holds. I proposed, and the user agreed, Rule 14 (above): the book's geometric-mean price,
+computed once when the meeting starts. The design is
+[docs/superpowers/specs/2026-11-05-xxl-meeting-price-design.md](superpowers/specs/2026-11-05-xxl-meeting-price-design.md). Nothing here
+changes `XXL_DEFAULTS`.
+
+**The short answer.** Rule 14 fails screening, so by the design this step stops with no confirmation run. Healthy traders end slightly
+richer than today's against similar non-traders, 1.103 against 1.09, but not by the bar and not clearly; trade with no disease doesn't
+move at all. The reason is in the new reading: **a meeting moves 1.68 units on average.** With one or two units a meeting, a price fixed
+for the meeting can hardly differ from one recomputed each unit.
+
+**The run.** One arm, M (`trade_price = "meeting"`), under `XXL_DEFAULTS`, seeds 80–99, 500 periods, in VI-1, the no-disease world and
+IV-A3 (`results-julia-xxl/trade-screen-meeting.md`). The baseline is stage 5's Part 1 rerun, made at commit 9bf328c on `xxl-trade`;
+with Rule 14 off the code makes the same runs, so the comparison isolates the rule. The bars are stage 5's as the user left them.
+
+| Row | M | Bar | Result |
+|---|---|---|---|
+| Richer with trade | 1.103 [1.07, 1.139]; ÷ today's 1.012 [0.964, 1.062] | at least 1.10, interval above 1; at least 1.145; ÷ today's interval above 1 | near |
+| Without disease | 0.3077 trades per head | at least 0.6166 (×2 today's 0.3083) | fail |
+| Sick agents still trade | 7.357 | at least 3.767 | pass |
+| Trough | mean 8,590, lowest 8,018 | mean at least 8,117, none below 7,224 | pass |
+| X9 / X10 per seed / X6 / extinction | 20 / 19 of 20 / 1.153 / 0 of 20 | 18 / 18 / at most 1.5 / none | pass |
+
+The report's own verdict text follows stage 5's results table, so I applied stage 5b's by hand (*my call*, from the design): an arm is
+near only if every failing row misses by no more than 5% of its bar. The no-disease row misses by half, so M is neither a pass nor near:
+it fails, and the second version (a price leaning towards the agent who needs the trade less) is the user's call. The report's own text
+reaches the same "stop".
+
+**Readings, against today's:** trades per head 1.64 against 1.69, sick agents' 7.36 against 7.53, and IV-A3's trades per head 0.945 of
+today's, the one ratio clearly below 1 (interval [0.924, 0.966]). Population, Gini, distance walked and the trough match today's. Units
+per meeting are 1.68, and the price spread across a period's meetings is 0.47 in log price: prices do differ from meeting to meeting, but
+each meeting is too small for that to make anyone rich. Today's units per meeting weren't recorded (the baseline's readings predate the
+column). Back-to-back meetings of one pair count as one, so units per meeting read about 0.3% high.
+
+**Against my guess.** I guessed each meeting would move fewer units than today's, trade per head would fall, the no-disease bar would
+fail, and the matched ratio would rise to about 1.12. Trade fell a little (within noise), the no-disease bar failed, and the ratio rose to
+1.103, also within noise. The guess got the direction of everything, but it didn't foresee that meetings average only 1.68 units.
+
+**Why meetings are so short, as I read it** (*my call*, not tested). One unit changes the buying agent's log MRS by about 1/sugar +
+p/spice, and the selling agent's by about as much the other way. With mean holdings of about 28 sugar and 37 spice and a price near 1.4,
+that is about 0.07 each, so one unit narrows the pair's gap by about 0.15. The median gap between strictly healthy neighbours' log MRSs is
+0.068 (over all neighbour pairs, not only those that trade), so for a typical healthy pair one whole unit overshoots about twofold, and
+the book's tests refuse it. The meetings that do happen are presumably between pairs with wider gaps, or poorer agents, whose steps are
+larger still. The unit isn't too small for healthy agents to profit; it is too large. Trades of a fraction of a unit would let two
+neighbours with a small gap take several steps.
+
+### What this doesn't show
+
+- One map pair, 20 seeds, 500 periods, one arm.
+- Units per meeting under today's rule weren't measured, so how much shorter Rule 14's meetings are is not known.
+- The reasoning about unit size is arithmetic on means, not a measurement; holdings and gaps vary widely between agents, and 1/sugar
+  grows fast for poorer agents, so the step a unit takes is far from uniform.
+
+### Run time
+
+Same machine, 5 workers, no memory stops: 44 minutes for the three runs and the report, 16 for VI-1 and 21 for the no-disease world.
+
+### My recommendation, not a decision
+
+1. **Don't adopt Rule 14.** It changed nothing the user asked for.
+2. **Next, smaller units** (the user's choice of next step, after this result): let a step trade a fraction of a unit, so that healthy
+   neighbours with a small gap can trade further before their MRSs cross. It is a new rule with its own design.
+3. **The branch keeps Rule 14 off by default** and changes no run with it off. Whether to merge it is the user's call.
+
+## Stage 5c: smaller trade steps
+
+The user chose smaller units next (**the user's**), after stage 5b found one whole unit narrows a healthy pair's gap in log MRS by about
+0.15 against a typical gap of 0.068. Rule 15 (above) makes a step a share of the book's unit; the study used a tenth, my proposal, which
+the user approved. The user also decided to test it alone and with Rule 14's meeting price, to measure every volume bar in goods moved
+rather than exchanges counted, and to rank traders in the matched comparison by the goods they moved rather than by their exchanges (all
+**the user's**). The design is
+[docs/superpowers/specs/2026-11-05-xxl-trade-step-design.md](superpowers/specs/2026-11-05-xxl-trade-step-design.md). Nothing here changes
+`XXL_DEFAULTS`.
+
+**The short answer.** Smaller steps did what was hoped for the amount of trade and nothing for who gets rich. Healthy agents trade far
+more: sugar moved per head with no disease more than doubles, so the no-disease bar passes, where every earlier arm of stage 5 failed it
+(measured then in trades counted). But traders end no richer than similar non-traders, about 1.00–1.02 times, against today's 1.052, so
+both arms fail the Richer bar, by 9% and 8%, and the step stops with no confirmation run.
+
+**The runs.** Seeds 80–99, 500 periods, under `XXL_DEFAULTS`: a new run of today's rule in VI-1 with the new readings (its 20 seed CSVs
+are byte-identical with stage 5's Part 1 run, so the comparison isolates the step), then arm S (`trade_step = 0.1`) and arm SM (also
+`trade_price = "meeting"`), each in VI-1, the no-disease world and IV-A3 (`results-julia-xxl/trade-screen-step.md`). Every fingerprint was
+checked at launch.
+
+**Today's ratio under the new ranking.** Ranked by sugar moved, today's healthy traders hold 1.052 times what similar non-traders hold,
+against 1.09 when stage 5 ranked them by exchanges. So the Richer bar here was at least 1.105 (1.05 × 1.052), with its interval above 1
+and the arm ÷ today interval above 1.
+
+| Row | Today | S | SM | Bar | Result |
+|---|---|---|---|---|---|
+| Richer with trade | 1.052 | 1.004 [0.963, 1.05]; ÷ today 0.954 [0.900, 1.013] | 1.02 [0.983, 1.06]; ÷ today 0.969 [0.918, 1.023] | see above | fail, fail |
+| Without disease, sugar moved per head | 0.387 | 0.914 | 0.854 | at least 0.775 | pass, pass |
+| Sick agents' sugar moved per head | 8.2 | 10.66 | 9.69 | at least 4.1 | pass, pass |
+| Trough, mean / lowest | 8,544 / 8,027 | 8,306 / 7,726 | 8,375 / 7,708 | at least 8,117 / 7,224 | pass, pass |
+| X9 / X10 per seed / X6 / extinction | — | 20 / 20 / 1.128 / 0 of 20 | 20 / 20 / 1.121 / 0 of 20 | 18 / 18 / at most 1.5 / none | pass, pass |
+
+By stage 5c's results table, applied by hand as before (*my call*): each arm fails one row, and misses it by more than 5% (S by 9.1%, SM by
+7.7%), so neither is near. The report's own text reaches the same "stop". X6 weights each exchange equally, so smaller steps tilt it towards long meetings;
+it is kept as the scorecard defines it.
+
+**Readings.** Sugar moved per head between healthy agents rises from 1.17 to 1.86 (S) and 1.67 (SM), about 1.6 and 1.4 times; total spice moved per
+head from 2.81 to 4.09 and 3.57. Exchanges per head rise about 13 to 15 times, from 1.69 to 24.8 and 22.2, since each step is a tenth. Sugar per meeting falls
+from 1.93 to 0.88 and 0.80. Population (59,082 and 59,101 against 59,399), Gini (0.230 and 0.235 against 0.232), mean sugar and spice, and
+distance walked hardly move. IV-A3's sugar moved per head rises from 1.33 to 1.76 and 1.52; its end population is 1% higher in S (7,400 against 7,326, interval
+above 1) and unchanged in SM.
+
+**Against my guess.** I guessed sugar moved with no disease would at least double, which it did, and that the matched ratio would rise,
+past 1.145 with Rule 14 too. It fell instead, slightly, within noise.
+
+**Why more trade doesn't make traders richer, as I read it** (*my call*, not tested). In the book's trade both sides gain by their own
+welfare, at a price between their MRSs, and goods only change hands. When healthy agents trade a lot, trading evens holdings out
+between neighbours rather than setting traders apart from non-traders, so the agents who moved the most end where similar agents who
+moved less do.
+
+### What this doesn't show
+
+- One map pair, 20 seeds, 500 periods, one step size.
+- The matched comparison isn't randomised; ranking by goods moved changes who counts as a trader, which is why today's figure was
+  recomputed.
+- Spice moved by pair type and per agent wasn't recorded (*my call*, to avoid another code change before the runs); only total spice is.
+- The explanation above is untested.
+
+### Run time
+
+Same machine, 5 workers, no memory stops: 2 h 26 min for the seven runs and the report: 18 min for today's run, 28 and 33 min for the two
+arms in VI-1, 27 min for each no-disease run, and about 3 min for each IV-A3 run.
+
+### My recommendation, not a decision
+
+1. **Don't adopt Rule 15 for its own sake.** It raises healthy trade a lot, which the user wanted, but not what the user's bar asks for:
+   traders ending richer.
+2. **Across stages 5–5c, no version of the book's trade made traders richer than similar non-traders.** Rules 13, 14 and 15 changed
+   where agents go, how a meeting is priced and how much a step moves. In each, both sides gain by their own welfare and goods only change
+   hands. Traders profiting at others' expense, like a merchant buying low from one agent and selling high to another, is a different
+   kind of rule, and the next design, if any, is the user's call.
+3. **Each branch keeps its rule off by default** and changes no run with it off. Whether to merge them is the user's call.
 
 ## Results of the first rules (`XXL_V1`)
 

@@ -91,9 +91,11 @@ function xxl_move!(m::Model, a::Agent)
     a.moved_dist = 0.0
     a.target_remembered = false
     best_x, best_y, best_d2 = a.x, a.y, 0
-    sw = spice ? SiteWelfare(m, a) : NO_WELFARE  # the agent's part of welfare_score, once per move
+    looked = look!(m, a)
+    # the agent's part of welfare_score, once per move; after the look, for rule 13's local price (it draws nothing)
+    sw = spice ? SiteWelfare(m, a, looked) : NO_WELFARE
     best = spice ? score(sw, ls, a.x + 1, a.y + 1) : site_score(ls, a.x + 1, a.y + 1)
-    for (x, y) in look!(m, a)
+    for (x, y) in looked
         @inbounds m.grid[x + 1, y + 1] === nothing || continue  # the agent's own site is occupied by itself
         s = spice ? score(sw, ls, x + 1, y + 1) : site_score(ls, x + 1, y + 1)
         s < best && continue

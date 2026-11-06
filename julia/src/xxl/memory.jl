@@ -14,7 +14,8 @@ more recent sighting, then the smaller (x, y).
 end
 
 # One agent's ranking in progress: `a.memory` being rebuilt, best first, with each kept entry's value and what its two
-# powers are of. Building one empties `a.memory`.
+# powers are of. Building one empties `a.memory`. Rule 13's blend `lambda` and price `inv_p` (a move's; 0 and 0 are the
+# book's) carry over; the holdings are the agent's now.
 struct Ranking
     a::Agent
     sw::SiteWelfare
@@ -30,16 +31,16 @@ struct Ranking
     kb::Vector{Float64}
 end
 
-function Ranking(m::Model, a::Agent)
+function Ranking(m::Model, a::Agent, lambda::Float64, inv_p::Float64)
     cfg = m.config
     two = cfg.spice
-    sw = two ? SiteWelfare(m, a) : NO_WELFARE
+    sw = two ? priced(SiteWelfare(m, a), lambda, inv_p) : NO_WELFARE
     cap = cfg.xxl.memory
     return Ranking(
         a,
         sw,
         two,
-        two && sw.use1 && sw.use2,
+        two && sw.use1 && sw.use2 && sw.lambda == 0,  # surely_less holds for the book's welfare only
         sugar_burn(a),
         cfg.xxl.travel_cost,
         cfg.xxl.free_step,
@@ -102,11 +103,13 @@ end
 Replaces `a.memory` with the best `memory` entries of the pool `m.pool`, best first, by [`net_value`](@ref) from the
 agent's position with its holdings now (spec, rule 3). An entry's resources are devalued by the pollution it was seen
 with. An entry the agent could not reach alive (valued `-Inf`) ranks last, so it is kept only if fewer than `memory`
-entries are reachable. The pool is not changed; `m.pool_values` holds the kept entries' values.
+entries are reachable. The pool is not changed; `m.pool_values` holds the kept entries' values. Under rule 13 the
+entries are valued at the blend and price of the agent's move this turn, `m.move_lambda` and `m.move_inv_p` (our call:
+the move's price, as [`remember!`](@ref) uses); both are 0, the book's ranking, unless the move set them.
 """
 function rank_pool!(m::Model, a::Agent)
     w, h = m.landscape.width, m.landscape.height
-    r = Ranking(m, a)
+    r = Ranking(m, a, m.move_lambda, m.move_inv_p)
     c1, c2 = Inf, Inf
     for e in m.pool
         c1, c2 = rank_entry!(r, torus_dist(w, h, a.x, a.y, e.x, e.y), e, c1, c2)
@@ -115,15 +118,17 @@ function rank_pool!(m::Model, a::Agent)
 end
 
 """
-    remember!(m, a)
+    remember!(m, a; sw=NO_WELFARE)
 
 Updates agent `a`'s memory after its move (spec, rule 3). It ranks, as [`rank_pool!`](@ref) does, the site it stands on
 and the sites it looked at this move (`m.looked`), which count as seen now at their current resources and pollution (the
 site it harvested is as it is after harvest), then the rest of its memory. One entry per site: the newest sighting, and a
 fresh look wins over a remembered entry of the same period. Entries older than `memory_span` periods are dropped first.
-The sites are ranked without being pooled, as most lose at once; `m.pool` holds only the memory's entries.
+The sites are ranked without being pooled, as most lose at once; `m.pool` holds only the memory's entries. `sw` is the
+move's [`SiteWelfare`](@ref): under rule 13 the entries are valued at the move's blend and price (our call), with the
+holdings as they are after the harvest.
 """
-function remember!(m::Model, a::Agent)
+function remember!(m::Model, a::Agent; sw::SiteWelfare=NO_WELFARE)
     ls = m.landscape
     span = m.config.xxl.memory_span
     spice = m.config.spice
@@ -140,7 +145,7 @@ function remember!(m::Model, a::Agent)
         end
         dup || push!(rest, e)
     end
-    r = Ranking(m, a)
+    r = Ranking(m, a, sw.lambda, sw.inv_p)
     c1, c2 = rank_entry!(r, 0.0, seen(ls, spice, ax, ay, m.t), Inf, Inf)
     for (x, y) in looked
         ((x == ax) & (y == ay)) && continue
@@ -170,7 +175,8 @@ end
 
 Agent `a` hears of its neighbours' best (spec, rule 3): it copies the first entry of each neighbour's memory in
 `a.neighbors` (with the period it was seen) into its own, then keeps the `memory` best as [`remember!`](@ref) ranks
-them, one entry per site (the newest sighting) and none older than `memory_span`.
+them, one entry per site (the newest sighting) and none older than `memory_span`. Under rule 13 that is at the blend and
+price of the agent's move this turn (see [`rank_pool!`](@ref)).
 """
 function word_of_mouth!(m::Model, a::Agent)
     span = m.config.xxl.memory_span

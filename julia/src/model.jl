@@ -54,6 +54,13 @@ mutable struct Model{R<:AbstractRNG}
     loans_rolled::Int  # of those, the ones whose unpaid rest rolled into a new loan
     loan_trace::Union{Nothing,LoanTrace}  # xxl: the opt-in record of every loan's life (xxl/loan_trace.jl)
     lend_left::Dict{Int,Float64}  # lender_limit: each lender's remaining limit this period, by id (lending_left)
+    # Rule 13's local price (xxl/trade_price.jl), the world's size with trade_move = "local", else 0 x 0.
+    site_price::Matrix{Float64}  # xxl: log of the latest exchange's price at each site, [x + 1, y + 1]
+    site_price_t::Matrix{Int}  # xxl: the period of that exchange, -1 for none yet
+    # xxl scratch: Rule 13's blend and sugar per spice of the move in hand (speed_move! sets them), so that word of
+    # mouth ranks at the move's price; step! sets both to 0, the book's score, before each agent moves.
+    move_lambda::Float64
+    move_inv_p::Float64
 end
 
 """
@@ -81,6 +88,7 @@ function Model(
         reverse(cap; dims=1)
     end
     ls = Landscape(cap, spice_cap)
+    local_prices = xxl_on(cfg, :trade_move) && cfg.xxl.trade_move == "local"
     m = Model(
         cfg,
         rng,
@@ -122,6 +130,10 @@ function Model(
         0,
         nothing,
         Dict{Int,Float64}(),
+        local_prices ? zeros(cfg.width, cfg.height) : zeros(0, 0),
+        local_prices ? fill(-1, cfg.width, cfg.height) : zeros(Int, 0, 0),
+        0.0,
+        0.0,
     )
     cfg.disease_list > 0 && init_disease_list!(m)
     place_initial_population!(m)
@@ -316,6 +328,7 @@ function step!(m::Model)
     shuffle!(m.rng, order)
     for a in order
         a.alive || continue
+        m.move_lambda, m.move_inv_p = 0.0, 0.0  # the last agent's move price never reaches this one's word of mouth
         if cfg.combat_alpha !== nothing
             combat_move!(m, a)
         else

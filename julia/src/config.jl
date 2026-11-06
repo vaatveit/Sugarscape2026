@@ -343,5 +343,25 @@ function validate_xxl(c::Config, r::XxlRules)
     r.disease_lengths !== nothing &&
         r.disease_lengths != c.disease_length &&
         bad("disease_lengths $(r.disease_lengths) and disease_length $(c.disease_length) go together")
+    r.trade_move !== nothing && check_option(:trade_move, r.trade_move, TRADE_MOVES)
+    !(0 <= r.trade_blend <= 1) &&  # NaN too
+        bad("trade_blend must be between 0 and 1, not $(r.trade_blend)")
+    r.trade_guard !== nothing &&
+        r.trade_guard < 0 &&
+        bad("trade_guard must be >= 0, not $(r.trade_guard)")
+    r.trade_price !== nothing && check_option(:trade_price, r.trade_price, TRADE_PRICES)
+    r.trade_price !== nothing && !c.trade && bad("trade_price needs trade")
+    !(0 < r.trade_step <= 1) &&  # NaN too
+        bad("trade_step must be above 0 and at most 1, not $(r.trade_step)")
+    r.trade_step != 1.0 && !c.trade && bad("trade_step needs trade")
+    r.trade_step != 1.0 &&
+        c.trade_rounding == "down" &&
+        bad("trade_step below 1 needs trade_rounding \"exact\": whole units would round it to nothing")
+    if r.trade_move === nothing
+        r.trade_blend != 1.0 && bad("trade_blend needs trade_move")
+        r.trade_guard !== nothing && bad("trade_guard needs trade_move")
+    elseif !c.trade
+        bad("trade_move needs trade")
+    end
     return c
 end

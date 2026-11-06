@@ -65,7 +65,8 @@ end
 
 `welfare_score` for one agent's move, with the agent's part computed once: the exponents and the holdings as if phi
 periods ahead. `score(sw, ls, i, j)` gives exactly welfare_score's value. A site with no sugar and no spice scores the
-holdings alone (base + 0/devalue == base), cached as `w0`.
+holdings alone (base + 0/devalue == base), cached as `w0`. `lambda` and `inv_p` are xxl rule 13's (see
+`SiteWelfare(m, a, looked)`); both are 0 here, the book's score.
 """
 struct SiteWelfare
     e1::Float64
@@ -75,6 +76,8 @@ struct SiteWelfare
     base1::Float64
     base2::Float64
     w0::Float64
+    lambda::Float64  # rule 13's blend: 0 is the book's welfare, 1 the value at the expected price
+    inv_p::Float64  # sugar per spice at the expected price (0 with lambda 0)
 end
 
 function SiteWelfare(m::Model, a::Agent)
@@ -86,10 +89,51 @@ function SiteWelfare(m::Model, a::Agent)
     base2 = max(a.spice - phi * a.spice_metabolism, 0.0)
     e1, e2 = a1 != 0 ? a1 / mu : 0.0, a2 != 0 ? a2 / mu : 0.0
     w0 = (a1 != 0 ? base1^e1 : 1.0) * (a2 != 0 ? base2^e2 : 1.0)
-    return SiteWelfare(e1, e2, a1 != 0, a2 != 0, base1, base2, w0)
+    return SiteWelfare(e1, e2, a1 != 0, a2 != 0, base1, base2, w0, 0.0, 0.0)
 end
 
-const NO_WELFARE = SiteWelfare(0.0, 0.0, false, false, 0.0, 0.0, 1.0)  # sugar-only moves
+"""
+    SiteWelfare(m, a, looked)
+
+xxl rule 13, movement that counts on trade (docs/xxl.md, "Rule 13"): the agent's part of the score for a move in which
+it looked at `looked` (0-based sites, as [`look!`](@ref) gives them). Off the rule it is `SiteWelfare(m, a)`. On it, the
+blend `lambda` is `trade_blend` and `inv_p` is 1 / [`expected_price`](@ref), so a bundle (A, B) scores
+[`trade_value`](@ref); `lambda` stays 0, the book's score, when there is no expected price, or under the guard: the
+agent's sugar or spice would last fewer than `trade_guard` periods at its metabolism. Draws nothing.
+"""
+function SiteWelfare(m::Model, a::Agent, looked::Vector{Tuple{Int,Int}})
+    sw = SiteWelfare(m, a)
+    xxl_on(m.config, :trade_move) || return sw
+    r = m.config.xxl
+    r.trade_blend == 0 && return sw
+    k = r.trade_guard
+    k !== nothing && (a.sugar < k * sugar_burn(a) || a.spice < k * a.spice_metabolism) && return sw
+    p = expected_price(m, a, looked)
+    isnan(p) && return sw
+    return priced(sw, r.trade_blend, 1 / p)
+end
+
+"""No sites looked at: `SiteWelfare(m, a, NO_SITES)` for a move that keeps no list of its look. Never written to."""
+const NO_SITES = Tuple{Int,Int}[]
+
+# `sw` scoring at blend `lambda` and `inv_p` sugar per spice; the empty site's cached score too.
+function priced(sw::SiteWelfare, lambda::Float64, inv_p::Float64)
+    lambda == 0 && return sw
+    w0 = trade_value(lambda, inv_p, sw.w0, sw.base1, sw.base2)
+    return SiteWelfare(sw.e1, sw.e2, sw.use1, sw.use2, sw.base1, sw.base2, w0, lambda, inv_p)
+end
+
+"""
+    trade_value(lambda, inv_p, w, A, B) -> Float64
+
+Rule 13's score of a bundle of A sugar and B spice whose book welfare is `w` (= A^e1 B^e2): w^(1-λ) V^λ with
+V = A + B · inv_p, its value in sugar at the expected price. Both w and V are of degree 1 in (A, B), so the blend needs
+no units (our call); λ = 1 ranks by V alone. Called only with λ > 0: at 0 the book's expression is used as it stands.
+"""
+@inline trade_value(lambda::Float64, inv_p::Float64, w::Float64, A::Float64, B::Float64) =
+    w^(1 - lambda) * (A + B * inv_p)^lambda
+
+const NO_WELFARE = SiteWelfare(0.0, 0.0, false, false, 0.0, 0.0, 1.0, 0.0, 0.0)  # sugar-only moves
 
 const SURELY_BELOW = 1.0 - 1e-9  # far enough under 1 that no rounding in the powers could bring the two values level
 
@@ -109,9 +153,11 @@ makes a weight Inf, and Inf * 0 is NaN, so nothing is ruled out against it.
     s, p = @inbounds ls.sugar[i, j], ls.spice[i, j]
     (s == 0 && p == 0) && return sw.w0
     devalue = 1.0 + @inbounds ls.pollution[i, j]
-    left = sw.use1 ? (sw.base1 + s / devalue)^sw.e1 : 1.0
-    right = sw.use2 ? (sw.base2 + p / devalue)^sw.e2 : 1.0
-    return left * right
+    A, B = sw.base1 + s / devalue, sw.base2 + p / devalue
+    left = sw.use1 ? A^sw.e1 : 1.0
+    right = sw.use2 ? B^sw.e2 : 1.0
+    sw.lambda == 0 && return left * right
+    return trade_value(sw.lambda, sw.inv_p, left * right, A, B)
 end
 
 """
