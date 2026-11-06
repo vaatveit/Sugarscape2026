@@ -12,15 +12,16 @@ const TRADE_PRICES = ("meeting",)
 """
     XxlRules(; kw...)
 
-The twenty xxl settings: the nine of the first spec ("The rules"), the four stage-1 survival switches of the
+The twenty-one xxl settings: the nine of the first spec ("The rules"), the four stage-1 survival switches of the
 revised spec ("The changes"), the three stage-4 disease list settings (`disease_count`, `founder_diseases` and
 `disease_lengths`), the three stage-5 trade move settings (`trade_move`, `trade_blend` and `trade_guard`) and the
-stage-5b `trade_price`, each at the book's value by default. The three list settings are `nothing` at the book's value:
+stage-5b `trade_price` and the stage-5c `trade_step`, each at the book's value by default. The three list settings are `nothing` at the book's value:
 they leave the experiment's own disease list, founder count and lengths as they are. `trade_move` is `nothing` (the
 book's welfare score), `"own"` or `"local"` (the price an agent expects when it scores a site by trade); `trade_blend`
 is a weight in [0, 1] (1 is the full rule) and `trade_guard` a number of periods or `nothing`; both need `trade_move`.
 `trade_price` is `nothing` (the book's price, set afresh at each unit) or `"meeting"` (one price, set at the start of a
-meeting, for every unit of it).
+meeting, for every unit of it). `trade_step` is a number in (0, 1], the share of the book's unit a step trades (1 is the
+book's unit; it needs `trade_rounding = "exact"` to be below 1).
 The defaults are the book's settings, so `XxlRules()` changes nothing; [`XXL_V1`](@ref) is the xxl column of the first
 spec's table and [`XXL_DEFAULTS`](@ref) the defaults stages 1 and 4 chose. `Config.xxl` holds one, or `nothing` for the
 plain book rules.
@@ -46,6 +47,7 @@ Base.@kwdef struct XxlRules
     trade_blend::Float64 = 1.0
     trade_guard::Union{Nothing,Int} = nothing
     trade_price::Union{Nothing,String} = nothing
+    trade_step::Float64 = 1.0
 end
 
 function Base.:(==)(a::XxlRules, b::XxlRules)

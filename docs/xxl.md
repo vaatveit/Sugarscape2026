@@ -70,6 +70,7 @@ settings with the experiment's own disease list.
 | `trade_blend` λ (score W^(1−λ)·V^λ) | 1 | 1 | 1 | 13 |
 | `trade_guard` k (periods of sugar or spice) | none | none | none | 13 |
 | `trade_price` (`"meeting"`: one price per meeting) | none | none | none | 14 |
+| `trade_step` (share of the book's unit a step trades) | 1 | 1 | 1 | 15 |
 
 `max_metabolism`, `founder_placement`, `free_step` and `founder_ages` are the stage-1 survival switches. Each was tried
 at a candidate setting, and the scorecard decided which to keep:
@@ -461,6 +462,38 @@ directly.
 **Fingerprint:** the `xxl` line names it only when it is on, after the disease list and Rule 13's settings: `trade_price="meeting"`.
 A run with the rule off has the fingerprint it always had. `--set trade_price=meeting` reads it in the extinction, scorecard and
 trade study commands.
+
+## Rule 15: the trade step
+
+**Book setting:** `trade_step` is 1: in rule T each step of a meeting trades the book's unit (price p above 1: 1 sugar for p spice;
+p below 1: 1/p sugar for 1 spice).
+
+**xxl** (`trade_step` below 1; it needs trade): each step trades that share of the book's unit, so a step of 0.1 trades a tenth of
+the sugar and a tenth of the spice the book would. The meeting goes on step by step until a step fails a test, so a smaller step means
+more steps in a meeting and a meeting that stops closer to where the two MRSs meet.
+
+| Value | What a step does |
+|---|---|
+| 1 (the book) | The book's unit: the sugar and spice of a step are what price and rounding give |
+| above 0, below 1 | The step's sugar and spice are both multiplied by it, in either price rule (the book's price recomputed before every step, or Rule 14's price for the meeting). With Rule 14 every step trades at the meeting's price |
+
+**What stays.** Only the step's size changes. Both price rules, the tests on each step (holdings stay positive, the buyer's MRS stays at
+or above the seller's, both welfares strictly rise) and trading once with each neighbour, in random order, are as they are. Each
+accepted step still goes to the trade log with its price. Volume is read in goods moved, not in exchanges counted, since a smaller step
+makes more exchanges for the same goods.
+
+**Why.** *The user's idea:* trade in small steps. *My call:* the name and type (`trade_step`, a `Float64`), and the study's step of 0.1.
+The step's behaviour in `bargain!` is described in the design (`docs/superpowers/specs/2026-11-05-xxl-trade-step-design.md`).
+
+**Rule 13:** the code allows it with Rule 13, but the study doesn't combine them. For an experiment without trade the transform sets
+`trade_step` back to 1.
+
+**Refused:** a `trade_step` at or below 0, above 1, or not finite; a `trade_step` other than 1 with `trade_rounding = "down"` (whole
+units would round a tenth to nothing; *my call*); a `trade_step` other than 1 on an experiment without trade, if it reaches `Config`
+directly.
+
+**Fingerprint:** the `xxl` line names it only when it isn't 1, after Rule 14's setting: `trade_step=0.1`. A run with the step at 1 has
+the fingerprint it always had. `--set trade_step=0.1` reads it in the extinction, scorecard and trade study commands.
 
 ## The metrics
 
