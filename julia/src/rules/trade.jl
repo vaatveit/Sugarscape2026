@@ -11,6 +11,10 @@ exchange happens only if both agents' welfare strictly rises and their MRSs don'
 bargaining ends. An MRS of 0, infinity, or undefined means no trade (our call). trade_rounding="down" rounds the
 amount of p or 1/p down to a whole unit (VAR-inttrade); the price stays p. Each exchange goes to `m.trade_log`.
 
+xxl rule 15, the trade step (`trade_step` below 1): each exchange moves that share of the book's unit, both amounts
+multiplied by it, at the same price; the meeting goes on, step after step, until one fails the tests. At 1 it is the
+book's unit, untouched.
+
 xxl rule 14, the meeting's price (`trade_price = "meeting"`): the MRSs, the price and which agent buys sugar are
 set once, when the meeting starts; every unit then trades at that price, under the same unit sizes and tests, until
 one fails. Off, the price is set afresh before every unit, as above.
@@ -22,12 +26,13 @@ site standing. None of this draws or touches the exchange itself.
 function bargain!(m::Model, a::Agent, b::Agent)
     cultural = m.config.cultural_preferences
     whole = m.config.trade_rounding == "down"
+    step = xxl_on(m.config, :trade_step) ? m.config.xxl.trade_step : 1.0
     if xxl_on(m.config, :trade_price)  # xxl rule 14: one price for the whole meeting
         ma, mb = mrs(a, cultural), mrs(b, cultural)
         (!(valid_mrs(ma) && valid_mrs(mb)) || ma == mb) && return nothing
         hi, lo = ma > mb ? (a, b) : (b, a)
         price = sqrt(ma * mb)
-        while trade_unit!(m, hi, lo, price, cultural, whole)
+        while trade_unit!(m, hi, lo, price, cultural, whole, step)
         end
         return nothing
     end
@@ -36,21 +41,26 @@ function bargain!(m::Model, a::Agent, b::Agent)
         (!(valid_mrs(ma) && valid_mrs(mb)) || ma == mb) && return nothing
         hi, lo = ma > mb ? (a, b) : (b, a)
         price = sqrt(ma * mb)
-        trade_unit!(m, hi, lo, price, cultural, whole) || return nothing
+        trade_unit!(m, hi, lo, price, cultural, whole, step) || return nothing
     end
 end
 
 """
-    trade_unit!(m, hi, lo, price, cultural, whole)
+    trade_unit!(m, hi, lo, price, cultural, whole, step)
 
-One unit of rule T at `price`, `hi` buying sugar from `lo` (see `bargain!`): made and logged if it passes the tests,
-undone otherwise. Returns whether it was made.
+One unit of rule T at `price`, `hi` buying sugar from `lo` (see `bargain!`), `step` of the book's unit (rule 15; 1 is
+the book's): made and logged if it passes the tests, undone otherwise. Returns whether it was made.
 """
-function trade_unit!(m::Model, hi::Agent, lo::Agent, price::Float64, cultural::Bool, whole::Bool)
+function trade_unit!(
+    m::Model, hi::Agent, lo::Agent, price::Float64, cultural::Bool, whole::Bool, step::Float64
+)
     sugar, spice =
         price > 1 ? (1.0, price) : (price < 1 ? (1.0 / price, 1.0) : (1.0, 1.0))
     if whole
         sugar, spice = floor(sugar), floor(spice)
+    end
+    if step != 1.0
+        sugar, spice = sugar * step, spice * step
     end
     old = (hi.sugar, hi.spice, lo.sugar, lo.spice)
     hi.sugar, hi.spice = hi.sugar + sugar, hi.spice - spice
