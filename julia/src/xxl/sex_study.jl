@@ -111,34 +111,9 @@ function run_sex_world(
     foreach(k -> remove_sex_seed(folder, k), todo)
     if !isempty(todo)
         write_machine_note(joinpath(folder, "machine.txt"), jobs, Float64[], "sex study $world")
-        fresh = SeedOutcome[]
-        guard = ReentrantLock()
-        workers = jobs > 1 && length(todo) > 1 ? min(jobs, length(todo)) : 1
-        function record!(o::SeedOutcome)
-            lock(guard) do
-                push!(fresh, o)
-                done = seeds - length(todo) + length(fresh)
-                println(io, extinction_progress(o, fresh, periods, done, seeds, workers))
-                flush(io)
-            end
-        end
-        if workers > 1
-            procs = addprocs(workers)
-            try
-                remotecall_eval(Main, procs, :(using Sugarscape))
-                pool = WorkerPool(procs)
-                asyncmap(todo; ntasks=workers) do k
-                    record!(remotecall_fetch(Sugarscape.sex_seed!, pool, exp, world, k, abspath(folder), window))
-                    return nothing
-                end
-            finally
-                rmprocs(procs)
-            end
-        else
-            for k in todo
-                record!(sex_seed!(exp, world, k, folder, window))
-            end
-        end
+        run_seed_calls!(
+            sex_seed!, [(exp, world, k, abspath(folder), window) for k in todo], seeds, periods, jobs, io,
+        )
     end
     return folder
 end

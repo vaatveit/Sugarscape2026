@@ -111,3 +111,12 @@ end
     write(fp, replace(read(fp, String), "periods=6" => "periods=7"))
     @test redirect_stderr(() -> sex_study_main(args), devnull) == 1
 end
+
+@testset "xxl sex study: seeds in workers write the same files" begin
+    out1, out2 = mktempdir(), mktempdir()
+    a = run_sex_world("xl"; SS_KW..., out=out1, jobs=1)
+    b = run_sex_world("xl"; SS_KW..., out=out2, jobs=2)
+    for k in (20, 21), name in ("seed$k.csv", "seed$k-sex.csv", "seed$k-agents.csv")
+        @test read(joinpath(a, name)) == read(joinpath(b, name))
+    end
+end

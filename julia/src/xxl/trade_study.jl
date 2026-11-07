@@ -100,6 +100,47 @@ function trade_plan(
 end
 
 """
+    run_seed_calls!(seed_fn, calls, seeds, periods, jobs, io)
+
+Runs `seed_fn(call...)` for each tuple in `calls` (the seeds still to do of a study of `seeds`), each returning a
+`SeedOutcome`, and prints each one's progress line on `io`. With `jobs > 1` and more than one call the seeds run in that
+many worker processes, `seed_fn` called there by reference (so it is a function of the package, with arguments that
+serialise, a folder as an absolute path); else they run in turn here. Shared by the trade and sex studies.
+"""
+function run_seed_calls!(seed_fn, calls::Vector, seeds::Int, periods::Int, jobs::Int, io::IO)
+    isempty(calls) && return nothing
+    fresh = SeedOutcome[]
+    guard = ReentrantLock()
+    workers = jobs > 1 && length(calls) > 1 ? min(jobs, length(calls)) : 1
+    function record!(o::SeedOutcome)
+        lock(guard) do
+            push!(fresh, o)
+            done = seeds - length(calls) + length(fresh)
+            println(io, extinction_progress(o, fresh, periods, done, seeds, workers))
+            flush(io)
+        end
+    end
+    if workers > 1
+        procs = addprocs(workers)
+        try
+            remotecall_eval(Main, procs, :(using Sugarscape))
+            pool = WorkerPool(procs)
+            asyncmap(calls; ntasks=workers) do call
+                record!(remotecall_fetch(seed_fn, pool, call...))
+                return nothing
+            end
+        finally
+            rmprocs(procs)
+        end
+    else
+        for call in calls
+            record!(seed_fn(call...))
+        end
+    end
+    return nothing
+end
+
+"""
     run_trade_arm(rules; label, experiment="VI-1", options=CreditOptions(), seeds=20, first_seed=80, periods=500, jobs=1,
                   out=RESULTS_XXL, io=stdout) -> String
 
@@ -131,34 +172,9 @@ function run_trade_arm(
     foreach(k -> remove_trade_seed(folder, k), todo)
     if !isempty(todo)
         write_machine_note(joinpath(folder, "machine.txt"), jobs, Float64[], "trade study $label")
-        fresh = SeedOutcome[]
-        guard = ReentrantLock()
-        workers = jobs > 1 && length(todo) > 1 ? min(jobs, length(todo)) : 1
-        function record!(o::SeedOutcome)
-            lock(guard) do
-                push!(fresh, o)
-                done = seeds - length(todo) + length(fresh)
-                println(io, extinction_progress(o, fresh, periods, done, seeds, workers))
-                flush(io)
-            end
-        end
-        if workers > 1
-            procs = addprocs(workers)
-            try
-                remotecall_eval(Main, procs, :(using Sugarscape))
-                pool = WorkerPool(procs)
-                asyncmap(todo; ntasks=workers) do k
-                    record!(remotecall_fetch(Sugarscape.trade_seed!, pool, exp, k, rules, abspath(folder), window))
-                    return nothing
-                end
-            finally
-                rmprocs(procs)
-            end
-        else
-            for k in todo
-                record!(trade_seed!(exp, k, rules, folder, window))
-            end
-        end
+        run_seed_calls!(
+            trade_seed!, [(exp, k, rules, abspath(folder), window) for k in todo], seeds, periods, jobs, io,
+        )
     end
     return folder
 end
