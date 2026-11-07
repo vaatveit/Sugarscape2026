@@ -181,7 +181,7 @@ end
 """The seeds of `w` in value `key`, and those left out of it (extinct or a zero denominator), in seed order."""
 function seeds_in(w::SexWorld, key::Symbol)
     used = [s for s in w.seeds if isfinite(s.values[key])]
-    return [s.values[key] for s in used], [s.seed for s in w.seeds if !isfinite(s.values[key])]
+    return Float64[s.values[key] for s in used], Int[s.seed for s in w.seeds if !isfinite(s.values[key])]
 end
 
 """The mean over seeds of value `key` in `w`, NaN for none."""

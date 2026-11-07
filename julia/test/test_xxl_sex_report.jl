@@ -3,7 +3,7 @@
 using Sugarscape, Test
 using Sugarscape: sex_report, sex_report_args, sex_report_main, read_sex_world, sex_bars, sex_outcome, SEX_COLUMNS,
                   SEX_AGENT_COLUMNS, M_FACTOR, MIN_FERTILE_PERIODS, TROUGH_HALF, MIN_SEEDS, S_SHARE, S_MIN_BOOK_DROP,
-                  RESULTS_XXL, bar_figure
+                  RESULTS_XXL, bar_figure, run_sex_world
 
 const SR_PERIODS = 30
 const SR_WINDOW = (11, 30)
@@ -226,6 +226,34 @@ end
     @test bars.s.result == :holds
     @test sex_outcome(bars.m, bars.s.result) == :works
     @test occursin("works as intended", sr_report(f))
+end
+
+@testset "xxl sex report: every seed left out of M2 reads missing, and the md is written" begin
+    out = mktempdir()
+    f = sr_worlds(out; book=i -> (; agents=Tuple{Int,Int}[]))  # no snapshot agent in any book seed
+    bars = sex_bars(read_sex_world("book", f.book), read_sex_world("xl", f.xl), read_sex_world("today", f.today))
+    @test bars.m2.n_base == 0 && bars.m2.result == :missing
+    @test isnan(bars.m2.ratio)
+    @test bars.m2_xl.result == :missing
+    @test bars.m == :missing
+    md = joinpath(mktempdir(), "sex-part1.md")
+    text = sex_report(; f..., md, io=devnull)
+    @test isfile(md)
+    @test occursin("| Childless share (M2) | 0 of 20 (left out: $(join(80:99, ", "))) |", text)
+    @test occursin("| Childless share (M2) | — | 0.4 | 0.6 |", text)
+end
+
+@testset "xxl sex report: real tiny study folders, 1 seed of 4 periods per world" begin
+    out = mktempdir()
+    f = NamedTuple{(:book, :xl, :today)}(
+        Tuple(run_sex_world(w; seeds=1, first_seed=80, periods=4, io=devnull, out=out) for w in ("book", "xl", "today")))
+    md = joinpath(out, "report.md")
+    text = sex_report(; f..., md, io=devnull)
+    @test isfile(md) && read(md, String) == text
+    bars = sex_bars(read_sex_world("book", f.book), read_sex_world("xl", f.xl), read_sex_world("today", f.today))
+    @test bars.m1.result == :missing && bars.m2.result == :missing && bars.m == :missing
+    @test bars.s.result == :missing
+    @test sex_outcome(bars.m, bars.s.result) == :report
 end
 
 @testset "xxl sex report: speed reads — for the book and xl" begin
