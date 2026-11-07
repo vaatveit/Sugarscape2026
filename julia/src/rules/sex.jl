@@ -102,6 +102,10 @@ function mate!(m::Model, a::Agent)
         empty!(sites)
         add_empty_sites!(sites, m, a)
         add_empty_sites!(sites, m, other)
+        if m.mate_log !== nothing  # opt-in; draws nothing
+            d2 = torus_dist2(cfg.width, cfg.height, a.x, a.y, other.x, other.y)
+            push!(m.mate_log, MateEvent(m.t, a.id, other.id, !isempty(sites), sqrt(d2), a.vision))
+        end
         isempty(sites) && continue
         x, y = sites[rand(rng, 1:length(sites))]
         parents = (a, other)

@@ -21,7 +21,7 @@ export torus_delta,
     torus_dist, disc_offsets, near_offsets, ring_point, ring_draws, winter_weight
 export Remembered
 export SplitMix64, bump_field, generate_map, XXL_TERRAIN_SEEDS
-export Agent, Exchange, Loan, sugar_burn
+export Agent, Exchange, MateEvent, Loan, sugar_burn
 export Landscape,
     wrap,
     growback!,
