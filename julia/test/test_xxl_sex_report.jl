@@ -214,6 +214,20 @@ end
     @test occursin("no outcome", sr_report(f))
 end
 
+@testset "xxl sex report: M1 failing settles M though M2 reads missing" begin
+    out = mktempdir()
+    # today's no-mate shares alternate 0.96 and 0 (M1 fails on its interval); six of today's seeds have no snapshot agent
+    # fertile for 5 periods (M2 is left with 14)
+    f = sr_worlds(out; today=i -> (; reach=isodd(i) ? 4 : 100, (i <= 6 ? (; agents=[(4, 0)]) : (;))...))
+    bars = sex_bars(read_sex_world("book", f.book), read_sex_world("xl", f.xl), read_sex_world("today", f.today))
+    @test bars.m1.result == :fails
+    @test bars.m2.n_run == 14 && bars.m2.result == :missing
+    @test bars.m == :fails
+    @test bars.s.result == :holds
+    @test sex_outcome(bars.m, bars.s.result) == :works
+    @test occursin("works as intended", sr_report(f))
+end
+
 @testset "xxl sex report: speed reads — for the book and xl" begin
     out = mktempdir()
     text = sr_report(sr_worlds(out))

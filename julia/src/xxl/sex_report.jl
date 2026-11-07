@@ -59,9 +59,9 @@ const SEX_READINGS = (
     (:births, "Births per fertile agent-period"),
     (:no_site, "No-site attempts per birth"),
     (:mean_distance, "Mean parent distance"),
-    (:median_distance, "Median parent distance"),
+    (:median_distance, "Median parent distance (births-weighted mean of period medians)"),
     (:mean_distance_share, "Mean parent distance ÷ vision"),
-    (:median_distance_share, "Median parent distance ÷ vision"),
+    (:median_distance_share, "Median parent distance ÷ vision (births-weighted mean of period medians)"),
 )
 
 """The traits read at the start and end of a run, with their names in the report."""
@@ -208,8 +208,8 @@ end
 
 The bars of the three worlds ([`read_sex_world`](@ref)):
 
-- `m1`, `m2`: today ÷ book of the no-mate and childless shares ([`sex_ratio`](@ref)); `m`: `:holds` when both hold,
-  `:missing` when either reads missing, else `:fails`;
+- `m1`, `m2`: today ÷ book of the no-mate and childless shares ([`sex_ratio`](@ref)); `m`: `:fails` when either fails
+  (a missing bar decides nothing, so one failure settles M), else `:missing` when either reads missing, else `:holds`;
 - `m1_xl`, `m1_today_xl`, `m2_xl`, `m2_today_xl`: xl ÷ book and today ÷ xl, shown; `trough`: today ÷ book of the trough
   no-mate share, shown;
 - `s`: today ÷ book of the mean metabolism drops, with `book_drop` the book's mean; `result` is `:missing` with fewer
@@ -219,8 +219,8 @@ The bars of the three worlds ([`read_sex_world`](@ref)):
 """
 function sex_bars(book::SexWorld, xl::SexWorld, today::SexWorld)
     m1, m2 = sex_ratio(today, book, :no_mate), sex_ratio(today, book, :childless)
-    m = (m1.result == :missing || m2.result == :missing) ? :missing :
-        (m1.result == :holds && m2.result == :holds) ? :holds : :fails
+    m = (m1.result == :fails || m2.result == :fails) ? :fails :
+        (m1.result == :missing || m2.result == :missing) ? :missing : :holds
     a, b = first(seeds_in(today, :drop)), first(seeds_in(book, :drop))
     r = bootstrap_ratio_apart(a, b)
     book_drop = isempty(b) ? NaN : mean_of(b)
@@ -332,7 +332,8 @@ function sex_report_text(book::SexWorld, xl::SexWorld, today::SexWorld)
 
     push!(lines, "", "## Bars", "",
           "Ratios of the means over seeds, today ÷ book unless named; 95% interval from $(thousands(BOOT_REPS)) bootstrap " *
-          "resamples of each world's seeds apart (random seed $BOOT_SEED).", "",
+          "resamples of each world's seeds apart (random seed $BOOT_SEED). A ratio that isn't finite, such as one over a " *
+          "book mean of 0, reads missing.", "",
           row_text(["Bar", "Value", "Interval", "Bar", "Seeds", "Result"]), "|---|---|---|---|---|---|")
     m_bar = "at least $M_FACTOR, interval above 1"
     s_result = bars.s.result == :not_judged ?
