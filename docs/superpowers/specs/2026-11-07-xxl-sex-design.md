@@ -130,7 +130,7 @@ and (in xxl) speed are reported against the book and xl, not judged. Vision isn'
   with a rule spec.
 - **M doesn't hold and S doesn't fail:** sex works as intended in xxl. Written up in docs/xxl.md as "Stage 6: sex" and
   the stage stops.
-- **M reads missing:** reported to the user; no outcome is drawn.
+- **M reads missing:** reported to the user; no outcome is drawn. M fails when either M1 or M2 fails, even if the other reads missing, because M holds only when both hold and a missing bar decides nothing; M reads missing only when neither fails and at least one is missing (my call, 2026-11-07).
 
 **Book-scale caveat, to state in the write-up:** the book's world has its own density and look, so "1.5× the book's"
 compares unlike worlds. xl is shown beside it to say how much is world size and how much is xxl's rules.
