@@ -9,8 +9,9 @@
 # The reach count is the scorecard's X2 count (`push_fertility!`): the same agents in the same order, with the looks
 # drawn from the observer's own copy of the RNG, taken at its first call, so the run is unchanged. The within-vision
 # count is exact, on every site of the shape the world's look is drawn from: under round vision the disc
-# 0 < dx² + dy² ≤ V² (torus distance), else the four lattice lines, every site 1..V (not the look's strided sample;
-# the xl look can reach a little past V, the count doesn't).
+# 0 < dx² + dy² ≤ V² (torus distance), else the four lattice lines, every site out to the look's farthest
+# possible distance, stride·(V ÷ stride) + stride − 1 (V at stride 1, the book; the xl look's jitter reaches past V), not
+# the look's strided sample.
 #
 # The snapshot: an agent's fertile life ends when its age reaches its fertility end (end reason 0), or when it dies
 # after reaching childbearing age (end reason 1). Its period counts are over its whole observed life. An agent first
@@ -118,7 +119,7 @@ function SexReadings(; window::Tuple{Int,Int})
 end
 
 """Of childbearing age, with a sex."""
-eligible(a::Agent) = a.sex !== :none && a.fertility_start <= a.age < a.fertility_end
+sex_eligible(a::Agent) = a.sex !== :none && a.fertility_start <= a.age < a.fertility_end
 
 """The mean and population sd of `f` over `agents`, NaN for none."""
 function mean_sd(f, agents::Vector{Agent})
@@ -178,7 +179,7 @@ function sex_period!(r::SexReadings, m::Model)
     own, m.rng = m.rng, r.rng  # a look in sight draws random numbers: the observer's, so the run is unchanged
     try
         for (i, a) in enumerate(agents)  # as push_fertility!: the same agents, in the same order
-            neligible += eligible(a)
+            neligible += sex_eligible(a)
             fertile[i] = is_fertile(a, threshold)
             fertile[i] || continue
             nfertile += 1
@@ -207,7 +208,7 @@ function sex_period!(r::SexReadings, m::Model)
             end_life!(r, a, life, t, 0, speed)
             continue
         end
-        eligible(a) || continue
+        sex_eligible(a) || continue
         life.eligible += 1
         fertile[i] || continue
         life.fertile += 1
@@ -255,14 +256,15 @@ end
 
 """
 Marks in `r.vision` each fertile agent with a fertile agent of the other sex on one of the four lattice lines from it,
-at distance 1 to its vision.
+at every distance its look can reach: 1 to stride·(V ÷ stride) + stride − 1 (1 to V at stride 1).
 """
 function lattice_vision!(r::SexReadings, m::Model)
     threshold = m.config.fertility_threshold
+    s = m.config.look_stride
     for (i, a) in enumerate(m.agents)
         r.fertile[i] || continue
         found = false
-        for (dx, dy) in VON_NEUMANN, k in 1:(a.vision)
+        for (dx, dy) in VON_NEUMANN, k in 1:(s * (a.vision ÷ s) + s - 1)
             o = agent_at(m, a.x + dx * k, a.y + dy * k)
             if o !== nothing && o.sex !== a.sex && is_fertile(o, threshold)
                 found = true

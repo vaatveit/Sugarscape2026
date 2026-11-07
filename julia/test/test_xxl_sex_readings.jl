@@ -112,12 +112,19 @@ end
         @test sr_val(sr_read!(SexReadings(; window=(301, 500)), m3, 0), "fertile_vision") == 1
     end
 
-    @testset "the lattice look's stride: every site 1..V is read" begin
+    @testset "the lattice look's stride: every site out to the look's reach is read" begin
         m = tiny_model(zeros(Int, 60, 60); sex=true, vision=(10, 20), look_stride=10)
         sr_fertile(m, 10, 10, :F; vision=20)
         sr_fertile(m, 10, 13, :M; vision=10)
         row = sr_read!(SexReadings(; window=(301, 500)), m, 0)
         @test sr_val(row, "fertile_vision") == 2
+        # vision 10 at stride 10: the look reaches 10·1 + 10 − 1 = 19, so V + 1 .. V + 9 count and V + 10 doesn't
+        for (d, seen) in ((11, 2), (15, 2), (19, 2), (20, 0))
+            m2 = tiny_model(zeros(Int, 60, 60); sex=true, vision=(10, 20), look_stride=10)
+            sr_fertile(m2, 10, 10, :F; vision=10)
+            sr_fertile(m2, 10, 10 + d, :M; vision=10)
+            @test sr_val(sr_read!(SexReadings(; window=(301, 500)), m2, 0), "fertile_vision") == seen
+        end
     end
 
     @testset "births and no-site attempts from the log, and a birth at distance 3" begin
@@ -263,6 +270,7 @@ end
             @test all(col("fertile_reach") .<= col("fertile")) && all(col("fertile_vision") .<= col("fertile"))
             name == "book" && @test col("fertile_reach") == col("fertile_vision")  # the book's look is every site
             name == "XXL_DEFAULTS" && @test all(col("fertile_reach") .<= col("fertile_vision"))
+            name == "xl" && @test all(col("fertile_reach") .<= col("fertile_vision"))  # the look's whole reach
             ever = [p[1 + findfirst(==("agents_ever"), METRIC_COLUMNS)] for p in plain]
             @test col("births")[2:end] == diff(ever)  # no replacement in VI-1: every new agent is a birth
             @test sum(col("births")) > 0
@@ -274,11 +282,11 @@ end
         ("XXL_DEFAULTS", to_xxl(vi1.config, XXL_DEFAULTS)), ("xl", to_xl(vi1.config)),
     )
         disc = xxl_on(cfg, :disc)
-        w, h, thr = cfg.width, cfg.height, cfg.fertility_threshold
+        w, h, thr, s = cfg.width, cfg.height, cfg.fertility_threshold, cfg.look_stride
         function sees(a, o)
             dx, dy = torus_delta(w, a.x, o.x), torus_delta(h, a.y, o.y)
             disc && return 0 < dx * dx + dy * dy <= a.vision^2
-            return (dx == 0) != (dy == 0) && 0 < abs(dx) + abs(dy) <= a.vision  # a line, wrapped the short way
+            return (dx == 0) != (dy == 0) && 0 < abs(dx) + abs(dy) <= s * (a.vision ÷ s) + s - 1  # a line, the short way
         end
         brute(m) = count(
             a -> is_fertile(a, thr) && any(o -> o.sex !== a.sex && is_fertile(o, thr) && sees(a, o), m.agents),
