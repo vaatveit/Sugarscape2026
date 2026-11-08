@@ -73,6 +73,7 @@ function combat_move!(m::Model, a::Agent)
         take = min(alpha, best_v.sugar)
         best_v.sugar -= take
         a.sugar += take
+        push!(m.killed, best_v.id)  # for the combat readings' and the scorecard's deaths by cause
         die!(m, best_v)
     end
     a.moved = (best_x, best_y) != (a.x, a.y)

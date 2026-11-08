@@ -67,9 +67,9 @@ Pushes [`SCORECARD_COLUMNS`](@ref) in order for the period `m` has just ended, t
 logs (`dead_this_step`, `trade_log`) are still in place.
 
 - **Deaths** by cause, first match wins: killed (the id is in `m.killed`), old age (`age >= max_age`), sugar
-  (`sugar <= 0`, so starving of both goods counts as sugar), otherwise spice. Only the xxl combat move
-  ([`xxl_combat_move!`](@ref), with round vision or speed) records kills; a kill by the book's combat move counts as
-  starvation.
+  (`sugar <= 0`, so starving of both goods counts as sugar), otherwise spice. Both combat moves record their kills
+  ([`combat_move!`](@ref), and [`xxl_combat_move!`](@ref) with round vision or speed), though the scorecard runs only
+  under round vision.
 - **Births:** the agents created this period, less one for each death when rule R replaces it.
 - **Fertility:** the fertile agents (`is_fertile` with `fertility_threshold`), and those with a fertile agent of the
   other sex in mating reach, [`mate_reach`](@ref): in sight under mate_contact="vision", else among
