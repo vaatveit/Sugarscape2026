@@ -112,6 +112,7 @@ include("xxl/trade_report.jl")
 include("xxl/sex_study.jl")
 include("xxl/sex_report.jl")
 include("xxl/culture_study.jl")
+include("xxl/culture_report.jl")
 include("xxl/experiments.jl")
 
 end
