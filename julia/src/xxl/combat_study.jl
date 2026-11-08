@@ -28,20 +28,10 @@ function combat_plan(world::AbstractString, exp_id::AbstractString, out, first_s
 end
 
 """Whether seed `k` is whole: its CSV and combat table (`periods + 1` rows each) and its timing file."""
-function combat_seed_done(folder::AbstractString, k::Int, periods::Int)
-    seed_done(joinpath(folder, "seed$k.csv"), periods) || return false
-    seed_done(combat_path(folder, k), periods) || return false
-    return isfile(joinpath(folder, "seed$k.timing.csv"))
-end
+combat_seed_done(folder::AbstractString, k::Int, periods::Int) = study_seed_done(folder, k, periods, ("combat",))
 
 """Removes whatever a stopped run left of seed `k`: its files and their temporary names."""
-function remove_combat_seed(folder::AbstractString, k::Int)
-    for p in (joinpath(folder, "seed$k.csv"), joinpath(folder, "seed$k.timing.csv"), combat_path(folder, k))
-        rm(p; force=true)
-        rm(p * ".tmp"; force=true)
-    end
-    return nothing
-end
+remove_combat_seed(folder::AbstractString, k::Int) = remove_study_seed(folder, k, ("combat",))
 
 """
     combat_seed!(exp, world, k, folder) -> SeedOutcome
@@ -51,22 +41,10 @@ and, last, `seed<k>.csv` (the world's standard columns), each through a temporar
 a worker has its own. Runs in a worker.
 """
 function combat_seed!(exp::Experiment, world::AbstractString, k::Int, folder::AbstractString)
-    readings = CombatReadings()
-    rows, timing, _ = if world == "today"
-        seed_job(exp, k, false; xxl=XXL_DEFAULTS, combat_readings=readings)
-    else
-        seed_job(exp, k, world == "xl"; combat_readings=readings)
+    return study_seed!(exp, world, k, folder, :combat_readings, CombatReadings()) do readings
+        header, combat = combat_rows(readings)
+        write_table_csv(combat_path(folder, k), header, combat)
     end
-    header, combat = combat_rows(readings)
-    write_table_csv(combat_path(folder, k), header, combat)
-    write_timing_csv(joinpath(folder, "seed$k.timing.csv"), [timing])
-    cfg = world == "today" ? to_xxl(exp.config, XXL_DEFAULTS) : world == "xl" ? to_xl(exp.config) : exp.config
-    columns = metric_columns(cfg)
-    path = joinpath(folder, "seed$k.csv")
-    write_seed_csv(path * ".tmp", rows; columns=columns)
-    mv(path * ".tmp", path; force=true)
-    seconds = timing.setup_s + timing.stepping_s + timing.metrics_s
-    return seed_outcome(stack(rows; dims=1), ["t"; columns], k; seconds=seconds)
 end
 
 """
@@ -90,17 +68,10 @@ function run_combat_world(
     io::IO=stdout,
 )
     exp, periods, folder, fingerprint = combat_plan(world, exp_id, out, first_seed, seeds, periods)
-    check_extinction_size(; seeds=seeds, first_seed=first_seed, periods=periods, jobs=jobs)
-    check_extinction_folder(folder, fingerprint; create=true)
-    todo = [k for k in first_seed:(first_seed + seeds - 1) if !combat_seed_done(folder, k, periods)]
-    foreach(k -> remove_combat_seed(folder, k), todo)
-    if !isempty(todo)
-        write_machine_note(joinpath(folder, "machine.txt"), jobs, Float64[], "combat study $world $exp_id")
-        run_seed_calls!(
-            combat_seed!, [(exp, world, k, abspath(folder)) for k in todo], seeds, periods, jobs, io,
-        )
-    end
-    return folder
+    return run_study_seeds(
+        combat_seed!, k -> (exp, world, k, abspath(folder)), folder, fingerprint, combat_seed_done, remove_combat_seed,
+        "combat study $world $exp_id"; seeds, first_seed, periods, jobs, io,
+    )
 end
 
 const COMBAT_USAGE = "usage: julia --project=julia julia/xxl_combat_study.jl --world book|xl|today --exp III-9|III-11|III-12|III-13|III-14 [--seeds N] [--first-seed K] [--periods P] [--jobs J] [--out DIR]"
@@ -111,41 +82,15 @@ The study's command line: `--world book|xl|today` and `--exp III-9|III-11|III-12
 Throws `ArgumentError` on a usage error.
 """
 function combat_study_args(args::Vector{String})
-    world = exp = periods = nothing
-    seeds, first_seed, jobs, out = 20, 0, 1, RESULTS_XXL
-    i = 1
-    while i <= length(args)
-        a = args[i]
-        if a in ("--world", "--exp", "--seeds", "--first-seed", "--periods", "--jobs", "--out")
-            i += 1
-            i <= length(args) || throw(ArgumentError("$a needs a value"))
-            v = args[i]
-            if a == "--world"
-                world = v
-            elseif a == "--exp"
-                exp = v
-            elseif a == "--seeds"
-                seeds = parse(Int, v)
-            elseif a == "--first-seed"
-                first_seed = parse(Int, v)
-            elseif a == "--periods"
-                periods = parse(Int, v)
-            elseif a == "--jobs"
-                jobs = parse(Int, v)
-            else
-                out = v
-            end
-        else
-            throw(ArgumentError("unexpected argument $a"))
-        end
-        i += 1
-    end
+    opts = parse_study_options(args, ("--world", "--exp", "--seeds", "--first-seed", "--periods", "--jobs", "--out"))
+    common = study_common_options(opts, 0, nothing)
+    world, exp = get(opts, "--world", nothing), get(opts, "--exp", nothing)
     world === nothing && throw(ArgumentError("--world is required"))
     exp === nothing && throw(ArgumentError("--exp is required"))
     world in COMBAT_WORLDS || throw(ArgumentError("--world is book, xl or today, not $(repr(world))"))
     exp in COMBAT_EXPS || throw(ArgumentError("--exp is one of $(join(COMBAT_EXPS, ", ")), not $(repr(exp))"))
-    check_extinction_size(; seeds=seeds, first_seed=first_seed, periods=something(periods, 4), jobs=jobs)
-    return (; world, exp, seeds, first_seed, periods, jobs, out)
+    check_extinction_size(; seeds=common.seeds, first_seed=common.first_seed, periods=something(common.periods, 4), jobs=common.jobs)
+    return (; world, exp, common...)
 end
 
 """

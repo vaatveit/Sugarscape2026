@@ -2,7 +2,7 @@
 # fingerprint, the prefix of a saved run and the command line are checked on runs of a few periods.
 isdefined(@__MODULE__, :tiny_model) || include("helpers.jl")
 using Sugarscape, Test
-using Sugarscape: run_combat_world, combat_study_main, COMBAT_EXPS, COMBAT_WORLDS, world_fingerprint, sex_fingerprint,
+using Sugarscape: combat_plan, run_combat_world, combat_study_main, COMBAT_EXPS, COMBAT_WORLDS, world_fingerprint, sex_fingerprint,
     load_registry, find_experiment, with_steps, extinction_fingerprint, XXL_DEFAULTS
 
 const CB_KW = (seeds=2, first_seed=3, periods=5, io=devnull)
@@ -45,9 +45,14 @@ end
 end
 
 @testset "xxl combat study: periods default to the experiment's steps" begin
-    exp = find_experiment(load_registry(), "III-13")
-    @test exp.steps == 200
-    @test_throws ArgumentError run_combat_world("book", "III-13"; seeds=0, io=devnull, out=mktempdir())
+    for (id, steps) in (("III-9", 1000), ("III-11", 1000), ("III-12", 200), ("III-13", 200), ("III-14", 1000))
+        plan = combat_plan("book", id, "out", 0, 20, nothing)
+        @test plan.periods == steps
+        @test plan.exp.steps == steps
+        @test endswith(plan.folder, "-p$steps")
+        @test occursin("periods=$steps", plan.fingerprint)
+    end
+    @test combat_plan("xl", "III-9", "out", 0, 20, 50).periods == 50
 end
 
 @testset "xxl combat study: a second call skips what is done, another fingerprint is refused" begin
@@ -55,7 +60,7 @@ end
     folder = run_combat_world("book", "III-13"; CB_KW..., out=out)
     names = [cb_files(3)...; cb_files(4)...]
     before = [mtime(joinpath(folder, n)) for n in names]
-    sleep(0.05)
+    sleep(1)
     @test run_combat_world("book", "III-13"; CB_KW..., out=out) == folder
     @test [mtime(joinpath(folder, n)) for n in names] == before
 
@@ -64,7 +69,7 @@ end
     other = [mtime(joinpath(folder, n)) for n in cb_files(4)]
     rm(joinpath(folder, "seed3-combat.csv"))
     write(joinpath(folder, "seed3.timing.csv.tmp"), "half")
-    sleep(0.05)
+    sleep(1)
     run_combat_world("book", "III-13"; CB_KW..., out=out)
     @test read(joinpath(folder, "seed3.csv")) == whole
     @test isfile(joinpath(folder, "seed3-combat.csv"))

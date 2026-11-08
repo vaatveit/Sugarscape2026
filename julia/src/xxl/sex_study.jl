@@ -13,6 +13,100 @@ sex_name(world, first_seed, seeds, periods) = "sex-$world-VI-1-s$first_seed-$see
 
 sex_path(folder::AbstractString, k::Int, kind::AbstractString) = joinpath(folder, "seed$k-$kind.csv")
 
+# The pieces the sex, culture and combat studies share: one run of a world with an observer, the seeds-done test, the
+# removal of a stopped seed, the driver over the seeds and the command line's option parser.
+
+"""The config a `world` (`"book"`, `"xl"` or `"today"`) runs `exp` under."""
+world_config(exp::Experiment, world::AbstractString) =
+    world == "today" ? to_xxl(exp.config, XXL_DEFAULTS) : world == "xl" ? to_xl(exp.config) : exp.config
+
+"""
+    study_seed!(write_tables, exp, world, k, folder, readings_keyword, readings) -> SeedOutcome
+
+Runs seed `k` of `exp` in `world` with `readings` passed to the runner as `readings_keyword` (`:sex_readings`, ...), calls
+`write_tables(readings)` to write the observer's tables, then writes `seed<k>.timing.csv` and, last, `seed<k>.csv` (the
+world's standard columns), each through a temporary name. Runs in a worker.
+"""
+function study_seed!(write_tables, exp::Experiment, world::AbstractString, k::Int, folder::AbstractString,
+                     readings_keyword::Symbol, readings)
+    observer = NamedTuple{(readings_keyword,)}((readings,))
+    rows, timing, _ = if world == "today"
+        seed_job(exp, k, false; xxl=XXL_DEFAULTS, observer...)
+    else
+        seed_job(exp, k, world == "xl"; observer...)
+    end
+    write_tables(readings)
+    write_timing_csv(joinpath(folder, "seed$k.timing.csv"), [timing])
+    columns = metric_columns(world_config(exp, world))
+    path = joinpath(folder, "seed$k.csv")
+    write_seed_csv(path * ".tmp", rows; columns=columns)
+    mv(path * ".tmp", path; force=true)
+    seconds = timing.setup_s + timing.stepping_s + timing.metrics_s
+    return seed_outcome(stack(rows; dims=1), ["t"; columns], k; seconds=seconds)
+end
+
+"""Whether seed `k` is whole: its CSV and its `tables` (`seed<k>-<kind>.csv`, `periods + 1` rows each), its other `kinds` and its timing file."""
+function study_seed_done(folder::AbstractString, k::Int, periods::Int, tables, kinds=())
+    seed_done(joinpath(folder, "seed$k.csv"), periods) || return false
+    all(kind -> seed_done(sex_path(folder, k, kind), periods), tables) || return false
+    all(kind -> isfile(sex_path(folder, k, kind)), kinds) || return false
+    return isfile(joinpath(folder, "seed$k.timing.csv"))
+end
+
+"""Removes whatever a stopped run left of seed `k`: its files (the `kinds` of its observer's tables) and their temporary names."""
+function remove_study_seed(folder::AbstractString, k::Int, kinds)
+    for p in (joinpath(folder, "seed$k.csv"), joinpath(folder, "seed$k.timing.csv"),
+              (sex_path(folder, k, kind) for kind in kinds)...)
+        rm(p; force=true)
+        rm(p * ".tmp"; force=true)
+    end
+    return nothing
+end
+
+"""
+    run_study_seeds(seed_fn, call_args, folder, fingerprint, done, remove, note; seeds, first_seed, periods, jobs, io)
+
+The driver of a study: checks the sizes and the folder (refused under another fingerprint, `ArgumentError`), removes
+every seed that is not `done(folder, k, periods)` with `remove(folder, k)`, and runs those with `seed_fn(call_args(k)...)`,
+in `jobs` worker processes when `jobs > 1`. Returns `folder`.
+"""
+function run_study_seeds(seed_fn, call_args, folder, fingerprint, done, remove, note; seeds, first_seed, periods, jobs, io)
+    check_extinction_size(; seeds=seeds, first_seed=first_seed, periods=periods, jobs=jobs)
+    check_extinction_folder(folder, fingerprint; create=true)
+    todo = [k for k in first_seed:(first_seed + seeds - 1) if !done(folder, k, periods)]
+    foreach(k -> remove(folder, k), todo)
+    if !isempty(todo)
+        write_machine_note(joinpath(folder, "machine.txt"), jobs, Float64[], note)
+        run_seed_calls!(seed_fn, [call_args(k) for k in todo], seeds, periods, jobs, io)
+    end
+    return folder
+end
+
+"""
+The options of a study's command line: each of `allowed` takes a value. Returns them as a `Dict`; throws `ArgumentError` on
+an unknown option or a missing value.
+"""
+function parse_study_options(args::Vector{String}, allowed)
+    opts = Dict{String,String}()
+    i = 1
+    while i <= length(args)
+        a = args[i]
+        a in allowed || throw(ArgumentError("unexpected argument $a"))
+        i += 1
+        i <= length(args) || throw(ArgumentError("$a needs a value"))
+        opts[a] = args[i]
+        i += 1
+    end
+    return opts
+end
+
+"""The options common to the studies' command lines (`--seeds`, `--first-seed`, `--periods`, `--jobs`, `--out`) read from `opts`."""
+function study_common_options(opts, first_seed::Int, periods::Union{Nothing,Int})
+    num(key, default) = haskey(opts, key) ? parse(Int, opts[key]) : default
+    return (; seeds=num("--seeds", 20), first_seed=num("--first-seed", first_seed), periods=num("--periods", periods),
+            jobs=num("--jobs", 1), out=get(opts, "--out", RESULTS_XXL))
+end
+
 """
 What a world's run was produced from, before any readings line. Today's is the extinction run's fingerprint; the book's
 and the xl one's are the registry's own text (which keeps its `steps=` line), then the code's checksum and the periods as
@@ -40,22 +134,10 @@ function sex_plan(world::AbstractString, out, first_seed, seeds, periods)
 end
 
 """Whether seed `k` is whole: its CSV and its sex table (`periods + 1` rows each), its agent table and its timing file."""
-function sex_seed_done(folder::AbstractString, k::Int, periods::Int)
-    seed_done(joinpath(folder, "seed$k.csv"), periods) || return false
-    seed_done(sex_path(folder, k, "sex"), periods) || return false
-    isfile(sex_path(folder, k, "agents")) || return false
-    return isfile(joinpath(folder, "seed$k.timing.csv"))
-end
+sex_seed_done(folder::AbstractString, k::Int, periods::Int) = study_seed_done(folder, k, periods, ("sex",), ("agents",))
 
 """Removes whatever a stopped run left of seed `k`: its files and their temporary names."""
-function remove_sex_seed(folder::AbstractString, k::Int)
-    for p in (joinpath(folder, "seed$k.csv"), joinpath(folder, "seed$k.timing.csv"), sex_path(folder, k, "sex"),
-              sex_path(folder, k, "agents"))
-        rm(p; force=true)
-        rm(p * ".tmp"; force=true)
-    end
-    return nothing
-end
+remove_sex_seed(folder::AbstractString, k::Int) = remove_study_seed(folder, k, ("sex", "agents"))
 
 """
     sex_seed!(exp, world, k, folder, window) -> SeedOutcome
@@ -66,23 +148,12 @@ name. The observer is made here, so that a worker has its own. Runs in a worker.
 """
 function sex_seed!(exp::Experiment, world::AbstractString, k::Int, folder::AbstractString, window::Tuple{Int,Int})
     readings = SexReadings(; window=window)
-    rows, timing, _ = if world == "today"
-        seed_job(exp, k, false; xxl=XXL_DEFAULTS, sex_readings=readings)
-    else
-        seed_job(exp, k, world == "xl"; sex_readings=readings)
+    return study_seed!(exp, world, k, folder, :sex_readings, readings) do readings
+        header, sex = sex_rows(readings)
+        write_table_csv(sex_path(folder, k, "sex"), header, sex)
+        header, agents = sex_agent_rows(readings)
+        write_table_csv(sex_path(folder, k, "agents"), header, agents)
     end
-    header, sex = sex_rows(readings)
-    write_table_csv(sex_path(folder, k, "sex"), header, sex)
-    header, agents = sex_agent_rows(readings)
-    write_table_csv(sex_path(folder, k, "agents"), header, agents)
-    write_timing_csv(joinpath(folder, "seed$k.timing.csv"), [timing])
-    cfg = world == "today" ? to_xxl(exp.config, XXL_DEFAULTS) : world == "xl" ? to_xl(exp.config) : exp.config
-    columns = metric_columns(cfg)
-    path = joinpath(folder, "seed$k.csv")
-    write_seed_csv(path * ".tmp", rows; columns=columns)
-    mv(path * ".tmp", path; force=true)
-    seconds = timing.setup_s + timing.stepping_s + timing.metrics_s
-    return seed_outcome(stack(rows; dims=1), ["t"; columns], k; seconds=seconds)
 end
 
 """
@@ -104,19 +175,12 @@ function run_sex_world(
     out::AbstractString=RESULTS_XXL,
     io::IO=stdout,
 )
-    check_extinction_size(; seeds=seeds, first_seed=first_seed, periods=periods, jobs=jobs)
     exp, folder, fingerprint = sex_plan(world, out, first_seed, seeds, periods)
-    check_extinction_folder(folder, fingerprint; create=true)
     window = sex_window(periods)
-    todo = [k for k in first_seed:(first_seed + seeds - 1) if !sex_seed_done(folder, k, periods)]
-    foreach(k -> remove_sex_seed(folder, k), todo)
-    if !isempty(todo)
-        write_machine_note(joinpath(folder, "machine.txt"), jobs, Float64[], "sex study $world")
-        run_seed_calls!(
-            sex_seed!, [(exp, world, k, abspath(folder), window) for k in todo], seeds, periods, jobs, io,
-        )
-    end
-    return folder
+    return run_study_seeds(
+        sex_seed!, k -> (exp, world, k, abspath(folder), window), folder, fingerprint, sex_seed_done, remove_sex_seed,
+        "sex study $world"; seeds, first_seed, periods, jobs, io,
+    )
 end
 
 const SEX_USAGE = "usage: julia --project=julia julia/xxl_sex_study.jl --world book|xl|today [--seeds N] [--first-seed K] [--periods P] [--jobs J] [--out DIR]"
@@ -126,37 +190,13 @@ The study's command line: `--world book|xl|today` (required), `--seeds N` (20), 
 (500), `--jobs J` (1) and `--out DIR`. Throws `ArgumentError` on a usage error.
 """
 function sex_study_args(args::Vector{String})
-    world = nothing
-    seeds, first_seed, periods, jobs, out = 20, 80, 500, 1, RESULTS_XXL
-    i = 1
-    while i <= length(args)
-        a = args[i]
-        if a in ("--world", "--seeds", "--first-seed", "--periods", "--jobs", "--out")
-            i += 1
-            i <= length(args) || throw(ArgumentError("$a needs a value"))
-            v = args[i]
-            if a == "--world"
-                world = v
-            elseif a == "--seeds"
-                seeds = parse(Int, v)
-            elseif a == "--first-seed"
-                first_seed = parse(Int, v)
-            elseif a == "--periods"
-                periods = parse(Int, v)
-            elseif a == "--jobs"
-                jobs = parse(Int, v)
-            else
-                out = v
-            end
-        else
-            throw(ArgumentError("unexpected argument $a"))
-        end
-        i += 1
-    end
-    check_extinction_size(; seeds=seeds, first_seed=first_seed, periods=periods, jobs=jobs)
+    opts = parse_study_options(args, ("--world", "--seeds", "--first-seed", "--periods", "--jobs", "--out"))
+    common = study_common_options(opts, 80, 500)
+    check_extinction_size(; seeds=common.seeds, first_seed=common.first_seed, periods=common.periods, jobs=common.jobs)
+    world = get(opts, "--world", nothing)
     world === nothing && throw(ArgumentError("--world is required"))
     world in SEX_WORLDS || throw(ArgumentError("--world is book, xl or today, not $(repr(world))"))
-    return (; world, seeds, first_seed, periods, jobs, out)
+    return (; world, common...)
 end
 
 """
