@@ -294,17 +294,21 @@ function run_experiment(
         write_seed_csv(joinpath(folder, "seed$k.csv"), rows; columns=columns)
     end
     write_timing_csv(joinpath(folder, "timing.csv"), [timing for (_, timing, _) in results])
-    write(
-        joinpath(folder, "fingerprint.txt"),
-        if xxl !== nothing
-            xxl_fingerprint(exp, xxl)
-        else
-            "julia\n" * (xl ? exp.xl_fingerprint : exp.fingerprint)
-        end,
-    )
+    write(joinpath(folder, "fingerprint.txt"), run_fingerprint(exp; xl=xl, xxl=xxl))
     warm = [w for (_, _, w) in results if w > 0]
     write_machine_note(joinpath(folder, "machine.txt"), jobs, warm, note)
     return folder
+end
+
+"""
+    run_fingerprint(exp; xl=false, xxl=nothing) -> String
+
+The text [`run_experiment`](@ref) writes to a folder's `fingerprint.txt` for `exp`: [`xxl_fingerprint`](@ref) with `xxl`
+rules, else `julia` and the registry's fingerprint (the xl one with `xl`).
+"""
+function run_fingerprint(exp::Experiment; xl::Bool=false, xxl::Union{Nothing,XxlRules}=nothing)
+    xxl === nothing || return xxl_fingerprint(exp, xxl)
+    return "julia\n" * (xl ? exp.xl_fingerprint : exp.fingerprint)
 end
 
 function write_seed_csv(path::AbstractString, rows; columns=METRIC_COLUMNS)

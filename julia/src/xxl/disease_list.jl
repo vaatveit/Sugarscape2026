@@ -365,24 +365,38 @@ resample whose ratio is not finite is dropped. NaN throughout if the ratio is no
 function bootstrap_ratio_apart(
     run::Vector{Float64}, base::Vector{Float64}; reps::Int=BOOT_REPS, seed::Int=BOOT_SEED
 )
-    ratio = mean_of(run) / mean_of(base)
-    isfinite(ratio) || return (; ratio, lo=NaN, hi=NaN)
+    b = bootstrap_apart(/, run, base; reps, seed)
+    return (; ratio=b.value, b.lo, b.hi)
+end
+
+"""
+    bootstrap_apart(f, sets...; reps=BOOT_REPS, seed=BOOT_SEED) -> (; value, lo, hi)
+
+`f` of the means of `sets` (each a vector of seed values), with the 2.5% and 97.5% percentiles of it over `reps`
+resamples that draw each set's seeds apart, with replacement, in the order given; the draws come from a `Xoshiro(seed)`
+of their own. A resample whose figure is not finite is dropped. NaN throughout if the figure is not finite.
+[`bootstrap_ratio_apart`](@ref) is `f = /` over two sets.
+"""
+function bootstrap_apart(f, sets::Vector{Float64}...; reps::Int=BOOT_REPS, seed::Int=BOOT_SEED)
+    value = f(map(mean_of, sets)...)
+    isfinite(value) || return (; value, lo=NaN, hi=NaN)
     rng = Xoshiro(seed)
-    n_run, n_base = length(run), length(base)
+    means = zeros(length(sets))
     draws = Float64[]
     for _ in 1:reps
-        a = b = 0.0
-        for _ in 1:n_run
-            a += run[rand(rng, 1:n_run)]
+        for (j, set) in enumerate(sets)
+            n = length(set)
+            a = 0.0
+            for _ in 1:n
+                a += set[rand(rng, 1:n)]
+            end
+            means[j] = a / n
         end
-        for _ in 1:n_base
-            b += base[rand(rng, 1:n_base)]
-        end
-        r = (a / n_run) / (b / n_base)
+        r = f(means...)
         isfinite(r) && push!(draws, r)
     end
     lo, hi = percentile_interval(draws)
-    return (; ratio, lo, hi)
+    return (; value, lo, hi)
 end
 
 """

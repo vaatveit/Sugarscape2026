@@ -450,7 +450,7 @@ end
 """Whether an xl folder holds these seeds of `exp`, with a current fingerprint and `exp.steps + 1` rows each."""
 function xl_current(folder::AbstractString, exp::Experiment, indices)
     fp = joinpath(folder, "fingerprint.txt")
-    (isfile(fp) && read(fp, String) == "julia\n" * exp.xl_fingerprint) || return false
+    (isfile(fp) && read(fp, String) == run_fingerprint(exp; xl=true)) || return false
     for k in indices
         path = joinpath(folder, "seed$k.csv")
         (isfile(path) && countlines(path) == exp.steps + 2) || return false
