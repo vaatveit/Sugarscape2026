@@ -1931,6 +1931,88 @@ arms in VI-1, 27 min for each no-disease run, and about 3 min for each IV-A3 run
    kind of rule, and the next design, if any, is the user's call.
 3. **Each branch keeps its rule off by default** and changes no run with it off. Whether to merge them is the user's call.
 
+**The user's ruling** (2026-11-06): merge and move on from trade. The three branches were merged into main (c0b0312) with Rules 13, 14
+and 15 off by default, none adopted. Trade in xxl stays as the book has it.
+
+## Stage 6: sex
+
+The user chose sex as the next stage and asked me to skip the questions, so the bars below are my calls, which the user approved. The
+design is [docs/superpowers/specs/2026-11-07-xxl-sex-design.md](superpowers/specs/2026-11-07-xxl-sex-design.md). Nothing here changes
+`XXL_DEFAULTS`, and no rule was added.
+
+**What "works as intended" meant** (*my call*): rule S works in xxl as it does in the book. Births sustain the population (the
+scorecard's X1 already passed, 1.04); births are limited by what the book's rules limit them by, age, the wealth test and an empty
+site, not by xxl's world size or sparse look; and inheritance and selection still act. The question was whether xxl's look, which
+checks the sites within an agent's speed plus a few random points out to its vision (about 30–130 sites against a vision disc of up to
+about 7,850), leaves fertile agents without mates more often than the book's rules do.
+
+**The short answer.** Sex works as intended in xxl, and the stage stops with no rule change. Fertile agents in today's xxl find a mate
+more often than in the book's own world, not less, nearly all of them have a child before their fertile years end, and selection on
+metabolism is at least as strong as the book's.
+
+**The runs.** VI-1 in three worlds, 500 periods each, with an observer that records mating without changing a run (each seed's CSV is
+byte-identical with it on and off, tested): the book's 50 × 50 world under the book's rules, xl's VI-1, and today's xxl
+(`XXL_DEFAULTS`), on seeds 80–99 (`results-julia-xxl/sex-part1.md`). Every fingerprint was checked at launch. The book's 200-agent
+VI-1 died out in 12 of the 20 seeds, leaving 8, under the design's minimum of 15, so M1, M2 and S all read missing. With the user's
+go-ahead the book world was rerun on seeds 80–139. Its first 20 seeds matched the first run byte for byte, and 28 of the 60 survived.
+No xl or today seed died out.
+
+**Bars**, decided at t = 301–500. Ratios are today ÷ book of the means over seeds, with 95% intervals from 10,000 bootstrap resamples of
+each world's seeds:
+
+| Bar | Today ÷ book | Bar | Result |
+|---|---|---|---|
+| M1: fertile agent-periods with no mate in reach | 0.778 [0.767, 0.789] | at least 1.5, interval above 1 | doesn't hold |
+| M2: agents fertile at least 5 periods who had no child | 0.917 [0.76, 1.11] | at least 1.5, interval above 1 | doesn't hold |
+| S: relative drop in mean metabolism, t = 0 → 500 | 1.116 [1.039, 1.223] | at least 0.5 | holds |
+
+M ("mate finding limits births in xxl") would need both M1 and M2 to hold. Neither does, so by the design's outcome rules sex works as
+intended.
+
+**Readings** (t = 301–500, means over seeds):
+
+| Reading | Book | xl | Today |
+|---|---|---|---|
+| Fertile agent-periods with no mate in reach | 0.888 | 0.839 | 0.691 |
+| ... with no fertile mate anywhere within vision | 0.888 | 0.246 | 0.055 |
+| Fertile agents (≥ 5 periods) who had no child | 0.029 | 0.022 | 0.027 |
+| Fertile share of the population | 0.126 | 0.109 | 0.096 |
+| Agents of childbearing age blocked by the wealth test | 0.698 | 0.736 | 0.767 |
+| Births per fertile agent-period | 0.121 | 0.133 | 0.165 |
+| Mating attempts with no empty site, per birth | 0.014 | 0.015 | 0.0001 |
+| Median distance between parents (sites) | 2.8 | 27.3 | 4.0 |
+| Mean metabolism, start → end | 2.98 → 1.20 | 3.00 → 1.00 | 3.00 → 1.00 |
+| Mean vision, start → end (sd at end) | 3.0 → 4.6 (0.36) | 30.0 → 47.1 (5.7) | 30.0 → 32.4 (13.9) |
+| Mean speed, start → end (sd at end) | — | — | 3.5 → 5.0 (1.1) |
+
+- **The limit on births is the wealth test, as in the book.** About 70–77% of agents of childbearing age fail it in all three worlds;
+  only about a tenth of agents are fertile.
+- **xxl's look is sparse, but mates are nearby.** 69% of today's fertile agent-periods have no mate in reach, yet only 5.5% have no
+  fertile mate anywhere within vision. That gap is the look's sampling. It doesn't cost children: today has the most births per fertile
+  agent-period of the three worlds, and a fertile life ends childless about as rarely as in the book (2.7% against 2.9%). The book's
+  look covers every site it can see, so in the book the two shares are equal.
+- **A child almost always finds a site** in xxl (one failed attempt per 14,000 births, against one per 70 in the book), probably because
+  the world is sparse (a guess).
+- **Selection acts.** Metabolism falls from 3 to 1 in xl and today, a little further than the book's 1.20. Vision barely moves in today
+  and keeps its spread, while speed, the trait xxl agents move by, rises from 3.5 to 5.0. That fits xxl moving agents by speed (a guess),
+  but it wasn't judged (*my call* in the design).
+
+**Against my guess.** The stage began from the worry that the sparse look might make mate finding the limit. It doesn't: today's
+no-mate share is lower than the book's and xl's, and almost every fertile life produces a child.
+
+### What this doesn't show
+
+- **The book's world compares unlike worlds.** It has its own density and its own look, so "1.5× the book's" compares unlike worlds; xl
+  is shown beside it for that reason, and today ÷ xl gives the same answer for M1 (0.82).
+- **Only the book's surviving seeds are read** (28 of 60), which may not be typical seeds. M1's interval is narrow and
+  wholly below 1; M2's is wide and spans 1, but its point value is far from 1.5.
+- One xxl map, VI-1 only, 20 seeds and 500 periods for xl and today.
+- Vision, spice metabolism and speed are reported, not judged.
+
+### Run time
+
+Same machine, 5 workers: 48 s for the book's 20 seeds and 56 s for its 60, 19 min for xl and 30 min for today.
+
 ## Results of the first rules (`XXL_V1`)
 
 This section is the record of the first rules, `XXL_V1`, as the 16 `XXL-…` experiments still run them. Where it says
