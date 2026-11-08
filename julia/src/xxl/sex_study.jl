@@ -14,20 +14,21 @@ sex_name(world, first_seed, seeds, periods) = "sex-$world-VI-1-s$first_seed-$see
 sex_path(folder::AbstractString, k::Int, kind::AbstractString) = joinpath(folder, "seed$k-$kind.csv")
 
 """
-What a world's run was produced from. Today's is the extinction run's fingerprint; the book's and the xl one's are the
-registry's own text (which keeps its `steps=` line), then the code's checksum and the periods as the extinction
-fingerprint writes them (the `periods=` line governs). Each ends with a line naming the world and the readings' window.
+What a world's run was produced from, before any readings line. Today's is the extinction run's fingerprint; the book's
+and the xl one's are the registry's own text (which keeps its `steps=` line), then the code's checksum and the periods as
+the extinction fingerprint writes them (the `periods=` line governs). The sex, culture and combat studies each add a line.
 """
+function world_fingerprint(exp::Experiment, world::AbstractString, periods::Int)
+    world == "today" && return extinction_fingerprint(exp, XXL_DEFAULTS, periods)
+    base = world == "book" ? exp.fingerprint : exp.xl_fingerprint
+    endswith(base, "\n") || (base *= "\n")
+    return base * "code sha256=$(source_sha256(dirname(@__DIR__)))\nperiods=$periods\n"
+end
+
+"""The world's fingerprint, then a line naming the world and the readings' window."""
 function sex_fingerprint(exp::Experiment, world::AbstractString, periods::Int)
     lo, hi = sex_window(periods)
-    text = if world == "today"
-        extinction_fingerprint(exp, XXL_DEFAULTS, periods)
-    else
-        base = world == "book" ? exp.fingerprint : exp.xl_fingerprint
-        endswith(base, "\n") || (base *= "\n")
-        base * "code sha256=$(source_sha256(dirname(@__DIR__)))\nperiods=$periods\n"
-    end
-    return text * "sex readings: world=$world window=($lo, $hi)\n"
+    return world_fingerprint(exp, world, periods) * "sex readings: world=$world window=($lo, $hi)\n"
 end
 
 """The experiment of a world's run (VI-1 over `periods`), its folder and its fingerprint. Refuses another world."""
