@@ -28,7 +28,7 @@ seconds_since(t0::UInt64) = (time_ns() - t0) / 1e9
 
 """
     timed_seed(exp, k; xl=false, xxl=nothing, scorecard=false, checkpoint=nothing, loan_trace=nothing,
-               trade_readings=nothing) -> (rows, timing)
+               trade_readings=nothing, sex_readings=nothing) -> (rows, timing)
 
 Seed k of an experiment (or its xl version, or its xxl version under the given `XxlRules`), timed as `experiments.run.timed_seed` divides the work (docs/xl.md,
 "Timing"): building the model, the model's own steps, and collecting each period's metrics, t = 0 included. Each
@@ -43,6 +43,7 @@ returning true ends the seed there, with `(rows, nothing)` as the result.
 With `loan_trace` (a [`LoanTrace`](@ref)) the run follows every loan on it, timed as metrics; the rows are the same. It
 can't be paused: a resume would lose the trace's state. `trade_readings` (a [`TradeReadings`](@ref)) is the same for the
 trade observer: called after each period (and once at period 0), timed as metrics, the rows unchanged, no pausing.
+`sex_readings` (a [`SexReadings`](@ref)) is the same for the sex observer.
 """
 function timed_seed(
     exp::Experiment,
@@ -53,6 +54,7 @@ function timed_seed(
     checkpoint=nothing,
     loan_trace=nothing,
     trade_readings=nothing,
+    sex_readings=nothing,
 )
     xl && xxl !== nothing && throw(ArgumentError("xxl and xl runs are separate"))
     scorecard &&
@@ -67,6 +69,9 @@ function timed_seed(
     trade_readings !== nothing &&
         checkpoint !== nothing &&
         throw(ArgumentError("a seed with trade readings can't be paused"))
+    sex_readings !== nothing &&
+        checkpoint !== nothing &&
+        throw(ArgumentError("a seed with sex readings can't be paused"))
     cfg = if xxl !== nothing
         to_xxl(exp.config, xxl)
     else
@@ -102,6 +107,11 @@ function timed_seed(
         if trade_readings !== nothing
             t0 = time_ns()
             trade_period!(trade_readings, m)
+            measuring += seconds_since(t0)
+        end
+        if sex_readings !== nothing
+            t0 = time_ns()
+            sex_period!(sex_readings, m)
             measuring += seconds_since(t0)
         end
         t0 = time_ns()
@@ -166,7 +176,8 @@ end
 
 """
 One seed in a worker: warm up first, name the experiment and seed in any error. `run_seed` gets `xxl` only when it is
-set, and `scorecard`, `checkpoint`, `loan_trace` and `trade_readings` only when they are, so a stand-in taking just `xl` still works.
+set, and `scorecard`, `checkpoint`, `loan_trace`, `trade_readings` and `sex_readings` only when they are, so a stand-in taking
+just `xl` still works.
 """
 function seed_job(
     exp::Experiment,
@@ -178,10 +189,14 @@ function seed_job(
     checkpoint=nothing,
     loan_trace=nothing,
     trade_readings=nothing,
+    sex_readings=nothing,
 )
     try
         warm = warm_up!(exp; xxl=xxl)
-        extra = (; (n => v for (n, v) in (:checkpoint => checkpoint, :loan_trace => loan_trace, :trade_readings => trade_readings) if v !== nothing)...)
+        extra = (; (n => v for (n, v) in (
+            :checkpoint => checkpoint, :loan_trace => loan_trace, :trade_readings => trade_readings,
+            :sex_readings => sex_readings,
+        ) if v !== nothing)...)
         rows, timing = if !isempty(extra)
             run_seed(exp, k; xl=xl, xxl=xxl, scorecard=scorecard, extra...)
         elseif scorecard

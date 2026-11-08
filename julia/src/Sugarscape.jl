@@ -21,7 +21,7 @@ export torus_delta,
     torus_dist, disc_offsets, near_offsets, ring_point, ring_draws, winter_weight
 export Remembered
 export SplitMix64, bump_field, generate_map, XXL_TERRAIN_SEEDS
-export Agent, Exchange, Loan, sugar_burn
+export Agent, Exchange, MateEvent, Loan, sugar_burn
 export Landscape,
     wrap,
     growback!,
@@ -97,6 +97,7 @@ include("xxl/metrics.jl")
 include("xxl/scorecard_metrics.jl")
 include("xxl/loan_trace.jl")
 include("xxl/trade_readings.jl")
+include("xxl/sex_readings.jl")
 include("runner.jl")
 include("xxl/scorecard.jl")
 include("xxl/checkpoint.jl")
@@ -107,6 +108,8 @@ include("xxl/credit_compare.jl")
 include("xxl/disease_list.jl")
 include("xxl/trade_study.jl")
 include("xxl/trade_report.jl")
+include("xxl/sex_study.jl")
+include("xxl/sex_report.jl")
 include("xxl/experiments.jl")
 
 end

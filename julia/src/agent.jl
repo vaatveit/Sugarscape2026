@@ -115,6 +115,20 @@ struct Exchange
     b::Agent
 end
 
+"""
+One attempt of rule S, logged in `Model.mate_log` when that is on: `seeker` (whose turn it was) and `partner` were fertile
+and of opposite sexes, `distance` (torus Euclidean, in sites) apart, the seeker's vision `seeker_vision`. `born` is false
+when no empty site was free beside either of them.
+"""
+struct MateEvent
+    t::Int
+    seeker::Int
+    partner::Int
+    born::Bool
+    distance::Float64
+    seeker_vision::Int
+end
+
 """A sugar loan of rule L: `due` is owed at `due_t`."""
 mutable struct Loan
     lender::Agent

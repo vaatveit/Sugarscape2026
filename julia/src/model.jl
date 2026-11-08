@@ -61,6 +61,7 @@ mutable struct Model{R<:AbstractRNG}
     # mouth ranks at the move's price; step! sets both to 0, the book's score, before each agent moves.
     move_lambda::Float64
     move_inv_p::Float64
+    mate_log::Union{Nothing,Vector{MateEvent}}  # xxl: the opt-in record of rule S's attempts this period (emptied by step!)
 end
 
 """
@@ -134,6 +135,7 @@ function Model(
         local_prices ? fill(-1, cfg.width, cfg.height) : zeros(Int, 0, 0),
         0.0,
         0.0,
+        nothing,
     )
     cfg.disease_list > 0 && init_disease_list!(m)
     place_initial_population!(m)
@@ -315,6 +317,7 @@ function step!(m::Model)
     empty!(m.dead_this_step)
     isempty(m.killed) || empty!(m.killed)
     empty!(m.trade_log)
+    m.mate_log === nothing || empty!(m.mate_log)
     empty!(m.infection_log)
     cfg.lender_limit && empty!(m.lend_left)
     for a in m.agents
