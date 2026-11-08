@@ -2013,6 +2013,90 @@ no-mate share is lower than the book's and xl's, and almost every fertile life p
 
 Same machine, 5 workers: 48 s for the book's 20 seeds and 56 s for its 60, 19 min for xl and 30 min for today.
 
+## Stage 7: culture
+
+The user said to continue with culture and to skip the questions, so the bars below are my calls; the user approved them with the design. The design
+is [docs/superpowers/specs/2026-11-07-xxl-culture-design.md](superpowers/specs/2026-11-07-xxl-culture-design.md). Nothing here changes
+`XXL_DEFAULTS`, and no rule was added.
+
+**What "works as intended" meant** (*my call*): rule K works in xxl as it does in the book. In the book, tag flipping between
+neighbours makes agents culturally like the agents around them (pp.73–80). So: agents come to live among culturally like agents; an
+area the size of the book's world tends toward one tribe; and culture keeps moving with both tribes alive across the whole world.
+xxl's world holds 100 times the book's agents, so the whole world turning one colour, as the book's often does, wasn't asked for. The
+scorecard's X3 and X4 already passed, but neither asks whether tags cluster.
+
+**The short answer.** Culture works as intended in xxl, and the stage stops with no rule change. Today's neighbours are more alike than
+chance and far more so than xl's, areas the size of the book's world lean toward one tribe, and both tribes live in every seed
+with tags still flipping.
+
+**The runs.** VI-1 in three worlds, 500 periods each, with an observer that records culture without changing a run: the book's 50 × 50
+world under the book's rules (seeds 80–139, as stage 6's rerun), xl's VI-1 and today's xxl (`XXL_DEFAULTS`), both on seeds 80–99
+(`results-julia-xxl/culture-part1.md`). Every seed's standard CSV is byte-identical to stage 6's for the same world and seed (100 of
+100), so these are the same runs as stage 6's, observed again. 28 of the book's 60 seeds survived, as in stage 6; no xl or today seed
+died out.
+
+**Bars**, decided at t = 301–500. Ratios are today ÷ book of the means over seeds, with 95% intervals from 10,000 bootstrap resamples
+of each world's seeds:
+
+| Bar | Today ÷ book | Bar | Result |
+|---|---|---|---|
+| W1: neighbour closeness − 0.5 | 0.640 [0.586, 0.703] | under 0.5, interval under 1 | doesn't hold |
+| W2: patch polarization (50 × 50 patches) | 0.458 [0.378, 0.577] | under 0.5, interval under 1 | holds |
+| F: both tribes ≥ 5% at t = 500; tags flip every period of t = 301–500 | 20 of 20; 20 of 20 | ≥ 80% of seeds; every seed | holds |
+
+W ("culture is weak in xxl") would need both W1 and W2 to hold. W1 doesn't, and F passes, so by the design's outcome rules culture works
+as intended. W2 holds on its point value (0.458, under 0.5); its interval reaches past 0.5, but the bar asks only that it stay under 1.
+
+**Readings** (t = 301–500, means over seeds):
+
+| Reading | Book | xl | Today |
+|---|---|---|---|
+| Neighbour closeness | 0.842 | 0.563 | 0.719 |
+| Chance closeness (all pairs, from the tag counts) | 0.797 | 0.505 | 0.505 |
+| Neighbour closeness above chance closeness | 0.044 | 0.058 | 0.213 |
+| Patch polarization | 0.542 | 0.074 | 0.249 |
+| Blue share | 0.574 | 0.499 | 0.496 |
+| Tag flips per agent per period | 0.30 | 0.89 | 1.03 |
+| Neighbours per agent | 1.73 | 2.03 | 4.10 |
+| Neighbour pairs still together next period | 0.18 | 0.08 | 0.37 |
+| Distance moved per period (sites) | 1.7 | 16.9 | 1.2 |
+| Friend closeness | 0.831 | 0.543 | 0.680 |
+| Per-position polarization at t = 500, mean \|2zᵢ − 1\| | 0.70 | 0.08 | 0.09 |
+
+- **The book's clustering is mostly its whole world converging.** In the book's surviving seeds, tags across the whole world are
+  almost as alike as neighbours' (chance closeness 0.80 against neighbour closeness 0.84). Five of the 28 end with one tribe under
+  5%. The mean per-position polarization at t = 500 is 0.70. W1 and W2 measure against 0.5 on purpose, so that convergence counts as the rule
+  working. But it means much of the book's value, which the 0.5 bars halve, comes from its world being small enough to turn one colour.
+- **Today's clustering is local, and the strongest of the three.** Today's neighbours are 0.21 more alike than two agents picked at
+  random from the whole world, against 0.04 in the book and 0.06 in xl. The whole world stays mixed (blue share 0.50, per-position
+  polarization 0.09) while neighbourhoods and 50 × 50 patches lean to a colour. That is the book's "segregated subpopulations"
+  picture at a scale where the whole world can't converge.
+- **xl shows how much is xxl's rules rather than world size.** At the same world size, today's neighbour closeness above 0.5 is 3.5 times xl's, and its patch
+  polarization 3.4 times. xl agents move about 17 sites a period, and few neighbour pairs last to the next period (0.08). Today's
+  move about 1, have twice as many neighbours, and keep them (0.37). My reading, not tested: neighbours that stay put give flips time to
+  add up. The today ÷ xl patch ratio's interval is wide, [2.56, 4.53].
+- **Still rising slowly.** Today's neighbour closeness above 0.5 goes 0.17, 0.19, 0.21, 0.22 over t = 51–100, 101–200, 201–300 and
+  301–500, and patch polarization 0.16, 0.19, 0.23, 0.25. The book's flattens after t = 200 (0.30, 0.33, 0.34).
+
+**Against my guess.** The stage began from the stage-6 numbers showing today's friend closeness (0.68) well below the book's (0.84),
+which I read as possibly weak culture. Measured against what the whole world looks like, today's neighbours are more alike, not less. The book's
+higher number is mostly global convergence.
+
+### What this doesn't show
+
+- **The book's world compares unlike worlds.** It has its own density and neighbourhood (4 sites against xxl's 8 within 1.5), so
+  "half the book's" compares unlike worlds; xl is shown beside it to say how much is world size and how much is xxl's rules.
+- **A 50 × 50 patch of a bigger world isn't closed** as the book's world is: agents come and go across its edges, which is part of what
+  W2 measures.
+- **Only the book's surviving seeds are read** (28 of 60), which may not be typical seeds.
+- One xxl map, VI-1 only (culture changes nothing else there: no cultural preferences, no combat), 20 seeds and 500 periods for xl and
+  today. Whether today's patches would keep sharpening past t = 500 isn't known.
+
+### Run time
+
+Same machine, 5 workers: 62 s for the book's 60 seeds, 19 min for xl and 32 min for today. The observer adds little over stage 6's
+times.
+
 ## Results of the first rules (`XXL_V1`)
 
 This section is the record of the first rules, `XXL_V1`, as the 16 `XXL-…` experiments still run them. Where it says
