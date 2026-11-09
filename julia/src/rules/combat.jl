@@ -12,11 +12,12 @@ combat_wealth(a::Agent, spice::Bool) = spice ? a.sugar + a.spice : a.sugar
     loot(m, victim) -> (sugar, spice)
 
 What rule C_alpha takes from a defeated `victim`: min(alpha, its sugar), and min(alpha, its spice) with spice on (0
-without).
+without). A good the victim holds less than nothing of (spice can be below 0 until its owner's own turn, after a gift to
+a child in rule S) yields 0: there is nothing to take, and a negative loot would feed a negative amount to the welfare.
 """
 function loot(m::Model, victim::Agent)
     alpha = m.config.combat_alpha
-    return (min(alpha, victim.sugar), m.config.spice ? min(alpha, victim.spice) : 0.0)
+    return (max(0.0, min(alpha, victim.sugar)), m.config.spice ? max(0.0, min(alpha, victim.spice)) : 0.0)
 end
 
 """
