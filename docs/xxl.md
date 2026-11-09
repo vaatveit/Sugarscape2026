@@ -565,9 +565,9 @@ Where a metric doesn't apply it is `nan`.
 The first rules (`XXL_V1`) nearly killed VI-1's society: on the baseline scorecard below, its 20,000 founders fell to
 2–6% of their number before the population recovered, II-4 and IV-A3 kept only about 60% of xl's survivors, and
 disease died out in every seed ("Results of the first rules" has the analysis behind the first two). The goal is now
-a well-functioning simulation: the population rarely goes extinct, and sex, culture, trade, credit and disease each
-work. The work goes in stages, each scored by the same scorecard: stage 1 survival, stage 2 extinction risk,
-stage 3 trade and credit, stage 4 disease. This section is stage 1's record.
+a well-functioning simulation: the population rarely goes extinct, and sex, culture, trade, credit, disease and combat
+each work (combat joined the goal in stage 8). The work goes in stages, each scored by the same scorecard: stage 1
+survival, stage 2 extinction risk, stage 3 trade and credit, stage 4 disease. This section is stage 1's record.
 
 **Outcome.** The defaults are now the first rules with three changes and a higher travel cost: the generated map
 (rule 6), viable founder placement (rule 9), a free step of 1.5 (rule 10), and c = 0.2. On 20 seeds that were not
@@ -2096,6 +2096,108 @@ higher number is mostly global convergence.
 
 Same machine, 5 workers: 62 s for the book's 60 seeds, 19 min for xl and 32 min for today. The observer adds little over stage 6's
 times.
+
+## Stage 8: combat
+
+The user added combat to the goal, asked for the book's combat variants to be run in xxl and analyzed, and said to skip the questions,
+so the bars below are my calls; the user approved them with the design. The design is
+[docs/superpowers/specs/2026-11-08-xxl-combat-design.md](superpowers/specs/2026-11-08-xxl-combat-design.md). Nothing here changes
+`XXL_DEFAULTS`, and no rule was added: every variant was already an experiment, and xxl already ran combat with its own move (rule 7).
+
+**What "works as intended" meant** (*my call*): rule C works in xxl as it does in the book (pp.82–92). In the book combat is war
+between tribes. It kills across tribal lines; it keeps the tribes apart, so that they meet at a front instead of mixing; the war can
+last; and with culture on, tag flipping keeps either tribe from taking everything. In xxl that has to happen without the population
+dying out. The book's exact endings (one tribe wiped out, tribes swapping mountains) weren't asked for: xxl's world holds 100 times
+the book's agents, and the generated map has no twin peaks.
+
+**The short answer.** Combat works as intended in xxl, and the stage stops with no rule change. It is gentler than the book's: under
+C_∞ it kills about 0.4 times as many agents per founder, and neither tribe is wiped out in any seed. But it keeps the tribes apart more
+completely than the book's does (at t = 901–1000, once they have met), the war with replacement lasts with a front, and with culture on
+both tribes survive. No seed of any variant died out.
+
+**The runs.** Five experiments in three worlds, seeds 0–19, each over its own steps, with an observer that records kills, contact,
+territory and wealth without changing a run (`results-julia-xxl/combat-part1.md`):
+
+| Variant | Experiment | Steps |
+|---|---|---|
+| C_∞ | III-9 | 1000 |
+| C_2 with same-tribe replacement | III-11 | 1000 |
+| No combat (the waves) | III-12 | 200 |
+| C_2 | III-13 | 200 |
+| C_∞ with culture K | III-14 | 1000 |
+
+The worlds are the book's 50 × 50 world under the book's rules, xl, and today's xxl (`XXL_DEFAULTS`; the tribal blocks at xl's
+corners on the generated map, with viable placement inside each block). Every book and xl seed that has a saved run with a current
+fingerprint is byte-identical to it (50 of 50; xl's saved III-12, III-13 and III-14 predate xl's centred look and weren't compared).
+
+**A second run of III-12 and III-13 for today.** Read as planned, the report said "works as intended", but its separation bar was
+empty, so I set that verdict aside (W2 read honestly as missing, so W missing and no outcome): in 200 periods today's tribes, starting
+far apart, barely met. Without combat only 0.003% of neighbour pairs were cross-tribe over t = 101–200 (the book's world: 8%), and with
+combat no one was killed in that window. So the cut in mixing (0.993) measured distance, not combat, and the design's anti-goal says a
+bar can't pass because no one fights. With the user's go-ahead, today's III-12 and III-13 were run again for 1000 periods, and before
+the results I fixed how W2 would read them: today's cut over t = 901–1000 against the book's over t = 101–200, and W2 missing if
+today's no-combat mixing over t = 901–1000 stayed under a tenth of the book's (0.008). The long runs' figures below come from
+`results-julia-xxl/combat-scripts/w2-long.jl` (output `w2-long.txt`); `combat-part1.md` still shows the 200-period W2.
+
+**Bars.** Ratios are today ÷ book of the means over seeds, with 95% intervals from 10,000 bootstrap resamples of each set of seeds:
+
+| Bar | Today ÷ book | Bar | Result |
+|---|---|---|---|
+| W1: III-9 kills per founder by t = 1000 | 0.391 [0.318, 0.495] | under 0.5, interval under 1 | holds |
+| W2: cut in mixing, 1 − mixing(III-13) ÷ mixing(III-12) | 1.279 [1.219, 1.351] | under 0.5, interval under 1 | doesn't hold |
+| F1: III-11 kills in every 100-period block of t = 501–1000; both tribes' home share above 0.5 | 20 of 20; 20 of 20 | every seed; ≥ 80% of seeds | holds |
+| F2: III-9 and III-14 alive at t = 1000 | 40 of 40 | every seed | holds |
+| F3: III-14 both tribes ≥ 5% at t = 1000 | 20 of 20 | ≥ 50% of seeds | holds |
+
+W ("combat is weak in xxl") would need both W1 and W2 to hold. W2 doesn't, and F passes, so by the design's outcome rules combat
+works as intended. The cuts behind W2: the book's 0.767 [0.726, 0.804] over t = 101–200, today's 0.981 [0.980, 0.982] over
+t = 901–1000 (today's no-combat mixing there is 0.012, above the 0.008 floor); xl's is 0.172 [0.156, 0.187].
+
+**Readings** (means over seeds):
+
+| Reading | Book | xl | Today |
+|---|---|---|---|
+| III-9: kills per period, t = 101–200 / 501–1000 | 0.71 / 0.017 | 80.8 / 10.9 | 0.60 / 10.6 |
+| III-9: population at t = 501–1000 (from 540 / 54,000 / 54,000) | 130 | 2,018 | 22,250 |
+| III-9: seeds with both tribes ≥ 5% at the end | 7 of 20 | 17 of 20 | 20 of 20 |
+| III-11: kills per period, t = 501–1000 | 9.3 | 1,169 | 723 |
+| III-11: home share blue / red, t = 501–1000 | 0.79 / 0.77 | 0.89 / 0.89 | 0.64 / 0.88 |
+| III-11: front share, t = 501–1000 | 0.050 | 0.061 | 0.084 |
+| III-12 mixing (no combat): book and xl t = 101–200, today t = 901–1000 | 0.080 | 0.080 | 0.012 |
+| III-13 mixing (C_2): same windows | 0.019 | 0.066 | 0.00023 |
+| III-14: population at t = 501–1000 | 7.5 | 4,716 | 1,441 |
+| III-14: tribe changes per period, t = 1–100 / 501–1000 | 1.4 / 0.0001 | 195 / 0.63 | 111 / 0.078 |
+
+- **Today's wars start late and never end.** Under C_∞ (III-9) no one is killed in the first 100 periods, while the tribes are still
+  apart; kills rise to about 10 a period by t = 501–1000, when the book's war is long over. Each tribe stays on its own side (home
+  shares above 0.99 throughout), and neither is wiped out in any seed, against 13 of 20 seeds in the book's world ending with one tribe
+  under 5%. Speed is what tames it: an agent can attack only within its speed (1–6), so war is fought at a front, not across the map
+  (rule 7). xl, which can attack anywhere within its vision (10–60), kills 1.7 times the book's per founder, and its population falls
+  to about 2,000. - **Combat keeps the tribes apart, with few kills.** Without combat, today's tribes meet after about t = 200 and
+  mixing rises steadily to 0.012 by t = 1000, still climbing. With C_2 it stays about 50–130 times lower in every window from t = 201
+  on, while III-13 kills only 0.02–0.5 agents a period. The book's world cuts mixing by three quarters; xl's by a sixth. - **The war of
+  attrition lasts.** With same-tribe replacement (III-11) today kills 700–900 agents a period throughout, and both tribes hold more
+  than half their side in every seed. Blue holds its side less firmly than red (0.64 against 0.88), and red starves five times as
+  often; one generated map, so this may be the map's. - **With culture, no tribe takes everything.** In III-14 both tribes live in
+  every seed. Tag flips run at about half xl's rate early and an eighth of it late; the book's world is down to 7 or 8 agents by then.
+  Today's survivors are very unequal (Gini about 0.9).
+
+### What this doesn't show
+
+- **Kills by attacker are read from the victim.** The observer counts victims by tribe; with two tribes the attacker is the other
+  one, so kills by attacker tribe aren't recorded separately.
+- **The book's world compares unlike worlds.** It has its own density and neighbourhood (4 sites against xxl's 8 within 1.5) and
+  twin peaks the generated map doesn't have; xl is shown beside it to say how much is world size and how much is xxl's rules.
+- **W2 measures mixing, not waves.** The book recreation doesn't reproduce the waves (Blue advances about 8 sites by t = 50), and
+  today's W2 compares a late window, after the tribes have met, with the book's early one. Today's no-combat mixing is still rising at
+  t = 1000, so the size of the cut at a settled front isn't known.
+- One xxl map, 20 seeds, no combat in VI-1 or the scorecard (combat is barred with credit and spice). A combat check in the
+  scorecard isn't proposed: nothing here calls for one.
+
+### Run time
+
+Same machine, 5 workers: about 3 min for the book's 100 seeds and 24 min for xl's. Today: III-9 29 min, III-11 66 min (it holds
+40,000 agents), III-12 and III-13 at 200 periods 24 min, III-14 7 min; the 1000-period III-12 and III-13 39 and 48 min.
 
 ## Results of the first rules (`XXL_V1`)
 
