@@ -67,22 +67,40 @@ function hostile!(m::Model, a::Agent, other::Agent)
 end
 
 """
+The one distance scanned along each lattice line with `combat_reach` "neighbours" (VI-1-near): the adjacent site,
+whatever vision and `look_stride`. Read only.
+"""
+const ADJACENT = [1]
+
+"""
+    combat_line!(m, buf, a) -> Vector{Int}
+
+The distances [`combat_move!`](@ref) and [`vulnerable`](@ref) scan along one lattice line: with `combat_reach`
+"vision" the looks out to `a.vision` ([`look_line!`](@ref) into `buf`, with its stride draws); with "neighbours"
+(VI-1-near) distance 1 only ([`ADJACENT`](@ref)), with no draw.
+"""
+@inline function combat_line!(m::Model, buf::Vector{Int}, a::Agent)
+    m.config.combat_reach == "neighbours" && return ADJACENT
+    return look_line!(buf, m.rng, m.config.look_stride, a.vision)
+end
+
+"""
     vulnerable(m, a, x, y, reward, victim)
 
 A site is vulnerable to retaliation if an agent within the attacker's vision of that site would be bigger than the
 attacker after taking it and the attacker is [`hostile!`](@ref) to it: of another tribe, or with `combat_hostility`
 above 0 a draw on cultural distance, made only for a watcher that passes the size test (p.82; Kehoe on the
-viewpoint). Size is [`combat_wealth`](@ref) and `reward` is in its units: the site's goods plus the loot.
+viewpoint). Size is [`combat_wealth`](@ref) and `reward` is in its units: the site's goods plus the loot. With
+`combat_reach` "neighbours" (VI-1-near) only the 4 sites adjacent to it are watched ([`combat_line!`](@ref)).
 """
 function vulnerable(
     m::Model, a::Agent, x::Int, y::Int, reward::Float64, victim::Union{Nothing,Agent}
 )
     spice = m.config.spice
     after = combat_wealth(a, spice) + reward
-    stride = m.config.look_stride
     for (dx, dy) in VON_NEUMANN
         # Each direction draws its own looks (docs/xl.md), into a buffer of its own: combat_move! is mid-line in m.line.
-        for dist in look_line!(m.threat, m.rng, stride, a.vision)
+        for dist in combat_line!(m, m.threat, a)
             other = agent_at(m, x + dx * dist, y + dy * dist)
             other === nothing && continue
             (other === a || other === victim) && continue
@@ -96,10 +114,11 @@ end
     combat_move!(m, a)
 
 Rule C_alpha: take the nearest safe site of maximum value; a defeated occupant is killed. Candidates are scanned as
-in M: the current site first at distance 0, then each direction in random order out to vision. Sites held by anyone
-wealthier ([`combat_wealth`](@ref)) or by an agent the mover isn't [`hostile!`](@ref) to (its own tribe, or with
-`combat_hostility` above 0 a failed draw on cultural distance, made only after the wealth test) are thrown out, and
-sight continues past them.
+in M: the current site first at distance 0, then each direction in random order out to vision; with `combat_reach`
+"neighbours" (VI-1-near) the direction order is drawn as before but only distance 1 is scanned
+([`combat_line!`](@ref)). Sites held by anyone wealthier ([`combat_wealth`](@ref)) or by an agent the mover isn't
+[`hostile!`](@ref) to (its own tribe, or with `combat_hostility` above 0 a failed draw on cultural distance, made only
+after the wealth test) are thrown out, and sight continues past them.
 Without spice the value is the reward, site sugar + min(alpha, occupant's sugar) if occupied. With spice it is the
 book's welfare score of the site's goods plus the [`loot`](@ref), as `move!` scores sites, and the reward checked for
 retaliation is the site's sugar and spice plus the loot. With no safe site the agent stays and harvests where it is
@@ -125,10 +144,9 @@ function combat_move!(m::Model, a::Agent)
     found = !vulnerable(m, a, a.x, a.y, own, nothing)
     best_x, best_y, best_d, best_victim = a.x, a.y, 0, nothing
     best_v = spice ? score(sw, ls, i0, j0) : own
-    stride = m.config.look_stride
     for d in random_directions(m.rng)
         dx, dy = @inbounds VON_NEUMANN[d]
-        for dist in look_line!(m.line, m.rng, stride, a.vision)
+        for dist in combat_line!(m, m.line, a)
             x, y = mod(a.x + dx * dist, w), mod(a.y + dy * dist, h)
             occupant = @inbounds m.grid[x + 1, y + 1]
             if occupant === nothing
