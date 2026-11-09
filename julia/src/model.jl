@@ -48,6 +48,7 @@ mutable struct Model{R<:AbstractRNG}
     viable_fallbacks::Int  # xxl: new agents placed off viable land because none was free (spawn_viable!)
     viable_sites::Dict{Tuple{Int,Int},Vector{Int32}}  # xxl: the grid's viable sites by metabolism pair, built lazily
     killed::Set{Int}  # xxl: ids of the agents killed in combat this period (combat_move!, xxl_combat_move!), for the readings and the scorecard
+    hostile::Dict{Int,Bool}  # scratch: this combat move's hostility answers by the other agent's id (hostile!)
     # Rule L's loan flows so far, counted by step! for the scorecard (xxl/scorecard_metrics.jl); credit runs only.
     loans_made::Int  # loans made by seek_credit!
     loans_due::Int  # loans that came due and were settled by settle_loans!
@@ -126,6 +127,7 @@ function Model(
         0,
         Dict{Tuple{Int,Int},Vector{Int32}}(),
         Set{Int}(),
+        Dict{Int,Bool}(),
         0,
         0,
         0,
