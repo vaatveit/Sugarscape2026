@@ -108,3 +108,31 @@ lack, so they are built unchecked (`unchecked_config`) and only today's xxl, whe
 """
 vi1_far_speed_experiment(reg=load_registry()) =
     vi1_reach_experiment(reg, VI1_FAR_SPEED_ID, VI1_FAR_SPEED_VARIANT, c -> unchecked_config(c; culture_reach="attack"))
+
+# VI-1-assim and VI-1-assim-random (docs/superpowers/plans/2026-11-09-assimilation-distance.md): VI-1-distance with rule K
+# by cultural distance, so that the chance to copy is 1 - the fight chance. Built from VI-1-distance here, like it.
+
+const VI1_ASSIM_ID = "VI-1-assim"
+const VI1_ASSIM_RANDOM_ID = "VI-1-assim-random"
+const VI1_ASSIM_VARIANT = "variant: VI-1-assim culture_rule=distance (copy a differing tag with p = 1 - fight chance)
+"
+const VI1_ASSIM_RANDOM_VARIANT = "variant: VI-1-assim-random culture_rule=distance-random (copy a random tag with p = 1 - fight chance)
+"
+
+"""
+    vi1_assim_experiment(reg=load_registry()) -> Experiment
+
+VI-1-distance from `reg` as `VI-1-assim`: `culture_rule = "distance"` in both configs (a contact copies, with probability
+1 - the fight chance, one differing tag), and the variant line appended to both fingerprints.
+"""
+vi1_assim_experiment(reg=load_registry()) =
+    vi1_reach_experiment(reg, VI1_ASSIM_ID, VI1_ASSIM_VARIANT, c -> replace_config(c; culture_rule="distance"))
+
+"""
+    vi1_assim_random_experiment(reg=load_registry()) -> Experiment
+
+VI-1-distance from `reg` as `VI-1-assim-random`: `culture_rule = "distance-random"` in both configs (a contact copies,
+with probability 1 - the fight chance, a random tag as today), and the variant line appended to both fingerprints.
+"""
+vi1_assim_random_experiment(reg=load_registry()) =
+    vi1_reach_experiment(reg, VI1_ASSIM_RANDOM_ID, VI1_ASSIM_RANDOM_VARIANT, c -> replace_config(c; culture_rule="distance-random"))

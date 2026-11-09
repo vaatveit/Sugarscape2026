@@ -13,6 +13,8 @@ const JULIA_COMBAT_EXPS = Dict{String,Function}(
     VI1_NEAR_ID => vi1_near_experiment,
     VI1_FAR_ID => vi1_far_experiment,
     VI1_FAR_SPEED_ID => vi1_far_speed_experiment,
+    VI1_ASSIM_ID => vi1_assim_experiment,
+    VI1_ASSIM_RANDOM_ID => vi1_assim_random_experiment,
 )
 
 """Throws `ArgumentError` unless `exp_id` is one of [`COMBAT_EXPS`](@ref) or the ids of [`JULIA_COMBAT_EXPS`](@ref), or when it is VI-1-far-speed outside `world` today."""
@@ -103,10 +105,10 @@ function run_combat_world(
     )
 end
 
-const COMBAT_USAGE = "usage: julia --project=julia julia/xxl_combat_study.jl --world book|xl|today --exp III-9|III-11|III-12|III-13|III-14|VI-1-combat|VI-1-distance|VI-1-near|VI-1-far|VI-1-far-speed [--seeds N] [--first-seed K] [--periods P] [--jobs J] [--out DIR]"
+const COMBAT_USAGE = "usage: julia --project=julia julia/xxl_combat_study.jl --world book|xl|today --exp III-9|III-11|III-12|III-13|III-14|VI-1-combat|VI-1-distance|VI-1-near|VI-1-far|VI-1-far-speed|VI-1-assim|VI-1-assim-random [--seeds N] [--first-seed K] [--periods P] [--jobs J] [--out DIR]"
 
 """
-The study's command line: `--world book|xl|today` and `--exp III-9|III-11|III-12|III-13|III-14|VI-1-combat|VI-1-distance|VI-1-near|VI-1-far|VI-1-far-speed` (both required;
+The study's command line: `--world book|xl|today` and `--exp III-9|III-11|III-12|III-13|III-14|VI-1-combat|VI-1-distance|VI-1-near|VI-1-far|VI-1-far-speed|VI-1-assim|VI-1-assim-random` (both required;
 VI-1-far-speed only with `--world today`),
 `--seeds N` (20), `--first-seed K` (0), `--periods P` (the experiment's steps), `--jobs J` (1) and `--out DIR`.
 Throws `ArgumentError` on a usage error.
