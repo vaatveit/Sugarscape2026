@@ -64,6 +64,10 @@ mutable struct Model{R<:AbstractRNG}
     move_lambda::Float64
     move_inv_p::Float64
     mate_log::Union{Nothing,Vector{MateEvent}}  # xxl: the opt-in record of rule S's attempts this period (emptied by step!)
+    # Rule K's own scratch (culture_reach_agents!), apart from the move's buffers.
+    culture_reached::Vector{Agent}  # the agents rule K reaches
+    culture_line::Vector{Int}  # the lattice look's distances along one line
+    culture_looked::Vector{Tuple{Int,Int}}  # the xxl round look's sites
 end
 
 """
@@ -140,6 +144,9 @@ function Model(
         0.0,
         0.0,
         nothing,
+        Agent[],
+        Int[],
+        Tuple{Int,Int}[],
     )
     cfg.disease_list > 0 && init_disease_list!(m)
     place_initial_population!(m)

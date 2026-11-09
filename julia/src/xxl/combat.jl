@@ -9,7 +9,9 @@ Whether site (x, y) is vulnerable to retaliation for attacker `a` taking `reward
 with more wealth ([`combat_wealth`](@ref)) than `a` would then have, to which `a` is [`hostile!`](@ref): of another
 tribe, or with `combat_hostility` above 0 a draw on cultural distance, made only for a watcher that passes the wealth
 test; `reward` is in the same units as the wealth (the site's goods plus the loot). Travel cost doesn't count, as in
-the book's threshold. With the lattice look it is the book's [`vulnerable`](@ref).
+the book's threshold. With `combat_reach` "neighbours" (VI-1-near) the watchers are instead the agents within the
+interaction radius of (x, y) ([`near_offsets`](@ref), culture's neighbourhood), with no look and so no draws. With the
+lattice look it is the book's [`vulnerable`](@ref).
 """
 function disc_vulnerable(
     m::Model, a::Agent, x::Int, y::Int, reward::Float64, victim::Union{Nothing,Agent}
@@ -17,6 +19,16 @@ function disc_vulnerable(
     xxl_on(m.config, :disc) || return vulnerable(m, a, x, y, reward, victim)
     spice = m.config.spice
     after = combat_wealth(a, spice) + reward
+    if m.config.combat_reach == "neighbours"
+        for (dx, dy) in near_offsets(m, m.config.xxl.interaction_radius)
+            sx, sy = wrap(m, x + dx, y + dy)
+            other = @inbounds m.grid[sx + 1, sy + 1]
+            other === nothing && continue
+            (other === a || other === victim) && continue
+            combat_wealth(other, spice) > after && hostile!(m, a, other) && return true
+        end
+        return false
+    end
     for (sx, sy) in look!(m.threat_looked, m, a, x, y; memory=false)
         other = @inbounds m.grid[sx + 1, sy + 1]
         other === nothing && continue
@@ -73,6 +85,11 @@ stays. A defeated occupant gives up its loot and dies ([`take_loot!`](@ref)) bef
 harvests it through [`harvest!`](@ref), so the loot isn't income. `travel_free` records whether the target is within
 `free_step`, as in [`speed_move!`](@ref). With spice the move's blend and price go to `m.move_lambda` and
 `m.move_inv_p`, and [`remember!`](@ref) gets the move's welfare, as in `speed_move!`.
+
+With `combat_reach` "neighbours" (VI-1-near) the look and memory run as above, but the candidates are the own site and
+every site within the interaction radius ([`near_offsets`](@ref), culture's neighbourhood, in that order), not the
+looked-at sites, which at speed 1 hold only the 4 adjacent sites for sure; each is attackable and reached by a jump
+whatever the speed, and remembered sites are not candidates.
 """
 function xxl_combat_move!(m::Model, a::Agent)
     ls = m.landscape
@@ -80,7 +97,9 @@ function xxl_combat_move!(m::Model, a::Agent)
     c, free = m.config.xxl.travel_cost, m.config.xxl.free_step
     w, h = ls.width, ls.height
     wealth = combat_wealth(a, spice)
-    reach = a.speed > 0 ? Float64(a.speed) : Inf  # without speed every looked-at site is within reach (a jump)
+    near = m.config.combat_reach == "neighbours"
+    # without speed, or VI-1-near, every candidate is within reach (a jump)
+    reach = (a.speed > 0 && !near) ? Float64(a.speed) : Inf
     a.moved_dist = 0.0
     a.target_remembered = false
     looked = look!(m, a)  # first, so the look's draws don't depend on the retaliation checks
@@ -96,7 +115,10 @@ function xxl_combat_move!(m::Model, a::Agent)
     best_d, best_land, best_victim, best_remembered = 0.0, (a.x, a.y), nothing, false
     found = !disc_vulnerable(m, a, a.x, a.y, own, nothing)
     ties = found ? 1 : 0
-    for (x, y) in looked
+    # VI-1-near: the sites within the interaction radius, as offsets; otherwise the looked-at sites
+    sites = near ? near_offsets(m, m.config.xxl.interaction_radius) : looked
+    for (sx, sy) in sites
+        x, y = near ? wrap(m, a.x + sx, a.y + sy) : (sx, sy)
         occupant = @inbounds m.grid[x + 1, y + 1]
         occupant === a && continue  # the own site was scored above
         d = torus_dist(w, h, a.x, a.y, x, y)
@@ -134,7 +156,7 @@ function xxl_combat_move!(m::Model, a::Agent)
         d, land, occupant,
         false
     end
-    if xxl_on(m.config, :memory)  # remembered sites beyond vision: empty, with the resources remembered
+    if xxl_on(m.config, :memory) && !near  # remembered sites beyond vision: empty, with the resources remembered
         vision = Float64(a.vision)
         for e in a.memory
             d = torus_dist(w, h, a.x, a.y, e.x, e.y)

@@ -4,8 +4,11 @@
 
 const AGENT_LINK_FIELDS = (:neighbors, :children, :friends)
 const AGENT_PLAIN_FIELDS = Tuple(f for f in fieldnames(Agent) if !(f in AGENT_LINK_FIELDS))
-# The model's fields that hold agents or records of them; every other field is saved as it is.
-const MODEL_LINK_FIELDS = (:grid, :agents, :dead_this_step, :trade_log, :loans, :debts, :infection_log, :order, :sight)
+# The model's fields that hold agents or records of them; every other field is saved as it is. Rule K's scratch
+# `culture_reached` is not saved: it is filled afresh before each use, and comes back empty.
+const MODEL_LINK_FIELDS = (
+    :grid, :agents, :dead_this_step, :trade_log, :loans, :debts, :infection_log, :order, :sight, :culture_reached
+)
 
 """
     FlatModel
@@ -111,6 +114,7 @@ function model_from_flat(f::FlatModel)
         :dead_this_step => linked(f.dead_this_step),
         :order => linked(f.order),
         :sight => linked(f.sight),
+        :culture_reached => Agent[],
         :trade_log => Exchange[Exchange(e[1], e[2], e[3], by_id[e[4]], by_id[e[5]]) for e in f.trade_log],
         :loans => loans,
         :debts => Dict{Int,Vector{Loan}}(id => Loan[loans[i] for i in places] for (id, places) in f.debts),

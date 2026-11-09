@@ -12,7 +12,10 @@ has no list to size, so they are reset to `nothing` for it. A run without trade 
 `trade_move`, `trade_guard` and `trade_price` are reset to `nothing`, `trade_blend` and `trade_step` to 1 for it.
 """
 function to_xxl(cfg::Config, rules::XxlRules=XXL_DEFAULTS)
-    xl = to_xl(cfg)
+    # A config holding culture_reach "attack" (VI-1-far-speed) is only valid with the speed rules adds below: transform it
+    # as "sight" and put "attack" back with the rules.
+    attack = cfg.culture_reach == "attack" && cfg.xxl === nothing
+    xl = to_xl(attack ? unchecked_config(cfg; culture_reach="sight") : cfg)
     cfg.seasons === nothing && (rules = replace_rules(rules; season_gradient=false))
     cfg.sex && cfg.max_age !== nothing ||
         (rules = replace_rules(rules; founder_ages="book"))
@@ -30,6 +33,7 @@ function to_xxl(cfg::Config, rules::XxlRules=XXL_DEFAULTS)
     return replace_config(
         xl;
         xxl=rules,
+        culture_reach=cfg.culture_reach,
         sugar_map=rules.landscape == "generated" ? XXL_MAP : xl.sugar_map,
         disease_list=something(rules.disease_count, xl.disease_list),
         diseases_per_agent=something(rules.founder_diseases, xl.diseases_per_agent),

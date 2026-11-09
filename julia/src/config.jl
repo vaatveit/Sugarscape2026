@@ -69,6 +69,11 @@ Base.@kwdef struct Config
     # Combat by cultural distance (VI-1-distance): above 0, an agent fights or fears another with probability
     # combat_hostility * (differing tags) / tag_length, in place of the tribe test; 0 keeps the tribe test.
     combat_hostility::Float64 = 0.0
+    # Who combat and culture reach (VI-1-near, VI-1-far, VI-1-far-speed): combat_reach "vision" is the book's look,
+    # "neighbours" keeps attack, fear and movement within culture's reach; culture_reach "neighbours" is culture's own
+    # sites, "sight" everyone combat sees, "attack" everyone within speed (xxl speed only).
+    combat_reach::String = "vision"
+    culture_reach::String = "neighbours"
     initial_blocks::Vector{Block} = Block[]
     replacement_same_tribe::Bool = false
     fertility_threshold::Float64 = 1.0
@@ -125,12 +130,22 @@ A copy of `cfg` with the given fields changed, validated (Python's `dataclasses.
 Base exports.
 """
 function replace_config(cfg::Config; kw...)
+    return validate(unchecked_config(cfg; kw...))
+end
+
+"""
+    unchecked_config(cfg; kw...) -> Config
+
+`cfg` with the fields in `kw` replaced and no [`validate`](@ref). Only for a config that is valid once a later transform
+completes it: VI-1-far-speed's book config holds `culture_reach = "attack"`, which needs the xxl speed `to_xxl` adds.
+"""
+function unchecked_config(cfg::Config; kw...)
     values = Dict{Symbol,Any}(f => getfield(cfg, f) for f in fieldnames(Config))
     for (k, v) in kw
         k in fieldnames(Config) || throw(ArgumentError("Config has no field $k"))
         values[k] = v
     end
-    return validate(Config(; values...))
+    return Config(; values...)
 end
 
 bad(msg) = throw(ArgumentError(msg))
@@ -215,6 +230,19 @@ function validate(c::Config)
     c.combat_hostility > 0 &&
         c.combat_alpha === nothing &&
         bad("combat_hostility above 0 needs combat (combat_alpha)")
+    c.combat_reach in ("vision", "neighbours") ||
+        bad("combat_reach must be \"vision\" or \"neighbours\", not $(repr(c.combat_reach))")
+    c.combat_reach == "neighbours" &&
+        c.combat_alpha === nothing &&
+        bad("combat_reach \"neighbours\" needs combat (combat_alpha)")
+    c.culture_reach in ("neighbours", "sight", "attack") ||
+        bad("culture_reach must be \"neighbours\", \"sight\" or \"attack\", not $(repr(c.culture_reach))")
+    c.culture_reach != "neighbours" &&
+        !c.culture &&
+        bad("culture_reach $(repr(c.culture_reach)) needs culture")
+    c.culture_reach == "attack" &&
+        !xxl_on(c, :speed) &&
+        bad("culture_reach \"attack\" needs xxl speed")
     for blk in c.initial_blocks
         tribe, x0, y0, bw, bh, n = blk
         tribe in TRIBES || bad("block tribe must be one of $TRIBES, not $(repr(tribe))")

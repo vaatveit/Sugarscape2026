@@ -22,13 +22,56 @@ end
 hamming(a::UInt64, b::UInt64) = count_ones(a ⊻ b)
 
 """
+    culture_reach_agents!(out, m, a) -> out
+
+Replaces `out` with the agents rule K reaches from `a`, by `culture_reach` (VI-1-far, VI-1-far-speed):
+- "neighbours": [`neighbors_of`](@ref)'s, in its order, with its draws (none).
+- "sight": the agents on the sites of combat's look from where `a` stands, drawn afresh. With xxl round vision,
+  [`look!`](@ref) without memory; otherwise the 4 lattice lines in a [`random_directions`](@ref) order, each
+  [`look_line!`](@ref) with `look_stride` out to `a.vision`, as [`combat_move!`](@ref) scans them.
+- "attack": the agents on `near_offsets(m, a.speed)` around `a` (xxl speed only).
+`a` itself is left out. No agent is listed twice: the round look lists a site once, and with vision (and speed, which
+does not exceed it) below half the grid neither the lattice lines nor the speed disc wrap onto a site twice. The looks
+use rule K's own scratch (`m.culture_line`, `m.culture_looked`), never the move's.
+"""
+function culture_reach_agents!(out::Vector{Agent}, m::Model, a::Agent)
+    empty!(out)
+    reach = m.config.culture_reach
+    reach == "neighbours" && return append!(out, neighbors_of(m, a))
+    if reach == "attack"
+        for (dx, dy) in near_offsets(m, Float64(a.speed))
+            reach_push!(out, a, agent_at(m, a.x + dx, a.y + dy))
+        end
+    elseif xxl_on(m.config, :disc)
+        for (x, y) in look!(m.culture_looked, m, a, a.x, a.y; memory=false)
+            reach_push!(out, a, @inbounds m.grid[x + 1, y + 1])
+        end
+    else
+        stride = m.config.look_stride
+        for d in random_directions(m.rng)
+            dx, dy = @inbounds VON_NEUMANN[d]
+            for dist in look_line!(m.culture_line, m.rng, stride, a.vision)
+                reach_push!(out, a, agent_at(m, a.x + dx * dist, a.y + dy * dist))
+            end
+        end
+    end
+    return out
+end
+
+@inline function reach_push!(out::Vector{Agent}, a::Agent, other)
+    (other === nothing || other === a) || push!(out, other)
+    return out
+end
+
+"""
     culture_transmit!(m, a)
 
-Cultural transmission (p.73, App. B): for each neighbour, in random order, a random tag position is chosen; if the
-neighbour disagrees there, its tag is flipped to the agent's.
+Cultural transmission (p.73, App. B): for each agent reached ([`culture_reach_agents!`](@ref): the neighbours, or
+with `culture_reach` combat's sight or attack reach), in random order, a random tag position is chosen; if that agent
+disagrees there, its tag is flipped to the agent's.
 """
 function culture_transmit!(m::Model, a::Agent)
-    neighbors = shuffle!(m.rng, neighbors_of(m, a))
+    neighbors = shuffle!(m.rng, culture_reach_agents!(m.culture_reached, m, a))
     for other in neighbors
         other.ntags == 0 && continue
         bit = UInt64(1) << rand(m.rng, 0:(a.ntags - 1))
