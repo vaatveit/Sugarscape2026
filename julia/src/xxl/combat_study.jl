@@ -19,8 +19,9 @@ end
 """The experiment (over `periods`, or its own steps), the folder and the fingerprint. Refuses another world or experiment."""
 function combat_plan(world::AbstractString, exp_id::AbstractString, out, first_seed, seeds, periods)
     world in COMBAT_WORLDS || throw(ArgumentError("--world is book, xl or today, not $(repr(world))"))
-    exp_id in COMBAT_EXPS || throw(ArgumentError("--exp is one of $(join(COMBAT_EXPS, ", ")), not $(repr(exp_id))"))
-    exp = find_experiment(load_registry(), exp_id)
+    exp_id in COMBAT_EXPS || exp_id == VI1_COMBAT_ID ||
+        throw(ArgumentError("--exp is one of $(join(COMBAT_EXPS, ", ")), $VI1_COMBAT_ID, not $(repr(exp_id))"))
+    exp = exp_id == VI1_COMBAT_ID ? vi1_combat_experiment() : find_experiment(load_registry(), exp_id)
     periods === nothing && (periods = exp.steps)
     exp = with_steps(exp, periods)
     folder = joinpath(out, combat_name(world, exp_id, first_seed, seeds, periods))
@@ -74,10 +75,10 @@ function run_combat_world(
     )
 end
 
-const COMBAT_USAGE = "usage: julia --project=julia julia/xxl_combat_study.jl --world book|xl|today --exp III-9|III-11|III-12|III-13|III-14 [--seeds N] [--first-seed K] [--periods P] [--jobs J] [--out DIR]"
+const COMBAT_USAGE = "usage: julia --project=julia julia/xxl_combat_study.jl --world book|xl|today --exp III-9|III-11|III-12|III-13|III-14|VI-1-combat [--seeds N] [--first-seed K] [--periods P] [--jobs J] [--out DIR]"
 
 """
-The study's command line: `--world book|xl|today` and `--exp III-9|III-11|III-12|III-13|III-14` (both required),
+The study's command line: `--world book|xl|today` and `--exp III-9|III-11|III-12|III-13|III-14|VI-1-combat` (both required),
 `--seeds N` (20), `--first-seed K` (0), `--periods P` (the experiment's steps), `--jobs J` (1) and `--out DIR`.
 Throws `ArgumentError` on a usage error.
 """
@@ -88,7 +89,8 @@ function combat_study_args(args::Vector{String})
     world === nothing && throw(ArgumentError("--world is required"))
     exp === nothing && throw(ArgumentError("--exp is required"))
     world in COMBAT_WORLDS || throw(ArgumentError("--world is book, xl or today, not $(repr(world))"))
-    exp in COMBAT_EXPS || throw(ArgumentError("--exp is one of $(join(COMBAT_EXPS, ", ")), not $(repr(exp))"))
+    exp in COMBAT_EXPS || exp == VI1_COMBAT_ID ||
+        throw(ArgumentError("--exp is one of $(join(COMBAT_EXPS, ", ")), $VI1_COMBAT_ID, not $(repr(exp))"))
     check_extinction_size(; seeds=common.seeds, first_seed=common.first_seed, periods=something(common.periods, 4), jobs=common.jobs)
     return (; world, exp, common...)
 end

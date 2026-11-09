@@ -161,6 +161,25 @@ makes a weight Inf, and Inf * 0 is NaN, so nothing is ruled out against it.
 end
 
 """
+    score(sw, ls, i, j, g1, g2)
+
+[`score`](@ref) of site [i, j] with `g1` sugar and `g2` spice held besides, as combat's loot: the welfare of
+(base1 + site sugar / devalue + g1, base2 + site spice / devalue + g2). The goods are held, not the site's, so pollution
+doesn't devalue them. With g1 = g2 = 0 it is `score(sw, ls, i, j)`; the bare-site shortcut `w0` is taken only when the
+site and the goods are all zero.
+"""
+@inline function score(sw::SiteWelfare, ls::Landscape, i::Int, j::Int, g1::Float64, g2::Float64)
+    s, p = @inbounds ls.sugar[i, j], ls.spice[i, j]
+    (s == 0 && p == 0 && g1 == 0 && g2 == 0) && return sw.w0
+    devalue = 1.0 + @inbounds ls.pollution[i, j]
+    A, B = sw.base1 + s / devalue + g1, sw.base2 + p / devalue + g2
+    left = sw.use1 ? A^sw.e1 : 1.0
+    right = sw.use2 ? B^sw.e2 : 1.0
+    sw.lambda == 0 && return left * right
+    return trade_value(sw.lambda, sw.inv_p, left * right, A, B)
+end
+
+"""
     welfare_score(m, a, i, j)
 
 The two-commodity score of site [i, j]: W(w1 + sugar, w2 + spice) (App. B), evaluated as if phi periods ahead (eq. 6:
