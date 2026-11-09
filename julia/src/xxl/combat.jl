@@ -5,10 +5,11 @@
     disc_vulnerable(m, a, x, y, reward, victim) -> Bool
 
 Whether site (x, y) is vulnerable to retaliation for attacker `a` taking `reward` there (spec, rule 7): a fresh
-[`look!`](@ref) of `a`'s vision from that site, with no remembered sites, holds an agent of another tribe, other than `a`
-and `victim`, with more wealth ([`combat_wealth`](@ref)) than `a` would then have; `reward` is in the same units (the
-site's goods plus the loot). Travel cost doesn't count, as in the book's threshold. With the lattice look it is the
-book's [`vulnerable`](@ref).
+[`look!`](@ref) of `a`'s vision from that site, with no remembered sites, holds an agent, other than `a` and `victim`,
+with more wealth ([`combat_wealth`](@ref)) than `a` would then have, to which `a` is [`hostile!`](@ref): of another
+tribe, or with `combat_hostility` above 0 a draw on cultural distance, made only for a watcher that passes the wealth
+test; `reward` is in the same units as the wealth (the site's goods plus the loot). Travel cost doesn't count, as in
+the book's threshold. With the lattice look it is the book's [`vulnerable`](@ref).
 """
 function disc_vulnerable(
     m::Model, a::Agent, x::Int, y::Int, reward::Float64, victim::Union{Nothing,Agent}
@@ -16,12 +17,11 @@ function disc_vulnerable(
     xxl_on(m.config, :disc) || return vulnerable(m, a, x, y, reward, victim)
     spice = m.config.spice
     after = combat_wealth(a, spice) + reward
-    mine = tribe(a)
     for (sx, sy) in look!(m.threat_looked, m, a, x, y; memory=false)
         other = @inbounds m.grid[sx + 1, sy + 1]
         other === nothing && continue
         (other === a || other === victim) && continue
-        tribe(other) !== mine && combat_wealth(other, spice) > after && return true
+        combat_wealth(other, spice) > after && hostile!(m, a, other) && return true
     end
     return false
 end
@@ -58,10 +58,11 @@ end
     xxl_combat_move!(m, a)
 
 Rule C_alpha with the xxl look and step (spec, rule 7); [`combat_move!`](@ref) calls it when round vision or speed is on.
-The candidates are the agent's own site, the sites it looks at that are empty or held by an agent of another tribe with
-no more wealth ([`combat_wealth`](@ref); with speed, an occupied one only within its speed: it won't stay put farther
-off), and with memory its remembered sites beyond vision, as empty sites with their remembered resources. A candidate
-is worth [`net_value`](@ref) with the site's resources plus the occupant's [`loot`](@ref) if occupied: without spice
+The candidates are the agent's own site, the sites it looks at that are empty or held by an agent with no more wealth
+([`combat_wealth`](@ref); with speed, an occupied one only within its speed: it won't stay put farther off) to which the
+agent is [`hostile!`](@ref) (of another tribe, or with `combat_hostility` above 0 a draw on cultural distance, made
+only after the wealth and reach tests), and with memory its remembered sites beyond vision, as empty sites with their
+remembered resources. A candidate is worth [`net_value`](@ref) with the site's resources plus the occupant's [`loot`](@ref) if occupied: without spice
 the reward (the site's sugar plus the loot) in the one-commodity form, as in the book; with spice the agent's
 [`SiteWelfare`](@ref) of the site's sugar and spice, devalued by its pollution (a remembered site's by the pollution
 remembered), plus the loot, which isn't devalued (VI-1 combat design, "The rule"). The best safe candidate wins:
@@ -78,7 +79,6 @@ function xxl_combat_move!(m::Model, a::Agent)
     spice = m.config.spice
     c, free = m.config.xxl.travel_cost, m.config.xxl.free_step
     w, h = ls.width, ls.height
-    mine = tribe(a)
     wealth = combat_wealth(a, spice)
     reach = a.speed > 0 ? Float64(a.speed) : Inf  # without speed every looked-at site is within reach (a jump)
     a.moved_dist = 0.0
@@ -103,7 +103,7 @@ function xxl_combat_move!(m::Model, a::Agent)
         sugar = @inbounds ls.sugar[x + 1, y + 1]
         if occupant === nothing
             g1, g2 = 0.0, 0.0
-        elseif tribe(occupant) !== mine && combat_wealth(occupant, spice) <= wealth && d <= reach
+        elseif combat_wealth(occupant, spice) <= wealth && d <= reach && hostile!(m, a, occupant)
             g1, g2 = loot(m, occupant)
         else
             continue

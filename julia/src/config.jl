@@ -66,6 +66,9 @@ Base.@kwdef struct Config
     tag_length::Int = 0
     culture::Bool = false
     combat_alpha::Union{Nothing,Float64} = nothing
+    # Combat by cultural distance (VI-1-distance): above 0, an agent fights or fears another with probability
+    # combat_hostility * (differing tags) / tag_length, in place of the tribe test; 0 keeps the tribe test.
+    combat_hostility::Float64 = 0.0
     initial_blocks::Vector{Block} = Block[]
     replacement_same_tribe::Bool = false
     fertility_threshold::Float64 = 1.0
@@ -207,6 +210,11 @@ function validate(c::Config)
     c.combat_alpha !== nothing &&
         c.combat_alpha < 0 &&
         bad("combat_alpha must be >= 0, not $(c.combat_alpha)")
+    0 <= c.combat_hostility <= 1 ||
+        bad("combat_hostility must be in [0, 1], not $(c.combat_hostility)")
+    c.combat_hostility > 0 &&
+        c.combat_alpha === nothing &&
+        bad("combat_hostility above 0 needs combat (combat_alpha)")
     for blk in c.initial_blocks
         tribe, x0, y0, bw, bh, n = blk
         tribe in TRIBES || bad("block tribe must be one of $TRIBES, not $(repr(tribe))")

@@ -24,7 +24,9 @@ end
     take_loot!(m, a, victim)
 
 `a` takes the [`loot`](@ref) from `victim`, which is then killed: recorded in `m.killed` and removed through
-[`die!`](@ref), so its loans are settled as on any death.
+[`die!`](@ref), so its loans are settled as on any death. Both combat moves kill here, so the kill is also logged in
+`m.kill_log` as (distance, same_label): the number of tags where killer and victim differ, and 1 if they are of one
+tribe, read before the victim dies.
 """
 function take_loot!(m::Model, a::Agent, victim::Agent)
     g1, g2 = loot(m, victim)
@@ -35,23 +37,48 @@ function take_loot!(m::Model, a::Agent, victim::Agent)
         a.spice += g2
     end
     push!(m.killed, victim.id)  # for the combat readings' and the scorecard's deaths by cause
+    push!(m.kill_log, (count_ones(a.tags ⊻ victim.tags), tribe(a) === tribe(victim) ? 1 : 0))  # the kills file
     die!(m, victim)
     return nothing
 end
 
 """
+    fight_chance(h, a, b) -> Float64
+
+The chance that `a` is hostile to `b` under combat by cultural distance: h d / L, d the number of tags where they
+differ and L the tag length (`a.ntags`). Identical agents never fight; agents that differ everywhere fight with
+probability h.
+"""
+fight_chance(h::Float64, a::Agent, b::Agent) = h * count_ones(a.tags ⊻ b.tags) / a.ntags
+
+"""
+    hostile!(m, a, other) -> Bool
+
+Whether `a` treats `other` as an enemy in this move, as a possible victim or a possible avenger. With
+`combat_hostility` 0 it is the tribe test, `tribe(other) !== tribe(a)`, with no draw. Above 0 it is a draw from
+`m.rng` with probability [`fight_chance`](@ref); the first call for `other` in a move draws and the answer is kept
+in `m.hostile` for the rest of the move (one draw per pair per move), which [`combat_move!`](@ref) empties at its
+start.
+"""
+function hostile!(m::Model, a::Agent, other::Agent)
+    h = m.config.combat_hostility
+    h == 0 && return tribe(other) !== tribe(a)
+    return get!(() -> rand(m.rng) < fight_chance(h, a, other), m.hostile, other.id)
+end
+
+"""
     vulnerable(m, a, x, y, reward, victim)
 
-A site is vulnerable to retaliation if an agent of another tribe within the attacker's vision of that site would be
-bigger than the attacker after taking it (p.82; Kehoe on the viewpoint). Size is [`combat_wealth`](@ref) and `reward`
-is in its units: the site's goods plus the loot.
+A site is vulnerable to retaliation if an agent within the attacker's vision of that site would be bigger than the
+attacker after taking it and the attacker is [`hostile!`](@ref) to it: of another tribe, or with `combat_hostility`
+above 0 a draw on cultural distance, made only for a watcher that passes the size test (p.82; Kehoe on the
+viewpoint). Size is [`combat_wealth`](@ref) and `reward` is in its units: the site's goods plus the loot.
 """
 function vulnerable(
     m::Model, a::Agent, x::Int, y::Int, reward::Float64, victim::Union{Nothing,Agent}
 )
     spice = m.config.spice
     after = combat_wealth(a, spice) + reward
-    mine = tribe(a)
     stride = m.config.look_stride
     for (dx, dy) in VON_NEUMANN
         # Each direction draws its own looks (docs/xl.md), into a buffer of its own: combat_move! is mid-line in m.line.
@@ -59,7 +86,7 @@ function vulnerable(
             other = agent_at(m, x + dx * dist, y + dy * dist)
             other === nothing && continue
             (other === a || other === victim) && continue
-            tribe(other) !== mine && combat_wealth(other, spice) > after && return true
+            combat_wealth(other, spice) > after && hostile!(m, a, other) && return true
         end
     end
     return false
@@ -69,8 +96,10 @@ end
     combat_move!(m, a)
 
 Rule C_alpha: take the nearest safe site of maximum value; a defeated occupant is killed. Candidates are scanned as
-in M: the current site first at distance 0, then each direction in random order out to vision. Sites held by the
-agent's own tribe or by anyone wealthier ([`combat_wealth`](@ref)) are thrown out, and sight continues past them.
+in M: the current site first at distance 0, then each direction in random order out to vision. Sites held by anyone
+wealthier ([`combat_wealth`](@ref)) or by an agent the mover isn't [`hostile!`](@ref) to (its own tribe, or with
+`combat_hostility` above 0 a failed draw on cultural distance, made only after the wealth test) are thrown out, and
+sight continues past them.
 Without spice the value is the reward, site sugar + min(alpha, occupant's sugar) if occupied. With spice it is the
 book's welfare score of the site's goods plus the [`loot`](@ref), as `move!` scores sites, and the reward checked for
 retaliation is the site's sugar and spice plus the loot. With no safe site the agent stays and harvests where it is
@@ -79,14 +108,15 @@ retaliation is the site's sugar and spice plus the loot. With no safe site the a
 Python checks every candidate for retaliation, then picks; here only a candidate that would replace the best safe
 one so far is checked, which picks the same site.
 
-With xxl round vision or speed on, [`xxl_combat_move!`](@ref) runs instead.
+This move's hostility answers (`m.hostile`) are emptied first, so no draw answers another agent's move. With xxl
+round vision or speed on, [`xxl_combat_move!`](@ref) runs instead.
 """
 function combat_move!(m::Model, a::Agent)
+    isempty(m.hostile) || empty!(m.hostile)
     (xxl_on(m.config, :disc) || xxl_on(m.config, :speed)) && return xxl_combat_move!(m, a)
     ls = m.landscape
     w, h = ls.width, ls.height
     spice = m.config.spice
-    mine = tribe(a)
     wealth = combat_wealth(a, spice)
     # The agent's part of the welfare score, once per move, as in move!
     sw = spice ? SiteWelfare(m, a, NO_SITES) : NO_WELFARE
@@ -104,7 +134,7 @@ function combat_move!(m::Model, a::Agent)
             if occupant === nothing
                 g1, g2 = 0.0, 0.0
                 reward = ls.sugar[x + 1, y + 1]
-            elseif tribe(occupant) !== mine && combat_wealth(occupant, spice) <= wealth
+            elseif combat_wealth(occupant, spice) <= wealth && hostile!(m, a, occupant)
                 g1, g2 = loot(m, occupant)
                 reward = ls.sugar[x + 1, y + 1] + g1
             else
