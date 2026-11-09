@@ -72,7 +72,7 @@ end
     rejects(; trade=true)
     rejects(; foresight=(0, 10))
     rejects(; cultural_preferences=true, spice=true)
-    rejects(; spice=true, tag_length=11, combat_alpha=2.0)
+    @test validate(Config(; spice=true, tag_length=11, combat_alpha=2.0)).combat_alpha == 2.0  # combat with spice is allowed
     rejects(; credit=(10, 10.0))
     rejects(; sex=true, credit=(0, 10.0))
     rejects(; sex=true, credit=(10, -1.0))
@@ -81,8 +81,9 @@ end
     rejects(; pollution=(1.0, 1.0), pollution_start=100, pollution_stop=100)
 end
 
-@testset "test_credit_with_combat_rejected" begin
-    rejects(; sex=true, credit=(10, 10.0), tag_length=11, combat_alpha=2.0)
+@testset "test_credit_with_combat_accepted" begin
+    c = validate(Config(; sex=true, credit=(10, 10.0), tag_length=11, combat_alpha=2.0))
+    @test c.credit == (10, 10.0) && c.combat_alpha == 2.0
 end
 
 @testset "test_chapter5_invalid_values_rejected" begin
