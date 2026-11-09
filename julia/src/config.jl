@@ -69,6 +69,8 @@ Base.@kwdef struct Config
     # Combat by cultural distance (VI-1-distance): above 0, an agent fights or fears another with probability
     # combat_hostility * (differing tags) / tag_length, in place of the tribe test; 0 keeps the tribe test.
     combat_hostility::Float64 = 0.0
+    # The curve k of combat by distance: combat_hostility * (differing tags / tag_length)^k; 1 is linear.
+    combat_curve::Float64 = 1.0
     # Who combat and culture reach (VI-1-near, VI-1-far, VI-1-far-speed): combat_reach "vision" is the book's look,
     # "neighbours" keeps attack, fear and movement within culture's reach; culture_reach "neighbours" is culture's own
     # sites, "sight" everyone combat sees, "attack" everyone within speed (xxl speed only).
@@ -230,6 +232,11 @@ function validate(c::Config)
     c.combat_hostility > 0 &&
         c.combat_alpha === nothing &&
         bad("combat_hostility above 0 needs combat (combat_alpha)")
+    (isfinite(c.combat_curve) && c.combat_curve > 0) ||
+        bad("combat_curve must be a finite number above 0, not $(c.combat_curve)")
+    c.combat_curve != 1.0 &&
+        c.combat_hostility == 0 &&
+        bad("combat_curve other than 1 needs combat by distance (combat_hostility above 0)")
     c.combat_reach in ("vision", "neighbours") ||
         bad("combat_reach must be \"vision\" or \"neighbours\", not $(repr(c.combat_reach))")
     c.combat_reach == "neighbours" &&
