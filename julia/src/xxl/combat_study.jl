@@ -10,6 +10,7 @@ const COMBAT_WORLDS = ("book", "xl", "today")  # the worlds the study runs
 combat_name(world, exp_id, first_seed, seeds, periods) = "combat-$world-$exp_id-s$first_seed-$seeds-p$periods"
 
 combat_path(folder::AbstractString, k::Int) = joinpath(folder, "seed$k-combat.csv")
+kills_path(folder::AbstractString, k::Int) = joinpath(folder, "seed$k-kills.csv")
 
 """What a run was produced from: the world's fingerprint, then a line naming the world and the experiment."""
 function combat_fingerprint(exp::Experiment, world::AbstractString, periods::Int)
@@ -19,9 +20,15 @@ end
 """The experiment (over `periods`, or its own steps), the folder and the fingerprint. Refuses another world or experiment."""
 function combat_plan(world::AbstractString, exp_id::AbstractString, out, first_seed, seeds, periods)
     world in COMBAT_WORLDS || throw(ArgumentError("--world is book, xl or today, not $(repr(world))"))
-    exp_id in COMBAT_EXPS || exp_id == VI1_COMBAT_ID ||
-        throw(ArgumentError("--exp is one of $(join(COMBAT_EXPS, ", ")), $VI1_COMBAT_ID, not $(repr(exp_id))"))
-    exp = exp_id == VI1_COMBAT_ID ? vi1_combat_experiment() : find_experiment(load_registry(), exp_id)
+    exp_id in COMBAT_EXPS || exp_id == VI1_COMBAT_ID || exp_id == VI1_DISTANCE_ID ||
+        throw(ArgumentError("--exp is one of $(join(COMBAT_EXPS, ", ")), $VI1_COMBAT_ID, $VI1_DISTANCE_ID, not $(repr(exp_id))"))
+    exp = if exp_id == VI1_COMBAT_ID
+        vi1_combat_experiment()
+    elseif exp_id == VI1_DISTANCE_ID
+        vi1_distance_experiment()
+    else
+        find_experiment(load_registry(), exp_id)
+    end
     periods === nothing && (periods = exp.steps)
     exp = with_steps(exp, periods)
     folder = joinpath(out, combat_name(world, exp_id, first_seed, seeds, periods))
@@ -32,26 +39,36 @@ end
 combat_seed_done(folder::AbstractString, k::Int, periods::Int) = study_seed_done(folder, k, periods, ("combat",))
 
 """Removes whatever a stopped run left of seed `k`: its files and their temporary names."""
-remove_combat_seed(folder::AbstractString, k::Int) = remove_study_seed(folder, k, ("combat",))
+function remove_combat_seed(folder::AbstractString, k::Int)
+    remove_study_seed(folder, k, ("combat",))
+    rm(kills_path(folder, k); force=true)
+    rm(kills_path(folder, k) * ".tmp"; force=true)
+    return nothing
+end
 
 """
     combat_seed!(exp, world, k, folder) -> SeedOutcome
 
 Runs seed `k` of `exp` in `world` with a [`CombatReadings`](@ref), and writes `seed<k>-combat.csv`, `seed<k>.timing.csv`
-and, last, `seed<k>.csv` (the world's standard columns), each through a temporary name. The observer is made here, so that
+and, last, `seed<k>.csv` (the world's standard columns), each through a temporary name. With `combat_hostility > 0` it
+also writes `seed<k>-kills.csv` (`t,distance,same_label`, one row per kill, header only if none), before the standard CSV. The observer is made here, so that
 a worker has its own. Runs in a worker.
 """
 function combat_seed!(exp::Experiment, world::AbstractString, k::Int, folder::AbstractString)
     return study_seed!(exp, world, k, folder, :combat_readings, CombatReadings()) do readings
         header, combat = combat_rows(readings)
         write_table_csv(combat_path(folder, k), header, combat)
+        if world_config(exp, world).combat_hostility > 0
+            header, kills = kill_rows(readings)
+            write_table_csv(kills_path(folder, k), header, kills)
+        end
     end
 end
 
 """
     run_combat_world(world, exp_id; seeds=20, first_seed=0, periods=nothing, jobs=1, out=RESULTS_XXL, io=stdout) -> String
 
-Runs seeds `first_seed` to `first_seed + seeds - 1` of experiment `exp_id` (one of [`COMBAT_EXPS`](@ref)) in `world`
+Runs seeds `first_seed` to `first_seed + seeds - 1` of experiment `exp_id` (one of [`COMBAT_EXPS`](@ref), `"VI-1-combat"` or `"VI-1-distance"`) in `world`
 (`"book"`, `"xl"` or `"today"`) over `periods` (the experiment's own steps when `nothing`), with the combat readings, into
 `<out>/combat-<world>-<exp>-s<first>-<seeds>-p<periods>/` and returns that folder. Seed `k` is the runner's seed index `k`.
 Each seed leaves `seed<k>.csv`, `seed<k>-combat.csv` and `seed<k>.timing.csv`. A seed with all of them is skipped, so a
@@ -75,10 +92,10 @@ function run_combat_world(
     )
 end
 
-const COMBAT_USAGE = "usage: julia --project=julia julia/xxl_combat_study.jl --world book|xl|today --exp III-9|III-11|III-12|III-13|III-14|VI-1-combat [--seeds N] [--first-seed K] [--periods P] [--jobs J] [--out DIR]"
+const COMBAT_USAGE = "usage: julia --project=julia julia/xxl_combat_study.jl --world book|xl|today --exp III-9|III-11|III-12|III-13|III-14|VI-1-combat|VI-1-distance [--seeds N] [--first-seed K] [--periods P] [--jobs J] [--out DIR]"
 
 """
-The study's command line: `--world book|xl|today` and `--exp III-9|III-11|III-12|III-13|III-14|VI-1-combat` (both required),
+The study's command line: `--world book|xl|today` and `--exp III-9|III-11|III-12|III-13|III-14|VI-1-combat|VI-1-distance` (both required),
 `--seeds N` (20), `--first-seed K` (0), `--periods P` (the experiment's steps), `--jobs J` (1) and `--out DIR`.
 Throws `ArgumentError` on a usage error.
 """
@@ -89,8 +106,8 @@ function combat_study_args(args::Vector{String})
     world === nothing && throw(ArgumentError("--world is required"))
     exp === nothing && throw(ArgumentError("--exp is required"))
     world in COMBAT_WORLDS || throw(ArgumentError("--world is book, xl or today, not $(repr(world))"))
-    exp in COMBAT_EXPS || exp == VI1_COMBAT_ID ||
-        throw(ArgumentError("--exp is one of $(join(COMBAT_EXPS, ", ")), $VI1_COMBAT_ID, not $(repr(exp))"))
+    exp in COMBAT_EXPS || exp == VI1_COMBAT_ID || exp == VI1_DISTANCE_ID ||
+        throw(ArgumentError("--exp is one of $(join(COMBAT_EXPS, ", ")), $VI1_COMBAT_ID, $VI1_DISTANCE_ID, not $(repr(exp))"))
     check_extinction_size(; seeds=common.seeds, first_seed=common.first_seed, periods=something(common.periods, 4), jobs=common.jobs)
     return (; world, exp, common...)
 end

@@ -29,3 +29,30 @@ function vi1_combat_experiment(reg=load_registry())
         vi1_combat_text(vi1.xl_fingerprint),
     )
 end
+
+# VI-1-distance (docs/superpowers/specs/2026-11-09-vi1-distance-design.md): VI-1-combat with fight and fear drawn on
+# cultural distance, p = h d / L with h = combat_hostility = 0.5. Built from VI-1-combat here, like it.
+
+const VI1_DISTANCE_ID = "VI-1-distance"
+const VI1_DISTANCE_VARIANT = "variant: VI-1-distance combat_hostility=0.5 (fight and fear drawn on cultural distance)\n"
+
+"""
+    vi1_distance_experiment(reg=load_registry()) -> Experiment
+
+VI-1-combat from `reg` as `VI-1-distance`: `combat_hostility = 0.5` in both configs, and the variant line appended to both
+fingerprints (VI-1-combat's, then this one).
+"""
+function vi1_distance_experiment(reg=load_registry())
+    c = vi1_combat_experiment(reg)
+    return Experiment(
+        VI1_DISTANCE_ID,
+        c.title,
+        c.rules,
+        c.steps,
+        c.seeds,
+        replace_config(c.config; combat_hostility=0.5),
+        c.fingerprint * VI1_DISTANCE_VARIANT,
+        replace_config(c.xl_config; combat_hostility=0.5),
+        c.xl_fingerprint * VI1_DISTANCE_VARIANT,
+    )
+end
