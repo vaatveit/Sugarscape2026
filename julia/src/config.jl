@@ -76,6 +76,10 @@ Base.@kwdef struct Config
     # sites, "sight" everyone combat sees, "attack" everyone within speed (xxl speed only).
     combat_reach::String = "vision"
     culture_reach::String = "neighbours"
+    # Rule K's copy (VI-1-assim): "random" is the book's, a random tag position each contact; "distance" and
+    # "distance-random" copy with probability 1 - combat_hostility * (differing tags / tag_length)^combat_curve, a tag
+    # where the two differ or a random position (needs culture and 0 < combat_hostility < 1).
+    culture_rule::String = "random"
     initial_blocks::Vector{Block} = Block[]
     replacement_same_tribe::Bool = false
     fertility_threshold::Float64 = 1.0
@@ -250,6 +254,17 @@ function validate(c::Config)
     c.culture_reach == "attack" &&
         !xxl_on(c, :speed) &&
         bad("culture_reach \"attack\" needs xxl speed")
+    c.culture_rule in ("random", "distance", "distance-random") ||
+        bad("culture_rule must be \"random\", \"distance\" or \"distance-random\", not $(repr(c.culture_rule))")
+    c.culture_rule != "random" &&
+        !c.culture &&
+        bad("culture_rule $(repr(c.culture_rule)) needs culture")
+    c.culture_rule != "random" &&
+        !(0 < c.combat_hostility < 1) &&
+        bad(
+            "culture_rule $(repr(c.culture_rule)) needs combat by distance with combat_hostility in (0, 1), " *
+            "not $(c.combat_hostility)",
+        )
     for blk in c.initial_blocks
         tribe, x0, y0, bw, bh, n = blk
         tribe in TRIBES || bad("block tribe must be one of $TRIBES, not $(repr(tribe))")

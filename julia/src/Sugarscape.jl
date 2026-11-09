@@ -55,7 +55,7 @@ export METRIC_COLUMNS,
     gini,
     tribe,
     closeness
-export random_tags, cross_tags, hamming, culture_transmit!, update_friends!
+export random_tags, cross_tags, hamming, copy_chance, culture_transmit!, update_friends!
 export is_fertile, assign_sex!, in_sight, mate!, combat_move!, vulnerable
 export combat_wealth, loot, take_loot!, fight_chance, hostile!
 export preference_fraction, welfare, mrs, welfare_score, bargain!, trade_with_neighbors!
