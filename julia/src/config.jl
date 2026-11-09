@@ -231,14 +231,9 @@ function validate(c::Config)
     c.cultural_preferences &&
         c.tag_length == 0 &&
         bad("cultural preferences need cultural tags (tag_length > 0)")
-    c.spice &&
-        c.combat_alpha !== nothing &&
-        bad("combat is defined for sugar only (p.83); not with spice")
     if c.credit !== nothing
         d, r = c.credit
         c.sex || bad("credit L_dr lends for childbearing; it needs sex=True")
-        c.combat_alpha !== nothing &&
-            bad("credit needs each agent's income, which combat movement doesn't record")
         (d < 1 || r < 0) &&
             bad("credit duration must be >= 1 and rate >= 0, not $(c.credit)")
     else

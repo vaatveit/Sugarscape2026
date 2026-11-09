@@ -57,6 +57,7 @@ export METRIC_COLUMNS,
     closeness
 export random_tags, cross_tags, hamming, culture_transmit!, update_friends!
 export is_fertile, assign_sex!, in_sight, mate!, combat_move!, vulnerable
+export combat_wealth, loot, take_loot!
 export preference_fraction, welfare, mrs, welfare_score, bargain!, trade_with_neighbors!
 export available_to_lend,
     lending_left, shortfall, creditworthy, seek_credit!, settle_loans!, credit_on_death!
