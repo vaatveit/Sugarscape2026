@@ -130,12 +130,22 @@ A copy of `cfg` with the given fields changed, validated (Python's `dataclasses.
 Base exports.
 """
 function replace_config(cfg::Config; kw...)
+    return validate(unchecked_config(cfg; kw...))
+end
+
+"""
+    unchecked_config(cfg; kw...) -> Config
+
+`cfg` with the fields in `kw` replaced and no [`validate`](@ref). Only for a config that is valid once a later transform
+completes it: VI-1-far-speed's book config holds `culture_reach = "attack"`, which needs the xxl speed `to_xxl` adds.
+"""
+function unchecked_config(cfg::Config; kw...)
     values = Dict{Symbol,Any}(f => getfield(cfg, f) for f in fieldnames(Config))
     for (k, v) in kw
         k in fieldnames(Config) || throw(ArgumentError("Config has no field $k"))
         values[k] = v
     end
-    return validate(Config(; values...))
+    return Config(; values...)
 end
 
 bad(msg) = throw(ArgumentError(msg))

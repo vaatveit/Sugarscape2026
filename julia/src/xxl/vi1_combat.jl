@@ -56,3 +56,55 @@ function vi1_distance_experiment(reg=load_registry())
         c.xl_fingerprint * VI1_DISTANCE_VARIANT,
     )
 end
+
+# VI-1-near, VI-1-far and VI-1-far-speed (docs/superpowers/plans/2026-11-09-vi1-reach.md): VI-1-distance with combat's or
+# culture's reach changed, so that the two reaches match. Built from VI-1-distance here, like it.
+
+const VI1_NEAR_ID = "VI-1-near"
+const VI1_FAR_ID = "VI-1-far"
+const VI1_FAR_SPEED_ID = "VI-1-far-speed"
+const VI1_NEAR_VARIANT = "variant: VI-1-near combat_reach=neighbours (attack, fear and movement within culture's reach)
+"
+const VI1_FAR_VARIANT = "variant: VI-1-far culture_reach=sight (culture reaches everyone combat sees)
+"
+const VI1_FAR_SPEED_VARIANT = "variant: VI-1-far-speed culture_reach=attack (culture reaches everyone within speed)
+"
+
+# VI-1-distance under `id` with `change` applied to both configs and `variant` appended to both fingerprints.
+function vi1_reach_experiment(reg, id::String, variant::String, change)
+    d = vi1_distance_experiment(reg)
+    return Experiment(
+        id, d.title, d.rules, d.steps, d.seeds,
+        change(d.config), d.fingerprint * variant,
+        change(d.xl_config), d.xl_fingerprint * variant,
+    )
+end
+
+"""
+    vi1_near_experiment(reg=load_registry()) -> Experiment
+
+VI-1-distance from `reg` as `VI-1-near`: `combat_reach = "neighbours"` in both configs (attack, fear and movement within
+culture's reach), and the variant line appended to both fingerprints.
+"""
+vi1_near_experiment(reg=load_registry()) =
+    vi1_reach_experiment(reg, VI1_NEAR_ID, VI1_NEAR_VARIANT, c -> replace_config(c; combat_reach="neighbours"))
+
+"""
+    vi1_far_experiment(reg=load_registry()) -> Experiment
+
+VI-1-distance from `reg` as `VI-1-far`: `culture_reach = "sight"` in both configs (culture reaches everyone combat sees),
+and the variant line appended to both fingerprints.
+"""
+vi1_far_experiment(reg=load_registry()) =
+    vi1_reach_experiment(reg, VI1_FAR_ID, VI1_FAR_VARIANT, c -> replace_config(c; culture_reach="sight"))
+
+"""
+    vi1_far_speed_experiment(reg=load_registry()) -> Experiment
+
+VI-1-distance from `reg` as `VI-1-far-speed`: `culture_reach = "attack"` (culture reaches everyone within speed) in both
+configs, and the variant line appended to both fingerprints. `"attack"` needs xxl speed, which the book's and xl's configs
+lack, so they are built unchecked (`unchecked_config`) and only today's xxl, where `to_xxl` adds the speed, is valid;
+[`combat_plan`](@ref) and [`combat_study_args`](@ref) refuse the other worlds.
+"""
+vi1_far_speed_experiment(reg=load_registry()) =
+    vi1_reach_experiment(reg, VI1_FAR_SPEED_ID, VI1_FAR_SPEED_VARIANT, c -> unchecked_config(c; culture_reach="attack"))

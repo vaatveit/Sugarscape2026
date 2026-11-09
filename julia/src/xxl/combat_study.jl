@@ -6,6 +6,24 @@
 const COMBAT_EXPS = ("III-9", "III-11", "III-12", "III-13", "III-14")  # the experiments the study runs
 const COMBAT_WORLDS = ("book", "xl", "today")  # the worlds the study runs
 
+# The VI-1 experiments the study builds itself, not in the registry (COMBAT_EXPS is the combat report's set): id -> builder.
+const JULIA_COMBAT_EXPS = Dict{String,Function}(
+    VI1_COMBAT_ID => vi1_combat_experiment,
+    VI1_DISTANCE_ID => vi1_distance_experiment,
+    VI1_NEAR_ID => vi1_near_experiment,
+    VI1_FAR_ID => vi1_far_experiment,
+    VI1_FAR_SPEED_ID => vi1_far_speed_experiment,
+)
+
+"""Throws `ArgumentError` unless `exp_id` is one of [`COMBAT_EXPS`](@ref) or the ids of [`JULIA_COMBAT_EXPS`](@ref), or when it is VI-1-far-speed outside `world` today."""
+function check_combat_exp(world::AbstractString, exp_id::AbstractString)
+    exp_id in COMBAT_EXPS || haskey(JULIA_COMBAT_EXPS, exp_id) ||
+        throw(ArgumentError("--exp is one of $(join(COMBAT_EXPS, ", ")), $(join(sort(collect(keys(JULIA_COMBAT_EXPS))), ", ")), not $(repr(exp_id))"))
+    exp_id == VI1_FAR_SPEED_ID && world != "today" &&
+        throw(ArgumentError("--exp $VI1_FAR_SPEED_ID needs xxl speed, so only --world today, not $(repr(world))"))
+    return nothing
+end
+
 """`combat-<world>-<exp>-s<first>-<seeds>-p<periods>`: the folder name of a world's run."""
 combat_name(world, exp_id, first_seed, seeds, periods) = "combat-$world-$exp_id-s$first_seed-$seeds-p$periods"
 
@@ -20,15 +38,8 @@ end
 """The experiment (over `periods`, or its own steps), the folder and the fingerprint. Refuses another world or experiment."""
 function combat_plan(world::AbstractString, exp_id::AbstractString, out, first_seed, seeds, periods)
     world in COMBAT_WORLDS || throw(ArgumentError("--world is book, xl or today, not $(repr(world))"))
-    exp_id in COMBAT_EXPS || exp_id == VI1_COMBAT_ID || exp_id == VI1_DISTANCE_ID ||
-        throw(ArgumentError("--exp is one of $(join(COMBAT_EXPS, ", ")), $VI1_COMBAT_ID, $VI1_DISTANCE_ID, not $(repr(exp_id))"))
-    exp = if exp_id == VI1_COMBAT_ID
-        vi1_combat_experiment()
-    elseif exp_id == VI1_DISTANCE_ID
-        vi1_distance_experiment()
-    else
-        find_experiment(load_registry(), exp_id)
-    end
+    check_combat_exp(world, exp_id)
+    exp = haskey(JULIA_COMBAT_EXPS, exp_id) ? JULIA_COMBAT_EXPS[exp_id]() : find_experiment(load_registry(), exp_id)
     periods === nothing && (periods = exp.steps)
     exp = with_steps(exp, periods)
     folder = joinpath(out, combat_name(world, exp_id, first_seed, seeds, periods))
@@ -68,7 +79,7 @@ end
 """
     run_combat_world(world, exp_id; seeds=20, first_seed=0, periods=nothing, jobs=1, out=RESULTS_XXL, io=stdout) -> String
 
-Runs seeds `first_seed` to `first_seed + seeds - 1` of experiment `exp_id` (one of [`COMBAT_EXPS`](@ref), `"VI-1-combat"` or `"VI-1-distance"`) in `world`
+Runs seeds `first_seed` to `first_seed + seeds - 1` of experiment `exp_id` (one of [`COMBAT_EXPS`](@ref) or the ids of [`JULIA_COMBAT_EXPS`](@ref); `"VI-1-far-speed"` only in `"today"`) in `world`
 (`"book"`, `"xl"` or `"today"`) over `periods` (the experiment's own steps when `nothing`), with the combat readings, into
 `<out>/combat-<world>-<exp>-s<first>-<seeds>-p<periods>/` and returns that folder. Seed `k` is the runner's seed index `k`.
 Each seed leaves `seed<k>.csv`, `seed<k>-combat.csv` and `seed<k>.timing.csv`. A seed with all of them is skipped, so a
@@ -92,10 +103,11 @@ function run_combat_world(
     )
 end
 
-const COMBAT_USAGE = "usage: julia --project=julia julia/xxl_combat_study.jl --world book|xl|today --exp III-9|III-11|III-12|III-13|III-14|VI-1-combat|VI-1-distance [--seeds N] [--first-seed K] [--periods P] [--jobs J] [--out DIR]"
+const COMBAT_USAGE = "usage: julia --project=julia julia/xxl_combat_study.jl --world book|xl|today --exp III-9|III-11|III-12|III-13|III-14|VI-1-combat|VI-1-distance|VI-1-near|VI-1-far|VI-1-far-speed [--seeds N] [--first-seed K] [--periods P] [--jobs J] [--out DIR]"
 
 """
-The study's command line: `--world book|xl|today` and `--exp III-9|III-11|III-12|III-13|III-14|VI-1-combat|VI-1-distance` (both required),
+The study's command line: `--world book|xl|today` and `--exp III-9|III-11|III-12|III-13|III-14|VI-1-combat|VI-1-distance|VI-1-near|VI-1-far|VI-1-far-speed` (both required;
+VI-1-far-speed only with `--world today`),
 `--seeds N` (20), `--first-seed K` (0), `--periods P` (the experiment's steps), `--jobs J` (1) and `--out DIR`.
 Throws `ArgumentError` on a usage error.
 """
@@ -106,8 +118,7 @@ function combat_study_args(args::Vector{String})
     world === nothing && throw(ArgumentError("--world is required"))
     exp === nothing && throw(ArgumentError("--exp is required"))
     world in COMBAT_WORLDS || throw(ArgumentError("--world is book, xl or today, not $(repr(world))"))
-    exp in COMBAT_EXPS || exp == VI1_COMBAT_ID || exp == VI1_DISTANCE_ID ||
-        throw(ArgumentError("--exp is one of $(join(COMBAT_EXPS, ", ")), $VI1_COMBAT_ID, $VI1_DISTANCE_ID, not $(repr(exp))"))
+    check_combat_exp(world, exp)
     check_extinction_size(; seeds=common.seeds, first_seed=common.first_seed, periods=something(common.periods, 4), jobs=common.jobs)
     return (; world, exp, common...)
 end
