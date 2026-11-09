@@ -1,11 +1,11 @@
-# Guards the combat and VI-1 runs: seed 0 over 10 periods must stay byte-identical to the CSVs recorded before combat
-# gained spice and credit (fixtures/vi1-combat-refs, written by make_refs.jl).
+# Guards the combat, VI-1 and VI-1-combat runs: seed 0 over 10 periods must stay byte-identical to the CSVs recorded
+# before combat gained spice and credit (fixtures/vi1-combat-refs, written by make_refs.jl).
 using Sugarscape, Test
-using Sugarscape: COMBAT_EXPS, COMBAT_WORLDS
+using Sugarscape: COMBAT_EXPS, COMBAT_WORLDS, VI1_COMBAT_ID
 
 include(joinpath(@__DIR__, "fixtures", "vi1-combat-refs", "make_refs.jl"))
 
-@testset "vi1 combat unchanged: $world $exp" for world in COMBAT_WORLDS, exp in (COMBAT_EXPS..., "VI-1")
+@testset "vi1 combat unchanged: $world $exp" for world in COMBAT_WORLDS, exp in (COMBAT_EXPS..., "VI-1", VI1_COMBAT_ID)
     fixture = joinpath(REFS_DIR, "$world-$exp.csv")
     @test isfile(fixture)
     @test read(ref_csv(world, exp), String) == read(fixture, String)
