@@ -8,6 +8,10 @@
 # `m.killed`, which both combat moves fill), then old age (`age >= max_age`), then the rest, as starved. A victim counts
 # in the tribe its tags give at its death. Neighbours are rule K's (`culture_neighbors!`). What persists across calls is
 # each living agent's tribe by id; `tribe_changes` counts the agents alive at both calls whose tribe differs.
+#
+# The kills (VI-1 by distance, docs/superpowers/specs/2026-11-09-vi1-distance-design.md, "Readings") are read from
+# `m.kill_log`, which `take_loot!` fills, one (t, distance, same_label) per kill with the period read; they are kept
+# apart from the per-period rows, whose columns don't change.
 
 """The columns of a per-period row, [`combat_rows`](@ref)."""
 const COMBAT_COLUMNS = [
@@ -37,8 +41,8 @@ const COMBAT_COLUMNS = [
 """
     CombatReadings()
 
-The combat observer of a run. [`combat_rows`](@ref) has a row for every period read, t = 0 included. Feed it with
-[`combat_period!`](@ref).
+The combat observer of a run. [`combat_rows`](@ref) has a row for every period read, t = 0 included, and
+[`kill_rows`](@ref) a row for every kill read. Feed it with [`combat_period!`](@ref).
 """
 mutable struct CombatReadings
     seen::Bool  # a previous call exists
@@ -48,10 +52,18 @@ mutable struct CombatReadings
     pairs::Vector{UInt64}  # scratch: this period's neighbour pairs
     blue_sugar::Vector{Float64}  # scratch
     red_sugar::Vector{Float64}  # scratch
+    kills::Vector{NTuple{3,Int}}  # every kill read: (t, distance, same_label)
 end
 
 CombatReadings() = CombatReadings(
-    false, Dict{Int,Symbol}(), Vector{Float64}[], Agent[], UInt64[], Float64[], Float64[]
+    false,
+    Dict{Int,Symbol}(),
+    Vector{Float64}[],
+    Agent[],
+    UInt64[],
+    Float64[],
+    Float64[],
+    NTuple{3,Int}[],
 )
 
 # The shorter way round the torus between two coordinates, as a Float64.
@@ -83,8 +95,8 @@ end
 """
     combat_period!(r, m)
 
-The end of a period, after `step!` (or period 0, before the first): reads the period's combat row. Call it once per
-period, in order, from period 0.
+The end of a period, after `step!` (or period 0, before the first): reads the period's combat row, and its kills from
+`m.kill_log` with the period's `t`. Call it once per period, in order, from period 0.
 """
 function combat_period!(r::CombatReadings, m::Model)
     cfg = m.config
@@ -175,6 +187,9 @@ function combat_period!(r::CombatReadings, m::Model)
             r.seen ? changes : NaN,
         ],
     )
+    for (distance, same) in m.kill_log
+        push!(r.kills, (m.t, distance, same))
+    end
     r.prev = cur
     r.seen = true
     return nothing
@@ -186,3 +201,11 @@ end
 One row per period read, t = 0 included, in the order of [`COMBAT_COLUMNS`](@ref). A column with nothing to read is NaN.
 """
 combat_rows(r::CombatReadings) = (copy(COMBAT_COLUMNS), r.rows)
+
+"""
+    kill_rows(r) -> (header, rows)
+
+One row per kill read, in the order read: `t` (the period whose combat row counts the death), `distance` (the number
+of tags where killer and victim differ) and `same_label` (1 if they were of one tribe).
+"""
+kill_rows(r::CombatReadings) = (["t", "distance", "same_label"], [[t, d, s] for (t, d, s) in r.kills])

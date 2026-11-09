@@ -24,7 +24,9 @@ end
     take_loot!(m, a, victim)
 
 `a` takes the [`loot`](@ref) from `victim`, which is then killed: recorded in `m.killed` and removed through
-[`die!`](@ref), so its loans are settled as on any death.
+[`die!`](@ref), so its loans are settled as on any death. Both combat moves kill here, so the kill is also logged in
+`m.kill_log` as (distance, same_label): the number of tags where killer and victim differ, and 1 if they are of one
+tribe, read before the victim dies.
 """
 function take_loot!(m::Model, a::Agent, victim::Agent)
     g1, g2 = loot(m, victim)
@@ -35,6 +37,7 @@ function take_loot!(m::Model, a::Agent, victim::Agent)
         a.spice += g2
     end
     push!(m.killed, victim.id)  # for the combat readings' and the scorecard's deaths by cause
+    push!(m.kill_log, (count_ones(a.tags ⊻ victim.tags), tribe(a) === tribe(victim) ? 1 : 0))  # the kills file
     die!(m, victim)
     return nothing
 end
