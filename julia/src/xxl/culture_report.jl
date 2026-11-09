@@ -113,13 +113,25 @@ function culture_values(std::Dict{String,Vector{Float64}}, culture::Dict{String,
 end
 
 # A table's columns by name, each a vector; `ArgumentError` unless it has `columns`.
-function culture_table(path::AbstractString, columns)
+function named_table(path::AbstractString, columns)
     header, M = read_seed_csv(path)
     for c in columns
         c in header || throw(ArgumentError("$path lacks the $c column"))
     end
     return Dict(c => M[:, j] for (j, c) in enumerate(header)), M
 end
+
+"""The first seed and the seeds planned that a study folder's name gives (`…-s<first>-<seeds>-p<periods>`)."""
+function study_folder_seeds(folder::AbstractString)
+    name = basename(rstrip(folder, ['/', '\\']))
+    n = match(r"-s(\d+)-(\d+)-p\d+$", name)
+    n === nothing && throw(ArgumentError("$folder doesn't name its seeds (-s<first>-<seeds>-p<periods>)"))
+    return parse(Int, n.captures[1]), parse(Int, n.captures[2])
+end
+
+"""The first period from t = 1 at which a population (by `[t + 1]`) is 0, when its last is 0; else `nothing`."""
+seed_extinct(pop::AbstractVector, periods::Int) =
+    pop[end] == 0 ? something(findfirst(==(0), @view pop[2:end]), periods) : nothing
 
 """The world a folder's fingerprint names in its last readings line (`<kind> readings: world=<world> …`), or `nothing`."""
 function readings_world(folder::AbstractString)
@@ -152,10 +164,7 @@ function read_culture_world(world::AbstractString, folder::AbstractString)
     periods = folder_periods(folder)
     1 <= window[1] <= window[2] <= periods ||
         throw(ArgumentError("$folder's window $window isn't within t = 1 to $periods"))
-    name = basename(rstrip(folder, ['/', '\\']))
-    n = match(r"-s(\d+)-(\d+)-p\d+$", name)
-    n === nothing && throw(ArgumentError("$folder doesn't name its seeds (-s<first>-<seeds>-p<periods>)"))
-    first_seed, planned = parse(Int, n.captures[1]), parse(Int, n.captures[2])
+    first_seed, planned = study_folder_seeds(folder)
     windows = unique!([[w for w in CULTURE_READING_WINDOWS if w[2] <= periods]; [window]])
     seeds, unfinished = CultureSeed[], Int[]
     for k in first_seed:(first_seed + planned - 1)
@@ -163,14 +172,13 @@ function read_culture_world(world::AbstractString, folder::AbstractString)
             push!(unfinished, k)
             continue
         end
-        std, _ = culture_table(joinpath(folder, "seed$k.csv"),
-                               ("population", (String(c) for c in CULTURE_STANDARD_READINGS)...))
-        culture, _ = culture_table(culture_path(folder, k, "culture"), CULTURE_COLUMNS)
+        std, _ = named_table(joinpath(folder, "seed$k.csv"),
+                             ("population", (String(c) for c in CULTURE_STANDARD_READINGS)...))
+        culture, _ = named_table(culture_path(folder, k, "culture"), CULTURE_COLUMNS)
         pheader, patches = read_seed_csv(culture_path(folder, k, "patches"))
         pheader == CULTURE_PATCH_COLUMNS ||
             throw(ArgumentError("$(culture_path(folder, k, "patches"))'s columns aren't $(join(CULTURE_PATCH_COLUMNS, ","))"))
-        pop = std["population"]
-        extinct = pop[end] == 0 ? something(findfirst(==(0), @view pop[2:end]), periods) : nothing
+        extinct = seed_extinct(std["population"], periods)
         values = Dict(w => culture_values(std, culture, patches, w) for w in windows)
         zs = filter(!isnan, [culture["zero_share_$i"][periods + 1] for i in 1:CULTURE_ZERO_POSITIONS])
         position = isempty(zs) ? NaN : mean_of(abs.(2 .* zs .- 1))
@@ -189,15 +197,29 @@ missing for it, or unfinished, in seed order), and the seed-periods skipped of t
 `key` `:position` is the position polarization at the last period, one seed-period a seed.
 """
 function culture_used(w::CultureWorld, window::Tuple{Int,Int}, key::Symbol)
-    values, out = Float64[], copy(w.unfinished)
+    return seeds_used(w.seeds, w.unfinished) do s
+        key == :position ? (; value=s.position_polarization, skipped=Int(isnan(s.position_polarization)), periods=1) :
+        s.windows[window][key]
+    end
+end
+
+"""
+    seeds_used(value_of, seeds, unfinished; drop_extinct=true) -> (; values, out, skipped, periods)
+
+A value over a study folder's whole `seeds` (each with `.seed` and `.extinct`), `value_of(s)` giving a seed's
+[`window_value`](@ref)-like `(; value, skipped, periods)`: the values of the seeds it is defined for, the seeds left out
+(extinct when `drop_extinct`, missing for it, or `unfinished`, in seed order), and the seed-periods skipped of those
+counted over the seeds not left out as extinct.
+"""
+function seeds_used(value_of, seeds, unfinished; drop_extinct::Bool=true)
+    values, out = Float64[], collect(Int, unfinished)
     skipped = periods = 0
-    for s in w.seeds
-        if s.extinct !== nothing
+    for s in seeds
+        if drop_extinct && s.extinct !== nothing
             push!(out, s.seed)
             continue
         end
-        v = key == :position ? (; value=s.position_polarization, skipped=Int(isnan(s.position_polarization)), periods=1) :
-            s.windows[window][key]
+        v = value_of(s)
         skipped += v.skipped
         periods += v.periods
         isfinite(v.value) ? push!(values, v.value) : push!(out, s.seed)
@@ -217,12 +239,32 @@ side or a ratio or upper end that isn't finite, `:holds` when the ratio is under
 upper end under 1, else `:fails`.
 """
 function culture_ratio(run::CultureWorld, base::CultureWorld, key::Symbol)
-    a, b = culture_used(run, run.window, key).values, culture_used(base, base.window, key).values
+    return ratio_bar(culture_used(run, run.window, key).values, culture_used(base, base.window, key).values)
+end
+
+"""
+    ratio_bar(a, b) -> (; ratio, lo, hi, n_run, n_base, result)
+
+A W bar on the seed values `a` (the world judged) over `b` (the reference): the ratio of their means with
+[`bootstrap_ratio_apart`](@ref)'s interval. `result` is `:missing` with fewer than [`MIN_SEEDS`](@ref) seeds on either
+side or a ratio or upper end that isn't finite, `:holds` when the ratio is under [`W_SHARE`](@ref) and the interval's
+upper end under 1, else `:fails`.
+"""
+function ratio_bar(a::Vector{Float64}, b::Vector{Float64})
     r = bootstrap_ratio_apart(a, b)
     missing_ = min(length(a), length(b)) < MIN_SEEDS || !isfinite(r.ratio) || !isfinite(r.hi)
-    result = missing_ ? :missing : settle(r.ratio) < W_SHARE && settle(r.hi) < 1 ? :holds : :fails
-    return (; r.ratio, r.lo, r.hi, n_run=length(a), n_base=length(b), result)
+    return (; r.ratio, r.lo, r.hi, n_run=length(a), n_base=length(b), result=w_result(missing_, r.ratio, r.hi))
 end
+
+# A W bar's result: missing, else whether the value is under W_SHARE and the interval's upper end under 1.
+w_result(missing_::Bool, value, hi) = missing_ ? :missing : settle(value) < W_SHARE && settle(hi) < 1 ? :holds : :fails
+
+"""
+Two W bars' results as W: `:fails` when either fails (a missing bar decides nothing, so one failure settles W), else
+`:missing` when either reads missing, else `:holds`.
+"""
+both_bars(a::Symbol, b::Symbol) = (a == :fails || b == :fails) ? :fails : (a == :missing || b == :missing) ? :missing :
+                                  :holds
 
 """
     culture_f(today) -> (; share, both, no_flips, planned, seeds, result)
@@ -296,8 +338,7 @@ The bars of the three worlds ([`read_culture_world`](@ref)), with `refs` their s
 """
 function culture_bars(book::CultureWorld, xl::CultureWorld, today::CultureWorld; refs)
     w1, w2 = culture_ratio(today, book, :w1), culture_ratio(today, book, :w2)
-    w = (w1.result == :fails || w2.result == :fails) ? :fails :
-        (w1.result == :missing || w2.result == :missing) ? :missing : :holds
+    w = both_bars(w1.result, w2.result)
     drift = Tuple(culture_drift(wd.folder, r) for (wd, r) in zip((book, xl, today), refs))
     drift_ok = all(d -> isempty(d.differ) && isempty(d.absent), drift)
     return (;
@@ -309,19 +350,21 @@ function culture_bars(book::CultureWorld, xl::CultureWorld, today::CultureWorld;
 end
 
 """
-    culture_outcome(drift_ok, w, f) -> Symbol
+    bar_outcome(drift_ok, w, f) -> Symbol
 
-The outcome by the spec's rules, in order: the drift check fails, `:drift` (stop and report to the user); F fails or
-reads missing, `:report` (to the user, no rule); W reads missing, `:no_outcome`; W holds, `:weak` (the readings go to
-the user with a rule spec); else `:works` (culture works as intended).
+The outcome by the culture and combat specs' rules, in order: the drift check fails, `:drift` (stop and report to the
+user); F fails or reads missing, `:report` (to the user, no rule); W reads missing, `:no_outcome`; W holds, `:weak` (the
+readings go to the user with a rule spec); else `:works` (it works as intended). `culture_outcome` is this.
 """
-function culture_outcome(drift_ok::Bool, w::Symbol, f::Symbol)
+function bar_outcome(drift_ok::Bool, w::Symbol, f::Symbol)
     drift_ok || return :drift
     f in (:fails, :missing) && return :report
     w == :missing && return :no_outcome
     w == :holds && return :weak
     return :works
 end
+
+const culture_outcome = bar_outcome
 
 const CULTURE_OUTCOME_TEXT = Dict(
     :drift => "**The drift check fails: the runs differ from stage 6's: stop and report to the user.** No bar is read " *
@@ -336,22 +379,27 @@ const CULTURE_OUTCOME_TEXT = Dict(
               "\"Stage 7: culture\" and the stage stops.",
 )
 
-const CULTURE_RESULT_TEXT = Dict(:holds => "holds", :fails => "doesn't hold", :missing => "missing")
+const BAR_RESULT_TEXT = Dict(:holds => "holds", :fails => "doesn't hold", :missing => "missing")
 
 # A cell of a value in a world: its mean over seeds, the seeds it uses and the share of seed-periods skipped.
-function culture_cell(w::CultureWorld, window, key::Symbol; mean::Bool=true)
-    u = culture_used(w, window, key)
+culture_cell(w::CultureWorld, window, key::Symbol; mean::Bool=true) =
+    used_cell(culture_used(w, window, key), w.planned; mean)
+
+# A cell of a value over a folder's seeds (`u` from `seeds_used`, of `planned` seeds): its mean over the seeds, the seeds
+# it uses and the share of seed-periods skipped; without `mean`, the seeds it uses and those left out.
+function used_cell(u, planned::Int; mean::Bool=true)
     m = isempty(u.values) ? NaN : mean_of(u.values)
     skipped = u.periods == 0 ? "—" : fmt(100 * u.skipped / u.periods) * "%"
-    used = "$(length(u.values)) of $(w.planned), $skipped skipped"
+    used = "$(length(u.values)) of $planned, $skipped skipped"
     return mean ? "$(finite_text(m)) ($used)" : used * (isempty(u.out) ? "" : " (left out: $(join(u.out, ", ")))")
 end
 
-# A W bar's row: its value against W_SHARE, its interval (the upper end against 1), the bar, the seeds and its result.
-function w_row(name, b)
+# A W bar's row: its value against W_SHARE, its interval (the upper end against 1), the bar (and `note`), the seeds and
+# its result.
+function w_row(name, b; seeds="$(b.n_run) / $(b.n_base)", note="")
     interval = isfinite(b.lo) && isfinite(b.hi) ? "[$(fmt(b.lo)), $(bar_figure(b.hi, 1))]" : "—"
-    return row_text([name, bar_figure(b.ratio, W_SHARE), interval, "under $W_SHARE, interval's upper end under 1",
-                     "$(b.n_run) / $(b.n_base)", CULTURE_RESULT_TEXT[b.result]])
+    return row_text([name, bar_figure(b.ratio, W_SHARE), interval, "under $W_SHARE, interval's upper end under 1" * note,
+                     seeds, BAR_RESULT_TEXT[b.result]])
 end
 
 """
@@ -408,7 +456,7 @@ function culture_report_text(book::CultureWorld, xl::CultureWorld, today::Cultur
           shown_row("W1, xl ÷ book", bars.w1_xl), shown_row("W1, today ÷ xl", bars.w1_today_xl),
           w_row("W2", bars.w2),
           shown_row("W2, xl ÷ book", bars.w2_xl), shown_row("W2, today ÷ xl", bars.w2_today_xl),
-          row_text(["W", "—", "—", "W1 and W2 both hold", "—", CULTURE_RESULT_TEXT[bars.w]]),
+          row_text(["W", "—", "—", "W1 and W2 both hold", "—", BAR_RESULT_TEXT[bars.w]]),
           row_text(["F, both tribes", bar_figure(f.share, F_MIN_SEEDS_SHARE), "—",
                     "both tribes at least $F_MIN_SHARE of the population at t = $(thousands(today.periods)) in at " *
                     "least $F_MIN_SEEDS_SHARE of today's seeds", "$(f.both) of $(f.planned)", "—"]),
@@ -416,7 +464,7 @@ function culture_report_text(book::CultureWorld, xl::CultureWorld, today::Cultur
                     "every seed's fewest tag flips per agent in a period of $(period_text(window...)) above 0 " *
                     "(not: $(seed_list(f.no_flips)))", "$(f.seeds) whole", "—"]),
           row_text(["F", "—", "—", "both parts, extinct or unfinished seeds failing; missing under $MIN_SEEDS whole " *
-                    "seeds", "—", CULTURE_RESULT_TEXT[f.result]]))
+                    "seeds", "—", BAR_RESULT_TEXT[f.result]]))
 
     push!(lines, "", "## Readings", "",
           "Each cell is the mean over seeds of each seed's window mean, then the seeds used and the share of their " *
@@ -457,10 +505,16 @@ function culture_report(; book::AbstractString, xl::AbstractString, today::Abstr
         throw(ArgumentError("the worlds' windows differ: $(join((w.window for w in worlds), ", "))"))
     refs = (check_culture_ref("book", ref_book), check_culture_ref("xl", ref_xl), check_culture_ref("today", ref_today))
     text = culture_report_text(worlds...; refs)
+    publish_report(md, text, io)
+    return text
+end
+
+"""Writes a report's markdown `text` to `md` (making its folder) and prints it to `io` with where it went."""
+function publish_report(md::AbstractString, text::AbstractString, io::IO)
     isempty(dirname(md)) || mkpath(dirname(md))
     write_atomic(md, text)
     println(io, text, "-> ", md)
-    return text
+    return nothing
 end
 
 const CULTURE_REPORT_USAGE =

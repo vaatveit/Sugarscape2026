@@ -35,22 +35,10 @@ function culture_plan(world::AbstractString, out, first_seed, seeds, periods)
 end
 
 """Whether seed `k` is whole: its CSV and culture table (`periods + 1` rows each), its patch table and its timing file."""
-function culture_seed_done(folder::AbstractString, k::Int, periods::Int)
-    seed_done(joinpath(folder, "seed$k.csv"), periods) || return false
-    seed_done(culture_path(folder, k, "culture"), periods) || return false
-    isfile(culture_path(folder, k, "patches")) || return false
-    return isfile(joinpath(folder, "seed$k.timing.csv"))
-end
+culture_seed_done(folder::AbstractString, k::Int, periods::Int) = study_seed_done(folder, k, periods, ("culture",), ("patches",))
 
 """Removes whatever a stopped run left of seed `k`: its files and their temporary names."""
-function remove_culture_seed(folder::AbstractString, k::Int)
-    for p in (joinpath(folder, "seed$k.csv"), joinpath(folder, "seed$k.timing.csv"), culture_path(folder, k, "culture"),
-              culture_path(folder, k, "patches"))
-        rm(p; force=true)
-        rm(p * ".tmp"; force=true)
-    end
-    return nothing
-end
+remove_culture_seed(folder::AbstractString, k::Int) = remove_study_seed(folder, k, ("culture", "patches"))
 
 """
     culture_seed!(exp, world, k, folder) -> SeedOutcome
@@ -60,24 +48,12 @@ Runs seed `k` of `exp` in `world` with a [`CultureReadings`](@ref), and writes `
 temporary name. The observer is made here, so that a worker has its own. Runs in a worker.
 """
 function culture_seed!(exp::Experiment, world::AbstractString, k::Int, folder::AbstractString)
-    readings = CultureReadings()
-    rows, timing, _ = if world == "today"
-        seed_job(exp, k, false; xxl=XXL_DEFAULTS, culture_readings=readings)
-    else
-        seed_job(exp, k, world == "xl"; culture_readings=readings)
+    return study_seed!(exp, world, k, folder, :culture_readings, CultureReadings()) do readings
+        header, culture = culture_rows(readings)
+        write_table_csv(culture_path(folder, k, "culture"), header, culture)
+        header, patches = culture_patch_rows(readings)
+        write_table_csv(culture_path(folder, k, "patches"), header, patches)
     end
-    header, culture = culture_rows(readings)
-    write_table_csv(culture_path(folder, k, "culture"), header, culture)
-    header, patches = culture_patch_rows(readings)
-    write_table_csv(culture_path(folder, k, "patches"), header, patches)
-    write_timing_csv(joinpath(folder, "seed$k.timing.csv"), [timing])
-    cfg = world == "today" ? to_xxl(exp.config, XXL_DEFAULTS) : world == "xl" ? to_xl(exp.config) : exp.config
-    columns = metric_columns(cfg)
-    path = joinpath(folder, "seed$k.csv")
-    write_seed_csv(path * ".tmp", rows; columns=columns)
-    mv(path * ".tmp", path; force=true)
-    seconds = timing.setup_s + timing.stepping_s + timing.metrics_s
-    return seed_outcome(stack(rows; dims=1), ["t"; columns], k; seconds=seconds)
 end
 
 """
@@ -99,18 +75,11 @@ function run_culture_world(
     out::AbstractString=RESULTS_XXL,
     io::IO=stdout,
 )
-    check_extinction_size(; seeds=seeds, first_seed=first_seed, periods=periods, jobs=jobs)
     exp, folder, fingerprint = culture_plan(world, out, first_seed, seeds, periods)
-    check_extinction_folder(folder, fingerprint; create=true)
-    todo = [k for k in first_seed:(first_seed + seeds - 1) if !culture_seed_done(folder, k, periods)]
-    foreach(k -> remove_culture_seed(folder, k), todo)
-    if !isempty(todo)
-        write_machine_note(joinpath(folder, "machine.txt"), jobs, Float64[], "culture study $world")
-        run_seed_calls!(
-            culture_seed!, [(exp, world, k, abspath(folder)) for k in todo], seeds, periods, jobs, io,
-        )
-    end
-    return folder
+    return run_study_seeds(
+        culture_seed!, k -> (exp, world, k, abspath(folder)), folder, fingerprint, culture_seed_done, remove_culture_seed,
+        "culture study $world"; seeds, first_seed, periods, jobs, io,
+    )
 end
 
 const CULTURE_USAGE = "usage: julia --project=julia julia/xxl_culture_study.jl --world book|xl|today [--seeds N] [--first-seed K] [--periods P] [--jobs J] [--out DIR]"

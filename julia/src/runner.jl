@@ -28,7 +28,7 @@ seconds_since(t0::UInt64) = (time_ns() - t0) / 1e9
 
 """
     timed_seed(exp, k; xl=false, xxl=nothing, scorecard=false, checkpoint=nothing, loan_trace=nothing,
-               trade_readings=nothing, sex_readings=nothing, culture_readings=nothing) -> (rows, timing)
+               trade_readings=nothing, sex_readings=nothing, culture_readings=nothing, combat_readings=nothing) -> (rows, timing)
 
 Seed k of an experiment (or its xl version, or its xxl version under the given `XxlRules`), timed as `experiments.run.timed_seed` divides the work (docs/xl.md,
 "Timing"): building the model, the model's own steps, and collecting each period's metrics, t = 0 included. Each
@@ -44,7 +44,7 @@ With `loan_trace` (a [`LoanTrace`](@ref)) the run follows every loan on it, time
 can't be paused: a resume would lose the trace's state. `trade_readings` (a [`TradeReadings`](@ref)) is the same for the
 trade observer: called after each period (and once at period 0), timed as metrics, the rows unchanged, no pausing.
 `sex_readings` (a [`SexReadings`](@ref)) is the same for the sex observer, and `culture_readings` (a
-[`CultureReadings`](@ref)) for the culture observer.
+[`CultureReadings`](@ref)) for the culture observer, and `combat_readings` (a [`CombatReadings`](@ref)) for the combat observer.
 """
 function timed_seed(
     exp::Experiment,
@@ -57,6 +57,7 @@ function timed_seed(
     trade_readings=nothing,
     sex_readings=nothing,
     culture_readings=nothing,
+    combat_readings=nothing,
 )
     xl && xxl !== nothing && throw(ArgumentError("xxl and xl runs are separate"))
     scorecard &&
@@ -77,6 +78,9 @@ function timed_seed(
     culture_readings !== nothing &&
         checkpoint !== nothing &&
         throw(ArgumentError("a seed with culture readings can't be paused"))
+    combat_readings !== nothing &&
+        checkpoint !== nothing &&
+        throw(ArgumentError("a seed with combat readings can't be paused"))
     cfg = if xxl !== nothing
         to_xxl(exp.config, xxl)
     else
@@ -122,6 +126,11 @@ function timed_seed(
         if culture_readings !== nothing
             t0 = time_ns()
             culture_period!(culture_readings, m)
+            measuring += seconds_since(t0)
+        end
+        if combat_readings !== nothing
+            t0 = time_ns()
+            combat_period!(combat_readings, m)
             measuring += seconds_since(t0)
         end
         t0 = time_ns()
@@ -186,7 +195,7 @@ end
 
 """
 One seed in a worker: warm up first, name the experiment and seed in any error. `run_seed` gets `xxl` only when it is
-set, and `scorecard`, `checkpoint`, `loan_trace`, `trade_readings`, `sex_readings` and `culture_readings` only when they are, so a stand-in taking
+set, and `scorecard`, `checkpoint`, `loan_trace`, `trade_readings`, `sex_readings`, `culture_readings` and `combat_readings` only when they are, so a stand-in taking
 just `xl` still works.
 """
 function seed_job(
@@ -201,12 +210,13 @@ function seed_job(
     trade_readings=nothing,
     sex_readings=nothing,
     culture_readings=nothing,
+    combat_readings=nothing,
 )
     try
         warm = warm_up!(exp; xxl=xxl)
         extra = (; (n => v for (n, v) in (
             :checkpoint => checkpoint, :loan_trace => loan_trace, :trade_readings => trade_readings,
-            :sex_readings => sex_readings, :culture_readings => culture_readings,
+            :sex_readings => sex_readings, :culture_readings => culture_readings, :combat_readings => combat_readings,
         ) if v !== nothing)...)
         rows, timing = if !isempty(extra)
             run_seed(exp, k; xl=xl, xxl=xxl, scorecard=scorecard, extra...)
@@ -284,17 +294,21 @@ function run_experiment(
         write_seed_csv(joinpath(folder, "seed$k.csv"), rows; columns=columns)
     end
     write_timing_csv(joinpath(folder, "timing.csv"), [timing for (_, timing, _) in results])
-    write(
-        joinpath(folder, "fingerprint.txt"),
-        if xxl !== nothing
-            xxl_fingerprint(exp, xxl)
-        else
-            "julia\n" * (xl ? exp.xl_fingerprint : exp.fingerprint)
-        end,
-    )
+    write(joinpath(folder, "fingerprint.txt"), run_fingerprint(exp; xl=xl, xxl=xxl))
     warm = [w for (_, _, w) in results if w > 0]
     write_machine_note(joinpath(folder, "machine.txt"), jobs, warm, note)
     return folder
+end
+
+"""
+    run_fingerprint(exp; xl=false, xxl=nothing) -> String
+
+The text [`run_experiment`](@ref) writes to a folder's `fingerprint.txt` for `exp`: [`xxl_fingerprint`](@ref) with `xxl`
+rules, else `julia` and the registry's fingerprint (the xl one with `xl`).
+"""
+function run_fingerprint(exp::Experiment; xl::Bool=false, xxl::Union{Nothing,XxlRules}=nothing)
+    xxl === nothing || return xxl_fingerprint(exp, xxl)
+    return "julia\n" * (xl ? exp.xl_fingerprint : exp.fingerprint)
 end
 
 function write_seed_csv(path::AbstractString, rows; columns=METRIC_COLUMNS)
