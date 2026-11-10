@@ -43,13 +43,18 @@ function take_loot!(m::Model, a::Agent, victim::Agent)
 end
 
 """
-    fight_chance(h, a, b) -> Float64
+    fight_chance(h, a, b, k=1.0) -> Float64
 
-The chance that `a` is hostile to `b` under combat by cultural distance: h d / L, d the number of tags where they
-differ and L the tag length (`a.ntags`). Identical agents never fight; agents that differ everywhere fight with
-probability h.
+The chance that `a` is hostile to `b` under combat by cultural distance: h (d / L)^k, d the number of tags where they
+differ, L the tag length (`a.ntags`) and k the curve (`combat_curve`). Identical agents never fight; agents that differ
+everywhere fight with probability h. With k = 1 it is h d / L, computed as it always was, so linear runs don't change;
+a larger k makes agents a few tags apart fight far less than agents far apart.
 """
-fight_chance(h::Float64, a::Agent, b::Agent) = h * count_ones(a.tags ⊻ b.tags) / a.ntags
+function fight_chance(h::Float64, a::Agent, b::Agent, k::Float64=1.0)
+    d = count_ones(a.tags ⊻ b.tags)
+    k == 1.0 && return h * d / a.ntags
+    return h * (d / a.ntags)^k
+end
 
 """
     hostile!(m, a, other) -> Bool
@@ -63,7 +68,8 @@ start.
 function hostile!(m::Model, a::Agent, other::Agent)
     h = m.config.combat_hostility
     h == 0 && return tribe(other) !== tribe(a)
-    return get!(() -> rand(m.rng) < fight_chance(h, a, other), m.hostile, other.id)
+    k = m.config.combat_curve
+    return get!(() -> rand(m.rng) < fight_chance(h, a, other, k), m.hostile, other.id)
 end
 
 """

@@ -64,20 +64,61 @@ end
 end
 
 """
+    copy_chance(h, a, b, k) -> Float64
+
+The chance that `b` copies one of `a`'s tags under rule K by cultural distance (`culture_rule` "distance" or
+"distance-random"): 1 - h (d / L)^k, one minus [`fight_chance`](@ref). Identical agents copy for sure (but d = 0 has
+nothing to copy); agents that differ everywhere copy with probability 1 - h.
+"""
+copy_chance(h::Float64, a::Agent, b::Agent, k::Float64)::Float64 = 1 - fight_chance(h, a, b, k)
+
+"""
     culture_transmit!(m, a)
 
 Cultural transmission (p.73, App. B): for each agent reached ([`culture_reach_agents!`](@ref): the neighbours, or
 with `culture_reach` combat's sight or attack reach), in random order, a random tag position is chosen; if that agent
 disagrees there, its tag is flipped to the agent's.
+
+With `culture_rule` "distance" or "distance-random" (VI-1-assim), an agent reached that differs from `a` in d > 0 tags
+copies one of them with probability [`copy_chance`](@ref) (h = `combat_hostility`, k = `combat_curve`): "distance"
+takes `a`'s value at the j-th differing position, lowest bit first, j uniform in 1:d, so every copy changes one tag;
+"distance-random" a random position, as the book's rule. Draws from `m.rng`: the copy first, then the position. With
+d = 0 nothing is drawn.
 """
 function culture_transmit!(m::Model, a::Agent)
     neighbors = shuffle!(m.rng, culture_reach_agents!(m.culture_reached, m, a))
+    rule = m.config.culture_rule
+    if rule == "random"
+        for other in neighbors
+            other.ntags == 0 && continue
+            bit = UInt64(1) << rand(m.rng, 0:(a.ntags - 1))
+            other.tags = (other.tags & ~bit) | (a.tags & bit)
+        end
+        return nothing
+    end
+    h, k = m.config.combat_hostility, m.config.combat_curve
     for other in neighbors
         other.ntags == 0 && continue
-        bit = UInt64(1) << rand(m.rng, 0:(a.ntags - 1))
+        differ = a.tags ⊻ other.tags
+        d = count_ones(differ)
+        d == 0 && continue
+        rand(m.rng) < copy_chance(h, a, other, k) || continue
+        bit = if rule == "distance"
+            nth_bit(differ, rand(m.rng, 1:d))
+        else
+            UInt64(1) << rand(m.rng, 0:(a.ntags - 1))
+        end
         other.tags = (other.tags & ~bit) | (a.tags & bit)
     end
     return nothing
+end
+
+"""The `j`-th set bit of `x`, lowest first, as a one-bit mask."""
+function nth_bit(x::UInt64, j::Int)
+    for _ in 1:(j - 1)
+        x &= x - one(UInt64)  # clear the lowest set bit
+    end
+    return x & (~x + one(UInt64))
 end
 
 """
