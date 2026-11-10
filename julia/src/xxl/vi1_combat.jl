@@ -114,9 +114,12 @@ vi1_far_speed_experiment(reg=load_registry()) =
 
 const VI1_ASSIM_ID = "VI-1-assim"
 const VI1_ASSIM_RANDOM_ID = "VI-1-assim-random"
+const VI1_ASSIM_K4_ID = "VI-1-assim-k4"
 const VI1_ASSIM_VARIANT = "variant: VI-1-assim culture_rule=distance (copy a differing tag with p = 1 - fight chance)
 "
 const VI1_ASSIM_RANDOM_VARIANT = "variant: VI-1-assim-random culture_rule=distance-random (copy a random tag with p = 1 - fight chance)
+"
+const VI1_ASSIM_K4_VARIANT = "variant: VI-1-assim-k4 culture_rule=distance combat_curve=4 (copy a differing tag with p = 1 - 0.5 (d/11)^4)
 "
 
 """
@@ -136,3 +139,14 @@ with probability 1 - the fight chance, a random tag as today), and the variant l
 """
 vi1_assim_random_experiment(reg=load_registry()) =
     vi1_reach_experiment(reg, VI1_ASSIM_RANDOM_ID, VI1_ASSIM_RANDOM_VARIANT, c -> replace_config(c; culture_rule="distance-random"))
+
+"""
+    vi1_assim_k4_experiment(reg=load_registry()) -> Experiment
+
+VI-1-distance from `reg` as `VI-1-assim-k4`: VI-1-assim with `combat_curve = 4` in both configs, so p(fight) =
+0.5 (d/11)^4 and p(copy) = 1 - p(fight), and the variant line appended to both fingerprints. The setting the 11-09
+sweep picked (form A, k = 4, h = 0.5): all three bars passed on seeds 0-19 in today's xxl.
+"""
+vi1_assim_k4_experiment(reg=load_registry()) =
+    vi1_reach_experiment(reg, VI1_ASSIM_K4_ID, VI1_ASSIM_K4_VARIANT,
+        c -> replace_config(c; culture_rule="distance", combat_curve=4.0))

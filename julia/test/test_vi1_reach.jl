@@ -18,7 +18,7 @@ const REACH_CASES = (
 @testset "test_reach_ids_and_table" begin
     @test (VI1_NEAR_ID, VI1_FAR_ID, VI1_FAR_SPEED_ID) == ("VI-1-near", "VI-1-far", "VI-1-far-speed")
     @test sort(collect(keys(JULIA_COMBAT_EXPS))) ==
-          ["VI-1-assim", "VI-1-assim-random", "VI-1-combat", "VI-1-distance", "VI-1-far", "VI-1-far-speed", "VI-1-near"]
+          ["VI-1-assim", "VI-1-assim-k4", "VI-1-assim-random", "VI-1-combat", "VI-1-distance", "VI-1-far", "VI-1-far-speed", "VI-1-near"]
     @test COMBAT_EXPS == ("III-9", "III-11", "III-12", "III-13", "III-14")
     for id in keys(JULIA_COMBAT_EXPS)
         @test occursin(id, COMBAT_USAGE)
@@ -64,7 +64,7 @@ end
     end
     err = try combat_study_args(["--world", "today", "--exp", "nope"]) catch e; e end
     @test err isa ArgumentError
-    @test occursin("III-14, VI-1-assim, VI-1-assim-random, VI-1-combat, VI-1-distance, VI-1-far, VI-1-far-speed, VI-1-near", err.msg)
+    @test occursin("III-14, VI-1-assim, VI-1-assim-k4, VI-1-assim-random, VI-1-combat, VI-1-distance, VI-1-far, VI-1-far-speed, VI-1-near", err.msg)
 end
 
 @testset "test_reach_runs" begin
