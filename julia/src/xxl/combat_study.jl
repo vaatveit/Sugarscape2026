@@ -34,6 +34,7 @@ combat_name(world, exp_id, first_seed, seeds, periods) = "combat-$world-$exp_id-
 
 combat_path(folder::AbstractString, k::Int) = joinpath(folder, "seed$k-combat.csv")
 kills_path(folder::AbstractString, k::Int) = joinpath(folder, "seed$k-kills.csv")
+pollution_path(folder::AbstractString, k::Int) = joinpath(folder, "seed$k-pollution.csv")
 
 """What a run was produced from: the world's fingerprint, then a line naming the world and the experiment."""
 function combat_fingerprint(exp::Experiment, world::AbstractString, periods::Int)
@@ -51,14 +52,18 @@ function combat_plan(world::AbstractString, exp_id::AbstractString, out, first_s
     return (; exp, periods, folder, fingerprint=combat_fingerprint(exp, world, periods))
 end
 
-"""Whether seed `k` is whole: its CSV and combat table (`periods + 1` rows each) and its timing file."""
-combat_seed_done(folder::AbstractString, k::Int, periods::Int) = study_seed_done(folder, k, periods, ("combat",))
+"""Whether seed `k` is whole: its CSV and combat table (`periods + 1` rows each), its pollution table (the same, when `pollution`) and its timing file."""
+function combat_seed_done(folder::AbstractString, k::Int, periods::Int; pollution::Bool=false)
+    return study_seed_done(folder, k, periods, pollution ? ("combat", "pollution") : ("combat",))
+end
 
 """Removes whatever a stopped run left of seed `k`: its files and their temporary names."""
 function remove_combat_seed(folder::AbstractString, k::Int)
     remove_study_seed(folder, k, ("combat",))
     rm(kills_path(folder, k); force=true)
     rm(kills_path(folder, k) * ".tmp"; force=true)
+    rm(pollution_path(folder, k); force=true)
+    rm(pollution_path(folder, k) * ".tmp"; force=true)
     return nothing
 end
 
@@ -67,7 +72,8 @@ end
 
 Runs seed `k` of `exp` in `world` with a [`CombatReadings`](@ref), and writes `seed<k>-combat.csv`, `seed<k>.timing.csv`
 and, last, `seed<k>.csv` (the world's standard columns), each through a temporary name. With `combat_hostility > 0` it
-also writes `seed<k>-kills.csv` (`t,distance,same_label`, one row per kill, header only if none), before the standard CSV. The observer is made here, so that
+also writes `seed<k>-kills.csv` (`t,distance,same_label`, one row per kill, header only if none), and with pollution on
+`seed<k>-pollution.csv` (`t,mean_pollution,agent_pollution,share_rich`, a row per period), before the standard CSV. The observer is made here, so that
 a worker has its own. Runs in a worker.
 """
 function combat_seed!(exp::Experiment, world::AbstractString, k::Int, folder::AbstractString)
@@ -77,6 +83,10 @@ function combat_seed!(exp::Experiment, world::AbstractString, k::Int, folder::Ab
         if world_config(exp, world).combat_hostility > 0
             header, kills = kill_rows(readings)
             write_table_csv(kills_path(folder, k), header, kills)
+        end
+        if world_config(exp, world).pollution !== nothing
+            header, rows = pollution_rows(readings)
+            write_table_csv(pollution_path(folder, k), header, rows)
         end
     end
 end
@@ -103,7 +113,8 @@ function run_combat_world(
 )
     exp, periods, folder, fingerprint = combat_plan(world, exp_id, out, first_seed, seeds, periods)
     return run_study_seeds(
-        combat_seed!, k -> (exp, world, k, abspath(folder)), folder, fingerprint, combat_seed_done, remove_combat_seed,
+        combat_seed!, k -> (exp, world, k, abspath(folder)), folder, fingerprint,
+        (f, k, p) -> combat_seed_done(f, k, p; pollution=world_config(exp, world).pollution !== nothing), remove_combat_seed,
         "combat study $world $exp_id"; seeds, first_seed, periods, jobs, io,
     )
 end

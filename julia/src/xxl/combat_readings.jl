@@ -53,6 +53,8 @@ mutable struct CombatReadings
     blue_sugar::Vector{Float64}  # scratch
     red_sugar::Vector{Float64}  # scratch
     kills::Vector{NTuple{3,Int}}  # every kill read: (t, distance, same_label)
+    pollution_rows::Vector{Vector{Float64}}  # one per period read, with pollution on: see POLLUTION_COLUMNS
+    rich::Union{Nothing,BitMatrix}  # the rich land, made on first use
 end
 
 CombatReadings() = CombatReadings(
@@ -64,7 +66,24 @@ CombatReadings() = CombatReadings(
     Float64[],
     Float64[],
     NTuple{3,Int}[],
+    Vector{Float64}[],
+    nothing,
 )
+
+"""The columns of a pollution row, [`pollution_rows`](@ref)."""
+const POLLUTION_COLUMNS = ["t", "mean_pollution", "agent_pollution", "share_rich"]
+
+"""
+    rich_cut(ls) -> Int
+
+The capacity (sugar plus spice) from which a cell is rich land: the value at the 75th percentile of the cells' capacities,
+so that the richest quarter of the cells, and every cell tied with them, are rich. In today's world it is 5, covering 32%
+of the cells.
+"""
+function rich_cut(ls::Landscape)
+    v = sort!(vec(ls.capacity .+ ls.spice_capacity))
+    return v[ceil(Int, 0.75 * length(v))]
+end
 
 # The shorter way round the torus between two coordinates, as a Float64.
 function min_image(size::Int, a::Real, b::Real)
@@ -190,8 +209,30 @@ function combat_period!(r::CombatReadings, m::Model)
     for (distance, same) in m.kill_log
         push!(r.kills, (m.t, distance, same))
     end
+    cfg.pollution === nothing || pollution_period!(r, m)
     r.prev = cur
     r.seen = true
+    return nothing
+end
+
+# The period's pollution row: the land's mean pollution, the mean on the agents' cells and the share of agents on rich land.
+function pollution_period!(r::CombatReadings, m::Model)
+    ls = m.landscape
+    if r.rich === nothing
+        r.rich = (ls.capacity .+ ls.spice_capacity) .>= rich_cut(ls)
+    end
+    rich = r.rich
+    n = length(m.agents)
+    on_cells = 0.0
+    on_rich = 0
+    for a in m.agents
+        on_cells += ls.pollution[a.x + 1, a.y + 1]
+        on_rich += rich[a.x + 1, a.y + 1]
+    end
+    push!(
+        r.pollution_rows,
+        Float64[m.t, sum(ls.pollution) / length(ls.pollution), n == 0 ? NaN : on_cells / n, n == 0 ? NaN : on_rich / n],
+    )
     return nothing
 end
 
@@ -209,3 +250,11 @@ One row per kill read, in the order read: `t` (the period whose combat row count
 of tags where killer and victim differ) and `same_label` (1 if they were of one tribe).
 """
 kill_rows(r::CombatReadings) = (["t", "distance", "same_label"], [[t, d, s] for (t, d, s) in r.kills])
+
+"""
+    pollution_rows(r) -> (header, rows)
+
+One row per period read, t = 0 included, in the order of [`POLLUTION_COLUMNS`](@ref); empty when the world has no
+pollution. `agent_pollution` and `share_rich` are NaN in a period with no agents.
+"""
+pollution_rows(r::CombatReadings) = (copy(POLLUTION_COLUMNS), r.pollution_rows)
