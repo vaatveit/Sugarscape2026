@@ -150,3 +150,46 @@ sweep picked (form A, k = 4, h = 0.5): all three bars passed on seeds 0-19 in to
 vi1_assim_k4_experiment(reg=load_registry()) =
     vi1_reach_experiment(reg, VI1_ASSIM_K4_ID, VI1_ASSIM_K4_VARIANT,
         c -> replace_config(c; culture_rule="distance", combat_curve=4.0))
+
+# VI-1-pollution and VI-1-pollution-t0 (docs/superpowers/specs/2026-11-11-vi1-pollution-design.md, "The experiments"):
+# VI-1-assim-k4 with pollution and diffusion on, over 600 periods. Pollution starts on a settled society (period 350) and
+# diffusion after it (period 450); the -t0 variant has both from period 0.
+
+const VI1_POLLUTION_ID = "VI-1-pollution"
+const VI1_POLLUTION_T0_ID = "VI-1-pollution-t0"
+const VI1_POLLUTION_STEPS = 600
+const VI1_POLLUTION_VARIANT = "variant: VI-1-pollution pollution=(1,1) pollution_start=350 diffusion_period=1 diffusion_start=450 steps=600 (pollution on a settled society, then diffusion)
+"
+const VI1_POLLUTION_T0_VARIANT = "variant: VI-1-pollution-t0 pollution=(1,1) pollution_start=0 diffusion_period=1 diffusion_start=0 steps=600 (pollution and diffusion from period 0)
+"
+
+# VI-1-assim-k4 under `id`, over 600 periods, with pollution (1, 1) from `pollution_start` and diffusion every period from
+# `diffusion_start` set in both configs, and `variant` appended to both fingerprints.
+function vi1_pollution_build(reg, id::String, variant::String, pollution_start::Int, diffusion_start::Int)
+    k4 = vi1_assim_k4_experiment(reg)
+    change(c) = replace_config(c; pollution=(1.0, 1.0), pollution_start=pollution_start,
+                               diffusion_period=1, diffusion_start=diffusion_start)
+    return Experiment(
+        id, k4.title, k4.rules, VI1_POLLUTION_STEPS, k4.seeds,
+        change(k4.config), k4.fingerprint * variant,
+        change(k4.xl_config), k4.xl_fingerprint * variant,
+    )
+end
+
+"""
+    vi1_pollution_experiment(reg=load_registry()) -> Experiment
+
+VI-1-assim-k4 from `reg` as `VI-1-pollution`: 600 periods, pollution (1, 1) from period 350 (on a settled society) and
+diffusion every period from period 450, in both configs, and the variant line appended to both fingerprints.
+"""
+vi1_pollution_experiment(reg=load_registry()) =
+    vi1_pollution_build(reg, VI1_POLLUTION_ID, VI1_POLLUTION_VARIANT, 350, 450)
+
+"""
+    vi1_pollution_t0_experiment(reg=load_registry()) -> Experiment
+
+VI-1-assim-k4 from `reg` as `VI-1-pollution-t0`: as [`vi1_pollution_experiment`](@ref) with pollution and diffusion both on
+from period 0.
+"""
+vi1_pollution_t0_experiment(reg=load_registry()) =
+    vi1_pollution_build(reg, VI1_POLLUTION_T0_ID, VI1_POLLUTION_T0_VARIANT, 0, 0)
