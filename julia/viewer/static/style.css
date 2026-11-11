@@ -64,7 +64,7 @@ figcaption { color: var(--muted); font-size: 0.85rem; margin-top: 4px; max-width
 
 .below-map { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-top: 8px; }
 .legend, .hover { background: var(--panel); border: 1px solid var(--border); padding: 8px 10px; }
-.menus { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.menus { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 4px 8px; margin-bottom: 6px; }
 .legend-title { color: var(--muted); font-size: 0.8rem; margin: 8px 0 2px; }
 .legend-note { color: var(--muted); font-size: 0.8rem; margin: 4px 0 0; }
 .swatch-list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 0.85rem; }

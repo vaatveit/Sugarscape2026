@@ -5,8 +5,23 @@
 /** The frame column holding each colour mode's code; the palette entry of that code is the agent's colour. */
 export const MODE_FIELDS = { tribe: "tribe", culture: "ones", wealth: "wealth", disease: "disease", credit: "role" };
 
-/** Marks stay for this many periods (the legend's `mark_periods`), fading linearly. */
+/** In "last 10 periods, fading", marks stay for this many periods (the legend's `mark_periods`), fading linearly. */
 export const MARK_PERIODS = 10;
+
+/**
+ * The marks menus (the user's decision after the live check, 11-10): which periods' events are marked, and which events.
+ * Each mark fills exactly the cell where it happened, nothing larger, so it never covers a neighbouring cell.
+ */
+export const MARK_WHEN = [
+  { value: "now", label: "this period" },
+  { value: "fading", label: "last 10 periods, fading" },
+  { value: "none", label: "none" },
+];
+export const MARK_WHICH = [
+  { value: "both", label: "kills and switches" },
+  { value: "kills", label: "kills only" },
+  { value: "switches", label: "switches only" },
+];
 
 // The landscape blend: how far each channel falls from white at a resource's full capacity. Green carries spice alone
 // and blue carries sugar (with a fixed share of spice), so with at least one step of a channel per eighth of a level,
@@ -55,21 +70,40 @@ export function markOpacity(age) {
 }
 
 /**
- * markList(frame, recentFrames) -> [{kind: "kill" | "change", x, y, age, opacity}]: the kills and tribe changes of every
- * frame among `frame` and `recentFrames` from the last 10 periods up to the one shown, oldest first (so the newest are
- * drawn on top). A frame given twice counts once; a period that is not given (no longer kept) adds nothing.
+ * markPeriods(t, when, oldestKept) -> the periods whose frames showing period t needs: t alone for "this period" and
+ * "none" (no earlier frame is fetched), t and the kept ones of the 9 before it (none before 0) for "fading".
  */
-export function markList(frame, recentFrames) {
+export function markPeriods(t, when, oldestKept) {
+  if (when !== "fading") return [t];
+  const out = [];
+  for (let u = Math.max(0, t - (MARK_PERIODS - 1), oldestKept ?? 0); u <= t; u++) out.push(u);
+  return out;
+}
+
+/**
+ * marksToDraw(t, when, which, frames) -> [{kind: "kill" | "change", x, y, age, opacity}]: the marks for period t from
+ * `frames` (each frame counted once, by its t). "now": the kills and tribe changes of t itself, opacity 1. "fading":
+ * those of t and the 9 periods before it, at markOpacity(age), oldest first so the newest are drawn on top. "none":
+ * nothing. `which` keeps "both", only "kills" or only "switches" (tribe changes). A period not among `frames` adds nothing.
+ */
+export function marksToDraw(t, when, which, frames) {
+  if (when === "none") return [];
   const byT = new Map();
-  for (const f of [frame, ...recentFrames]) if (f && !byT.has(f.t)) byT.set(f.t, f);
+  for (const f of frames) if (f && !byT.has(f.t)) byT.set(f.t, f);
+  const kills = which !== "switches";
+  const changes = which !== "kills";
   const marks = [];
   for (const f of [...byT.values()].sort((a, b) => a.t - b.t)) {
-    const age = frame.t - f.t;
-    const opacity = markOpacity(age);
-    if (opacity <= 0) continue;
-    for (let i = 0; i < f.kills.x.length; i++) marks.push({ kind: "kill", x: f.kills.x[i], y: f.kills.y[i], age, opacity });
-    for (let i = 0; i < f.changes.x.length; i++) {
-      marks.push({ kind: "change", x: f.changes.x[i], y: f.changes.y[i], age, opacity });
+    const age = t - f.t;
+    if (when === "now" ? age !== 0 : markOpacity(age) <= 0) continue;
+    const opacity = when === "now" ? 1 : markOpacity(age);
+    if (kills) {
+      for (let i = 0; i < f.kills.x.length; i++) marks.push({ kind: "kill", x: f.kills.x[i], y: f.kills.y[i], age, opacity });
+    }
+    if (changes) {
+      for (let i = 0; i < f.changes.x.length; i++) {
+        marks.push({ kind: "change", x: f.changes.x[i], y: f.changes.y[i], age, opacity });
+      }
     }
   }
   return marks;
@@ -196,18 +230,36 @@ function newCanvas(w, h) {
 }
 
 /**
- * drawMap(ctx, frame, recentFrames, mode, legend): the landscape and the agents, one cell each, scaled to the canvas
- * without smoothing (a whole number of device pixels per cell), then the marks of `markList(frame, recentFrames)`:
- * a cross at each kill's cell (the victim's) and a ring at each tribe change's, in the legend's colours, at
- * `markOpacity(age)`. Marks are drawn larger than a cell so they can be seen; their size means nothing.
+ * paintMarks(image, frame, marks, legend): fills each mark's own cell of `image` (as paintMap lays it out) with the
+ * legend's kill or change colour, blended over what is there at the mark's opacity (rounded half up), in list order so
+ * later marks are on top. Only the marked cells change; at opacity 1 the mark hides the agent on that cell.
  */
-export function drawMap(ctx, frame, recentFrames, mode, legend) {
+export function paintMarks(image, frame, marks, legend) {
+  const kill = rgbOf(legend.kill_colour);
+  const change = rgbOf(legend.change_colour);
+  const { width: W, height: H } = frame;
+  for (const m of marks) {
+    const rgb = m.kind === "kill" ? kill : change;
+    const a = m.opacity;
+    const k = ((H - 1 - m.y) * W + m.x) * 4;
+    for (let c = 0; c < 3; c++) image[k + c] = Math.floor(a * rgb[c] + (1 - a) * image[k + c] + 0.5);
+  }
+  return image;
+}
+
+/**
+ * drawMap(ctx, frame, marks, mode, legend): the landscape and the agents, one cell each, then `marks` (from marksToDraw),
+ * each filling exactly its own cell (paintMarks), all scaled to the canvas without smoothing (a whole number of device
+ * pixels per cell), so a mark never covers a neighbouring cell.
+ */
+export function drawMap(ctx, frame, marks, mode, legend) {
   const { width: W, height: H } = frame;
   let base = painted.get(ctx);
-  if (!base || base.frame !== frame || base.mode !== mode || base.legend !== legend) {
+  if (!base || base.frame !== frame || base.mode !== mode || base.legend !== legend || base.marks !== marks) {
     const canvas = base?.canvas.width === W && base.canvas.height === H ? base.canvas : newCanvas(W, H);
-    canvas.getContext("2d").putImageData(new ImageData(paintMap(frame, mode, legend), W, H), 0, 0);
-    base = { frame, mode, legend, canvas };
+    const image = paintMarks(paintMap(frame, mode, legend), frame, marks, legend);
+    canvas.getContext("2d").putImageData(new ImageData(image, W, H), 0, 0);
+    base = { frame, mode, legend, marks, canvas };
     painted.set(ctx, base);
   }
   const { width: cw, height: ch } = ctx.canvas;
@@ -216,35 +268,5 @@ export function drawMap(ctx, frame, recentFrames, mode, legend) {
   ctx.globalAlpha = 1;
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(base.canvas, 0, 0, cw, ch);
-
-  const k = cw / W; // device pixels per cell
-  const dpr = globalThis.devicePixelRatio || 1;
-  const arm = Math.max(1.5 * k, 3 * dpr);
-  const radius = Math.max(2.5 * k, 4 * dpr);
-  const lw = Math.max(1, Math.round(dpr));
-  ctx.lineCap = "butt";
-  // One path per kind and age (early periods have thousands of marks each), oldest first so the newest are on top.
-  const marks = markList(frame, recentFrames);
-  for (let j = 0; j < marks.length;) {
-    const { kind, age, opacity } = marks[j];
-    ctx.globalAlpha = opacity;
-    ctx.beginPath();
-    for (; j < marks.length && marks[j].kind === kind && marks[j].age === age; j++) {
-      const cx = (marks[j].x + 0.5) * k;
-      const cy = (H - 1 - marks[j].y + 0.5) * (ch / H);
-      if (kind === "kill") {
-        ctx.moveTo(cx - arm, cy - arm);
-        ctx.lineTo(cx + arm, cy + arm);
-        ctx.moveTo(cx - arm, cy + arm);
-        ctx.lineTo(cx + arm, cy - arm);
-      } else {
-        ctx.moveTo(cx + radius, cy);
-        ctx.arc(cx, cy, radius, 0, 2 * Math.PI);
-      }
-    }
-    ctx.strokeStyle = kind === "kill" ? legend.kill_colour : legend.change_colour;
-    ctx.lineWidth = kind === "kill" ? lw : 1.5 * lw;
-    ctx.stroke();
-  }
   ctx.restore();
 }

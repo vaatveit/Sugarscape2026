@@ -13,12 +13,13 @@ inequality and disease. The user sets the experiment, the raw seed, combat hosti
 **Goals**
 - A browser page showing today's xxl world with every living agent drawn in its cell, a period at a time, as the Julia
   model computes it.
-- The map's default look (the user chose option A of three mockups): agents blue or red by tribe; black crosses where
-  kills happened in the last 10 periods and gold rings on agents that changed tribe in the last 10 periods, both fading
-  with age; the landscape faint underneath.
+- The map's default look (the user chose option A of three mockups): agents blue or red by tribe; kills and tribe
+  switches marked on the map (black and gold); the landscape faint underneath. *(The marks were crosses and rings over
+  the last 10 periods until the live check of 11-10; the user then chose cell-size marks with a menu, see "Event
+  marks".)*
 - A colour menu for the agents: **tribe** (default), **culture shade** (the user asked for mockup B's shading as an
-  option), **wealth**, **disease** and **credit** (definitions below). The kill and tribe-change marks stay on in every
-  colour mode.
+  option), **wealth**, **disease** and **credit** (definitions below). The kill and tribe-change marks work the same in
+  every colour mode.
 - Charts under or beside the map, each over all periods computed so far, with a line at the period shown and a marker
   at period 500 (where the study stops): population by tribe; kills per period; tribe changes per period; Gini of
   wealth; trades per period and mean price; loans outstanding and total debt; share of agents sick. Plus a Lorenz curve
@@ -97,11 +98,23 @@ chart) without reworking the page or the frames.
     bands cannot stretch with the frame). The last band is open-ended.
   - *Disease:* the number of diseases the agent carries, in fixed steps, 0 drawn neutral.
   - *Credit:* lender, borrower, both, or neither, read from the model's loan book.
-- **Event marks**, on top of any colouring:
-  - Kills: a black cross at the cell where the victim died, for each kill in the last 10 periods, its opacity falling
-    linearly with age (fixed schedule).
-  - Tribe changes: a gold ring on each agent whose tribe label differs from its label one period earlier (the agents
-    the combat readings count in `tribe_changes`), for changes in the last 10 periods, fading the same way.
+- **Event marks**, on top of any colouring. *(The user's decision after the live check, 11-10: with VI-1-assim-k4 at
+  seed 0, 500–5,000 agents switch tribe each period, and the first design's crosses and rings, several cells wide over
+  10 periods, blanketed the clusters so no agent could be seen in any colouring.)*
+  - Each mark fills exactly the cell where its event happened, nothing larger, so it never covers a neighbouring cell:
+    black (`#000000`) for a kill, at the cell where the victim died; gold (`#d4a000`) for a tribe switch, at the cell
+    of an agent whose tribe label differs from its label one period earlier (the agents the combat readings count in
+    `tribe_changes`). A mark hides the agent standing on its cell; hover still reads the agent.
+  - Two labelled menus next to the colour menu (controller ruling P10). **Marks from:** "this period" (default) marks
+    the events of the period shown only, and needs only its frame (no earlier frame is fetched, so the stepper's
+    backpressure point stays the period shown); "last 10 periods, fading" marks the events of the period shown and the
+    9 before it, a mark of age a (0–9, 0 the period shown) blended over its cell at opacity 1 − a/10, the newest on
+    top; "none" draws no marks. **Show:** "kills and switches" (default), "kills only" or "switches only"; disabled
+    when Marks from is "none".
+  - In "last 10 periods, fading", when any of the 9 earlier periods' frames is not available (no longer kept, or it
+    failed to load), a note by the map says which marks are missing; it is hidden when all 10 periods' marks are
+    drawn, and never shown in the other modes.
+  - The legend explains both menus and that a mark hides the agent on its cell.
 - **Hover:** over an agent, its id, tribe, 11 tags, sugar, spice, age, diseases and loans; over an empty cell, its sugar
   and spice. Exact values.
 - A legend for the active colouring and for the marks.
@@ -129,8 +142,8 @@ Clicking a chart jumps the map to that period if it is still kept.
   (`collect_metrics` / `xxl_metrics!`, the `seed<k>.csv` columns `gini`, `trades`, `mean_price`, `n_loans`,
   `fraction_sick`) for the rest. Total debt, the Lorenz curve and the event positions are new readings, taken from the
   model's state in the same pass.
-- The marks count what the charts count: the crosses of period t number `killed_blue + killed_red` of t; the rings
-  number `tribe_changes` of t.
+- The marks count what the charts count: the kill marks of period t number `killed_blue + killed_red` of t; the
+  switch marks number `tribe_changes` of t.
 - The map draws exactly the living agents the population chart counts.
 - A value the model leaves undefined (`NaN`, for example `mean_price` in a period with no trades) is carried as
   undefined and drawn as a gap, never as 0. The frame format must carry it (plain JSON cannot).
@@ -144,8 +157,8 @@ Clicking a chart jumps the map to that period if it is still kept.
   and `seed<k>.csv` from `run_combat_world("today", …)` over the same periods.
 - **Settings reach the model:** a run started with h and k shows them in the model's config, and a refused setting
   starts nothing.
-- **Marks and map agree with the counts:** at each period, crosses = kills, rings = tribe changes, agents drawn =
-  population.
+- **Marks and map agree with the counts:** at each period, kill marks = kills, switch marks = tribe changes, agents
+  drawn = population; a mark changes only its own cell's pixels.
 - **Encodings are fixed:** the colour of a given value is the same in every frame; the culture shade has 12 distinct
   steps; the wealth bands are constants.
 - The full suite stays green, and the new tests keep its time reasonable (a few short runs, not 500-period ones).

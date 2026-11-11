@@ -3,7 +3,9 @@
 import { CHARTS, drawChart, drawLorenz, periodAt, readout } from "./charts.mjs";
 import { FrameCache } from "./cache.mjs";
 import { decodeFrame } from "./frame.mjs";
-import { MARK_PERIODS, drawMap, hitTest, landscapeColour, marksNote } from "./map.mjs";
+import {
+  MARK_WHEN, MARK_WHICH, drawMap, hitTest, landscapeColour, markPeriods, marksNote, marksToDraw,
+} from "./map.mjs";
 
 const POLL_MS = 1000; // /api/status
 const PREFETCH = 4; // frames requested ahead of the next one while playing
@@ -19,6 +21,7 @@ const els = {
   startButton: $("start-button"), stop: $("stop"), settings: $("settings"), status: $("status"), error: $("error"),
   map: $("map"), marksNote: $("marks-note"), captionT: $("caption-t"), back: $("back"), play: $("play"), forward: $("forward"),
   slider: $("slider"), period: $("period"), speed: $("speed"), note: $("note"), colourBy: $("colour-by"),
+  marksWhen: $("marks-when"), marksWhich: $("marks-which"),
   legendAgents: $("legend-agents"), legendMarks: $("legend-marks"), legendCells: $("legend-cells"), hover: $("hover"),
   charts: $("charts"),
 };
@@ -38,8 +41,10 @@ const state = {
   cache: new FrameCache(),
   inflight: new Map(), // t -> promise of a frame (or null when not kept)
   frame: null, // the frame on the map
-  recent: [], // kept frames of the 9 periods before it, for the marks
-  marksNote: "", // which of those periods' marks are missing, if any
+  recent: [], // "fading" marks: the kept frames of the 9 periods before it
+  failed: [], // periods among those whose frames failed to load
+  marks: [], // the marks drawn (marksToDraw)
+  marksNote: "", // "fading" marks: which periods' marks are missing, if any
   target: null, // the period last asked for
   scrubTarget: null,
   scrubbing: false,
@@ -93,35 +98,49 @@ function fetchFrame(t) {
   return request;
 }
 
-// Show period t: fetch the kept frames of the 9 periods before it (for the marks), then t itself, so the last request
-// is the period shown. Returns false when t is not kept or the user has since asked for another period. A mark frame
-// that is not kept adds no marks and the marks note says so; one that fails is shown as an error and listed there too.
-// Any other error (the shown frame failing, or drawing it) is thrown to the caller, which shows it.
+// Show period t. With marks from "last 10 periods, fading", first fetch the kept frames of the 9 periods before it, then
+// t itself, so the last request is the period shown; with "this period" or "none" only t is fetched (markPeriods).
+// Returns false when t is not kept or the user has since asked for another period. A mark frame that is not kept adds no
+// marks and the marks note says so; one that fails is shown as an error and listed there too. Any other error (the
+// shown frame failing, or drawing it) is thrown to the caller, which shows it.
 async function showPeriod(t) {
   const run = state.run;
   if (run === null) return false;
   state.target = t;
-  const from = Math.max(0, t - (MARK_PERIODS - 1), state.oldestKept ?? 0);
   const failed = [];
-  const earlier = [];
-  for (let u = from; u < t; u++) {
-    earlier.push(fetchFrame(u).catch((err) => {
+  const earlier = markPeriods(t, els.marksWhen.value, state.oldestKept).filter((u) => u !== t).map((u) =>
+    fetchFrame(u).catch((err) => {
       if (!(err instanceof StaleRun)) {
         failed.push(u);
         showError(new Error(`The frame of t = ${u} (for the marks) could not be loaded: ${err.message}`));
       }
       return null;
     }));
-  }
   const recent = (await Promise.all(earlier)).filter(Boolean);
   if (run !== state.run || state.target !== t) return false;
   const frame = await fetchFrame(t);
   if (run !== state.run || state.target !== t || !frame) return false;
   state.frame = frame;
   state.recent = recent;
-  state.marksNote = marksNote(t, state.oldestKept ?? 0, [t, ...recent.map((f) => f.t)], failed);
+  state.failed = failed;
+  updateMarks();
   render();
   return true;
+}
+
+// The marks for the frame shown, from the marks menus and the frames obtained; the missing-marks note in "fading" only.
+function updateMarks() {
+  const { frame } = state;
+  const when = els.marksWhen.value;
+  if (!frame) {
+    state.marks = [];
+    state.marksNote = "";
+    return;
+  }
+  state.marks = marksToDraw(frame.t, when, els.marksWhich.value, [frame, ...state.recent]);
+  state.marksNote = when === "fading"
+    ? marksNote(frame.t, state.oldestKept ?? 0, [frame.t, ...state.recent.map((f) => f.t)], state.failed)
+    : "";
 }
 
 // Shows an error unless it only says the run was replaced (the page then follows the new run).
@@ -232,7 +251,8 @@ function adoptRun(id, settings, runIndex, { show }) {
   setPlaying(false);
   Object.assign(state, {
     run: id, settings, runIndex, newest: -1, oldestKept: null, runState: "running", runError: null, series: {},
-    seriesBusy: false, cache: new FrameCache(), inflight: new Map(), frame: null, recent: [], marksNote: "",
+    seriesBusy: false, cache: new FrameCache(), inflight: new Map(), frame: null, recent: [], failed: [], marks: [],
+    marksNote: "",
     target: null, scrubTarget: null, epoch: state.epoch + 1,
   });
   els.note.textContent = "";
@@ -379,7 +399,7 @@ function drawMapNow() {
     return;
   }
   sizeMap(frame.width);
-  drawMap(g, frame, state.recent, els.colourBy.value, legend);
+  drawMap(g, frame, state.marks, els.colourBy.value, legend);
   if (state.hover) {
     const [x, y] = state.hover;
     const k = els.map.width / frame.width;
@@ -481,18 +501,25 @@ function drawLegend() {
   els.legendAgents.replaceChildren(legendTitle(`Agents: ${MODE_LABELS[mode] ?? mode}`), list,
     ...(notes[mode] ? [legendNote(notes[mode])] : []));
 
-  const svg = (inner) => `<svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">${inner}</svg>`;
+  const when = els.marksWhen.value;
+  const which = els.marksWhich.value;
   const marks = Object.assign(document.createElement("ul"), { className: "swatch-list" });
-  const cross = document.createElement("li");
-  cross.innerHTML = svg(`<path d="M4 4 L14 14 M4 14 L14 4" stroke="${legend.kill_colour}" stroke-width="1.5"/>`);
-  cross.append("kill (the victim's cell)");
-  const ring = document.createElement("li");
-  ring.innerHTML = svg(`<circle cx="9" cy="9" r="6" fill="none" stroke="${legend.change_colour}" stroke-width="2"/>`);
-  ring.append("tribe change (the agent's cell)");
-  marks.append(cross, ring);
-  els.legendMarks.replaceChildren(legendTitle("Marks, in every colouring"), marks,
-    legendNote(`Each mark stays ${legend.mark_periods} periods, its opacity 1 − age / ${legend.mark_periods} ` +
-      "(age 0: the period shown). Marks are drawn larger than a cell; their size means nothing."));
+  if (when !== "none" && which !== "switches") {
+    marks.append(swatchItem(legend.kill_colour, "kill: the cell where the victim died"));
+  }
+  if (when !== "none" && which !== "kills") {
+    marks.append(swatchItem(legend.change_colour, "tribe switch: the cell of an agent whose tribe changed"));
+  }
+  const whenText = {
+    now: "Marks from this period: the events of the period shown.",
+    fading: `Marks from the last ${legend.mark_periods} periods, fading: a mark of age a (0 to ` +
+      `${legend.mark_periods - 1}, 0 the period shown) is blended over its cell at opacity 1 − a / ` +
+      `${legend.mark_periods}, the newest on top.`,
+    none: "Marks: none. The map shows the agents and the landscape only.",
+  }[when];
+  els.legendMarks.replaceChildren(legendTitle("Marks, in every colouring"), marks, legendNote(whenText),
+    ...(when === "none" ? [] : [legendNote("Each mark fills exactly the cell where it happened, nothing larger, so it " +
+      "hides the agent standing on that cell; hover still reads the agent. \"Show\" picks kills, switches or both.")]));
 
   const levels = Array.from({ length: legend.max_level + 1 }, (_, i) => i);
   const table = Object.assign(document.createElement("table"), { className: "cells" });
@@ -592,6 +619,10 @@ function updateSeedNote() {
 
 async function init() {
   buildCharts();
+  els.marksWhen.replaceChildren(...MARK_WHEN.map((o) => new Option(o.label, o.value)));
+  els.marksWhich.replaceChildren(...MARK_WHICH.map((o) => new Option(o.label, o.value)));
+  els.marksWhen.value = "now";
+  els.marksWhich.value = "both";
   safely(render);
   try {
     state.experiments = await api("/api/experiments");
@@ -618,6 +649,30 @@ async function init() {
     setPlaying(false);
     els.note.textContent = "";
     scrubTo(Number(els.slider.value));
+  });
+  // The marks menus: "this period" needs only the shown frame; "last 10 periods, fading" fetches the 9 before it.
+  els.marksWhen.addEventListener("change", () => {
+    els.marksWhich.disabled = els.marksWhen.value === "none";
+    safely(drawLegend);
+    const t = state.frame?.t;
+    if (els.marksWhen.value === "fading" && t !== undefined) {
+      showPeriod(t).then((shown) => {
+        if (!shown && state.frame?.t === t) { // t is no longer kept: draw the marks of what the page has, with the note
+          updateMarks();
+          safely(render);
+        }
+      }).catch(reportUnlessStale);
+    } else {
+      state.recent = [];
+      state.failed = [];
+      updateMarks();
+      safely(render);
+    }
+  });
+  els.marksWhich.addEventListener("change", () => {
+    safely(drawLegend);
+    updateMarks();
+    safely(drawMapNow);
   });
   els.colourBy.addEventListener("change", () => safely(() => {
     drawLegend();

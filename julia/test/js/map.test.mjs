@@ -6,8 +6,8 @@ import { readFileSync } from "node:fs";
 
 import { decodeFrame } from "../../viewer/static/frame.mjs";
 import {
-  MODE_FIELDS, agentColour, hitTest, landscapeColour, markList, markOpacity, marksNote, missingMarkPeriods, paintMap,
-  tagString,
+  MARK_WHEN, MARK_WHICH, MODE_FIELDS, agentColour, hitTest, landscapeColour, markOpacity, markPeriods, marksNote,
+  marksToDraw, missingMarkPeriods, paintMap, paintMarks, tagString,
 } from "../../viewer/static/map.mjs";
 
 const here = new URL(".", import.meta.url);
@@ -82,17 +82,95 @@ test("markOpacity falls linearly over 10 periods", () => {
   assert.equal(markOpacity(-1), 0);
 });
 
-test("markList: each kept frame of the last 10 periods gives its kills and changes, with their age", () => {
-  const shown = fixtureAt(20);
-  const marks = markList(shown, [fixtureAt(14), fixtureAt(10), fixtureAt(21), shown]);
-  const byAge = (age, kind) => marks.filter((m) => m.age === age && m.kind === kind);
-  assert.deepEqual(byAge(0, "kill").map((m) => [m.x, m.y]), [[1, 1]]); // the shown frame, once
-  assert.deepEqual(byAge(0, "change").map((m) => [m.x, m.y]), [[2, 0]]);
-  assert.equal(byAge(6, "kill").length, 1);
-  assert.equal(byAge(6, "kill")[0].opacity, markOpacity(6));
-  assert.equal(marks.filter((m) => m.age >= 10 || m.age < 0).length, 0); // t = 10 is too old, t = 21 is later
-  assert.equal(marks.length, 4);
-  assert.ok(marks.findIndex((m) => m.age === 6) < marks.findIndex((m) => m.age === 0)); // newest drawn last
+test("the marks menus: when (this period by default, fading, none) and which (both by default, kills, switches)", () => {
+  assert.deepEqual(MARK_WHEN.map((o) => o.value), ["now", "fading", "none"]);
+  assert.deepEqual(MARK_WHEN.map((o) => o.label), ["this period", "last 10 periods, fading", "none"]);
+  assert.deepEqual(MARK_WHICH.map((o) => o.value), ["both", "kills", "switches"]);
+  assert.deepEqual(MARK_WHICH.map((o) => o.label), ["kills and switches", "kills only", "switches only"]);
+});
+
+test("markPeriods: 'this period' and 'none' need only the shown frame; 'fading' the kept ones of the last 10", () => {
+  assert.deepEqual(markPeriods(20, "now", 0), [20]);
+  assert.deepEqual(markPeriods(20, "now", 15), [20]);
+  assert.deepEqual(markPeriods(20, "none", 0), [20]);
+  assert.deepEqual(markPeriods(20, "fading", 0), [11, 12, 13, 14, 15, 16, 17, 18, 19, 20]);
+  assert.deepEqual(markPeriods(20, "fading", 15), [15, 16, 17, 18, 19, 20]);
+  assert.deepEqual(markPeriods(3, "fading", 0), [0, 1, 2, 3]);
+  assert.deepEqual(markPeriods(0, "fading", null), [0]);
+});
+
+// The fixture's one kill is at (1, 1) and its one tribe change at (2, 0), in every copy moved to another period.
+const KILL = { kind: "kill", x: 1, y: 1 };
+const CHANGE = { kind: "change", x: 2, y: 0 };
+const drawn = (marks) => marks.map(({ kind, x, y, age, opacity }) => ({ kind, x, y, age, opacity }));
+
+test("marksToDraw, this period: only the shown period's events, opaque, whatever earlier frames are given", () => {
+  const frames = [fixtureAt(14), fixtureAt(20), fixtureAt(19), fixtureAt(21)];
+  assert.deepEqual(drawn(marksToDraw(20, "now", "both", frames)),
+    [{ ...KILL, age: 0, opacity: 1 }, { ...CHANGE, age: 0, opacity: 1 }]);
+  assert.deepEqual(drawn(marksToDraw(20, "now", "kills", frames)), [{ ...KILL, age: 0, opacity: 1 }]);
+  assert.deepEqual(drawn(marksToDraw(20, "now", "switches", frames)), [{ ...CHANGE, age: 0, opacity: 1 }]);
+  assert.deepEqual(marksToDraw(20, "now", "both", [fixtureAt(20)]), marksToDraw(20, "now", "both", frames));
+  assert.deepEqual(marksToDraw(20, "now", "both", [fixtureAt(19)]), []); // the shown frame itself carries them
+});
+
+test("marksToDraw, last 10 periods fading: ages 0 to 9 at 1 - age / 10, oldest first, each frame once", () => {
+  const frames = [fixtureAt(20), fixtureAt(14), fixtureAt(10), fixtureAt(21), fixtureAt(20), fixtureAt(11)];
+  assert.deepEqual(drawn(marksToDraw(20, "fading", "both", frames)), [
+    { ...KILL, age: 9, opacity: markOpacity(9) }, { ...CHANGE, age: 9, opacity: markOpacity(9) },
+    { ...KILL, age: 6, opacity: markOpacity(6) }, { ...CHANGE, age: 6, opacity: markOpacity(6) },
+    { ...KILL, age: 0, opacity: 1 }, { ...CHANGE, age: 0, opacity: 1 },
+  ]); // t = 10 is 10 periods old and t = 21 is later: neither is drawn
+  assert.deepEqual(drawn(marksToDraw(20, "fading", "kills", frames)), [
+    { ...KILL, age: 9, opacity: markOpacity(9) }, { ...KILL, age: 6, opacity: markOpacity(6) }, { ...KILL, age: 0, opacity: 1 },
+  ]);
+  assert.deepEqual(drawn(marksToDraw(20, "fading", "switches", frames)), [
+    { ...CHANGE, age: 9, opacity: markOpacity(9) }, { ...CHANGE, age: 6, opacity: markOpacity(6) },
+    { ...CHANGE, age: 0, opacity: 1 },
+  ]);
+});
+
+test("marksToDraw, none: no marks for any filter", () => {
+  const frames = [fixtureAt(20), fixtureAt(19)];
+  for (const which of ["both", "kills", "switches"]) assert.deepEqual(marksToDraw(20, "none", which, frames), []);
+});
+
+test("a mark changes exactly its own cell's pixels, none of its neighbours'", () => {
+  const f = fixture();
+  f.cellSugar8[5] = 32;
+  for (const which of ["both", "kills", "switches"]) {
+    const marks = marksToDraw(f.t, "now", which, [f]);
+    const before = paintMap(f, "tribe", realLegend);
+    const after = paintMarks(paintMap(f, "tribe", realLegend), f, marks, realLegend);
+    const marked = new Set(marks.map((m) => `${m.x},${m.y}`));
+    for (let y = 0; y < f.height; y++) {
+      for (let x = 0; x < f.width; x++) {
+        const k = ((f.height - 1 - y) * f.width + x) * 4;
+        const px = (img) => Array.from(img.slice(k, k + 4));
+        if (!marked.has(`${x},${y}`)) {
+          assert.deepEqual(px(after), px(before), `${which}: cell (${x}, ${y}) changed`);
+        } else {
+          const m = marks.find((q) => q.x === x && q.y === y);
+          const colour = m.kind === "kill" ? realLegend.kill_colour : realLegend.change_colour;
+          assert.deepEqual(px(after), [...rgb(colour), 255], `${which}: cell (${x}, ${y})`);
+        }
+      }
+    }
+  }
+  // The change at (2, 0) is on agent 1's cell: an opaque mark hides the agent there (hover still reads it).
+  assert.equal(hitTest(f, 2, 0).agent.id, 70000);
+});
+
+test("a fading mark is blended over its cell at its opacity, and only there", () => {
+  const f = fixture();
+  f.cellSugar8[5] = 32;
+  const marks = [{ kind: "kill", x: 1, y: 0, age: 5, opacity: markOpacity(5) }]; // an empty cell
+  const before = paintMap(f, "tribe", realLegend);
+  const after = paintMarks(paintMap(f, "tribe", realLegend), f, marks, realLegend);
+  const k = ((f.height - 1 - 0) * f.width + 1) * 4;
+  const base = Array.from(before.slice(k, k + 3));
+  assert.deepEqual(Array.from(after.slice(k, k + 3)), base.map((c) => Math.floor(0.5 * c + 0.5)));
+  for (let j = 0; j < before.length; j++) if (j < k || j >= k + 4) assert.equal(after[j], before[j]);
 });
 
 test("paintMap: one pixel per cell, y increasing upward, agents in their mode's colour over the landscape", () => {
