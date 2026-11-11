@@ -23,7 +23,7 @@ const CONTENT_TYPES = Dict(
 A running viewer: the `HTTP.serve!` server and what its routes answer from. `lock` guards every field a request reads
 (the run id, settings, state, error, the published `frames` and `series`, `newest`, `last_requested_t`); `control`
 lets one start or stop happen at a time and is never taken by a request that only reads. `run` is moved on only by
-[`step_once!`](@ref), never read by a request.
+[`step_once!`](@ref), never read by a request. `closed` (set by [`stop_viewer`](@ref)) refuses any later start or step.
 """
 mutable struct ViewerServer
     server::Any  # the HTTP.jl server
@@ -46,6 +46,7 @@ mutable struct ViewerServer
     error::Union{Nothing,String}
     stop_requested::Bool
     stepper::Union{Nothing,Task}
+    closed::Bool
 end
 
 struct BadRequest <: Exception
@@ -109,7 +110,7 @@ function start_viewer(; host::AbstractString="127.0.0.1", port::Integer=8765, au
     keep >= 2 || throw(ArgumentError("keep must be at least 2, not $keep"))
     s = ViewerServer(nothing, ReentrantLock(), ReentrantLock(), keep, autostep, nothing, 0, nothing, nothing, nothing,
         nothing, experiments_json(), Dict{Int,Vector{UInt8}}(), Dict(k => Float64[] for k in SERIES_KEYS), 0, 0,
-        "idle", nothing, false, nothing)
+        "idle", nothing, false, nothing, false)
     router = HTTP.Router()
     route(method, path, f) = HTTP.register!(router, method, path, guarded(req -> f(s, req)))
     route("GET", "/", (s, req) -> static_response("index.html"))
@@ -125,9 +126,16 @@ function start_viewer(; host::AbstractString="127.0.0.1", port::Integer=8765, au
     return s
 end
 
-"""`stop_viewer(s)`: stops the stepper (waiting for its period to end), then closes the server and its connections."""
+"""
+`stop_viewer(s)`: marks the viewer closed, so no start or step happens after it (a start already waiting for the
+control lock answers 503), stops the stepper (waiting for its period to end), then closes the server and its
+connections.
+"""
 function stop_viewer(s::ViewerServer)
-    lock(() -> stop_stepper!(s), s.control)
+    lock(s.control) do
+        lock(() -> s.closed = true, s.lock)
+        stop_stepper!(s)
+    end
     HTTP.forceclose(s.server)
     wait(s.server)
     return nothing
@@ -149,12 +157,12 @@ end
     step_once!(s) -> Bool
 
 Moves the current run on one period with `advance!` and publishes its frame and series values. `false` when there is
-no run, the run is failed or extinct, or the population was already 0. An exception marks the run "failed" with its
-message, and it is never stepped again. Called by the background stepper only (or by tests, with `autostep=false`).
+no run, the viewer is closed, the run is failed or extinct, or the population was already 0. An exception marks the
+run "failed" with its message, and it is never stepped again. Called by the background stepper only (or by tests, with `autostep=false`).
 """
 function step_once!(s::ViewerServer)
     r, id = lock(s.lock) do
-        s.state in ("failed", "extinct") ? (nothing, 0) : (s.run, s.run_id)
+        s.closed || s.state in ("failed", "extinct") ? (nothing, 0) : (s.run, s.run_id)
     end
     r === nothing && return false
     stepped = try
@@ -188,7 +196,7 @@ function stepper_loop(s::ViewerServer, id::Int)
     try
         while true
             action = lock(s.lock) do
-                if s.run_id != id || s.stop_requested || s.state in ("failed", "extinct")
+                if s.closed || s.run_id != id || s.stop_requested || s.state in ("failed", "extinct")
                     :quit
                 elseif s.newest - s.last_requested_t >= s.keep ÷ 2
                     s.state = "waiting"
@@ -251,7 +259,8 @@ end
 
 function start_route(s::ViewerServer, req)
     settings = start_settings(HTTP.queryparams(String(copy(req.body))))
-    id, idx = lock(s.control) do
+    started = lock(s.control) do
+        s.closed && return nothing  # stop_viewer ran while this start waited for the control lock
         stop_stepper!(s)
         lock(() -> s.run = nothing, s.lock)  # the old run's model goes before the new one is built
         r = ViewerRun(settings; keep=s.keep)
@@ -275,6 +284,8 @@ function start_route(s::ViewerServer, req)
         state == "running" && (s.stepper = Threads.@spawn stepper_loop(s, id))
         id, idx
     end
+    started === nothing && return error_response(503, "the viewer is closed")
+    id, idx = started
     return json_response(200, (run=id, settings=settings_json(settings), run_index=idx))
 end
 

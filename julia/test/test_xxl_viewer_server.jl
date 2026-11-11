@@ -251,6 +251,8 @@ end
     s = start_viewer(; port=0, autostep=true, keep=6)
     try
         run = Int(vs_body(vs_post(s, "/api/start"))["run"])
+        task = s.stepper
+        @test task isa Task && !istaskdone(task)
         @test vs_get(s, "/api/frame?run=$run&t=0").status == 200
         @test vs_until(() -> vs_status(s)["state"] == "waiting")
         @test vs_status(s)["newest"] == 3
@@ -260,6 +262,7 @@ end
         @test vs_get(s, "/api/frame?run=$run&t=3").status == 200
         @test vs_until(() -> vs_status(s)["newest"] > 3)
         @test vs_post(s, "/api/stop").status == 200
+        @test istaskdone(task)
         st = vs_status(s)
         @test st["state"] == "stopped"
         newest = st["newest"]
@@ -271,7 +274,36 @@ end
     finally
         stop_viewer(s)
     end
-    @test s.stepper === nothing || istaskdone(s.stepper)
+    @test !isopen(s.server)
+end
+
+@testset "a start waiting behind stop_viewer is refused" begin
+    s = start_viewer(; port=0, autostep=true)
+    run = Int(vs_body(vs_post(s, "/api/start"))["run"])
+    task = s.stepper
+    @test task isa Task
+    # The test holds the control lock, as stop_viewer does while it waits for a period to end; a start arriving then
+    # parses its form and waits for the lock. stop_viewer (on this task, so it takes the lock at once) closes the
+    # viewer; once the lock is free the waiting start must answer 503 and start nothing.
+    lock(s.control)
+    pending = @async XxlViewer.start_route(s, HTTP.Request("POST", "/api/start", Pair{String,String}[],
+        "seed=$(viewer_defaults(DEFAULT_EXP).seed + 1)"))
+    sleep(0.5)
+    @test !istaskdone(pending)
+    try
+        stop_viewer(s)
+    finally
+        unlock(s.control)
+    end
+    resp = fetch(pending)
+    @test resp.status == 503
+    @test occursin("closed", String(resp.body))  # built here, not sent: the body is still the String
+    @test istaskdone(task)
+    @test s.stepper === nothing
+    @test s.run_id == run && s.run.settings.seed == viewer_defaults(DEFAULT_EXP).seed
+    t = s.run.model.t
+    @test !step_once!(s)
+    @test s.run.model.t == t
     @test !isopen(s.server)
 end
 
