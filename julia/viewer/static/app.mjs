@@ -221,6 +221,7 @@ async function pollStatus() {
       adoptRun(status.run, status.settings, status.run_index, { show: "newest" });
     }
     if (status.run === state.run) {
+      if (state.run !== null && !state.legend && state.legendBusy !== state.run) loadLegend(); // an earlier load failed
       state.newest = status.newest ?? -1;
       state.oldestKept = status.oldest_kept;
       state.runState = status.state;
@@ -296,6 +297,7 @@ function adoptRun(id, settings, runIndex, { show }) {
 // draws what the page holds of the run.
 async function loadLegend() {
   const run = state.run;
+  state.legendBusy = run;
   try {
     const legend = await api(run === null ? "/api/legend" : `/api/legend?run=${run}`);
     if (run !== state.run) return;
@@ -307,6 +309,8 @@ async function loadLegend() {
     render();
   } catch (err) {
     if (err.status !== 409) showError(err); // 409: the run is no longer current, so its legend is not wanted
+  } finally {
+    if (state.legendBusy === run) state.legendBusy = null; // a failed load is retried by the next status poll
   }
 }
 

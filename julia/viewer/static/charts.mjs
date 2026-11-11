@@ -250,13 +250,6 @@ export function drawChart(canvas, chart, series, view) {
       g.setLineDash(m.kind === "study-end" ? [3, 3] : [1, 3]);
       g.beginPath(); g.moveTo(px(m.t), top); g.lineTo(px(m.t), top + panelH); g.stroke();
       g.setLineDash([]);
-      if (m.label && p === 0) {
-        // Right of its line (on from there), "diffusion on" a line above "pollution on" so the two never overlap.
-        g.fillStyle = INK.text;
-        g.textAlign = "left";
-        g.textBaseline = "bottom";
-        g.fillText(m.label, px(m.t) + 3, top + panelH - (m.kind === "diffusion" ? 14 : 2));
-      }
     }
     for (const line of panel.lines) {
       const colour = lineColour(line.colour, view.legend);
@@ -264,6 +257,17 @@ export function drawChart(canvas, chart, series, view) {
       g.fillStyle = colour;
       g.lineWidth = 1.5;
       strokeSegments(g, linePath(series[line.key] ?? [], px, py));
+    }
+    // the marker labels, on top of the lines
+    if (p === 0) {
+      for (const m of markers) {
+        if (m.t > xm || !m.label) continue;
+        // Right of its line (on from there), "diffusion on" a line above "pollution on" so the two never overlap.
+        g.fillStyle = INK.text;
+        g.textAlign = "left";
+        g.textBaseline = "bottom";
+        g.fillText(m.label, px(m.t) + 3, top + panelH - (m.kind === "diffusion" ? 14 : 2));
+      }
     }
     if (view.shown != null) {
       g.strokeStyle = INK.shown;

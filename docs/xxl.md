@@ -589,7 +589,8 @@ taken in combat makes no production pollution (rule 7). Agents already score sit
   worlds `book` and `xl` can be asked for too; only today's world is in the viewer. An experiment without pollution
   writes exactly the files it wrote before.
 - **Timing.** The step taken from t = 350 to t = 351 is the first to pollute, so row t = 351 is the first polluted
-  reading; likewise the first diffused reading is t = 451. The charts' dotted lines sit at 350 and 450.
+  reading; likewise the first diffused reading is t = 451. The charts' dotted lines sit at 350 and 450 in
+  VI-1-pollution (none in VI-1-pollution-t0, where both start at 0).
 - **Checkerboard.** Rule D averages a cell's four neighbours without the cell itself, so each pass moves pollution to
   the opposite colour of the checkerboard. An even number of passes per period (100 in xl and today's world) brings
   it back to the colour it was made on. So pollution stays on the colour it was made on, and the banded map can show a
@@ -656,9 +657,10 @@ open in the browser can neither start or stop a run nor read the viewer's frames
 - **Faithfulness.** The viewer steps the same model the study does. Its series equal the combat study's CSVs for the
   same experiment, seed, `h` and `k` (`julia/test/test_xxl_viewer_run.jl`); its frame counts (agents, kills, tribe
   changes) equal the readings of the same period; for a pollution run its pollution series equal the study's
-  `seed<k>-pollution.csv` and each cell's band equals the model's
-  (`julia/test/test_xxl_pollution_readings.jl`, `julia/test/test_xxl_viewer_frame.jl`); and the encodings (colour modes, marks, legend) are fixed and
-  tested (`julia/test/test_xxl_viewer_*.jl`, `julia/test/js/`).
+  `seed<k>-pollution.csv` (`julia/test/test_xxl_viewer_run.jl`, "pollution run matches the study") and each cell's band
+  equals the model's (`julia/test/test_xxl_viewer_frame.jl`); the study's `seed<k>-pollution.csv` itself equals the
+  model's readings (`julia/test/test_xxl_pollution_readings.jl`); and the encodings (colour modes, marks, legend) are
+  fixed and tested (`julia/test/test_xxl_viewer_*.jl`, `julia/test/js/`).
 
 ## Stage 1: the scorecard and survival
 

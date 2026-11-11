@@ -97,8 +97,10 @@ end
 Runs seeds `first_seed` to `first_seed + seeds - 1` of experiment `exp_id` (one of [`COMBAT_EXPS`](@ref) or the ids of [`JULIA_COMBAT_EXPS`](@ref); `"VI-1-far-speed"` only in `"today"`) in `world`
 (`"book"`, `"xl"` or `"today"`) over `periods` (the experiment's own steps when `nothing`), with the combat readings, into
 `<out>/combat-<world>-<exp>-s<first>-<seeds>-p<periods>/` and returns that folder. Seed `k` is the runner's seed index `k`.
-Each seed leaves `seed<k>.csv`, `seed<k>-combat.csv` and `seed<k>.timing.csv`. A seed with all of them is skipped, so a
-stopped study resumes by running again, any seed cut short running from period 0. A folder made under another fingerprint
+Each seed leaves `seed<k>.csv`, `seed<k>-combat.csv` and `seed<k>.timing.csv`, plus `seed<k>-kills.csv` when
+`combat_hostility > 0` and `seed<k>-pollution.csv` for an experiment with pollution. A seed with all the files its
+experiment writes is skipped (one missing its pollution table is run again), so a stopped study resumes by running
+again, any seed cut short running from period 0. A folder made under another fingerprint
 is refused (`ArgumentError`) before anything runs. With `jobs > 1` the seeds run in that many worker processes.
 """
 function run_combat_world(
