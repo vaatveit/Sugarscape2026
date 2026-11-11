@@ -289,13 +289,15 @@ function adoptRun(id, settings, runIndex, { show }) {
   return true;
 }
 
-// The current run's legend (the default experiment's before any run); dropped if the page has since taken another run.
-// It refills the colour and ground menus and rebuilds the charts for this legend (the pollution charts only with
-// pollution), then draws what the page holds of the run.
+// The current run's legend, asked for by its id (the default experiment's before any run); dropped if the page has
+// since taken another run. The server answers 409 when that run is no longer its current one, so another run's legend
+// never arrives here; the 409 is dropped and the next status poll adopts the newer run, which loads its own. A legend
+// refills the colour and ground menus and rebuilds the charts for it (the pollution charts only with pollution), then
+// draws what the page holds of the run.
 async function loadLegend() {
   const run = state.run;
   try {
-    const legend = await api("/api/legend");
+    const legend = await api(run === null ? "/api/legend" : `/api/legend?run=${run}`);
     if (run !== state.run) return;
     state.legend = legend;
     fillColourMenu();
@@ -304,7 +306,7 @@ async function loadLegend() {
     drawLegend();
     render();
   } catch (err) {
-    showError(err);
+    if (err.status !== 409) showError(err); // 409: the run is no longer current, so its legend is not wanted
   }
 }
 

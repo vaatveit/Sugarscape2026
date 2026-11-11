@@ -273,7 +273,16 @@ function status_route(s::ViewerServer, req)
     return json_response(200, viewer_status(s))
 end
 
+# With `run`: that run's legend while it is current, else 409, as frames and series answer, so the page never draws one
+# run with another's legend. Without `run`: the current run's legend, or the default experiment's before any run.
 function legend_route(s::ViewerServer, req)
+    q = query_params(req)
+    if haskey(q, "run")
+        run = nonneg_int(q, "run")
+        named = lock(() -> current_run(s, q) === nothing ? nothing : s.legend_json, s.lock)
+        named === nothing && return error_response(409, "run $run is not the current run")
+        return json_text_response(200, named)
+    end
     text = lock(() -> s.run_id == 0 ? s.default_legend_json : s.legend_json, s.lock)
     if text === nothing
         # Before any run: the default experiment's legend, which builds a whole model, so once.

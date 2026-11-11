@@ -273,6 +273,40 @@ end
     end
 end
 
+@testset "the legend of a named run answers only while that run is current" begin
+    # The page asks for its run's legend by id, so it never draws one run's frames with another run's legend.
+    s = start_viewer(; port=0, autostep=false)
+    try
+        # Before any run: no run is current, and without `run` the default experiment's legend as before.
+        @test vs_get(s, "/api/legend?run=1").status == 409
+        @test vs_get(s, "/api/legend?run=0").status == 409
+        default = vs_body(vs_get(s, "/api/legend"))
+        @test default["pollution"] === nothing && default["max_level"] == 4
+
+        a = Int(vs_body(vs_post(s, "/api/start", Dict("exp" => VS_ID)))["run"])
+        la = vs_get(s, "/api/legend?run=$a")
+        @test la.status == 200
+        @test String(copy(la.body)) == String(copy(vs_get(s, "/api/legend").body))
+        @test vs_body(la)["pollution"] === nothing
+        @test vs_get(s, "/api/legend?run=$(a + 1)").status == 409
+        @test vs_get(s, "/api/legend?run=abc").status == 400
+        @test vs_get(s, "/api/legend?run=-1").status == 400
+
+        b = Int(vs_body(vs_post(s, "/api/start", Dict("exp" => "VI-1-pollution-t0")))["run"])
+        @test b != a
+        stale = vs_get(s, "/api/legend?run=$a")
+        @test stale.status == 409
+        @test occursin("not the current run", vs_body(stale)["error"])
+        lb = vs_get(s, "/api/legend?run=$b")
+        @test lb.status == 200
+        @test length(vs_body(lb)["pollution"]["palette"]) == 9
+        # Without `run`: the current run's legend, as before.
+        @test String(copy(vs_get(s, "/api/legend").body)) == String(copy(lb.body))
+    finally
+        stop_viewer(s)
+    end
+end
+
 @testset "backpressure and stop" begin
     s = start_viewer(; port=0, autostep=true, keep=6)
     try
