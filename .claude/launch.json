@@ -6,6 +6,12 @@
       "runtimeExecutable": ".venv/Scripts/python.exe",
       "runtimeArgs": ["-m", "viewer", "--no-browser", "--port", "8765"],
       "port": 8765
+    },
+    {
+      "name": "xxl-viewer",
+      "runtimeExecutable": "julia",
+      "runtimeArgs": ["--project=julia", "--threads=2,1", "julia/xxl_viewer.jl", "--port", "8766"],
+      "port": 8766
     }
   ]
 }

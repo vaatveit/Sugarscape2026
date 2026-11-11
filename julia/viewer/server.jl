@@ -99,13 +99,13 @@ function experiments_json()
 end
 
 """
-    start_viewer(; host="127.0.0.1", port=8765, autostep=true, keep=VIEWER_KEEP) -> ViewerServer
+    start_viewer(; host="127.0.0.1", port=8766, autostep=true, keep=VIEWER_KEEP) -> ViewerServer
 
 Serves the viewer at `host:port` (port 0 picks a free one: `HTTP.port(s.server)`). With `autostep`, each started run is
 stepped by a background task until stopped, extinct or failed, at most `keep ÷ 2` periods ahead of the newest frame the
 page asked for; without it, nothing steps a run but [`step_once!`](@ref). Stop it with [`stop_viewer`](@ref).
 """
-function start_viewer(; host::AbstractString="127.0.0.1", port::Integer=8765, autostep::Bool=true,
+function start_viewer(; host::AbstractString="127.0.0.1", port::Integer=8766, autostep::Bool=true,
     keep::Int=VIEWER_KEEP)
     keep >= 2 || throw(ArgumentError("keep must be at least 2, not $keep"))
     s = ViewerServer(nothing, ReentrantLock(), ReentrantLock(), keep, autostep, nothing, 0, nothing, nothing, nothing,

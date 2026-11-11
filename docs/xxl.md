@@ -560,6 +560,33 @@ Where a metric doesn't apply it is `nan`.
   runs nothing, so it can be used while a run is going.
 - **Agreement is statistical.** An xxl run's random stream differs from every other run's, in any language.
 
+## Viewer
+
+A live browser view of one xxl VI-1 run, in today's world, stepped as the page asks for it:
+
+```bat
+julia --project=julia --threads=2,1 julia/xxl_viewer.jl [--port 8766]
+```
+
+It serves `http://127.0.0.1:8766/` (the Python viewer keeps 8765) until Ctrl+C. The server answers requests on an
+interactive thread and a background task steps the run on a default one, so the command refuses, with a one-line
+message and a non-zero exit, unless there is at least one thread of each kind and two in all. On this Julia plain
+`--threads=2` already gives 2 default and 1 interactive threads, but `--threads=2,1` says so. `.claude/launch.json` has
+the same command as `xxl-viewer`.
+
+- **What it shows.** The landscape with the agents coloured by tribe, culture, wealth, disease or credit (a menu
+  switches between them); a cross where an agent was killed and a ring where one changed tribe, over the last 10
+  periods; the charts of the run's series; and, hovering an agent, its readings. Pollution comes with a later
+  experiment.
+- **What you set.** The experiment (the VI-1 combat-study experiments), the raw seed, and the combat study's `h` and
+  `k`. Start begins a run, and shows the model's own message if it refuses the settings (`h = 1` on `VI-1-assim`,
+  say). The stepper runs at most 50 periods ahead of the newest frame the page asked for, so a paused page keeps its
+  frame and the status reads "waiting".
+- **Faithfulness.** The viewer steps the same model the study does. Its series equal the combat study's CSVs for the
+  same experiment, seed, `h` and `k` (`julia/test/test_xxl_viewer_run.jl`); its frame counts (agents, kills, tribe
+  changes) equal the readings of the same period; and the encodings (colour modes, marks, legend) are fixed and
+  tested (`julia/test/test_xxl_viewer_*.jl`, `julia/test/js/`).
+
 ## Stage 1: the scorecard and survival
 
 The first rules (`XXL_V1`) nearly killed VI-1's society: on the baseline scorecard below, its 20,000 founders fell to

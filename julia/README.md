@@ -211,6 +211,15 @@ how many seeds fell below the base. A seed extinct before a window is left out o
 lag rows give how many periods the run trails the base in recovering, at t = 100, 150 and 200. Each of `--runs` also
 gets the share of the lift from off to on that it keeps, for the trough and for the births in periods 1–100.
 
+### The viewer
+
+A live browser view of one xxl VI-1 run (details in docs/xxl.md, "Viewer"). It needs one default and one interactive
+thread, so give `--threads=2,1` (plain `--threads=2` gives the same on this Julia, but say it in full):
+
+```bat
+julia --project=julia --threads=2,1 julia/xxl_viewer.jl [--port 8766]
+```
+
 ## Comparing with Python
 
 ```bat
