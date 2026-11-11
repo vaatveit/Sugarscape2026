@@ -5,9 +5,85 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>xxl viewer</title>
 <link rel="stylesheet" href="/static/style.css">
+<script type="module" src="/static/app.mjs"></script>
 </head>
 <body>
-<!-- A placeholder until the page is written (xxl viewer plan, Task 4). -->
-<canvas id="map" width="500" height="500"></canvas>
+<header>
+  <h1>xxl viewer <span class="subtitle">a VI-1 combat-study run of the Julia model in today's 500 × 500 world</span></h1>
+  <form id="start" class="start">
+    <label for="experiment">Experiment</label>
+    <select id="experiment" required></select>
+    <label for="seed">Raw seed</label>
+    <span class="seed-field">
+      <input id="seed" name="seed" type="number" min="0" step="1" required aria-describedby="seed-note">
+      <output id="seed-note" for="seed experiment" class="note"></output>
+    </span>
+    <label for="h">h <span class="hint">(combat_hostility)</span></label>
+    <input id="h" name="h" type="number" step="any" required>
+    <label for="k">k <span class="hint">(combat_curve)</span></label>
+    <input id="k" name="k" type="number" step="any" required>
+    <button type="submit" id="start-button">Start</button>
+    <button type="button" id="stop">Stop</button>
+  </form>
+  <p class="settings"><span class="label">In force:</span> <span id="settings">no run yet</span></p>
+  <p id="status" class="status" role="status" aria-live="polite">Pick the settings, then press Start.</p>
+  <p id="error" class="error" role="alert"></p>
+</header>
+
+<main class="layout">
+  <section class="map-column" aria-label="Map">
+    <figure class="map-figure">
+      <div class="map-frame">
+        <canvas id="map" width="500" height="500" tabindex="0"
+          aria-label="The world map. Focus it and use the arrow keys to move the read-out cursor; hold Shift for 10 cells."></canvas>
+      </div>
+      <figcaption>The 500 × 500 world at period <strong id="caption-t">–</strong>, y increasing upward. Hover a cell
+        (or focus the map and use the arrow keys) for its exact values.</figcaption>
+    </figure>
+
+    <div class="time" role="group" aria-label="Time">
+      <button id="back" type="button" aria-label="Step back one period">◀</button>
+      <button id="play" type="button">Play</button>
+      <button id="forward" type="button" aria-label="Step forward one period">▶</button>
+      <label for="slider" class="visually-hidden">Period on the map</label>
+      <input id="slider" type="range" min="0" max="0" value="0" step="1">
+      <output id="period" for="slider" class="period">t = –</output>
+      <label for="speed">Speed limit</label>
+      <select id="speed">
+        <option value="1">1 / s</option>
+        <option value="2">2 / s</option>
+        <option value="5">5 / s</option>
+        <option value="10" selected>10 / s</option>
+        <option value="max">max</option>
+      </select>
+    </div>
+    <p id="note" class="note" aria-live="polite"></p>
+
+    <div class="below-map">
+      <section class="legend" aria-labelledby="legend-title">
+        <h2 id="legend-title">Legend</h2>
+        <div class="menus">
+          <label for="colour-by">Colour agents by</label>
+          <select id="colour-by"></select>
+        </div>
+        <div id="legend-agents"></div>
+        <div id="legend-marks"></div>
+        <div id="legend-cells"></div>
+      </section>
+
+      <section class="hover" aria-labelledby="hover-title">
+        <h2 id="hover-title">Under the pointer</h2>
+        <dl id="hover"><dt>–</dt><dd>Hover over the map.</dd></dl>
+      </section>
+    </div>
+  </section>
+
+  <section class="charts-column" aria-label="Charts">
+    <p class="charts-note">Every period computed so far. Orange line: the period on the map (click a chart to move
+      it there). Dashed line: period 500, where the study stops. Shaded: periods no longer kept for the map. Gaps: periods
+      where the model's value is undefined.</p>
+    <div id="charts" class="charts"></div>
+  </section>
+</main>
 </body>
 </html>
