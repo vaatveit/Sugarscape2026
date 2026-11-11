@@ -65,6 +65,11 @@ end
     @test lg["ntags"] == 11
     @test lg["wealth_edges"] == collect(WEALTH_EDGES)
     @test lg["disease_steps"] == collect(DISEASE_STEPS)
+    # The page's tests (julia/test/js/map.test.mjs) read this legend: written when missing, else it must match.
+    path = joinpath(@__DIR__, "js", "fixture-legend.json")
+    text = to_json(lg) * "\n"
+    isfile(path) || write(path, text)
+    @test read(path, String) == text
 end
 
 @testset "frame counts" begin

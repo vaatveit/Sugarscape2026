@@ -3,7 +3,7 @@
 import { CHARTS, drawChart, drawLorenz, periodAt, readout } from "./charts.mjs";
 import { FrameCache } from "./cache.mjs";
 import { decodeFrame } from "./frame.mjs";
-import { MARK_PERIODS, drawMap, hitTest, landscapeColour } from "./map.mjs";
+import { MARK_PERIODS, drawMap, hitTest, landscapeColour, marksNote } from "./map.mjs";
 
 const POLL_MS = 1000; // /api/status
 const PREFETCH = 4; // frames requested ahead of the next one while playing
@@ -17,7 +17,7 @@ const $ = (id) => document.getElementById(id);
 const els = {
   form: $("start"), experiment: $("experiment"), seed: $("seed"), seedNote: $("seed-note"), h: $("h"), k: $("k"),
   startButton: $("start-button"), stop: $("stop"), settings: $("settings"), status: $("status"), error: $("error"),
-  map: $("map"), captionT: $("caption-t"), back: $("back"), play: $("play"), forward: $("forward"),
+  map: $("map"), marksNote: $("marks-note"), captionT: $("caption-t"), back: $("back"), play: $("play"), forward: $("forward"),
   slider: $("slider"), period: $("period"), speed: $("speed"), note: $("note"), colourBy: $("colour-by"),
   legendAgents: $("legend-agents"), legendMarks: $("legend-marks"), legendCells: $("legend-cells"), hover: $("hover"),
   charts: $("charts"),
@@ -39,6 +39,7 @@ const state = {
   inflight: new Map(), // t -> promise of a frame (or null when not kept)
   frame: null, // the frame on the map
   recent: [], // kept frames of the 9 periods before it, for the marks
+  marksNote: "", // which of those periods' marks are missing, if any
   target: null, // the period last asked for
   scrubTarget: null,
   scrubbing: false,
@@ -93,22 +94,48 @@ function fetchFrame(t) {
 }
 
 // Show period t: fetch the kept frames of the 9 periods before it (for the marks), then t itself, so the last request
-// is the period shown. Returns false when t is not kept or the user has since asked for another period.
+// is the period shown. Returns false when t is not kept or the user has since asked for another period. A mark frame
+// that is not kept adds no marks and the marks note says so; one that fails is shown as an error and listed there too.
+// Any other error (the shown frame failing, or drawing it) is thrown to the caller, which shows it.
 async function showPeriod(t) {
   const run = state.run;
   if (run === null) return false;
   state.target = t;
-  const from = Math.max(t - (MARK_PERIODS - 1), state.oldestKept ?? 0);
+  const from = Math.max(0, t - (MARK_PERIODS - 1), state.oldestKept ?? 0);
+  const failed = [];
   const earlier = [];
-  for (let u = from; u < t; u++) earlier.push(fetchFrame(u).catch(() => null)); // a missing one adds no marks
+  for (let u = from; u < t; u++) {
+    earlier.push(fetchFrame(u).catch((err) => {
+      if (!(err instanceof StaleRun)) {
+        failed.push(u);
+        showError(new Error(`The frame of t = ${u} (for the marks) could not be loaded: ${err.message}`));
+      }
+      return null;
+    }));
+  }
   const recent = (await Promise.all(earlier)).filter(Boolean);
   if (run !== state.run || state.target !== t) return false;
   const frame = await fetchFrame(t);
   if (run !== state.run || state.target !== t || !frame) return false;
   state.frame = frame;
   state.recent = recent;
+  state.marksNote = marksNote(t, state.oldestKept ?? 0, [t, ...recent.map((f) => f.t)], failed);
   render();
   return true;
+}
+
+// Shows an error unless it only says the run was replaced (the page then follows the new run).
+function reportUnlessStale(err) {
+  if (!(err instanceof StaleRun)) showError(err);
+}
+
+// Runs a redraw from an event handler, showing what it throws instead of losing it.
+function safely(draw) {
+  try {
+    draw();
+  } catch (err) {
+    showError(err);
+  }
 }
 
 // Slider and keyboard moves: show the latest period asked for, one fetch at a time.
@@ -126,7 +153,7 @@ async function scrubTo(t) {
       }
     }
   } catch (err) {
-    if (!(err instanceof StaleRun)) showError(err);
+    reportUnlessStale(err);
   } finally {
     state.scrubbing = false;
     state.scrubTarget = null;
@@ -205,17 +232,17 @@ function adoptRun(id, settings, runIndex, { show }) {
   setPlaying(false);
   Object.assign(state, {
     run: id, settings, runIndex, newest: -1, oldestKept: null, runState: "running", runError: null, series: {},
-    seriesBusy: false, cache: new FrameCache(), inflight: new Map(), frame: null, recent: [], target: null,
-    scrubTarget: null, epoch: state.epoch + 1,
+    seriesBusy: false, cache: new FrameCache(), inflight: new Map(), frame: null, recent: [], marksNote: "",
+    target: null, scrubTarget: null, epoch: state.epoch + 1,
   });
   els.note.textContent = "";
   updateSettings();
-  render();
+  safely(render);
   loadLegend().then(async () => {
     if (state.run !== id || show !== "newest") return;
     if (state.newest < 0) await nextStatus();
-    if (state.run === id && state.newest >= 0) await showPeriod(state.newest).catch(() => {});
-  });
+    if (state.run === id && state.newest >= 0) await showPeriod(state.newest);
+  }).catch(reportUnlessStale);
   return true;
 }
 
@@ -247,8 +274,12 @@ async function startRun() {
     adoptRun(json.run, json.settings, json.run_index, { show: "first" });
     state.newest = Math.max(state.newest, 0);
     state.oldestKept = state.oldestKept ?? 0;
-    await showPeriod(0).catch(() => {});
-    if (state.run === json.run) setPlaying(true);
+    try {
+      await showPeriod(0);
+      if (state.run === json.run) setPlaying(true);
+    } catch (err) {
+      reportUnlessStale(err); // the run started, but its first frame could not be shown
+    }
   } catch (err) {
     showError(err.status === 400 ? new Error(`Not started: ${err.message}`) : err); // the current run carries on
   } finally {
@@ -301,13 +332,15 @@ async function playLoop(gen) {
       await nextStatus();
       continue;
     }
+    // Fetched ahead only to have them ready: a failure is not cached, and showing that period fetches it again and
+    // reports any error then.
     for (let k = 1; k <= PREFETCH && next + k <= state.newest; k++) fetchFrame(next + k).catch(() => {});
     let shown;
     try {
       shown = await showPeriod(next);
     } catch (err) {
       if (!current()) return;
-      if (!(err instanceof StaleRun)) showError(err);
+      reportUnlessStale(err);
       return setPlaying(false);
     }
     if (!current()) return;
@@ -400,10 +433,11 @@ function drawCharts() {
 }
 
 function render() {
-  drawMapNow();
-  drawCharts();
+  els.marksNote.textContent = state.frame ? state.marksNote : "";
   updateTimeControls();
   updateHover();
+  drawMapNow();
+  drawCharts();
 }
 
 // --- legend, hover, status ------------------------------------------------------------------------------------------
@@ -558,7 +592,7 @@ function updateSeedNote() {
 
 async function init() {
   buildCharts();
-  render();
+  safely(render);
   try {
     state.experiments = await api("/api/experiments");
     els.experiment.replaceChildren(...state.experiments.map((e) => new Option(e.id, e.id)));
@@ -585,16 +619,16 @@ async function init() {
     els.note.textContent = "";
     scrubTo(Number(els.slider.value));
   });
-  els.colourBy.addEventListener("change", () => {
+  els.colourBy.addEventListener("change", () => safely(() => {
     drawLegend();
     drawMapNow();
-  });
+  }));
 
   const hoverAt = (cell) => {
     if (String(cell) === String(state.hover)) return;
     state.hover = cell;
-    drawMapNow();
     updateHover();
+    safely(drawMapNow);
   };
   // Pointer events keep fractions of a CSS pixel, which matters at about one pixel a cell.
   els.map.addEventListener("pointermove", (event) => {
@@ -635,7 +669,7 @@ async function init() {
     resizeQueued = true;
     requestAnimationFrame(() => {
       resizeQueued = false;
-      render();
+      safely(render);
     });
   });
   pollStatus();

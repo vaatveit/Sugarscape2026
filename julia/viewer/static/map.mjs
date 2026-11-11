@@ -75,6 +75,33 @@ export function markList(frame, recentFrames) {
   return marks;
 }
 
+/**
+ * missingMarkPeriods(t, oldestKept, obtained) -> the periods among the 9 before t (none before period 0) whose frames are
+ * not among `obtained` (an iterable of periods): their marks are not drawn.
+ */
+export function missingMarkPeriods(t, oldestKept, obtained) {
+  const have = new Set(obtained);
+  const missing = [];
+  for (let u = Math.max(0, t - (MARK_PERIODS - 1)); u < t; u++) if (!have.has(u)) missing.push(u);
+  return missing;
+}
+
+/**
+ * marksNote(t, oldestKept, obtained, failed = []) -> "" when the marks of all 10 periods up to t are drawn, else what is
+ * missing: the periods no longer kept (or not found), and those whose frames failed to load (`failed`, listed).
+ */
+export function marksNote(t, oldestKept, obtained, failed = []) {
+  const missing = missingMarkPeriods(t, oldestKept, obtained);
+  if (missing.length === 0) return "";
+  const broken = new Set(failed);
+  const lost = missing.filter((u) => !broken.has(u));
+  const bad = missing.filter((u) => broken.has(u));
+  const parts = [];
+  if (lost.length) parts.push(`Marks before t = ${lost[lost.length - 1] + 1} are not available (no longer kept)`);
+  if (bad.length) parts.push(`Marks of t = ${bad.join(", ")} could not be loaded`);
+  return `${parts.join(". ")}, so fewer crosses and rings are drawn than the model made.`;
+}
+
 function rgbOf(hex) {
   return [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
 }

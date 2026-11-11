@@ -85,9 +85,12 @@ function legend(m::Model)
         "modes" => COLOUR_MODES,
         "palettes" => Dict(
             "tribe" => ["#2563eb", "#c0392b"],
-            "culture" => ramp((BLUE_RGB, (244, 244, 244), RED_RGB), ntags + 1),
-            "wealth" => ramp(((254, 240, 138), (234, 88, 12), (60, 10, 60)), 9),
-            "disease" => ["#9ca3af", "#fde68a", "#fbbf24", "#f97316", "#dc2626", "#7f1d1d"],
+            # Straight from the tribe blue to the tribe red through purple, no step lighter than its ends (mockup B).
+            "culture" => ramp((BLUE_RGB, RED_RGB), ntags + 1),
+            # Low to high, darkening; every agent colour stays at least 60 (RGB distance) from every landscape colour,
+            # so it stands out on the pale landscape (tested in julia/test/js/map.test.mjs).
+            "wealth" => ramp(((234, 179, 8), (234, 88, 12), (60, 10, 60)), 9),
+            "disease" => ["#9ca3af", "#f59e0b", "#ea580c", "#dc2626", "#991b1b", "#450a0a"],
             "credit" => ["#9ca3af", "#16a34a", "#9333ea", "#0ea5e9"],
         ),
         "labels" => Dict(

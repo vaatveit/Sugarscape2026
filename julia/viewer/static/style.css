@@ -57,6 +57,10 @@ figcaption { color: var(--muted); font-size: 0.85rem; margin-top: 4px; max-width
 #slider { flex: 1 1 200px; min-inline-size: 160px; }
 .period { font-variant-numeric: tabular-nums; min-inline-size: 7ch; }
 #note { margin: 4px 0 0; min-block-size: 1.2em; }
+/* Shown only while some of the last 10 periods' marks are missing from the map. */
+.marks-note { margin: 6px 0 0; padding: 4px 8px; max-width: 64ch; background: #fff4d6; border: 1px solid #e0b84c;
+  font-size: 0.85rem; }
+.marks-note:empty { display: none; }
 
 .below-map { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-top: 8px; }
 .legend, .hover { background: var(--panel); border: 1px solid var(--border); padding: 8px 10px; }

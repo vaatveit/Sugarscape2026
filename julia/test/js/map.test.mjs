@@ -6,7 +6,8 @@ import { readFileSync } from "node:fs";
 
 import { decodeFrame } from "../../viewer/static/frame.mjs";
 import {
-  MODE_FIELDS, agentColour, hitTest, landscapeColour, markList, markOpacity, paintMap, tagString,
+  MODE_FIELDS, agentColour, hitTest, landscapeColour, markList, markOpacity, marksNote, missingMarkPeriods, paintMap,
+  tagString,
 } from "../../viewer/static/map.mjs";
 
 const here = new URL(".", import.meta.url);
@@ -140,4 +141,62 @@ test("hitTest on an empty cell gives its levels, eighths divided by 8", () => {
   assert.deepEqual(hitTest(f, 2, 1).cell, { x: 2, y: 1, sugar: 255 / 8, spice: 6 / 8 });
   assert.equal(hitTest(f, 3, 0), null);
   assert.equal(hitTest(f, 0, -1), null);
+});
+
+const range = (a, b) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
+
+test("missingMarkPeriods: the periods of the 9 before the shown one whose frames the page does not have", () => {
+  assert.deepEqual(missingMarkPeriods(20, 0, range(11, 20)), []);
+  assert.deepEqual(missingMarkPeriods(20, 0, new Set(range(11, 19))), []); // the shown frame itself is not a mark frame
+  assert.deepEqual(missingMarkPeriods(20, 15, range(15, 20)), [11, 12, 13, 14]); // no longer kept
+  assert.deepEqual(missingMarkPeriods(20, 0, [11, 12, 14, 15, 17, 18, 19, 20]), [13, 16]); // failed or 404
+  assert.deepEqual(missingMarkPeriods(5, 0, range(0, 5)), []); // no period before 0 exists, so none is missing
+  assert.deepEqual(missingMarkPeriods(3, 0, [0, 2, 3]), [1]);
+  assert.deepEqual(missingMarkPeriods(0, 0, [0]), []);
+});
+
+test("marksNote: says which marks are missing and why, and nothing when all 10 periods' marks are drawn", () => {
+  assert.equal(marksNote(20, 0, range(11, 20)), "");
+  assert.equal(marksNote(20, 15, range(15, 20)),
+    "Marks before t = 15 are not available (no longer kept), so fewer crosses and rings are drawn than the model made.");
+  assert.equal(marksNote(20, 0, [11, 12, 14, 15, 17, 18, 19, 20], [13, 16]),
+    "Marks of t = 13, 16 could not be loaded, so fewer crosses and rings are drawn than the model made.");
+  assert.equal(marksNote(20, 15, [15, 17, 18, 19, 20], [16]),
+    "Marks before t = 15 are not available (no longer kept). Marks of t = 16 could not be loaded, so fewer crosses " +
+    "and rings are drawn than the model made.");
+});
+
+// The legend the server sends, written by julia/test/test_xxl_viewer_frame.jl ("frame legend") from the default
+// experiment's run model.
+const realLegend = JSON.parse(readFileSync(new URL("fixture-legend.json", here), "utf8"));
+const rgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+const lin = (c) => ((c /= 255) <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+const luminance = (h) => rgb(h).map(lin).reduce((s, c, i) => s + c * [0.2126, 0.7152, 0.0722][i], 0);
+
+test("every agent colour of every palette stands out on every landscape colour (RGB distance >= 60)", () => {
+  const top = 8 * realLegend.max_level;
+  const cells = [];
+  for (let s = 0; s <= top; s++) for (let p = 0; p <= top; p++) cells.push(landscapeColour(s, p, realLegend.max_level));
+  for (const mode of realLegend.modes) {
+    for (const colour of realLegend.palettes[mode]) {
+      const c = rgb(colour);
+      const nearest = Math.min(...cells.map((l) => Math.hypot(c[0] - l[0], c[1] - l[1], c[2] - l[2])));
+      assert.ok(nearest >= 60, `${mode} ${colour} is ${nearest.toFixed(1)} from a landscape colour`);
+    }
+  }
+});
+
+test("the culture shade runs from the tribe blue to the tribe red, no step lighter than its ends", () => {
+  const p = realLegend.palettes.culture;
+  assert.equal(p.length, realLegend.ntags + 1);
+  assert.equal(p[0], realLegend.palettes.tribe[0]);
+  assert.equal(p[p.length - 1], realLegend.palettes.tribe[1]);
+  const ends = Math.max(luminance(p[0]), luminance(p[p.length - 1]));
+  for (const c of p) assert.ok(luminance(c) <= ends + 1e-9, `${c} is lighter than the ends`);
+});
+
+test("wealth bands and disease steps darken from low to high", () => {
+  const darkening = (list) => list.every((c, i) => i === 0 || luminance(c) < luminance(list[i - 1]));
+  assert.ok(darkening(realLegend.palettes.wealth), realLegend.palettes.wealth.join(" "));
+  assert.ok(darkening(realLegend.palettes.disease.slice(1)), realLegend.palettes.disease.join(" ")); // step 0: neutral
 });
