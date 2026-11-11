@@ -61,6 +61,9 @@ figcaption { color: var(--muted); font-size: 0.85rem; margin-top: 4px; max-width
 .marks-note { margin: 6px 0 0; padding: 4px 8px; max-width: 64ch; background: #fff4d6; border: 1px solid #e0b84c;
   font-size: 0.85rem; }
 .marks-note:empty { display: none; }
+/* How the drawn marks share cells, when any do. */
+.marks-overlap { margin: 6px 0 0; max-width: 64ch; font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+.marks-overlap:empty { display: none; }
 
 .below-map { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-top: 8px; }
 .legend, .hover { background: var(--panel); border: 1px solid var(--border); padding: 8px 10px; }

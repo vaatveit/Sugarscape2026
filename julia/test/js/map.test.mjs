@@ -7,7 +7,7 @@ import { readFileSync } from "node:fs";
 import { decodeFrame } from "../../viewer/static/frame.mjs";
 import {
   MARK_WHEN, MARK_WHICH, MODE_FIELDS, agentColour, hitTest, landscapeColour, markOpacity, markPeriods, marksNote,
-  marksToDraw, missingMarkPeriods, paintMap, paintMarks, tagString,
+  marksOverlap, marksToDraw, missingMarkPeriods, paintMap, paintMarks, tagString,
 } from "../../viewer/static/map.mjs";
 
 const here = new URL(".", import.meta.url);
@@ -107,7 +107,7 @@ const drawn = (marks) => marks.map(({ kind, x, y, age, opacity }) => ({ kind, x,
 test("marksToDraw, this period: only the shown period's events, opaque, whatever earlier frames are given", () => {
   const frames = [fixtureAt(14), fixtureAt(20), fixtureAt(19), fixtureAt(21)];
   assert.deepEqual(drawn(marksToDraw(20, "now", "both", frames)),
-    [{ ...KILL, age: 0, opacity: 1 }, { ...CHANGE, age: 0, opacity: 1 }]);
+    [{ ...CHANGE, age: 0, opacity: 1 }, { ...KILL, age: 0, opacity: 1 }]); // switches first, kills on top
   assert.deepEqual(drawn(marksToDraw(20, "now", "kills", frames)), [{ ...KILL, age: 0, opacity: 1 }]);
   assert.deepEqual(drawn(marksToDraw(20, "now", "switches", frames)), [{ ...CHANGE, age: 0, opacity: 1 }]);
   assert.deepEqual(marksToDraw(20, "now", "both", [fixtureAt(20)]), marksToDraw(20, "now", "both", frames));
@@ -117,10 +117,10 @@ test("marksToDraw, this period: only the shown period's events, opaque, whatever
 test("marksToDraw, last 10 periods fading: ages 0 to 9 at 1 - age / 10, oldest first, each frame once", () => {
   const frames = [fixtureAt(20), fixtureAt(14), fixtureAt(10), fixtureAt(21), fixtureAt(20), fixtureAt(11)];
   assert.deepEqual(drawn(marksToDraw(20, "fading", "both", frames)), [
-    { ...KILL, age: 9, opacity: markOpacity(9) }, { ...CHANGE, age: 9, opacity: markOpacity(9) },
-    { ...KILL, age: 6, opacity: markOpacity(6) }, { ...CHANGE, age: 6, opacity: markOpacity(6) },
-    { ...KILL, age: 0, opacity: 1 }, { ...CHANGE, age: 0, opacity: 1 },
-  ]); // t = 10 is 10 periods old and t = 21 is later: neither is drawn
+    { ...CHANGE, age: 9, opacity: markOpacity(9) }, { ...KILL, age: 9, opacity: markOpacity(9) },
+    { ...CHANGE, age: 6, opacity: markOpacity(6) }, { ...KILL, age: 6, opacity: markOpacity(6) },
+    { ...CHANGE, age: 0, opacity: 1 }, { ...KILL, age: 0, opacity: 1 },
+  ]); // oldest period first, switches then kills within each; t = 10 is 10 periods old and t = 21 later: not drawn
   assert.deepEqual(drawn(marksToDraw(20, "fading", "kills", frames)), [
     { ...KILL, age: 9, opacity: markOpacity(9) }, { ...KILL, age: 6, opacity: markOpacity(6) }, { ...KILL, age: 0, opacity: 1 },
   ]);
@@ -159,6 +159,72 @@ test("a mark changes exactly its own cell's pixels, none of its neighbours'", ()
   }
   // The change at (2, 0) is on agent 1's cell: an opaque mark hides the agent there (hover still reads it).
   assert.equal(hitTest(f, 2, 0).agent.id, 70000);
+});
+
+// A period's events as a frame carries them: only t, kills and changes are read by the marks functions.
+const events = (t, kills, changes) => ({
+  t,
+  kills: { x: kills.map((c) => c[0]), y: kills.map((c) => c[1]) },
+  changes: { x: changes.map((c) => c[0]), y: changes.map((c) => c[1]) },
+});
+
+test("marksOverlap: nothing to say when every drawn event has its own cell", () => {
+  const f = events(193, [[1, 1], [5, 5]], [[2, 2], [3, 3]]);
+  for (const which of ["both", "kills", "switches"]) assert.equal(marksOverlap(193, "now", which, [f]), "");
+  assert.equal(marksOverlap(193, "none", "both", [events(193, [[1, 1], [1, 1]], [[1, 1]])]), "");
+});
+
+test("marksOverlap, this period: duplicate kill cells and kill-and-switch cells, as each filter shows them", () => {
+  // 4 kills on 3 cells (two on (1, 1)); 3 switches on 3 cells; (1, 1) and (2, 2) have both.
+  const f = events(193, [[1, 1], [1, 1], [2, 2], [7, 7]], [[1, 1], [2, 2], [4, 4]]);
+  assert.equal(marksOverlap(193, "now", "both", [f]),
+    "t = 193: 4 kills on 3 cells, 3 switches on 3 cells; 2 cells had both and show the kill.");
+  assert.equal(marksOverlap(193, "now", "kills", [f]), "t = 193: 4 kills on 3 cells.");
+  assert.equal(marksOverlap(193, "now", "switches", [f]), ""); // the switches alone overlap nothing
+  const g = events(193, [[1, 1]], [[1, 1], [4, 4]]); // one kill on a switch's cell, no duplicates
+  assert.equal(marksOverlap(193, "now", "both", [g]),
+    "t = 193: 1 kill on 1 cell, 2 switches on 2 cells; 1 cell had both and show the kill.");
+  assert.equal(marksOverlap(193, "now", "kills", [g]), "");
+  const big = events(7, Array.from({ length: 1200 }, () => [0, 0]), []);
+  assert.equal(marksOverlap(7, "now", "kills", [big]), "t = 7: 1,200 kills on 1 cell.");
+});
+
+test("marksOverlap, fading: summed over the periods drawn, with the blending order stated", () => {
+  const frames = [events(10, [[1, 1]], [[3, 3]]), events(12, [[1, 1]], [[3, 3]]), events(2, [[9, 9]], [])];
+  assert.equal(marksOverlap(12, "fading", "both", frames),
+    "t = 10 to 12: 2 kills on 1 cell, 2 switches on 1 cell. Marks on one cell blend in order, oldest first, the kill " +
+    "on top within a period."); // t = 2 is too old to be drawn
+  assert.equal(marksOverlap(12, "fading", "switches", frames),
+    "t = 10 to 12: 2 switches on 1 cell. Marks on one cell blend in order, oldest first, the kill on top within a period.");
+  assert.equal(marksOverlap(12, "fading", "both", [events(12, [[1, 1]], [[1, 1]])]),
+    "t = 12: 1 kill on 1 cell, 1 switch on 1 cell; 1 cell had both. Marks on one cell blend in order, oldest first, " +
+    "the kill on top within a period.");
+});
+
+test("a kill and a switch on one cell: the cell is the kill's black", () => {
+  const f = fixture();
+  f.cellSugar8[5] = 32;
+  f.changes.x[0] = 1; // move the fixture's switch onto its kill's cell (1, 1)
+  f.changes.y[0] = 1;
+  const marks = marksToDraw(f.t, "now", "both", [f]);
+  assert.equal(marks.length, 2);
+  const image = paintMarks(paintMap(f, "tribe", realLegend), f, marks, realLegend);
+  const k = ((f.height - 1 - 1) * f.width + 1) * 4;
+  assert.deepEqual(Array.from(image.slice(k, k + 4)), [0, 0, 0, 255]);
+});
+
+test("a gold switch mark at opacity 0.5 over a landscape cell: the hand-computed blend", () => {
+  const f = fixture(); // cell (1, 0): sugar 8 eighths, spice 2 eighths; no agent there
+  f.cellSugar8[5] = 32;
+  const before = paintMap(f, "tribe", realLegend);
+  const k = ((f.height - 1 - 0) * f.width + 1) * 4;
+  // Landscape at s8 = 8, p8 = 2, maxLevel 4: r = 255 - round(20 * 2/32) = 254, g = 255 - round(60 * 2/32) = 251,
+  // b = 255 - round(60 * 8/32) - round(45 * 2/32) = 255 - 15 - 3 = 237.
+  assert.deepEqual(Array.from(before.slice(k, k + 3)), [254, 251, 237]);
+  assert.equal(realLegend.change_colour, "#d4a000"); // (212, 160, 0)
+  const after = paintMarks(before, f, [{ kind: "change", x: 1, y: 0, age: 5, opacity: 0.5 }], realLegend);
+  // Halfway, rounded half up: (212 + 254) / 2 = 233, (160 + 251) / 2 = 205.5 -> 206, (0 + 237) / 2 = 118.5 -> 119.
+  assert.deepEqual(Array.from(after.slice(k, k + 4)), [233, 206, 119, 255]);
 });
 
 test("a fading mark is blended over its cell at its opacity, and only there", () => {

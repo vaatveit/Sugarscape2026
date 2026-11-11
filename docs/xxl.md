@@ -579,7 +579,9 @@ the same command as `xxl-viewer`.
   changed tribe; the charts of the run's series; and, hovering an agent, its readings (also under a mark, which hides
   the agent on its cell). Two menus pick the marks: "Marks from" this period (the default), the last 10 periods fading,
   or none; and "Show" kills and switches, kills only or switches only. The user chose these cell-size marks after the
-  live check of 11-10, where crosses and rings several cells wide hid the agents. Pollution comes with a later
+  live check of 11-10, where crosses and rings several cells wide hid the agents. A cell with both a kill and a switch
+  shows the kill. A cell can hold several events, and in the fading mode marks on one cell blend in order, oldest
+  first; a line under the map then says how many events fall on how many cells. Pollution comes with a later
   experiment.
 - **What you set.** The experiment (the VI-1 combat-study experiments), the raw seed, and the combat study's `h` and
   `k`. Start begins a run, and shows the model's own message if it refuses the settings (`h = 1` on `VI-1-assim`,

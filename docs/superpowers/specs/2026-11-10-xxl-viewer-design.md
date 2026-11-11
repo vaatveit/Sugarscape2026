@@ -114,7 +114,14 @@ chart) without reworking the page or the frames.
   - In "last 10 periods, fading", when any of the 9 earlier periods' frames is not available (no longer kept, or it
     failed to load), a note by the map says which marks are missing; it is hidden when all 10 periods' marks are
     drawn, and never shown in the other modes.
-  - The legend explains both menus and that a mark hides the agent on its cell.
+  - A cell with both a kill and a switch shows the kill: within a period, switches are drawn first and kills on top
+    (controller ruling P11, after a live measurement at t = 193 of VI-1-assim-k4 seed 0 found 129 of 528 kills on
+    switch cells). A cell can hold several events, and in "last 10 periods, fading" marks on one cell blend in order,
+    oldest first, so such a cell shows darker than one mark's opacity. A line under the map, computed from the
+    frames, says how many of the drawn events (as "Show" filters them) fall on how many cells and how many cells had
+    both, for the shown period (summed over the drawn periods in fading); it is omitted when no cell holds more than one
+    drawn event.
+  - The legend explains both menus, that a mark hides the agent on its cell, and the overlap rules above.
 - **Hover:** over an agent, its id, tribe, 11 tags, sugar, spice, age, diseases and loans; over an empty cell, its sugar
   and spice. Exact values.
 - A legend for the active colouring and for the marks.

@@ -4,7 +4,7 @@ import { CHARTS, drawChart, drawLorenz, periodAt, readout } from "./charts.mjs";
 import { FrameCache } from "./cache.mjs";
 import { decodeFrame } from "./frame.mjs";
 import {
-  MARK_WHEN, MARK_WHICH, drawMap, hitTest, landscapeColour, markPeriods, marksNote, marksToDraw,
+  MARK_WHEN, MARK_WHICH, drawMap, hitTest, landscapeColour, markPeriods, marksNote, marksOverlap, marksToDraw,
 } from "./map.mjs";
 
 const POLL_MS = 1000; // /api/status
@@ -19,7 +19,7 @@ const $ = (id) => document.getElementById(id);
 const els = {
   form: $("start"), experiment: $("experiment"), seed: $("seed"), seedNote: $("seed-note"), h: $("h"), k: $("k"),
   startButton: $("start-button"), stop: $("stop"), settings: $("settings"), status: $("status"), error: $("error"),
-  map: $("map"), marksNote: $("marks-note"), captionT: $("caption-t"), back: $("back"), play: $("play"), forward: $("forward"),
+  map: $("map"), marksNote: $("marks-note"), marksOverlap: $("marks-overlap"), captionT: $("caption-t"), back: $("back"), play: $("play"), forward: $("forward"),
   slider: $("slider"), period: $("period"), speed: $("speed"), note: $("note"), colourBy: $("colour-by"),
   marksWhen: $("marks-when"), marksWhich: $("marks-which"),
   legendAgents: $("legend-agents"), legendMarks: $("legend-marks"), legendCells: $("legend-cells"), hover: $("hover"),
@@ -45,6 +45,7 @@ const state = {
   failed: [], // periods among those whose frames failed to load
   marks: [], // the marks drawn (marksToDraw)
   marksNote: "", // "fading" marks: which periods' marks are missing, if any
+  marksOverlap: "", // how the drawn marks share cells, if any do (marksOverlap)
   target: null, // the period last asked for
   scrubTarget: null,
   scrubbing: false,
@@ -135,9 +136,11 @@ function updateMarks() {
   if (!frame) {
     state.marks = [];
     state.marksNote = "";
+    state.marksOverlap = "";
     return;
   }
   state.marks = marksToDraw(frame.t, when, els.marksWhich.value, [frame, ...state.recent]);
+  state.marksOverlap = marksOverlap(frame.t, when, els.marksWhich.value, [frame, ...state.recent]);
   state.marksNote = when === "fading"
     ? marksNote(frame.t, state.oldestKept ?? 0, [frame.t, ...state.recent.map((f) => f.t)], state.failed)
     : "";
@@ -252,7 +255,7 @@ function adoptRun(id, settings, runIndex, { show }) {
   Object.assign(state, {
     run: id, settings, runIndex, newest: -1, oldestKept: null, runState: "running", runError: null, series: {},
     seriesBusy: false, cache: new FrameCache(), inflight: new Map(), frame: null, recent: [], failed: [], marks: [],
-    marksNote: "",
+    marksNote: "", marksOverlap: "",
     target: null, scrubTarget: null, epoch: state.epoch + 1,
   });
   els.note.textContent = "";
@@ -454,6 +457,7 @@ function drawCharts() {
 
 function render() {
   els.marksNote.textContent = state.frame ? state.marksNote : "";
+  els.marksOverlap.textContent = state.frame ? state.marksOverlap : "";
   updateTimeControls();
   updateHover();
   drawMapNow();
@@ -518,8 +522,15 @@ function drawLegend() {
     none: "Marks: none. The map shows the agents and the landscape only.",
   }[when];
   els.legendMarks.replaceChildren(legendTitle("Marks, in every colouring"), marks, legendNote(whenText),
-    ...(when === "none" ? [] : [legendNote("Each mark fills exactly the cell where it happened, nothing larger, so it " +
-      "hides the agent standing on that cell; hover still reads the agent. \"Show\" picks kills, switches or both.")]));
+    ...(when === "none" ? [] : [
+      legendNote("Each mark fills exactly the cell where it happened, nothing larger, so it hides the agent standing " +
+        "on that cell; hover still reads the agent. \"Show\" picks kills, switches or both."),
+      legendNote("A cell with both a kill and a switch shows the kill (switches are drawn first, kills on top)."),
+      legendNote("A cell can hold several events; the line under the map then says how many events fall on how many " +
+        "cells."),
+      legendNote("In \"last 10 periods, fading\", marks on one cell blend in order, oldest first, so a cell marked in " +
+        "several periods shows darker than one mark's opacity."),
+    ]));
 
   const levels = Array.from({ length: legend.max_level + 1 }, (_, i) => i);
   const table = Object.assign(document.createElement("table"), { className: "cells" });

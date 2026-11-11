@@ -82,9 +82,11 @@ export function markPeriods(t, when, oldestKept) {
 
 /**
  * marksToDraw(t, when, which, frames) -> [{kind: "kill" | "change", x, y, age, opacity}]: the marks for period t from
- * `frames` (each frame counted once, by its t). "now": the kills and tribe changes of t itself, opacity 1. "fading":
- * those of t and the 9 periods before it, at markOpacity(age), oldest first so the newest are drawn on top. "none":
- * nothing. `which` keeps "both", only "kills" or only "switches" (tribe changes). A period not among `frames` adds nothing.
+ * `frames` (each frame counted once, by its t), in drawing order. "now": the tribe changes and kills of t itself,
+ * opacity 1. "fading": those of t and the 9 periods before it, at markOpacity(age), oldest period first so the newest
+ * are drawn on top. Within a period the switches come first and the kills on top (the rarer, more salient event), so a
+ * cell with both shows the kill. "none": nothing. `which` keeps "both", only "kills" or only "switches" (tribe
+ * changes). A period not among `frames` adds nothing.
  */
 export function marksToDraw(t, when, which, frames) {
   if (when === "none") return [];
@@ -97,16 +99,59 @@ export function marksToDraw(t, when, which, frames) {
     const age = t - f.t;
     if (when === "now" ? age !== 0 : markOpacity(age) <= 0) continue;
     const opacity = when === "now" ? 1 : markOpacity(age);
-    if (kills) {
-      for (let i = 0; i < f.kills.x.length; i++) marks.push({ kind: "kill", x: f.kills.x[i], y: f.kills.y[i], age, opacity });
-    }
     if (changes) {
       for (let i = 0; i < f.changes.x.length; i++) {
         marks.push({ kind: "change", x: f.changes.x[i], y: f.changes.y[i], age, opacity });
       }
     }
+    if (kills) {
+      for (let i = 0; i < f.kills.x.length; i++) marks.push({ kind: "kill", x: f.kills.x[i], y: f.kills.y[i], age, opacity });
+    }
   }
   return marks;
+}
+
+const count = (n, one, many) => `${n.toLocaleString("en-US")} ${n === 1 ? one : many}`;
+
+/**
+ * marksOverlap(t, when, which, frames) -> "" or a line saying how the drawn marks share cells: how many kills and
+ * switches (as `which` shows them) fall on how many cells, over the periods drawn (t alone in "now", every period drawn
+ * in "fading"), and how many cells had both. In "now" a cell with both shows the kill; in "fading" marks on one cell
+ * blend in order, oldest first. "" when no cell holds more than one drawn event, or no marks are drawn.
+ */
+export function marksOverlap(t, when, which, frames) {
+  const marks = marksToDraw(t, when, which, frames);
+  if (marks.length === 0) return "";
+  const killCells = new Set();
+  const switchCells = new Set();
+  let nk = 0;
+  let ns = 0;
+  let first = t;
+  for (const m of marks) {
+    const cell = `${m.x},${m.y}`;
+    if (m.kind === "kill") {
+      nk += 1;
+      killCells.add(cell);
+    } else {
+      ns += 1;
+      switchCells.add(cell);
+    }
+    first = Math.min(first, t - m.age);
+  }
+  let both = 0;
+  for (const c of killCells) if (switchCells.has(c)) both += 1;
+  if (nk === killCells.size && ns === switchCells.size && both === 0) return "";
+  const parts = [];
+  if (which !== "switches") parts.push(`${count(nk, "kill", "kills")} on ${count(killCells.size, "cell", "cells")}`);
+  if (which !== "kills") parts.push(`${count(ns, "switch", "switches")} on ${count(switchCells.size, "cell", "cells")}`);
+  const periods = first === t ? `t = ${t}` : `t = ${first} to ${t}`;
+  let line = `${periods}: ${parts.join(", ")}`;
+  if (both > 0) {
+    line += `; ${count(both, "cell", "cells")} had both` + (when === "now" ? " and show the kill" : "");
+  }
+  line += ".";
+  if (when === "fading") line += " Marks on one cell blend in order, oldest first, the kill on top within a period.";
+  return line;
 }
 
 /**
