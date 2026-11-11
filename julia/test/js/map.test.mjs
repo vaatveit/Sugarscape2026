@@ -6,8 +6,8 @@ import { readFileSync } from "node:fs";
 
 import { decodeFrame } from "../../viewer/static/frame.mjs";
 import {
-  MARK_WHEN, MARK_WHICH, MODE_FIELDS, agentColour, hitTest, landscapeColour, markOpacity, markPeriods, marksNote,
-  marksOverlap, marksToDraw, missingMarkPeriods, paintMap, paintMarks, tagString,
+  GROUNDS, MARK_WHEN, MARK_WHICH, MODE_FIELDS, agentColour, groundFor, groundsFor, hitTest, landscapeColour,
+  markOpacity, markPeriods, marksNote, marksOverlap, marksToDraw, missingMarkPeriods, paintMap, paintMarks, tagString,
 } from "../../viewer/static/map.mjs";
 
 const here = new URL(".", import.meta.url);
@@ -281,8 +281,8 @@ test("hitTest on an empty cell gives its levels, eighths divided by 8", () => {
   const f = fixture();
   const hit = hitTest(f, 1, 0); // index y * width + x = 1
   assert.equal(hit.agent, undefined);
-  assert.deepEqual(hit.cell, { x: 1, y: 0, sugar: 1, spice: 0.25 });
-  assert.deepEqual(hitTest(f, 2, 1).cell, { x: 2, y: 1, sugar: 255 / 8, spice: 6 / 8 });
+  assert.deepEqual(hit.cell, { x: 1, y: 0, sugar: 1, spice: 0.25, pollutionBand: 8 });
+  assert.deepEqual(hitTest(f, 2, 1).cell, { x: 2, y: 1, sugar: 255 / 8, spice: 6 / 8, pollutionBand: 2 });
   assert.equal(hitTest(f, 3, 0), null);
   assert.equal(hitTest(f, 0, -1), null);
 });
@@ -357,4 +357,124 @@ test("wealth bands and disease steps darken from low to high", () => {
   const darkening = (list) => list.every((c, i) => i === 0 || luminance(c) < luminance(list[i - 1]));
   assert.ok(darkening(realLegend.palettes.wealth), realLegend.palettes.wealth.join(" "));
   assert.ok(darkening(realLegend.palettes.disease.slice(1)), realLegend.palettes.disease.join(" ")); // step 0: neutral
+});
+
+// The pollution palette the server sends, read from julia/viewer/encoding.jl's POLLUTION_PALETTE (the legend fixture is
+// the default experiment's, which has no pollution), and a legend with the pollution entry `pollution_legend` gives.
+const encoding = readFileSync(new URL("../../viewer/encoding.jl", here), "utf8");
+const POLLUTION_PALETTE = encoding.match(/const POLLUTION_PALETTE = \[([^\]]*)\]/)[1].match(/#[0-9a-f]{6}/g);
+const pollutionLegend = {
+  ...realLegend,
+  pollution: {
+    palette: POLLUTION_PALETTE,
+    labels: ["0 (clean)", "below 1", "1 to < 3", "3 to < 10", "10 to < 30", "30 to < 100", "100 to < 300",
+      "300 to < 1000", "1000 or more"],
+    edges: [1, 3, 10, 30, 100, 300, 1000], start: 350, diffusion_start: 450, rich_cut: 5, rich_share: 0.32,
+  },
+};
+
+const pixelOf = (image, f, x, y) => {
+  const k = ((f.height - 1 - y) * f.width + x) * 4;
+  return Array.from(image.slice(k, k + 4));
+};
+
+test("the ground menu: resources (the default) or pollution, pollution only for a run that has it", () => {
+  assert.deepEqual(GROUNDS, [{ value: "resources", label: "resources" }, { value: "pollution", label: "pollution" }]);
+  assert.deepEqual(groundsFor(pollutionLegend), GROUNDS);
+  assert.deepEqual(groundsFor(realLegend), [GROUNDS[0]]);
+  assert.deepEqual(groundsFor(null), [GROUNDS[0]]);
+});
+
+test("groundFor: a run without pollution falls back to resources whatever was chosen", () => {
+  assert.equal(groundFor(pollutionLegend, "pollution"), "pollution");
+  assert.equal(groundFor(pollutionLegend, "resources"), "resources");
+  assert.equal(groundFor(realLegend, "pollution"), "resources");
+  assert.equal(groundFor(null, "pollution"), "resources");
+  assert.equal(groundFor(pollutionLegend, undefined), "resources");
+});
+
+test("paintMap with the pollution ground: each empty cell is its band's colour, the agents on top", () => {
+  const f = fixture(); // bands [0, 8, 1, 4, 7, 2]; agents at (2, 0) (cell 2) and (0, 1) (cell 3)
+  const palette = pollutionLegend.pollution.palette;
+  const image = paintMap(f, "tribe", pollutionLegend, "pollution");
+  assert.equal(image.length, 3 * 2 * 4);
+  assert.deepEqual(pixelOf(image, f, 0, 0), [...rgb(palette[0]), 255]);
+  assert.deepEqual(pixelOf(image, f, 1, 0), [...rgb(palette[8]), 255]);
+  assert.deepEqual(pixelOf(image, f, 1, 1), [...rgb(palette[7]), 255]);
+  assert.deepEqual(pixelOf(image, f, 2, 1), [...rgb(palette[2]), 255]);
+  assert.deepEqual(pixelOf(image, f, 0, 1), [0x25, 0x63, 0xeb, 255]); // agent 0, blue, on band 4
+  assert.deepEqual(pixelOf(image, f, 2, 0), [0xc0, 0x39, 0x2b, 255]); // agent 1, red, on band 1
+  // The resource levels play no part: the fixture's 255 eighths, above the landscape's capacity, does not throw here.
+  assert.throws(() => paintMap(f, "tribe", pollutionLegend, "resources"), RangeError);
+});
+
+test("pollution bands: band 0 is white, band 1 (any pollution at all) is not, band 8 is the last colour", () => {
+  const f = fixture();
+  const palette = pollutionLegend.pollution.palette;
+  assert.equal(palette.length, 9);
+  assert.equal(palette[0], "#ffffff");
+  assert.notEqual(palette[1], "#ffffff");
+  f.cellPollution[0] = 1;
+  const image = paintMap(f, "tribe", pollutionLegend, "pollution");
+  assert.deepEqual(pixelOf(image, f, 0, 0), [...rgb(palette[1]), 255]);
+  assert.notDeepEqual(pixelOf(image, f, 0, 0), [255, 255, 255, 255]);
+  f.cellPollution[0] = 0;
+  assert.deepEqual(pixelOf(paintMap(f, "tribe", pollutionLegend, "pollution"), f, 0, 0), [255, 255, 255, 255]);
+  f.cellPollution[0] = 8;
+  assert.deepEqual(pixelOf(paintMap(f, "tribe", pollutionLegend, "pollution"), f, 0, 0),
+    [...rgb(palette[palette.length - 1]), 255]);
+});
+
+test("paintMap with the pollution ground throws for a legend without pollution or a band without a colour", () => {
+  const f = fixture();
+  assert.throws(() => paintMap(f, "tribe", realLegend, "pollution"), /no pollution/);
+  f.cellPollution[0] = 9;
+  assert.throws(() => paintMap(f, "tribe", pollutionLegend, "pollution"), /pollution band 9 has no colour/);
+  assert.throws(() => paintMap(fixture(), "tribe", pollutionLegend, "rubble"), /no ground/);
+});
+
+test("paintMap's ground is resources by default and when asked, whatever the legend's pollution", () => {
+  const f = fixture();
+  f.cellSugar8[5] = 32;
+  const plain = paintMap(f, "tribe", realLegend);
+  assert.deepEqual(paintMap(f, "tribe", realLegend, "resources"), plain);
+  assert.deepEqual(paintMap(f, "tribe", pollutionLegend), plain);
+});
+
+test("marks are drawn over the pollution ground as over the landscape", () => {
+  const f = fixture();
+  const marks = marksToDraw(f.t, "now", "both", [f]);
+  const image = paintMarks(paintMap(f, "tribe", pollutionLegend, "pollution"), f, marks, pollutionLegend);
+  assert.deepEqual(pixelOf(image, f, 1, 1), [...rgb(pollutionLegend.kill_colour), 255]);
+  assert.deepEqual(pixelOf(image, f, 2, 0), [...rgb(pollutionLegend.change_colour), 255]);
+});
+
+test("every agent colour of every palette stands out on every pollution colour (RGB distance >= 60)", () => {
+  const ground = pollutionLegend.pollution.palette.map(rgb);
+  for (const mode of pollutionLegend.modes) {
+    for (const colour of pollutionLegend.palettes[mode]) {
+      const c = rgb(colour);
+      const nearest = Math.min(...ground.map((l) => Math.hypot(c[0] - l[0], c[1] - l[1], c[2] - l[2])));
+      assert.ok(nearest >= 60, `${mode} ${colour} is ${nearest.toFixed(1)} from a pollution colour`);
+    }
+  }
+});
+
+test("both mark colours stand out on every pollution colour (RGB distance >= 60)", () => {
+  const marks = { kill: rgb(pollutionLegend.kill_colour), change: rgb(pollutionLegend.change_colour) };
+  for (const g of pollutionLegend.pollution.palette) {
+    const l = rgb(g);
+    for (const [kind, m] of Object.entries(marks)) {
+      const dist = Math.hypot(m[0] - l[0], m[1] - l[1], m[2] - l[2]);
+      assert.ok(dist >= 60, `the ${kind} mark colour is ${dist.toFixed(1)} from the pollution colour ${g}`);
+    }
+  }
+});
+
+test("hitTest gives each cell's pollution band, over an agent and over an empty cell", () => {
+  const f = fixture();
+  assert.equal(hitTest(f, 0, 0).cell.pollutionBand, 0);
+  assert.equal(hitTest(f, 1, 0).cell.pollutionBand, 8);
+  assert.equal(hitTest(f, 2, 0).cell.pollutionBand, 1); // agent 1's cell
+  assert.equal(hitTest(f, 0, 1).cell.pollutionBand, 4); // agent 0's cell
 });

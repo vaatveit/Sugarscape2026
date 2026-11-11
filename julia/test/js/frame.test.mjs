@@ -1,5 +1,6 @@
 // The page's frame decoder (julia/viewer/static/frame.mjs) against the fixture that Task 2's `frame encode layout` test
-// writes: fixture-frame.bin holds the encoded bytes, fixture-frame.json the values they were built from.
+// writes: fixture-frame.bin holds the encoded bytes, fixture-frame.json the values they were built from. The layout is
+// SXV2: SXV1's, with one pollution band per cell appended.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -57,16 +58,32 @@ test("decodeFrame gives typed-array views on the buffer, not copies", () => {
 test("decodeFrame refuses bytes that are not a frame", () => {
   const ab = buffer();
   new Uint8Array(ab)[0] = 0x41;
-  assert.throws(() => decodeFrame(ab), /SXV1/);
+  assert.throws(() => decodeFrame(ab), /SXV2/);
   assert.throws(() => decodeFrame(buffer().slice(0, 40)), /length/);
 });
 
+test("decodeFrame reads the cells' pollution bands, a byte per cell, as a view on the buffer", () => {
+  const ab = buffer();
+  const f = decodeFrame(ab);
+  assert.ok(f.cellPollution instanceof Uint8Array);
+  assert.equal(f.cellPollution.buffer, ab);
+  assert.equal(f.cellPollution.length, want.width * want.height);
+  assert.deepEqual(Array.from(f.cellPollution), want.cell_pollution);
+});
+
+test("decodeFrame refuses a frame of the old SXV1 layout as not a frame", () => {
+  const ab = buffer();
+  new Uint8Array(ab).set([0x53, 0x58, 0x56, 0x31]); // "SXV1"
+  assert.throws(() => decodeFrame(ab), /not a frame: it starts with "SXV1", not SXV2/);
+});
+
 test("a frame with no agents decodes, its Lorenz points and Gini undefined (NaN)", () => {
-  // Header only, then 101 + 1 NaN Float64s and 3 x 2 cells of each resource: the layout of Task 2's empty frame.
+  // Header only, then 101 + 1 NaN Float64s and 3 x 2 cells of each resource and of pollution: the layout of Task 2's
+  // empty frame.
   const cells = 3 * 2;
-  const ab = new ArrayBuffer(32 + 102 * 8 + 2 * cells);
+  const ab = new ArrayBuffer(32 + 102 * 8 + 3 * cells);
   const dv = new DataView(ab);
-  new Uint8Array(ab).set([0x53, 0x58, 0x56, 0x31]);
+  new Uint8Array(ab).set([0x53, 0x58, 0x56, 0x32]);
   dv.setInt32(4, 3, true);
   dv.setUint16(8, 3, true);
   dv.setUint16(10, 2, true);
@@ -79,4 +96,5 @@ test("a frame with no agents decodes, its Lorenz points and Gini undefined (NaN)
   assert.ok(Array.from(f.lorenz).every(Number.isNaN));
   assert.ok(Number.isNaN(f.gini));
   assert.equal(f.cellSugar8.length, cells);
+  assert.equal(f.cellPollution.length, cells);
 });

@@ -67,6 +67,8 @@
         <div class="menus">
           <label for="colour-by">Colour agents by</label>
           <select id="colour-by"></select>
+          <label for="ground" id="ground-label" hidden>Ground shows</label>
+          <select id="ground" hidden></select>
           <label for="marks-when">Marks from</label>
           <select id="marks-when"></select>
           <label for="marks-which">Show</label>
@@ -86,8 +88,9 @@
 
   <section class="charts-column" aria-label="Charts">
     <p class="charts-note">Every period computed so far. Orange line: the period on the map (click a chart to move
-      it there). Dashed line: period 500, where the study stops. Shaded: periods no longer kept for the map. Gaps: periods
-      where the model's value is undefined.</p>
+      it there). Dashed line: the period where the study stops (the experiment's steps). Dotted lines, in an experiment
+      with pollution: the periods pollution and diffusion start, labelled "pollution on" and "diffusion on". Shaded:
+      periods no longer kept for the map. Gaps: periods where the model's value is undefined.</p>
     <div id="charts" class="charts"></div>
   </section>
 </main>

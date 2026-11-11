@@ -3,14 +3,16 @@
 //
 // Layout (little-endian; each section starts at a multiple of its element size, so every column is a typed-array view
 // on the response's buffer, never a copy):
-//   header, 32 bytes: "SXV1", t Int32, width and height UInt16, n_agents, n_kills, n_changes UInt32, ntags UInt8, 7 zeros
+//   header, 32 bytes: "SXV2", t Int32, width and height UInt16, n_agents, n_kills, n_changes UInt32, ntags UInt8, 7 zeros
 //   Float64: agent sugar (n), agent spice (n), Lorenz curve (101), Gini (1)
 //   UInt32:  agent id (n)
 //   UInt16:  agent x, y, tags, age, loans as lender, loans as borrower (n each); kill x, kill y; change x, change y
 //   UInt8:   agent tribe, culture ones, wealth band, disease step, credit role, disease count (n each);
-//            cell sugar eighths, cell spice eighths (width * height each, index y * width + x)
+//            cell sugar eighths, cell spice eighths, cell pollution band 0 to 8 (width * height each, index
+//            y * width + x; the bands are all 0 for an experiment without pollution)
+// A frame of the older SXV1 layout (without the pollution bands) is refused as not a frame.
 
-const MAGIC = "SXV1";
+const MAGIC = "SXV2";
 const HEADER_BYTES = 32;
 const LORENZ_POINTS = 101;
 
@@ -19,9 +21,11 @@ const LITTLE_ENDIAN = new Uint8Array(new Uint16Array([1]).buffer)[0] === 1;
 
 /**
  * decodeFrame(arrayBuffer) -> {t, width, height, ntags, n, agents: {...}, kills: {x, y}, changes: {x, y}, lorenz, gini,
- * cellSugar8, cellSpice8}. Agent columns: sugar, spice, id, x, y, tags, age, lent (active loans as lender), owed (as
- * borrower), tribe (0 blue, 1 red), ones (tags set), wealth (band), disease (step), role (credit), ndiseases (count).
- * A Gini or Lorenz point the model leaves undefined is NaN.
+ * cellSugar8, cellSpice8, cellPollution}. Agent columns: sugar, spice, id, x, y, tags, age, lent (active loans as
+ * lender), owed (as borrower), tribe (0 blue, 1 red), ones (tags set), wealth (band), disease (step), role (credit),
+ * ndiseases (count).
+ * cellPollution holds each cell's pollution band (julia/viewer/encoding.jl's `pollution_band`), 0 to 8. A Gini or
+ * Lorenz point the model leaves undefined is NaN.
  */
 export function decodeFrame(buffer) {
   if (!LITTLE_ENDIAN) throw new Error("this page reads frames on little-endian platforms only");
@@ -38,7 +42,7 @@ export function decodeFrame(buffer) {
   const ntags = dv.getUint8(24);
   const cells = width * height;
   const expected = HEADER_BYTES + 8 * (2 * n + LORENZ_POINTS + 1) + 4 * n + 2 * (6 * n + 2 * nk + 2 * nc) + 6 * n +
-    2 * cells;
+    3 * cells;
   if (buffer.byteLength !== expected) {
     throw new Error(`a frame of ${n} agents, ${nk} kills, ${nc} changes and ${cells} cells has length ${expected}, ` +
       `not ${buffer.byteLength}`);
@@ -71,9 +75,10 @@ export function decodeFrame(buffer) {
   const ndiseases = take(Uint8Array, n);
   const cellSugar8 = take(Uint8Array, cells);
   const cellSpice8 = take(Uint8Array, cells);
+  const cellPollution = take(Uint8Array, cells);
   return {
     t, width, height, ntags, n,
     agents: { sugar, spice, id, x, y, tags, age, lent, owed, tribe, ones, wealth, disease, role, ndiseases },
-    kills, changes, lorenz, gini, cellSugar8, cellSpice8,
+    kills, changes, lorenz, gini, cellSugar8, cellSpice8, cellPollution,
   };
 }

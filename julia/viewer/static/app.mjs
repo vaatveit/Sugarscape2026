@@ -1,10 +1,11 @@
 // The xxl viewer page: starts a run on the local Julia server (julia/viewer/server.jl), follows it, and draws its frames
 // and series. Every colour and encoding comes from map.mjs, charts.mjs and the server's legend; this file defines none.
-import { CHARTS, drawChart, drawLorenz, periodAt, readout } from "./charts.mjs";
+import { chartCaption, chartsFor, drawChart, drawLorenz, fitCanvas, periodAt, readout } from "./charts.mjs";
 import { FrameCache } from "./cache.mjs";
 import { decodeFrame } from "./frame.mjs";
 import {
-  MARK_WHEN, MARK_WHICH, drawMap, hitTest, landscapeColour, markPeriods, marksNote, marksOverlap, marksToDraw,
+  MARK_WHEN, MARK_WHICH, drawMap, groundFor, groundsFor, hitTest, landscapeColour, markPeriods, marksNote, marksOverlap,
+  marksToDraw,
 } from "./map.mjs";
 
 const POLL_MS = 1000; // /api/status
@@ -21,14 +22,14 @@ const els = {
   startButton: $("start-button"), stop: $("stop"), settings: $("settings"), status: $("status"), error: $("error"),
   map: $("map"), marksNote: $("marks-note"), marksOverlap: $("marks-overlap"), captionT: $("caption-t"), back: $("back"), play: $("play"), forward: $("forward"),
   slider: $("slider"), period: $("period"), speed: $("speed"), note: $("note"), colourBy: $("colour-by"),
-  marksWhen: $("marks-when"), marksWhich: $("marks-which"),
+  marksWhen: $("marks-when"), marksWhich: $("marks-which"), ground: $("ground"), groundLabel: $("ground-label"),
   legendAgents: $("legend-agents"), legendMarks: $("legend-marks"), legendCells: $("legend-cells"), hover: $("hover"),
   charts: $("charts"),
 };
 
 const state = {
   experiments: [],
-  legend: null, // the current run's legend (or the default experiment's before any run)
+  legend: null, // the current run's legend (the default experiment's before any run); null until it has arrived
   run: null, // the current run's id
   settings: null,
   runIndex: null,
@@ -262,18 +263,23 @@ async function fetchSeries() {
 
 // --- runs -------------------------------------------------------------------------------------------------------------
 
-// Make run `id` the page's: everything from an earlier run is dropped. `show` is the period to show first.
+// Make run `id` the page's: everything from an earlier run is dropped, its legend too, so none of the new run's frames
+// or series is ever drawn with another run's legend. The map, the charts, the hover and the legend draw nothing until
+// loadLegend brings this run's legend, which then refills the menus and rebuilds the charts. `show` is the period to
+// show first.
 function adoptRun(id, settings, runIndex, { show }) {
   if (id === state.run) return false;
   setPlaying(false);
   Object.assign(state, {
     run: id, settings, runIndex, newest: -1, oldestKept: null, runState: "running", runError: null, series: {},
     seriesBusy: false, cache: new FrameCache(), inflight: new Map(), frame: null, recent: [], failed: [], marks: [],
-    marksNote: "", marksOverlap: "",
+    marksNote: "", marksOverlap: "", legend: null,
     target: null, scrubTarget: null, epoch: state.epoch + 1,
   });
   els.note.textContent = "";
   updateSettings();
+  fillGroundMenu();
+  safely(drawLegend);
   safely(render);
   loadLegend().then(async () => {
     if (state.run !== id || show !== "newest") return;
@@ -284,6 +290,8 @@ function adoptRun(id, settings, runIndex, { show }) {
 }
 
 // The current run's legend (the default experiment's before any run); dropped if the page has since taken another run.
+// It refills the colour and ground menus and rebuilds the charts for this legend (the pollution charts only with
+// pollution), then draws what the page holds of the run.
 async function loadLegend() {
   const run = state.run;
   try {
@@ -291,6 +299,8 @@ async function loadLegend() {
     if (run !== state.run) return;
     state.legend = legend;
     fillColourMenu();
+    fillGroundMenu();
+    buildCharts();
     drawLegend();
     render();
   } catch (err) {
@@ -406,6 +416,7 @@ function sizeMap(width) {
   state.mapPixels = n;
 }
 
+// A blank map until both the frame and its run's legend are there (adoptRun clears the legend).
 function drawMapNow() {
   const { frame, legend } = state;
   const g = els.map.getContext("2d");
@@ -416,7 +427,7 @@ function drawMapNow() {
     return;
   }
   sizeMap(frame.width);
-  drawMap(g, frame, state.marks, els.colourBy.value, legend);
+  drawMap(g, frame, state.marks, els.colourBy.value, legend, groundFor(legend, els.ground.value));
   if (state.hover) {
     const [x, y] = state.hover;
     const k = els.map.width / frame.width;
@@ -426,13 +437,21 @@ function drawMapNow() {
   }
 }
 
-const chartEls = new Map(); // chart id -> {canvas, value}
+const LORENZ = { id: "lorenz", title: "Lorenz curve of wealth at the period on the map", panels: [] };
+const chartEls = new Map(); // chart id -> {canvas, value, caption (null for a chart without one)}
+let shownCharts = []; // the charts built: chartsFor the legend they were built with
 
+// The charts of the current legend (the seven of every run; the two pollution charts only with pollution) and the
+// Lorenz curve, built anew, so every chart and caption is its own run's.
 function buildCharts() {
-  for (const chart of [...CHARTS, { id: "lorenz", title: "Lorenz curve of wealth at the period on the map", panels: [] }]) {
+  shownCharts = chartsFor(state.legend);
+  chartEls.clear();
+  els.charts.replaceChildren();
+  for (const chart of [...shownCharts, LORENZ]) {
     const fig = document.createElement("figure");
     fig.className = `chart${chart.panels.length > 1 ? " two-panels" : ""}${chart.id === "lorenz" ? " lorenz" : ""}`;
     const title = Object.assign(document.createElement("h3"), { textContent: chart.title, id: `chart-${chart.id}` });
+    const caption = chartCaption(chart, state.legend);
     const canvas = document.createElement("canvas");
     canvas.setAttribute("role", "img");
     canvas.setAttribute("aria-labelledby", `chart-${chart.id}`);
@@ -452,16 +471,38 @@ function buildCharts() {
         scrubTo(t);
       });
     }
-    fig.append(title, canvas, value);
+    const captionEl = caption ? Object.assign(document.createElement("p"), { className: "caption", textContent: caption })
+      : null;
+    fig.append(title, ...(captionEl ? [captionEl] : []), canvas, value);
     els.charts.append(fig);
-    chartEls.set(chart.id, { canvas, value });
+    chartEls.set(chart.id, { canvas, value, caption: captionEl });
   }
 }
 
+// The run's entry in /api/experiments: its `steps` place the study's end on the charts.
+function currentExperiment() {
+  return state.experiments.find((e) => e.id === state.settings?.exp);
+}
+
+// Blank charts until the run's legend is there (adoptRun clears it; loadLegend rebuilds the charts for it).
 function drawCharts() {
-  const view = { shown: state.frame?.t ?? null, oldestKept: state.oldestKept, newest: state.newest, legend: state.legend };
+  if (!state.legend) {
+    for (const chart of shownCharts) {
+      const { canvas, value, caption } = chartEls.get(chart.id);
+      const { g, w, h } = fitCanvas(canvas);
+      g.clearRect(0, 0, w, h);
+      value.textContent = "";
+      if (caption) caption.textContent = ""; // an earlier run's legend's words
+    }
+    drawLorenz(chartEls.get("lorenz").canvas, null);
+    return;
+  }
+  const view = {
+    shown: state.frame?.t ?? null, oldestKept: state.oldestKept, newest: state.newest, legend: state.legend,
+    studyEnd: currentExperiment()?.steps,
+  };
   const t = state.frame?.t;
-  for (const chart of CHARTS) {
+  for (const chart of shownCharts) {
     const { canvas, value } = chartEls.get(chart.id);
     drawChart(canvas, chart, state.series, view);
     value.textContent = t !== undefined && (state.series.t?.length ?? 0) > t ? `t = ${t}: ${readout(chart, state.series, t)}` : "";
@@ -479,6 +520,17 @@ function render() {
 }
 
 // --- legend, hover, status ------------------------------------------------------------------------------------------
+
+// The "Ground shows" menu, shown only for a run whose legend has pollution. Without a legend (a run just adopted) it is
+// hidden and keeps its choice for the run's legend to decide; a legend without pollution falls back to resources.
+function fillGroundMenu() {
+  const legend = state.legend;
+  els.ground.hidden = els.groundLabel.hidden = !legend?.pollution;
+  if (!legend) return;
+  const keep = els.ground.value;
+  els.ground.replaceChildren(...groundsFor(legend).map((o) => new Option(o.label, o.value)));
+  els.ground.value = groundFor(legend, keep);
+}
 
 function fillColourMenu() {
   const keep = els.colourBy.value;
@@ -504,7 +556,12 @@ function legendNote(text) {
 
 function drawLegend() {
   const legend = state.legend;
-  if (!legend) return;
+  if (!legend) { // a run just adopted: nothing of another run's legend stays on the page
+    els.legendAgents.replaceChildren();
+    els.legendMarks.replaceChildren();
+    els.legendCells.replaceChildren();
+    return;
+  }
   const mode = els.colourBy.value;
   const list = Object.assign(document.createElement("ul"), { className: "swatch-list" });
   legend.palettes[mode].forEach((c, i) => list.append(swatchItem(c, legend.labels[mode][i])));
@@ -546,6 +603,17 @@ function drawLegend() {
         "several periods shows darker than one mark's opacity."),
     ]));
 
+  if (groundFor(legend, els.ground.value) === "pollution") {
+    const p = legend.pollution;
+    const bands = Object.assign(document.createElement("ul"), { className: "swatch-list" });
+    p.palette.forEach((c, i) => bands.append(swatchItem(c, p.labels[i])));
+    els.legendCells.replaceChildren(legendTitle("Ground: pollution"), bands,
+      legendNote("Each cell's pollution, in bands fixed for all runs: white is none at all, any pollution at all is " +
+        "the second band or darker, and the last band is open-ended. Agents and marks are drawn on top. Hover for a " +
+        "cell's band."));
+    return;
+  }
+
   const levels = Array.from({ length: legend.max_level + 1 }, (_, i) => i);
   const table = Object.assign(document.createElement("table"), { className: "cells" });
   const head = table.insertRow();
@@ -567,16 +635,19 @@ function drawLegend() {
 
 function updateHover() {
   const { frame, hover, legend } = state;
-  const hit = frame && hover ? hitTest(frame, hover[0], hover[1]) : null;
+  const hit = frame && hover && legend ? hitTest(frame, hover[0], hover[1]) : null; // nothing without the run's legend
   if (!hit) {
     els.hover.innerHTML = "<dt>–</dt><dd>Hover over the map.</dd>";
     return;
   }
   const rows = [["cell", `(${hit.cell.x}, ${hit.cell.y})`], ["cell sugar", hit.cell.sugar], ["cell spice", hit.cell.spice]];
+  if (legend.pollution) {
+    rows.push(["cell pollution", legend.pollution.labels[hit.cell.pollutionBand] ?? `band ${hit.cell.pollutionBand}`]);
+  }
   const a = hit.agent;
   if (a) {
     rows.push(
-      ["agent", a.id], ["tribe", legend?.labels.tribe[a.tribe] ?? a.tribe], ["tags", a.tags, "tags"],
+      ["agent", a.id], ["tribe", legend.labels.tribe[a.tribe] ?? a.tribe], ["tags", a.tags, "tags"],
       ["tags set", a.ones], ["sugar", a.sugar], ["spice", a.spice], ["age", a.age], ["diseases", a.ndiseases],
       ["loans", `lender in ${a.lent}, borrower in ${a.owed}`],
     );
@@ -700,6 +771,10 @@ async function init() {
     safely(drawMapNow);
   });
   els.colourBy.addEventListener("change", () => safely(() => {
+    drawLegend();
+    drawMapNow();
+  }));
+  els.ground.addEventListener("change", () => safely(() => {
     drawLegend();
     drawMapNow();
   }));

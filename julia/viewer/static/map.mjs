@@ -23,6 +23,28 @@ export const MARK_WHICH = [
   { value: "switches", label: "switches only" },
 ];
 
+/**
+ * The "Ground shows" menu: what an empty cell is coloured by. "resources" (the default) is the sugar and spice blend;
+ * "pollution" the cell's pollution band, offered only for a run whose experiment has pollution (groundsFor).
+ */
+export const GROUNDS = [
+  { value: "resources", label: "resources" },
+  { value: "pollution", label: "pollution" },
+];
+
+/** groundsFor(legend) -> the GROUNDS a run's legend can draw: both with pollution, else resources alone. */
+export function groundsFor(legend) {
+  return legend?.pollution ? GROUNDS : GROUNDS.filter((g) => g.value === "resources");
+}
+
+/**
+ * groundFor(legend, wanted) -> the ground to draw: `wanted` when the legend can draw it, else "resources" (a run
+ * without pollution falls back to resources whatever was chosen for an earlier run).
+ */
+export function groundFor(legend, wanted) {
+  return groundsFor(legend).some((g) => g.value === wanted) ? wanted : "resources";
+}
+
 // The landscape blend: how far each channel falls from white at a resource's full capacity. Green carries spice alone
 // and blue carries sugar (with a fixed share of spice), so with at least one step of a channel per eighth of a level,
 // each (sugar, spice) pair has its own colour. Every channel stays at 150 or above, so the agents read first.
@@ -185,18 +207,14 @@ function rgbOf(hex) {
   return [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
 }
 
-/**
- * paintMap(frame, mode, legend) -> Uint8ClampedArray: RGBA, one pixel per cell, north (the largest y) at the top. Each
- * cell is its landscape colour; a cell with an agent is the agent's colour for `mode`. Nothing is blended.
- */
-export function paintMap(frame, mode, legend) {
+// The landscape ground: each cell's sugar and spice blend (landscapeColour), into `image` as paintMap lays it out.
+function paintResources(image, frame, legend) {
   const { width: W, height: H } = frame;
   const top = 8 * legend.max_level;
   const lut = new Uint8Array((top + 1) * (top + 1) * 3); // (s8, p8) -> rgb, each pair computed once
   for (let s = 0; s <= top; s++) {
     for (let p = 0; p <= top; p++) lut.set(landscapeColour(s, p, legend.max_level), (s * (top + 1) + p) * 3);
   }
-  const image = new Uint8ClampedArray(W * H * 4);
   const { cellSugar8: cs, cellSpice8: cp } = frame;
   for (let y = 0; y < H; y++) {
     const row = (H - 1 - y) * W;
@@ -212,6 +230,43 @@ export function paintMap(frame, mode, legend) {
       image[k + 3] = 255;
     }
   }
+}
+
+// The pollution ground: each cell the legend's colour of its pollution band, from white (band 0, none at all) to the
+// last colour (band 8, the open-ended band). A legend without pollution, or a band without a colour, throws.
+function paintPollution(image, frame, legend) {
+  const pollution = legend.pollution;
+  if (!pollution) throw new Error("this run has no pollution to show on the ground");
+  const { width: W, height: H } = frame;
+  const colours = pollution.palette.map(rgbOf);
+  const bands = frame.cellPollution;
+  for (let y = 0; y < H; y++) {
+    const row = (H - 1 - y) * W;
+    for (let x = 0; x < W; x++) {
+      const b = bands[y * W + x];
+      const rgb = colours[b];
+      if (rgb === undefined) throw new Error(`pollution band ${b} has no colour in the legend`);
+      const k = (row + x) * 4;
+      image[k] = rgb[0];
+      image[k + 1] = rgb[1];
+      image[k + 2] = rgb[2];
+      image[k + 3] = 255;
+    }
+  }
+}
+
+/**
+ * paintMap(frame, mode, legend, ground = "resources") -> Uint8ClampedArray: RGBA, one pixel per cell, north (the largest
+ * y) at the top. Each cell is its ground colour: its landscape colour ("resources") or its pollution band's colour from
+ * the legend ("pollution", which throws for a legend without pollution); a cell with an agent is the agent's colour for
+ * `mode`. Nothing is blended.
+ */
+export function paintMap(frame, mode, legend, ground = "resources") {
+  const { width: W, height: H } = frame;
+  const image = new Uint8ClampedArray(W * H * 4);
+  if (ground === "resources") paintResources(image, frame, legend);
+  else if (ground === "pollution") paintPollution(image, frame, legend);
+  else throw new Error(`no ground ${JSON.stringify(ground)}`);
   const field = MODE_FIELDS[mode];
   if (field === undefined) throw new Error(`no colour mode ${JSON.stringify(mode)}`);
   const colours = legend.palettes[mode].map(rgbOf);
@@ -248,13 +303,16 @@ function agentAt(frame, x, y) {
 }
 
 /**
- * hitTest(frame, x, y) -> {agent: {...}, cell: {...}} over an agent, {cell: {x, y, sugar, spice}} over an empty cell, or
- * null outside the map. Exact values: levels are the frame's eighths divided by 8, tags an `ntags`-character string.
+ * hitTest(frame, x, y) -> {agent: {...}, cell: {...}} over an agent, {cell: {x, y, sugar, spice, pollutionBand}} over an
+ * empty cell, or null outside the map. Exact values: levels are the frame's eighths divided by 8, the pollution band the
+ * frame's (0 to 8, the legend's `pollution.labels` give its range), tags an `ntags`-character string.
  */
 export function hitTest(frame, x, y) {
   if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || y < 0 || x >= frame.width || y >= frame.height) return null;
   const c = y * frame.width + x;
-  const cell = { x, y, sugar: frame.cellSugar8[c] / 8, spice: frame.cellSpice8[c] / 8 };
+  const cell = {
+    x, y, sugar: frame.cellSugar8[c] / 8, spice: frame.cellSpice8[c] / 8, pollutionBand: frame.cellPollution[c],
+  };
   const i = agentAt(frame, x, y);
   if (i < 0) return { cell };
   const a = frame.agents;
@@ -267,7 +325,8 @@ export function hitTest(frame, x, y) {
   };
 }
 
-const painted = new WeakMap(); // context -> {frame, mode, legend, canvas}: the last base image, reused while only marks or hover change
+// context -> {frame, mode, legend, ground, marks, canvas}: the last base image, reused while only the hover changes
+const painted = new WeakMap();
 
 function newCanvas(w, h) {
   if (typeof OffscreenCanvas !== "undefined") return new OffscreenCanvas(w, h);
@@ -293,18 +352,19 @@ export function paintMarks(image, frame, marks, legend) {
 }
 
 /**
- * drawMap(ctx, frame, marks, mode, legend): the landscape and the agents, one cell each, then `marks` (from marksToDraw),
- * each filling exactly its own cell (paintMarks), all scaled to the canvas without smoothing (a whole number of device
- * pixels per cell), so a mark never covers a neighbouring cell.
+ * drawMap(ctx, frame, marks, mode, legend, ground = "resources"): the ground (paintMap) and the agents, one cell each,
+ * then `marks` (from marksToDraw), each filling exactly its own cell (paintMarks), all scaled to the canvas without
+ * smoothing (a whole number of device pixels per cell), so a mark never covers a neighbouring cell.
  */
-export function drawMap(ctx, frame, marks, mode, legend) {
+export function drawMap(ctx, frame, marks, mode, legend, ground = "resources") {
   const { width: W, height: H } = frame;
   let base = painted.get(ctx);
-  if (!base || base.frame !== frame || base.mode !== mode || base.legend !== legend || base.marks !== marks) {
+  if (!base || base.frame !== frame || base.mode !== mode || base.legend !== legend || base.ground !== ground ||
+    base.marks !== marks) {
     const canvas = base?.canvas.width === W && base.canvas.height === H ? base.canvas : newCanvas(W, H);
-    const image = paintMarks(paintMap(frame, mode, legend), frame, marks, legend);
+    const image = paintMarks(paintMap(frame, mode, legend, ground), frame, marks, legend);
     canvas.getContext("2d").putImageData(new ImageData(image, W, H), 0, 0);
-    base = { frame, mode, legend, marks, canvas };
+    base = { frame, mode, legend, ground, marks, canvas };
     painted.set(ctx, base);
   }
   const { width: cw, height: ch } = ctx.canvas;

@@ -1,18 +1,24 @@
-// The charts: each a line over periods 0 to newest of a series the server sends (julia/viewer/run.jl, SERIES_KEYS), with a
-// line at the period on the map, a dashed marker at 500 (where the study stops) and the periods no longer kept for the map
-// shaded; plus the Lorenz curve of the period on the map. An undefined value (null in the series, NaN in a frame) is a gap,
-// never 0. The geometry functions touch no DOM, so Node can import this module for julia/test/js/charts.test.mjs.
+// The charts: each a line over periods 0 to newest of a series the server sends (julia/viewer/run.jl, SERIES_KEYS and,
+// with pollution, POLLUTION_SERIES), with a line at the period on the map, a dashed marker where the study stops (the
+// experiment's steps), dotted markers where pollution and diffusion start (an experiment with pollution) and the periods
+// no longer kept for the map shaded; plus the Lorenz curve of the period on the map. An undefined value (null in the
+// series, NaN in a frame) is a gap, never 0. The geometry functions touch no DOM, so Node can import this module for
+// julia/test/js/charts.test.mjs.
 
-/** Where the combat study stops; marked on every chart. */
+/** Where the combat study stops when the run's experiment does not say (its `steps`); marked on every chart. */
 export const STUDY_END = 500;
 
 const NEUTRAL = "#374151";
 const SECOND = "#0f766e";
+const BROWN = "#92400e";
+
+const percent = (share) => `${Number((100 * share).toFixed(1))}%`;
 
 /**
  * The charts, in page order. A chart has one or more panels stacked over a shared period axis; each panel draws its
  * lines on its own y axis from 0 (`fixed` gives the axis top, else it grows with the largest value so far). A line's
- * `colour` is a colour or ["palette", mode, code] from the legend. Adding a chart (for example pollution) is one entry.
+ * `colour` is a colour or ["palette", mode, code] from the legend. A chart with `when` is shown only for a run whose
+ * legend has that entry (chartsFor); `caption(legend)` gives a line under its title (chartCaption).
  */
 export const CHARTS = [
   {
@@ -51,7 +57,45 @@ export const CHARTS = [
     id: "sick", title: "Share of agents sick",
     panels: [{ fixed: 1, lines: [{ key: "fraction_sick", label: "share sick", colour: "#b91c1c" }] }],
   },
+  {
+    id: "pollution", title: "Pollution", when: "pollution",
+    panels: [{ lines: [{ key: "mean_pollution", label: "whole world", colour: "#6b7280" },
+      { key: "agent_pollution", label: "where agents stand", colour: BROWN }] }],
+  },
+  {
+    id: "rich", title: "On the richest land", when: "pollution",
+    caption: (legend) => `cells with sugar + spice capacity ≥ ${legend.pollution.rich_cut}: ` +
+      `${percent(legend.pollution.rich_share)} of the world`,
+    panels: [{ fixed: 1, lines: [{ key: "share_rich", label: "share of agents standing there", colour: NEUTRAL }] }],
+  },
 ];
+
+/** chartsFor(legend) -> the CHARTS a run with this legend has series for: those without `when`, and those it has. */
+export function chartsFor(legend) {
+  return CHARTS.filter((c) => c.when === undefined || (legend?.[c.when] ?? null) !== null);
+}
+
+/** chartCaption(chart, legend) -> the line under the chart's title, from the legend; "" for none. */
+export function chartCaption(chart, legend) {
+  if (!chart.caption || (chart.when !== undefined && !legend?.[chart.when])) return "";
+  return chart.caption(legend);
+}
+
+/**
+ * markerPeriods(view) -> [{t, kind, label}]: the periods marked on every chart. The study's end ("study-end", no label)
+ * at the run's experiment's steps (`view.studyEnd`, STUDY_END without it); with pollution in `view.legend`, the start of
+ * pollution ("pollution", "pollution on") and of diffusion ("diffusion", "diffusion on"), each left out when it is 0
+ * (from the first period, so nothing to mark) or absent.
+ */
+export function markerPeriods(view) {
+  const markers = [{ t: view.studyEnd ?? STUDY_END, kind: "study-end", label: null }];
+  const p = view.legend?.pollution;
+  if (p) {
+    if (p.start) markers.push({ t: p.start, kind: "pollution", label: "pollution on" });
+    if (p.diffusion_start) markers.push({ t: p.diffusion_start, kind: "diffusion", label: "diffusion on" });
+  }
+  return markers;
+}
 
 const defined = (v) => typeof v === "number" && Number.isFinite(v);
 
@@ -162,7 +206,9 @@ const INK = { text: "#4b5563", grid: "#e5e7eb", axis: "#9ca3af", shade: "rgba(10
 
 /**
  * drawChart(canvas, chart, series, view): one chart of CHARTS. `series` maps keys to arrays indexed by period;
- * `view` is {shown, oldestKept, newest, legend}: the period on the map, the oldest period still kept for it, the newest.
+ * `view` is {shown, oldestKept, newest, legend, studyEnd}: the period on the map, the oldest period still kept for it,
+ * the newest, the run's legend and its experiment's steps. The markers (markerPeriods) within the axis are drawn on
+ * every panel: the study's end dashed, the starts dotted and labelled in the first panel.
  */
 export function drawChart(canvas, chart, series, view) {
   const { g, w, h } = fitCanvas(canvas);
@@ -173,6 +219,7 @@ export function drawChart(canvas, chart, series, view) {
   const n = chart.panels.length;
   const panelH = (h - PLOT.top - PLOT.bottom - PLOT.gap * (n - 1)) / n;
   const px = (t) => PLOT.left + (t / xm) * plotW;
+  const markers = markerPeriods(view);
   g.font = "11px system-ui, sans-serif";
   g.lineJoin = "round";
 
@@ -195,12 +242,21 @@ export function drawChart(canvas, chart, series, view) {
       g.fillStyle = INK.shade;
       g.fillRect(PLOT.left, top, px(view.oldestKept) - PLOT.left, panelH);
     }
-    // the study's end
-    if (STUDY_END <= xm) {
+    // the study's end (dashed) and the starts of pollution and diffusion (dotted)
+    for (const m of markers) {
+      if (m.t > xm) continue;
       g.strokeStyle = INK.axis;
-      g.setLineDash([3, 3]);
-      g.beginPath(); g.moveTo(px(STUDY_END), top); g.lineTo(px(STUDY_END), top + panelH); g.stroke();
+      g.lineWidth = 1;
+      g.setLineDash(m.kind === "study-end" ? [3, 3] : [1, 3]);
+      g.beginPath(); g.moveTo(px(m.t), top); g.lineTo(px(m.t), top + panelH); g.stroke();
       g.setLineDash([]);
+      if (m.label && p === 0) {
+        // Right of its line (on from there), "diffusion on" a line above "pollution on" so the two never overlap.
+        g.fillStyle = INK.text;
+        g.textAlign = "left";
+        g.textBaseline = "bottom";
+        g.fillText(m.label, px(m.t) + 3, top + panelH - (m.kind === "diffusion" ? 14 : 2));
+      }
     }
     for (const line of panel.lines) {
       const colour = lineColour(line.colour, view.legend);
