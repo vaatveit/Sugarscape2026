@@ -69,15 +69,15 @@ end
 
 @testset "frame counts" begin
     s = vf_settings()
-    r = ViewerRun(ViewerSettings(VF_ID, s.seed, s.h, s.k))
-    for _ in 1:4
+    r = ViewerRun(ViewerSettings(VF_ID, s.seed + 1, s.h, s.k))
+    for _ in 1:12
         @test advance!(r)
     end
     f0 = vf_decode(r.frames[0])
     @test f0.t == 0
     @test length(f0.u16[:kill_x]) == 0
     @test length(f0.u16[:change_x]) == 0
-    for t in 0:4
+    for t in 0:12
         f = vf_decode(r.frames[t])
         @test f.t == t
         @test length(f.id) == r.series["population"][t + 1]
@@ -94,6 +94,40 @@ end
             @test length(f.u16[:kill_x]) == r.series["killed_blue"][t + 1] + r.series["killed_red"][t + 1]
             @test length(f.u16[:change_x]) == r.series["tribe_changes"][t + 1]
         end
+    end
+    @test sum(length(vf_decode(r.frames[t]).u16[:kill_x]) for t in 1:12) > 0
+    @test sum(length(vf_decode(r.frames[t]).u16[:change_x]) for t in 1:12) > 0
+
+    @testset "columns and cells match the model" begin
+        m = r.model
+        d = vf_decode(r.frames[m.t])
+        @test length(d.id) == length(m.agents)
+        for (i, a) in enumerate(m.agents)
+            @test d.id[i] == a.id
+            @test (d.u16[:x][i], d.u16[:y][i]) == (a.x, a.y)
+            @test d.u16[:tags][i] == a.tags
+            @test d.u16[:age][i] == a.age
+            @test d.sugar[i] == a.sugar
+            @test d.spice[i] == a.spice
+            @test d.u8[:tribe][i] == (Sugarscape.tribe(a) === :red ? 1 : 0)
+            @test d.u8[:culture][i] == count_ones(a.tags)
+            @test d.u8[:band][i] == wealth_band(a.sugar + a.spice)
+            @test d.u8[:disease_step][i] == disease_step(length(a.diseases))
+            @test d.u8[:diseases][i] == length(a.diseases)
+            nl = count(l -> l.lender === a, m.loans)
+            nb = count(l -> l.borrower === a, m.loans)
+            @test d.u16[:lender][i] == nl
+            @test d.u16[:borrower][i] == nb
+            @test d.u8[:role][i] == (nl > 0 ? 1 : 0) + (nb > 0 ? 2 : 0)
+        end
+        w, h = d.width, d.height
+        @test (w, h) == (m.config.width, m.config.height)
+        for (x, y) in ((0, 0), (w - 1, 0), (0, h - 1), (w - 1, h - 1), (div(w, 2), div(h, 3)), (7, 11))
+            @test d.u8[:cell_sugar][y * w + x + 1] == cell_eighths(m.landscape.sugar[x + 1, y + 1])
+            @test d.u8[:cell_spice][y * w + x + 1] == cell_eighths(m.landscape.spice[x + 1, y + 1])
+        end
+        # an asymmetric landscape cell must catch a transpose: the sugar map is not symmetric
+        @test any(d.u8[:cell_sugar][y * w + x + 1] != d.u8[:cell_sugar][x * w + y + 1] for x in 0:min(w, h) - 1, y in 0:min(w, h) - 1)
     end
 end
 
