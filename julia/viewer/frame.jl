@@ -1,9 +1,9 @@
 # One period's map frame: every agent with its codes, the kills and tribe changes of the period, the Lorenz curve and the
-# landscape's levels, and its binary layout. Capturing reads the model and never changes it.
+# landscape's levels and pollution bands, and its binary layout. Capturing reads the model and never changes it.
 
 using Sugarscape: gini
 
-const FRAME_MAGIC = b"SXV1"
+const FRAME_MAGIC = b"SXV2"
 const FRAME_HEADER_BYTES = 32
 const LORENZ_POINTS = 101
 
@@ -36,6 +36,7 @@ struct ViewerFrame
     diseases::Vector{UInt8}
     cell_sugar::Vector{UInt8}  # index y * width + x, in eighths
     cell_spice::Vector{UInt8}
+    cell_pollution::Vector{UInt8}  # index y * width + x, pollution bands (all 0 without pollution)
 end
 
 n_agents(f::ViewerFrame) = length(f.id)
@@ -56,6 +57,14 @@ function cell_levels(levels::Matrix{Float64}, width::Int, height::Int)
     out = Vector{UInt8}(undef, width * height)
     for y in 0:(height - 1), x in 0:(width - 1)
         out[y * width + x + 1] = cell_eighths(levels[x + 1, y + 1])
+    end
+    return out
+end
+
+function cell_pollution_bands(pollution::Matrix{Float64}, width::Int, height::Int)
+    out = Vector{UInt8}(undef, width * height)
+    for y in 0:(height - 1), x in 0:(width - 1)
+        out[y * width + x + 1] = pollution_band(pollution[x + 1, y + 1])
     end
     return out
 end
@@ -104,15 +113,17 @@ function capture_frame(m::Model, prev::Dict{Int,Symbol}, seen::Bool)
         [disease_step(length(a.diseases)) for a in agents], [get(roles, a.id, ROLE_NONE) for a in agents],
         [UInt8(length(a.diseases)) for a in agents],
         cell_levels(m.landscape.sugar, w, h), cell_levels(m.landscape.spice, w, h),
+        cell_pollution_bands(m.landscape.pollution, w, h),
     )
 end
 
 """
     encode_frame(f) -> Vector{UInt8}
 
-Little-endian: a 32-byte header (`SXV1`, t Int32, width and height UInt16, n_agents, n_kills, n_changes UInt32, ntags
+Little-endian: a 32-byte header (`SXV2`, t Int32, width and height UInt16, n_agents, n_kills, n_changes UInt32, ntags
 UInt8, 7 zero bytes), then Float64 (sugar, spice, lorenz, gini), UInt32 (id), UInt16 (x, y, tags, age, lender, borrower,
-kill x, kill y, change x, change y), UInt8 (tribe, culture, band, disease step, role, diseases, cell sugar, cell spice).
+kill x, kill y, change x, change y), UInt8 (tribe, culture, band, disease step, role, diseases, cell sugar, cell spice,
+cell pollution band).
 Each section starts at a multiple of its element size.
 """
 function encode_frame(f::ViewerFrame)::Vector{UInt8}
@@ -131,7 +142,8 @@ function encode_frame(f::ViewerFrame)::Vector{UInt8}
     for v in (f.x, f.y, f.tags, f.age, f.lender, f.borrower, f.kill_x, f.kill_y, f.change_x, f.change_y)
         write(io, htol.(v))
     end
-    for v in (f.tribe, f.culture, f.band, f.disease_step, f.role, f.diseases, f.cell_sugar, f.cell_spice)
+    for v in (f.tribe, f.culture, f.band, f.disease_step, f.role, f.diseases, f.cell_sugar, f.cell_spice,
+        f.cell_pollution)
         write(io, v)
     end
     return take!(io)

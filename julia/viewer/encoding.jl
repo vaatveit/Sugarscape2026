@@ -1,7 +1,7 @@
 # The codes a frame carries for each agent and cell, and the legend the page draws them with. Pure functions of one agent
 # or one model; nothing here changes a model.
 
-using Sugarscape: Agent, Model, Config, tribe
+using Sugarscape: Agent, Model, Config, tribe, rich_cut
 
 """The colour modes of the map, in the order of the page's selector."""
 const COLOUR_MODES = ["tribe", "culture", "wealth", "disease", "credit"]
@@ -36,6 +36,25 @@ end
 count it in neither tribe; it cannot occur in the viewer, whose VI-1 experiments always give agents 11 tags.
 """
 tribe_code(a::Agent)::UInt8 = tribe(a) === :red ? 0x01 : 0x00
+
+"""Pollution band edges: band 0 is no pollution at all, band 1 above 0 and below the first edge, band b + 1 is
+`EDGES[b] <= p < EDGES[b+1]`, band 8 the last edge or more."""
+const POLLUTION_EDGES = (1.0, 3.0, 10.0, 30.0, 100.0, 300.0, 1000.0)
+
+"""
+`pollution_band(p)`: 0 to 8, see [`POLLUTION_EDGES`](@ref); throws for a negative or NaN level, which the model never
+makes.
+"""
+function pollution_band(p::Real)::UInt8
+    (p >= 0) || error("pollution $p is neither 0 nor positive")
+    p == 0 && return 0x00
+    b = 1
+    for edge in POLLUTION_EDGES
+        p >= edge || break
+        b += 1
+    end
+    return UInt8(b)
+end
 
 """`culture_ones(a)`: how many of the agent's tags are 1."""
 culture_ones(a::Agent)::UInt8 = UInt8(count_ones(a.tags))
@@ -75,11 +94,40 @@ end
 const BLUE_RGB = (37, 99, 235)
 const RED_RGB = (192, 57, 43)
 
+# White (clean) through a muted tan to a dark olive-brown. Every colour is at least 60 (RGB distance) from every agent
+# colour of every mode and from the kill and switch mark colours, the closest being 68 from the wealth mode's dark
+# purple-red (tested in julia/test/test_xxl_viewer_frame.jl and the page's tests). Greener than brown at the dark end,
+# away from the dark wealth and disease reds; yellower than grey at mid-ramp, away from the credit and disease grey.
+const POLLUTION_PALETTE = ["#ffffff", "#f7f1dc", "#e9dbb0", "#dbc585", "#c7b168", "#af9e54", "#958940", "#73732f",
+    "#525c1e"]
+
+# The pollution entry of the legend: `nothing` without pollution, else the bands, the start of pollution and of
+# diffusion (`nothing` without diffusion) and the rich land's cut and the share of cells it covers.
+function pollution_legend(m::Model)
+    cfg = m.config
+    cfg.pollution === nothing && return nothing
+    ls = m.landscape
+    cut = rich_cut(ls)
+    labels = ["0 (clean)"; "below 1"; ["$(Int(POLLUTION_EDGES[b])) to < $(Int(POLLUTION_EDGES[b + 1]))" for b in 1:6];
+        "1000 or more"]
+    return Dict{String,Any}(
+        "palette" => POLLUTION_PALETTE,
+        "labels" => labels,
+        "edges" => collect(POLLUTION_EDGES),
+        "start" => cfg.pollution_start,
+        "diffusion_start" => cfg.diffusion_period === nothing ? nothing : cfg.diffusion_start,
+        "rich_cut" => cut,
+        "rich_share" => count((ls.capacity .+ ls.spice_capacity) .>= cut) / length(ls.capacity),
+    )
+end
+
 """
     legend(m_or_cfg) -> Dict{String,Any}
 
 What the page needs to draw and explain a frame: the modes, each mode's palette and labels, the band edges, the event
-colours, the mark spacing, the largest resource capacity and the tag length. A config builds a model to read its landscape.
+colours, the mark spacing, the largest resource capacity, the tag length, and `"pollution"`: `nothing` without
+pollution, else its bands' palette, labels and edges, the periods pollution and diffusion start (`nothing` without
+diffusion), the rich land's `rich_cut` and the share of cells it covers. A config builds a model to read its landscape.
 """
 function legend(m::Model)
     ntags = m.config.tag_length
@@ -112,6 +160,7 @@ function legend(m::Model)
         "mark_periods" => 10,
         "max_level" => max(maximum(m.landscape.capacity; init=0), maximum(m.landscape.spice_capacity; init=0)),
         "ntags" => ntags,
+        "pollution" => pollution_legend(m),
     )
 end
 

@@ -2,7 +2,7 @@
 isdefined(@__MODULE__, :XxlViewer) || include(joinpath(@__DIR__, "..", "viewer", "XxlViewer.jl"))
 using Sugarscape, Test
 using .XxlViewer
-using Sugarscape: run_combat_world, world_config, JULIA_COMBAT_EXPS, metric_columns
+using Sugarscape: run_combat_world, world_config, JULIA_COMBAT_EXPS, metric_columns, pollution_path
 
 const VW_STEPS = 12
 
@@ -23,7 +23,7 @@ end
 
 @testset "viewer settings" begin
     @test VIEWER_EXPS == ["VI-1-combat", "VI-1-distance", "VI-1-near", "VI-1-far", "VI-1-far-speed", "VI-1-assim",
-        "VI-1-assim-random", "VI-1-assim-k4"]
+        "VI-1-assim-random", "VI-1-assim-k4", "VI-1-pollution", "VI-1-pollution-t0"]
     @test DEFAULT_EXP == "VI-1-assim-k4"
     s = viewer_defaults("VI-1-assim-k4")
     @test s.h == 0.5
@@ -81,6 +81,42 @@ end
         @test tail["t"] == [10.0, 11.0, 12.0]
         @test tail["population"] == r.series["population"][11:13]
     end
+
+    @testset "series keys" begin
+        @test series_keys(r.model.config) == SERIES_KEYS
+        @test sort(collect(keys(r.series))) == sort(SERIES_KEYS)
+    end
+end
+
+@testset "pollution run matches the study" begin
+    id = "VI-1-pollution-t0"
+    folder = run_combat_world("today", id; seeds=1, first_seed=1, periods=VW_STEPS, out=mktempdir(), io=devnull)
+    combat = vw_csv(joinpath(folder, "seed1-combat.csv"))
+    std = vw_csv(joinpath(folder, "seed1.csv"))
+    pollution = vw_csv(pollution_path(folder, 1))
+    s = viewer_defaults(id)
+    r = ViewerRun(ViewerSettings(id, s.seed + 1, s.h, s.k))
+    for _ in 1:VW_STEPS
+        @test advance!(r)
+    end
+    @test POLLUTION_SERIES == ["mean_pollution", "agent_pollution", "share_rich"]
+    @test series_keys(r.model.config) == vcat(SERIES_KEYS, POLLUTION_SERIES)
+    @test sort(collect(keys(r.series))) == sort(series_keys(r.model.config))
+    @test r.series["t"] == collect(0.0:VW_STEPS)
+    @test pollution["t"] == r.series["t"]
+    for key in POLLUTION_SERIES
+        @test all(isequal.(r.series[key], pollution[key]))
+    end
+    @test r.series["mean_pollution"][end] > 0
+    for key in ("population", "n_blue", "n_red", "killed_blue", "killed_red", "tribe_changes")
+        @test all(isequal.(r.series[key], combat[key]))
+    end
+    for key in ("gini", "trades", "mean_price", "n_loans", "fraction_sick")
+        @test all(isequal.(r.series[key], std[key]))
+    end
+    tail = series_since(r, 10)
+    @test sort(collect(keys(tail))) == sort(series_keys(r.model.config))
+    @test tail["share_rich"] == r.series["share_rich"][11:13]
 end
 
 @testset "viewer run stops at extinction" begin

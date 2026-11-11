@@ -9,5 +9,5 @@
   "change_x": [2], "change_y": [0],
   "tribe": [0, 1], "culture": [5, 8], "band": [1, 2],
   "disease_step": [0, 3], "role": [3, 0], "diseases": [0, 4],
-  "cell_sugar": [0, 8, 16, 17, 32, 255], "cell_spice": [1, 2, 3, 4, 5, 6]
+  "cell_sugar": [0, 8, 16, 17, 32, 255], "cell_spice": [1, 2, 3, 4, 5, 6], "cell_pollution": [0, 8, 1, 4, 7, 2]
 }

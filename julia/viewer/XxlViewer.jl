@@ -4,10 +4,11 @@ module XxlViewer
 
 using Sugarscape
 
-export VIEWER_EXPS, DEFAULT_EXP, ViewerSettings, viewer_defaults, viewer_config, run_index, SERIES_KEYS, ViewerRun,
-    advance!, series_since, total_debt,
-    COLOUR_MODES, WEALTH_EDGES, DISEASE_STEPS, wealth_band, disease_step, tribe_code, culture_ones, ROLE_NONE, ROLE_LENDER,
-    ROLE_BORROWER, ROLE_BOTH, credit_roles, cell_eighths, legend, ViewerFrame, capture_frame, encode_frame, lorenz_curve,
+export VIEWER_EXPS, DEFAULT_EXP, ViewerSettings, viewer_defaults, viewer_config, run_index, SERIES_KEYS,
+    POLLUTION_SERIES, series_keys, ViewerRun, advance!, series_since, total_debt,
+    COLOUR_MODES, WEALTH_EDGES, DISEASE_STEPS, POLLUTION_EDGES, wealth_band, disease_step, pollution_band, tribe_code,
+    culture_ones, ROLE_NONE, ROLE_LENDER, ROLE_BORROWER, ROLE_BOTH, credit_roles, cell_eighths, legend, ViewerFrame,
+    capture_frame, encode_frame, lorenz_curve,
     VIEWER_KEEP, to_json, ViewerServer, start_viewer, stop_viewer, step_once!
 
 include("encoding.jl")

@@ -2,13 +2,13 @@
 # then the combat readings, then the standard metrics; period 0 has no step), with each charted value taken from those
 # readings and never recomputed.
 
-using Sugarscape: Model, Config, Loan, CombatReadings, COMBAT_COLUMNS, JULIA_COMBAT_EXPS, world_config, replace_config,
-    metric_columns, collect_metrics, combat_period!, step!
+using Sugarscape: Model, Config, Loan, CombatReadings, COMBAT_COLUMNS, POLLUTION_COLUMNS, JULIA_COMBAT_EXPS,
+    world_config, replace_config, metric_columns, collect_metrics, combat_period!, step!
 
-"""The experiments the viewer offers, in the order of its menu: the eight VI-1 ones of the combat study."""
+"""The experiments the viewer offers, in the order of its menu: the ten VI-1 ones of the combat study."""
 const VIEWER_EXPS = [
     "VI-1-combat", "VI-1-distance", "VI-1-near", "VI-1-far", "VI-1-far-speed", "VI-1-assim", "VI-1-assim-random",
-    "VI-1-assim-k4",
+    "VI-1-assim-k4", "VI-1-pollution", "VI-1-pollution-t0",
 ]
 
 """How many of the newest frames a run keeps."""
@@ -57,6 +57,12 @@ end
 const SERIES_KEYS = ["t", "population", "n_blue", "n_red", "killed_blue", "killed_red", "tribe_changes", "gini", "trades",
     "mean_price", "n_loans", "total_debt", "fraction_sick"]
 
+"""The series a run with pollution has besides [`SERIES_KEYS`](@ref), from its pollution readings."""
+const POLLUTION_SERIES = ["mean_pollution", "agent_pollution", "share_rich"]
+
+"""`series_keys(cfg)`: a run's series: [`SERIES_KEYS`](@ref), then with pollution [`POLLUTION_SERIES`](@ref)."""
+series_keys(cfg::Config) = cfg.pollution === nothing ? SERIES_KEYS : vcat(SERIES_KEYS, POLLUTION_SERIES)
+
 const COMBAT_SERIES = ["population", "n_blue", "n_red", "killed_blue", "killed_red", "tribe_changes"]
 const METRIC_SERIES = ["gini", "trades", "mean_price", "n_loans", "fraction_sick"]
 
@@ -67,8 +73,9 @@ total_debt(m::Model) = sum(l.due for l in m.loans; init=0.0)
     ViewerRun(s)
 
 A run of `s`: its model (period 0 read, no step yet), the combat `readings`, `series` (one value per period for each of
-[`SERIES_KEYS`](@ref), period 0 first) and `metric_rows`, each period's full metrics row in `metric_columns(model.config)`
-order. `frames` holds each period's encoded frame, the newest `keep`. Move it on with [`advance!`](@ref).
+[`series_keys`](@ref)`(model.config)`, period 0 first) and `metric_rows`, each period's full metrics row in
+`metric_columns(model.config)` order. `frames` holds each period's encoded frame, the newest `keep`. Move it on with
+[`advance!`](@ref).
 """
 mutable struct ViewerRun
     settings::ViewerSettings
@@ -84,7 +91,7 @@ end
 function ViewerRun(s::ViewerSettings; keep::Int=VIEWER_KEEP)
     m = Model(viewer_config(s))
     columns = metric_columns(m.config)
-    r = ViewerRun(s, m, CombatReadings(), Dict(k => Float64[] for k in SERIES_KEYS), Vector{Float64}[],
+    r = ViewerRun(s, m, CombatReadings(), Dict(k => Float64[] for k in series_keys(m.config)), Vector{Float64}[],
         Dict(c => i for (i, c) in enumerate(columns)), Dict{Int,Vector{UInt8}}(), keep)
     keep_frame!(r)
     read_period!(r)
@@ -99,8 +106,8 @@ function keep_frame!(r::ViewerRun)
     return nothing
 end
 
-# The end of a period, as `timed_seed` reads it: the combat readings, then the metrics, once each; the series take their
-# values from those rows.
+# The end of a period, as `timed_seed` reads it: the combat readings (with their pollution row when the run has
+# pollution), then the metrics, once each; the series take their values from those rows.
 function read_period!(r::ViewerRun)
     m = r.model
     combat_period!(r.readings, m)
@@ -115,6 +122,12 @@ function read_period!(r::ViewerRun)
         push!(r.series[key], metrics[r.metric_index[key]])
     end
     push!(r.series["total_debt"], total_debt(m))
+    if m.config.pollution !== nothing
+        row = r.readings.pollution_rows[end]
+        for key in POLLUTION_SERIES
+            push!(r.series[key], row[findfirst(==(key), POLLUTION_COLUMNS)])
+        end
+    end
     return nothing
 end
 

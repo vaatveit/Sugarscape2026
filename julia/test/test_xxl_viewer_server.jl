@@ -126,6 +126,12 @@ end
         d = viewer_defaults(VS_ID)
         @test (k4["seed"], k4["h"], k4["k"]) == (d.seed, d.h, d.k)
         @test k4["seeds"] > 0 && !isempty(k4["title"])
+        @test (k4["steps"], k4["pollution"]) == (500, false)
+        for id in ("VI-1-pollution", "VI-1-pollution-t0")
+            e = only(filter(e -> e["id"] == id, exps))
+            @test (e["steps"], e["pollution"]) == (600, true)
+        end
+        @test all(e -> e["pollution"] isa Bool, exps)
 
         page = vs_get(s, "/")
         @test page.status == 200
@@ -168,7 +174,7 @@ end
             f = vs_get(s, "/api/frame?run=$run&t=2")
             @test f.status == 200
             @test HTTP.header(f, "Content-Type") == "application/octet-stream"
-            @test String(f.body[1:4]) == "SXV1"
+            @test String(f.body[1:4]) == "SXV2"
             @test frame_t(f.body) == 2
             @test vs_get(s, "/api/frame?run=$run&t=2").body == f.body  # serving shares the bytes, never alters them
             @test vs_get(s, "/api/frame?run=$run&t=3").status == 404
@@ -242,6 +248,26 @@ end
             @test s.run.model.t == t
             @test vs_get(s, "/api/frame?run=$run&t=0").status == 200
         end
+    finally
+        stop_viewer(s)
+    end
+end
+
+@testset "a pollution run publishes its pollution series and legend" begin
+    s = start_viewer(; port=0, autostep=false)
+    try
+        resp = vs_post(s, "/api/start", Dict("exp" => "VI-1-pollution-t0"))
+        @test resp.status == 200
+        run = Int(vs_body(resp)["run"])
+        @test step_once!(s)
+        @test step_once!(s)
+        ser = vs_body(vs_get(s, "/api/series?run=$run&from=0"))["series"]
+        @test sort(collect(keys(ser))) == sort(series_keys(s.run.model.config))
+        for key in POLLUTION_SERIES
+            @test ser[key] == s.run.series[key]
+        end
+        lg = vs_body(vs_get(s, "/api/legend"))
+        @test length(lg["pollution"]["palette"]) == 9 && lg["pollution"]["rich_cut"] == 5
     finally
         stop_viewer(s)
     end

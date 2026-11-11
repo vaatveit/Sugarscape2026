@@ -5,11 +5,12 @@ using Sugarscape, Test
 using .XxlViewer
 
 const VF_ID = "VI-1-assim-k4"
+const VF_POLLUTION_ID = "VI-1-pollution-t0"
 vf_settings() = viewer_defaults(VF_ID)
 
 # The test's own decoder of a frame's bytes: a named tuple of the values in the layout's order.
 function vf_decode(bytes::Vector{UInt8})
-    @assert String(bytes[1:4]) == "SXV1"
+    @assert String(bytes[1:4]) == "SXV2"
     at(T, off, n) = (collect(reinterpret(T, bytes[(off + 1):(off + n * sizeof(T))])), off + n * sizeof(T))
     t = Int(only(reinterpret(Int32, bytes[5:8])))
     width, height = Int.(reinterpret(UInt16, bytes[9:12]))
@@ -29,7 +30,7 @@ function vf_decode(bytes::Vector{UInt8})
     end
     u8 = Dict{Symbol,Vector{UInt8}}()
     for (name, count) in (:tribe => n, :culture => n, :band => n, :disease_step => n, :role => n, :diseases => n,
-        :cell_sugar => width * height, :cell_spice => width * height)
+        :cell_sugar => width * height, :cell_spice => width * height, :cell_pollution => width * height)
         u8[name], off = at(UInt8, off, count)
     end
     @assert off == length(bytes)
@@ -46,6 +47,11 @@ end
     @test_throws ErrorException cell_eighths(-0.125)
     @test COLOUR_MODES == ["tribe", "culture", "wealth", "disease", "credit"]
     @test (ROLE_NONE, ROLE_LENDER, ROLE_BORROWER, ROLE_BOTH) == (0, 1, 2, 3)
+    @test POLLUTION_EDGES == (1.0, 3.0, 10.0, 30.0, 100.0, 300.0, 1000.0)
+    @test pollution_band.([0.0, 1e-300, 0.999, 1.0, 2.999, 3.0, 999.9, 1000.0, 1e9]) == UInt8[0, 1, 1, 2, 2, 3, 7, 8, 8]
+    @test pollution_band(-0.0) == 0
+    @test_throws ErrorException pollution_band(-1e-300)
+    @test_throws ErrorException pollution_band(NaN)
 end
 
 @testset "frame legend" begin
@@ -65,11 +71,59 @@ end
     @test lg["ntags"] == 11
     @test lg["wealth_edges"] == collect(WEALTH_EDGES)
     @test lg["disease_steps"] == collect(DISEASE_STEPS)
+    @test haskey(lg, "pollution") && lg["pollution"] === nothing
     # The page's tests (julia/test/js/map.test.mjs) read this legend: written when missing, else it must match.
     path = joinpath(@__DIR__, "js", "fixture-legend.json")
     text = to_json(lg) * "\n"
     isfile(path) || write(path, text)
     @test read(path, String) == text
+end
+
+@testset "frame legend with pollution" begin
+    cfg = viewer_config(viewer_defaults(VF_POLLUTION_ID))
+    m = Model(cfg)
+    lg = legend(m)
+    p = lg["pollution"]
+    @test p isa AbstractDict
+    @test length(p["palette"]) == 9
+    @test length(unique(p["palette"])) == 9
+    @test all(c -> occursin(r"^#[0-9a-f]{6}$", c), p["palette"])
+    @test p["palette"][1] == "#ffffff"
+    @test p["labels"] == ["0 (clean)", "below 1", "1 to < 3", "3 to < 10", "10 to < 30", "30 to < 100", "100 to < 300",
+        "300 to < 1000", "1000 or more"]
+    @test p["edges"] == collect(POLLUTION_EDGES)
+    @test p["start"] == cfg.pollution_start == 0
+    @test p["diffusion_start"] == cfg.diffusion_start == 0
+    @test p["rich_cut"] == 5
+    ls = m.landscape
+    @test p["rich_share"] == count((ls.capacity .+ ls.spice_capacity) .>= 5) / length(ls.capacity)
+    @test 0.3 < p["rich_share"] < 0.34
+    pl = legend(viewer_config(viewer_defaults("VI-1-pollution")))["pollution"]
+    @test (pl["start"], pl["diffusion_start"]) == (350, 450)
+    # Apart from the new entry, the legend is the one without pollution.
+    k4 = legend(viewer_config(vf_settings()))
+    @test delete!(copy(lg), "pollution") == delete!(copy(k4), "pollution")
+end
+
+# The RGB distance of two "#rrggbb" colours.
+function vf_distance(a::AbstractString, b::AbstractString)
+    rgb(c) = [parse(Int, c[i:(i + 1)]; base=16) for i in (2, 4, 6)]
+    return sqrt(sum(abs2, rgb(a) .- rgb(b)))
+end
+
+@testset "pollution colours stand apart from agents and marks" begin
+    # Every agent colour of every mode, and both mark colours, at least 60 (RGB distance) from every pollution colour,
+    # so an agent or a one-cell mark never reads as polluted ground (the page's tests check the same, julia/test/js).
+    lg = legend(viewer_config(viewer_defaults(VF_POLLUTION_ID)))
+    ground = lg["pollution"]["palette"]
+    for mode in COLOUR_MODES, colour in lg["palettes"][mode], g in ground
+        d = vf_distance(colour, g)
+        d >= 60 || @info "too close" mode colour g d
+        @test d >= 60
+    end
+    for colour in (lg["kill_colour"], lg["change_colour"]), g in ground
+        @test vf_distance(colour, g) >= 60
+    end
 end
 
 @testset "frame counts" begin
@@ -102,6 +156,8 @@ end
     end
     @test sum(length(vf_decode(r.frames[t]).u16[:kill_x]) for t in 1:12) > 0
     @test sum(length(vf_decode(r.frames[t]).u16[:change_x]) for t in 1:12) > 0
+    # No pollution: every cell is clean.
+    @test all(t -> all(==(0x00), vf_decode(r.frames[t]).u8[:cell_pollution]), 0:12)
 
     @testset "columns and cells match the model" begin
         m = r.model
@@ -137,6 +193,22 @@ end
     end
 end
 
+@testset "pollution frame matches the model" begin
+    r = ViewerRun(viewer_defaults(VF_POLLUTION_ID))
+    for _ in 1:2
+        @test advance!(r)
+    end
+    m = r.model
+    d = vf_decode(r.frames[m.t])
+    w, h = d.width, d.height
+    @test d.u8[:cell_pollution] ==
+          [pollution_band(m.landscape.pollution[x + 1, y + 1]) for y in 0:(h - 1) for x in 0:(w - 1)]
+    @test any(>(0x00), d.u8[:cell_pollution])
+    # an asymmetric cell must catch a transpose
+    @test any(d.u8[:cell_pollution][y * w + x + 1] != d.u8[:cell_pollution][x * w + y + 1]
+        for x in 0:(min(w, h) - 1), y in 0:(min(w, h) - 1))
+end
+
 # A frame by hand: 3 by 2 cells, 2 agents, 1 kill, 1 change.
 function vf_hand_frame()
     return ViewerFrame(
@@ -146,7 +218,7 @@ function vf_hand_frame()
         UInt16[0, 2], UInt16[1, 0], UInt16[0x0a5, 0x7ff], UInt16[3, 99], UInt16[1, 0], UInt16[0, 2],
         UInt16[1], UInt16[1], UInt16[2], UInt16[0],
         UInt8[0, 1], UInt8[5, 8], UInt8[1, 2], UInt8[0, 3], UInt8[3, 0], UInt8[0, 4],
-        UInt8[0, 8, 16, 17, 32, 255], UInt8[1, 2, 3, 4, 5, 6],
+        UInt8[0, 8, 16, 17, 32, 255], UInt8[1, 2, 3, 4, 5, 6], UInt8[0, 8, 1, 4, 7, 2],
     )
 end
 
@@ -164,7 +236,7 @@ function vf_hand_json()
   "change_x": $(vec(f.change_x)), "change_y": $(vec(f.change_y)),
   "tribe": $(vec(f.tribe)), "culture": $(vec(f.culture)), "band": $(vec(f.band)),
   "disease_step": $(vec(f.disease_step)), "role": $(vec(f.role)), "diseases": $(vec(f.diseases)),
-  "cell_sugar": $(vec(f.cell_sugar)), "cell_spice": $(vec(f.cell_spice))
+  "cell_sugar": $(vec(f.cell_sugar)), "cell_spice": $(vec(f.cell_spice)), "cell_pollution": $(vec(f.cell_pollution))
 }
 """
 end
@@ -173,8 +245,9 @@ end
     f = vf_hand_frame()
     bytes = encode_frame(f)
     n, nk, nc, cells = 2, 1, 1, 6
-    @test length(bytes) == 32 + 8 * (2n + 101 + 1) + 4n + 2 * (6n + 2nk + 2nc) + 6n + 2cells
-    @test bytes[1:4] == b"SXV1"
+    @test length(bytes) == 32 + 8 * (2n + 101 + 1) + 4n + 2 * (6n + 2nk + 2nc) + 6n + 3cells
+    @test bytes[1:4] == b"SXV2"
+    @test bytes[(end - cells + 1):end] == f.cell_pollution
     d = vf_decode(bytes)
     @test (d.t, d.width, d.height, d.ntags) == (7, 3, 2, 11)
     @test d.sugar == f.sugar && d.spice == f.spice && d.lorenz == f.lorenz && d.gini == f.gini
@@ -182,7 +255,7 @@ end
     for name in (:x, :y, :tags, :age, :lender, :borrower, :kill_x, :kill_y, :change_x, :change_y)
         @test d.u16[name] == getfield(f, name)
     end
-    for name in (:tribe, :culture, :band, :disease_step, :role, :diseases, :cell_sugar, :cell_spice)
+    for name in (:tribe, :culture, :band, :disease_step, :role, :diseases, :cell_sugar, :cell_spice, :cell_pollution)
         @test d.u8[name] == getfield(f, name)
     end
 
@@ -198,7 +271,7 @@ end
 @testset "empty frame" begin
     f = ViewerFrame(3, 2, 2, 11, Float64[], Float64[], fill(NaN, 101), NaN, UInt32[], UInt16[], UInt16[], UInt16[], UInt16[],
         UInt16[], UInt16[], UInt16[], UInt16[], UInt16[], UInt16[], UInt8[], UInt8[], UInt8[], UInt8[], UInt8[], UInt8[],
-        UInt8[0, 0, 0, 0], UInt8[0, 0, 0, 0])
+        UInt8[0, 0, 0, 0], UInt8[0, 0, 0, 0], UInt8[0, 0, 0, 0])
     d = vf_decode(encode_frame(f))
     @test isempty(d.id)
     @test all(isnan, d.lorenz)

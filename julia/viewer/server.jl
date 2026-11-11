@@ -116,7 +116,9 @@ function experiments_json()
     return to_json(map(VIEWER_EXPS) do id
         exp = viewer_experiment(id)
         d = viewer_defaults(id)
-        (id=id, title=exp.title, seed=d.seed, h=d.h, k=d.k, seeds=exp.seeds)
+        cfg = world_config(exp, "today")
+        (id=id, title=exp.title, seed=d.seed, h=d.h, k=d.k, seeds=exp.seeds, steps=exp.steps,
+            pollution=cfg.pollution !== nothing)
     end)
 end
 
@@ -204,7 +206,7 @@ function step_once!(s::ViewerServer)
             t = r.model.t
             s.frames[t] = r.frames[t]
             delete!(s.frames, t - s.keep)
-            for k in SERIES_KEYS
+            for k in keys(r.series)
                 push!(s.series[k], r.series[k][end])
             end
             s.newest = t
