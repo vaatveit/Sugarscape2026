@@ -11,6 +11,9 @@ const VIEWER_EXPS = [
     "VI-1-assim-k4",
 ]
 
+"""How many of the newest frames a run keeps."""
+const VIEWER_KEEP = 100
+
 const DEFAULT_EXP = "VI-1-assim-k4"
 
 """What a run is started from: the experiment, the raw seed, the hostility `h` (`combat_hostility`) and the curve `k` (`combat_curve`)."""
@@ -65,7 +68,7 @@ total_debt(m::Model) = sum(l.due for l in m.loans; init=0.0)
 
 A run of `s`: its model (period 0 read, no step yet), the combat `readings`, `series` (one value per period for each of
 [`SERIES_KEYS`](@ref), period 0 first) and `metric_rows`, each period's full metrics row in `metric_columns(model.config)`
-order. Move it on with [`advance!`](@ref).
+order. `frames` holds each period's encoded frame, the newest `keep`. Move it on with [`advance!`](@ref).
 """
 mutable struct ViewerRun
     settings::ViewerSettings
@@ -74,15 +77,26 @@ mutable struct ViewerRun
     series::Dict{String,Vector{Float64}}
     metric_rows::Vector{Vector{Float64}}
     metric_index::Dict{String,Int}  # metric column name -> position in a metric row
+    frames::Dict{Int,Vector{UInt8}}  # encoded frames by t, the newest `keep` only
+    keep::Int
 end
 
-function ViewerRun(s::ViewerSettings)
+function ViewerRun(s::ViewerSettings; keep::Int=VIEWER_KEEP)
     m = Model(viewer_config(s))
     columns = metric_columns(m.config)
     r = ViewerRun(s, m, CombatReadings(), Dict(k => Float64[] for k in SERIES_KEYS), Vector{Float64}[],
-        Dict(c => i for (i, c) in enumerate(columns)))
+        Dict(c => i for (i, c) in enumerate(columns)), Dict{Int,Vector{UInt8}}(), keep)
+    keep_frame!(r)
     read_period!(r)
     return r
+end
+
+# The period's frame, taken before the readings overwrite the previous tribes it compares with.
+function keep_frame!(r::ViewerRun)
+    m = r.model
+    r.frames[m.t] = encode_frame(capture_frame(m, r.readings.prev, r.readings.seen))
+    delete!(r.frames, m.t - r.keep)
+    return nothing
 end
 
 # The end of a period, as `timed_seed` reads it: the combat readings, then the metrics, once each; the series take their
@@ -112,6 +126,7 @@ One period: `step!`, the readings and the metrics. Returns `false`, changing not
 function advance!(r::ViewerRun)
     isempty(r.model.agents) && return false
     step!(r.model)
+    keep_frame!(r)
     read_period!(r)
     return true
 end
