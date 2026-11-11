@@ -178,7 +178,7 @@ export function marksNote(t, oldestKept, obtained, failed = []) {
   const parts = [];
   if (lost.length) parts.push(`Marks before t = ${lost[lost.length - 1] + 1} are not available (no longer kept)`);
   if (bad.length) parts.push(`Marks of t = ${bad.join(", ")} could not be loaded`);
-  return `${parts.join(". ")}, so fewer crosses and rings are drawn than the model made.`;
+  return `${parts.join(". ")}, so fewer marks are drawn than the model made.`;
 }
 
 function rgbOf(hex) {

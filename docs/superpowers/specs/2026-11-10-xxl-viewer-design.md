@@ -59,7 +59,12 @@ chart) without reworking the page or the frames.
   this with the all-Julia choice.)* Look up its current documentation (Context7) before writing code against it.
 - The page is plain HTML, CSS and ES-module JavaScript with no build step, adapted from the Python viewer's
   `viewer/static/` (canvas board, hover, slider, legend, pace control). It talks only to the Julia server.
-- The server binds to 127.0.0.1 only.
+- The server binds to 127.0.0.1 only. *(Final review:)* it answers only requests whose Host is `127.0.0.1:<port>` or
+  `localhost:<port>`, and refuses a POST whose Origin is present and not `http://127.0.0.1:<port>` or
+  `http://localhost:<port>` (both 403), so another website can neither start or stop a run nor read frames.
+- *(Final review:)* the stepper's backpressure point is the period the page shows. The page shows frames from its own
+  cache too, so it reports that period with its status requests (`/api/status?run=&shown=t`, each poll and at once
+  whenever it shows another period); a kept `shown` of the current run moves the point exactly as a frame request does.
 
 ## What the user sees
 

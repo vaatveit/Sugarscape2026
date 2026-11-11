@@ -78,7 +78,8 @@ function showError(err) {
 }
 
 // The frame of period t of the current run, from the cache or the server: null when the server no longer keeps it (or
-// does not have it yet). A request moves the server's backpressure point to t, so the page asks for what it shows.
+// does not have it yet). A request moves the server's backpressure point to t, but a cache hit asks the server nothing,
+// so the period shown is reported on its own (reportShown, and every status poll).
 function fetchFrame(t) {
   if (state.cache.has(t)) return Promise.resolve(state.cache.get(t));
   if (state.inflight.has(t)) return state.inflight.get(t);
@@ -124,9 +125,22 @@ async function showPeriod(t) {
   state.frame = frame;
   state.recent = recent;
   state.failed = failed;
+  reportShown();
   updateMarks();
   render();
   return true;
+}
+
+// The status query that tells the server which period of the current run is on the map, whether its frame came from
+// the server or the cache: the stepper stays at most `keep ÷ 2` periods ahead of it. Empty while nothing is shown.
+function shownQuery() {
+  return state.run !== null && state.frame ? `?run=${state.run}&shown=${state.frame.t}` : "";
+}
+
+// Report the period just shown at once, so the stepper (and so Play) need not wait for the next status poll. Its answer
+// is not used: the poll reads the status, and says so if the server does not answer.
+function reportShown() {
+  fetch(`/api/status${shownQuery()}`, { cache: "no-store" }).catch(() => {});
 }
 
 // The marks for the frame shown, from the marks menus and the frames obtained; the missing-marks note in "fading" only.
@@ -199,7 +213,7 @@ function nextStatus() {
 async function pollStatus() {
   const epoch = state.epoch;
   try {
-    const status = await api("/api/status");
+    const status = await api(`/api/status${shownQuery()}`);
     if (epoch !== state.epoch) return; // answered before the page took its current run (a Start crossed it)
     if (status.run !== null && status.run !== state.run && !state.starting) {
       // A run this page did not start (opened on a running server, or started from another tab): follow it.
@@ -589,8 +603,8 @@ function updateStatus() {
   const text = {
     idle: `Started, not stepping: computed to t = ${n}.`,
     running: `Running: computed to t = ${n}.`,
-    waiting: `Waiting: computed to t = ${n}, far enough ahead of the period last fetched; the model goes on when the ` +
-      "map moves forward.",
+    waiting: `Waiting: computed to t = ${n}, far enough ahead of the period shown; the model goes on when the map ` +
+      "moves forward.",
     stopped: `Stopped at t = ${n}.`,
     extinct: `Extinct at t = ${n}: the population reached 0.`,
     failed: `Failed at t = ${n}: ${state.runError ?? "unknown error"}`,

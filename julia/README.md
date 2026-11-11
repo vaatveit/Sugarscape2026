@@ -213,8 +213,9 @@ gets the share of the lift from off to on that it keeps, for the trough and for 
 
 ### The viewer
 
-A live browser view of one xxl VI-1 run (details in docs/xxl.md, "Viewer"). It needs one default and one interactive
-thread, so give `--threads=2,1` (plain `--threads=2` gives the same on this Julia, but say it in full):
+A live browser view of one xxl VI-1 run (details in docs/xxl.md, "Viewer"). It needs at least one default and at least
+one interactive thread (`--threads=1,1` is enough); give `--threads=2,1` (plain `--threads=2` gives the same on this
+Julia, but say it in full):
 
 ```bat
 julia --project=julia --threads=2,1 julia/xxl_viewer.jl [--port 8766]

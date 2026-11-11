@@ -24,6 +24,8 @@ A running viewer: the `HTTP.serve!` server and what its routes answer from. `loc
 (the run id, settings, state, error, the published `frames` and `series`, `newest`, `last_requested_t`); `control`
 lets one start or stop happen at a time and is never taken by a request that only reads. `run` is moved on only by
 [`step_once!`](@ref), never read by a request. `closed` (set by [`stop_viewer`](@ref)) refuses any later start or step.
+`last_requested_t` is the stepper's backpressure point: the period of the last frame request, or of the last `shown`
+status report, whose frame was kept. `port` is the port served, which requests must name in their Host header.
 """
 mutable struct ViewerServer
     server::Any  # the HTTP.jl server
@@ -47,6 +49,7 @@ mutable struct ViewerServer
     stop_requested::Bool
     stepper::Union{Nothing,Task}
     closed::Bool
+    port::Int  # set once the server listens; until then every request is refused (403)
 end
 
 struct BadRequest <: Exception
@@ -67,6 +70,25 @@ function guarded(f)
             e isa BadRequest && return error_response(400, e.msg)
             return error_response(500, sprint(showerror, e))
         end
+    end
+end
+
+# Only the viewer's own page is answered. A request must be addressed to 127.0.0.1:<port> or localhost:<port> (a DNS
+# rebinding page sends its own name), and a POST that carries an Origin must come from one of those (another website's
+# form or script carries its own). `nothing` when the request may be served, else why not.
+function foreign_request(s::ViewerServer, req)
+    own = ("127.0.0.1:$(s.port)", "localhost:$(s.port)")
+    s.port > 0 && lowercase(HTTP.header(req, "Host", "")) in own || return "the request is not addressed to this viewer"
+    if req.method == "POST" && HTTP.hasheader(req, "Origin")
+        lowercase(HTTP.header(req, "Origin")) in ("http://" .* own) || return "the request comes from another site"
+    end
+    return nothing
+end
+
+function own_page_only(s::ViewerServer, router)
+    return function (req)
+        why = foreign_request(s, req)
+        return why === nothing ? router(req) : error_response(403, why)
     end
 end
 
@@ -101,16 +123,18 @@ end
 """
     start_viewer(; host="127.0.0.1", port=8766, autostep=true, keep=VIEWER_KEEP) -> ViewerServer
 
-Serves the viewer at `host:port` (port 0 picks a free one: `HTTP.port(s.server)`). With `autostep`, each started run is
-stepped by a background task until stopped, extinct or failed, at most `keep ÷ 2` periods ahead of the newest frame the
-page asked for; without it, nothing steps a run but [`step_once!`](@ref). Stop it with [`stop_viewer`](@ref).
+Serves the viewer at `host:port` (port 0 picks a free one: `HTTP.port(s.server)`), answering only requests whose Host is
+`127.0.0.1:<port>` or `localhost:<port>` and POSTs with no Origin or one of those origins (else 403). With `autostep`,
+each started run is stepped by a background task until stopped, extinct or failed, at most `keep ÷ 2` periods ahead of
+the period the page shows (the last kept frame it requested or reported as `shown`); without it, nothing steps a run
+but [`step_once!`](@ref). Stop it with [`stop_viewer`](@ref).
 """
 function start_viewer(; host::AbstractString="127.0.0.1", port::Integer=8766, autostep::Bool=true,
     keep::Int=VIEWER_KEEP)
     keep >= 2 || throw(ArgumentError("keep must be at least 2, not $keep"))
     s = ViewerServer(nothing, ReentrantLock(), ReentrantLock(), keep, autostep, nothing, 0, nothing, nothing, nothing,
         nothing, experiments_json(), Dict{Int,Vector{UInt8}}(), Dict(k => Float64[] for k in SERIES_KEYS), 0, 0,
-        "idle", nothing, false, nothing, false)
+        "idle", nothing, false, nothing, false, port)
     router = HTTP.Router()
     route(method, path, f) = HTTP.register!(router, method, path, guarded(req -> f(s, req)))
     route("GET", "/", (s, req) -> static_response("index.html"))
@@ -119,10 +143,11 @@ function start_viewer(; host::AbstractString="127.0.0.1", port::Integer=8766, au
     route("GET", "/api/legend", legend_route)
     route("POST", "/api/start", start_route)
     route("POST", "/api/stop", stop_route)
-    route("GET", "/api/status", (s, req) -> json_response(200, viewer_status(s)))
+    route("GET", "/api/status", status_route)
     route("GET", "/api/frame", frame_route)
     route("GET", "/api/series", series_route)
-    s.server = HTTP.serve!(router, host, port)
+    s.server = HTTP.serve!(own_page_only(s, router), host, port)
+    s.port = HTTP.port(s.server)
     return s
 end
 
@@ -190,8 +215,8 @@ function step_once!(s::ViewerServer)
 end
 
 # The background stepper of run `id`: steps while the run is current and neither stopped, failed nor extinct, waiting
-# (re-checking every 0.05 s) while it is `keep ÷ 2` or more periods ahead of the newest frame the page asked for. It
-# yields between periods so the server's tasks run on a single thread too.
+# (re-checking every 0.05 s) while it is `keep ÷ 2` or more periods ahead of `last_requested_t`, the period the page
+# shows. It yields between periods so the server's tasks run on a single thread too.
 function stepper_loop(s::ViewerServer, id::Int)
     try
         while true
@@ -229,6 +254,21 @@ function viewer_status(s::ViewerServer)
             newest=none ? nothing : s.newest, oldest_kept=isempty(s.frames) ? nothing : minimum(keys(s.frames)),
             state=s.state, error=s.error)
     end
+end
+
+# The status, after `shown` (with `run`, both checked like a frame request's): the period on the page's map, which may
+# have come from the page's own cache and so asked the server nothing. Kept and of the current run, it moves the
+# backpressure point exactly as a request for its frame does; for another run, or a period not kept, it is ignored.
+function status_route(s::ViewerServer, req)
+    q = query_params(req)
+    if haskey(q, "shown")
+        nonneg_int(q, "run")
+        t = nonneg_int(q, "shown")
+        lock(s.lock) do
+            current_run(s, q) !== nothing && haskey(s.frames, t) && (s.last_requested_t = t)
+        end
+    end
+    return json_response(200, viewer_status(s))
 end
 
 function legend_route(s::ViewerServer, req)

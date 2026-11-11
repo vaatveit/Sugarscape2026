@@ -302,12 +302,12 @@ test("missingMarkPeriods: the periods of the 9 before the shown one whose frames
 test("marksNote: says which marks are missing and why, and nothing when all 10 periods' marks are drawn", () => {
   assert.equal(marksNote(20, 0, range(11, 20)), "");
   assert.equal(marksNote(20, 15, range(15, 20)),
-    "Marks before t = 15 are not available (no longer kept), so fewer crosses and rings are drawn than the model made.");
+    "Marks before t = 15 are not available (no longer kept), so fewer marks are drawn than the model made.");
   assert.equal(marksNote(20, 0, [11, 12, 14, 15, 17, 18, 19, 20], [13, 16]),
-    "Marks of t = 13, 16 could not be loaded, so fewer crosses and rings are drawn than the model made.");
+    "Marks of t = 13, 16 could not be loaded, so fewer marks are drawn than the model made.");
   assert.equal(marksNote(20, 15, [15, 17, 18, 19, 20], [16]),
-    "Marks before t = 15 are not available (no longer kept). Marks of t = 16 could not be loaded, so fewer crosses " +
-    "and rings are drawn than the model made.");
+    "Marks before t = 15 are not available (no longer kept). Marks of t = 16 could not be loaded, so fewer marks " +
+    "are drawn than the model made.");
 });
 
 // The legend the server sends, written by julia/test/test_xxl_viewer_frame.jl ("frame legend") from the default
@@ -326,6 +326,20 @@ test("every agent colour of every palette stands out on every landscape colour (
       const c = rgb(colour);
       const nearest = Math.min(...cells.map((l) => Math.hypot(c[0] - l[0], c[1] - l[1], c[2] - l[2])));
       assert.ok(nearest >= 60, `${mode} ${colour} is ${nearest.toFixed(1)} from a landscape colour`);
+    }
+  }
+});
+
+test("every agent colour of every palette is told apart from both mark colours (RGB distance >= 60)", () => {
+  // A one-cell mark replaces its cell's colour, so a mark in an agent's colour would read as an agent (or the reverse).
+  const marks = { kill: rgb(realLegend.kill_colour), change: rgb(realLegend.change_colour) };
+  for (const mode of realLegend.modes) {
+    for (const colour of realLegend.palettes[mode]) {
+      const c = rgb(colour);
+      for (const [kind, m] of Object.entries(marks)) {
+        const dist = Math.hypot(c[0] - m[0], c[1] - m[1], c[2] - m[2]);
+        assert.ok(dist >= 60, `${mode} ${colour} is ${dist.toFixed(1)} from the ${kind} mark colour`);
+      }
     }
   }
 });

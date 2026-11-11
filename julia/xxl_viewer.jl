@@ -1,5 +1,6 @@
 # The xxl viewer: a live browser view of one xxl VI-1 run (an experiment of the combat study, in today's world) at
-# http://127.0.0.1:<port>/. It needs two threads, one for the server and one for the stepper:
+# http://127.0.0.1:<port>/. It needs at least one default thread (the stepper) and at least one interactive thread (the
+# server); --threads=1,1 is enough:
 #   julia --project=julia --threads=2,1 julia/xxl_viewer.jl [--port 8766]
 # Ctrl+C stops it.
 include(joinpath(@__DIR__, "viewer", "XxlViewer.jl"))
@@ -21,8 +22,9 @@ function viewer_main(args)
             return 2
         end
     end
-    if !(Threads.nthreads(:default) >= 1 && Threads.nthreads(:interactive) >= 1 && Threads.nthreads() >= 2)
-        println(stderr, "xxl viewer: needs one default and one interactive thread; run with --threads=2,1")
+    if !(Threads.nthreads(:default) >= 1 && Threads.nthreads(:interactive) >= 1)
+        println(stderr, "xxl viewer: needs at least one default and at least one interactive thread ",
+            "(--threads=1,1 is enough); run with --threads=2,1")
         return 1
     end
     s = start_viewer(; port=port)

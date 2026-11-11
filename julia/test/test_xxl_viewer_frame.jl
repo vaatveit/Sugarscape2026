@@ -106,25 +106,26 @@ end
     @testset "columns and cells match the model" begin
         m = r.model
         d = vf_decode(r.frames[m.t])
-        @test length(d.id) == length(m.agents)
-        for (i, a) in enumerate(m.agents)
-            @test d.id[i] == a.id
-            @test (d.u16[:x][i], d.u16[:y][i]) == (a.x, a.y)
-            @test d.u16[:tags][i] == a.tags
-            @test d.u16[:age][i] == a.age
-            @test d.sugar[i] == a.sugar
-            @test d.spice[i] == a.spice
-            @test d.u8[:tribe][i] == (Sugarscape.tribe(a) === :red ? 1 : 0)
-            @test d.u8[:culture][i] == count_ones(a.tags)
-            @test d.u8[:band][i] == wealth_band(a.sugar + a.spice)
-            @test d.u8[:disease_step][i] == disease_step(length(a.diseases))
-            @test d.u8[:diseases][i] == length(a.diseases)
-            nl = count(l -> l.lender === a, m.loans)
-            nb = count(l -> l.borrower === a, m.loans)
-            @test d.u16[:lender][i] == nl
-            @test d.u16[:borrower][i] == nb
-            @test d.u8[:role][i] == (nl > 0 ? 1 : 0) + (nb > 0 ? 2 : 0)
-        end
+        # Whole columns, agent i against the model's i-th agent, so a systematic failure prints a few lines.
+        agents = m.agents
+        @test length(d.id) == length(agents)
+        @test d.id == [a.id for a in agents]
+        @test d.u16[:x] == [a.x for a in agents]
+        @test d.u16[:y] == [a.y for a in agents]
+        @test d.u16[:tags] == [a.tags for a in agents]
+        @test d.u16[:age] == [a.age for a in agents]
+        @test d.sugar == [a.sugar for a in agents]
+        @test d.spice == [a.spice for a in agents]
+        @test d.u8[:tribe] == [Sugarscape.tribe(a) === :red ? 1 : 0 for a in agents]
+        @test d.u8[:culture] == [count_ones(a.tags) for a in agents]
+        @test d.u8[:band] == [wealth_band(a.sugar + a.spice) for a in agents]
+        @test d.u8[:disease_step] == [disease_step(length(a.diseases)) for a in agents]
+        @test d.u8[:diseases] == [length(a.diseases) for a in agents]
+        nl = [count(l -> l.lender === a, m.loans) for a in agents]
+        nb = [count(l -> l.borrower === a, m.loans) for a in agents]
+        @test d.u16[:lender] == nl
+        @test d.u16[:borrower] == nb
+        @test d.u8[:role] == [(l > 0 ? 1 : 0) + (b > 0 ? 2 : 0) for (l, b) in zip(nl, nb)]
         w, h = d.width, d.height
         @test (w, h) == (m.config.width, m.config.height)
         for (x, y) in ((0, 0), (w - 1, 0), (0, h - 1), (w - 1, h - 1), (div(w, 2), div(h, 3)), (7, 11))

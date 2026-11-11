@@ -277,6 +277,81 @@ end
     @test !isopen(s.server)
 end
 
+@testset "the period shown moves the backpressure point" begin
+    # The page shows frames from its own cache too, so it reports the period on the map with each status request: a
+    # `shown` the server keeps moves the backpressure point exactly as a frame request does.
+    s = start_viewer(; port=0, autostep=true, keep=6)
+    try
+        run = Int(vs_body(vs_post(s, "/api/start"))["run"])
+        @test vs_until(() -> vs_status(s)["state"] == "waiting")
+        @test vs_status(s)["newest"] == 3  # 3 ahead of period 0, the start's point
+        # Ignored: another run's id, and a period the server does not keep.
+        @test vs_get(s, "/api/status?run=$(run + 1)&shown=3").status == 200
+        @test vs_get(s, "/api/status?run=$run&shown=50").status == 200
+        sleep(0.5)
+        st = vs_status(s)
+        @test (st["state"], st["newest"]) == ("waiting", 3)
+        @test s.last_requested_t == 0
+        # Refused like `t`: not an integer >= 0, or without the run it belongs to.
+        for q in ("run=$run&shown=-1", "run=$run&shown=x", "run=$run&shown=", "shown=3")
+            @test vs_get(s, "/api/status?$q").status == 400
+        end
+        @test s.last_requested_t == 0
+        # The shown period 3 is kept: the stepper resumes, up to 3 ahead of it.
+        resp = vs_get(s, "/api/status?run=$run&shown=3")
+        @test resp.status == 200
+        @test vs_body(resp)["run"] == run
+        @test vs_until(() -> (now = vs_status(s); now["state"] == "waiting" && now["newest"] == 6))
+        @test s.last_requested_t == 3
+        sleep(0.3)
+        @test vs_status(s)["newest"] == 6
+    finally
+        stop_viewer(s)
+    end
+end
+
+@testset "only the viewer's own host and origin" begin
+    s = start_viewer(; port=0, autostep=false)
+    try
+        port = HTTP.port(s.server)
+        get_as(path, host) = HTTP.get(vs_url(s, path), ["Host" => host]; status_exception=false, retry=false)
+        post_from(path, origin, form=Dict{String,String}()) =
+            HTTP.post(vs_url(s, path), ["Origin" => origin], form; status_exception=false, retry=false)
+        # The page's own requests: Host 127.0.0.1:<port> (HTTP.jl's default here) or localhost:<port>.
+        @test vs_get(s, "/").status == 200
+        @test get_as("/api/status", "127.0.0.1:$port").status == 200
+        @test get_as("/api/status", "localhost:$port").status == 200
+        @test get_as("/static/style.css", "LOCALHOST:$port").status == 200  # host names are case-insensitive
+        # Any other Host (DNS rebinding, another port, no port) is 403, on every route.
+        for host in ("evil.example", "evil.example:$port", "127.0.0.1", "localhost", "127.0.0.1:$(port + 1)",
+            "127.0.0.2:$port", "[::1]:$port")
+            for path in ("/", "/api/status", "/api/legend", "/static/style.css")
+                @test get_as(path, host).status == 403
+            end
+        end
+        # A POST from another origin is 403 and starts nothing; the page's own origin (or none) is served.
+        for origin in ("http://evil.example", "null", "http://127.0.0.1:$(port + 1)", "https://127.0.0.1:$port",
+            "http://localhost.evil.example:$port")
+            @test post_from("/api/start", origin).status == 403
+            @test post_from("/api/stop", origin).status == 403
+        end
+        @test vs_status(s)["run"] === nothing
+        r1 = post_from("/api/start", "http://127.0.0.1:$port")
+        @test r1.status == 200
+        r2 = post_from("/api/start", "http://localhost:$port")
+        @test r2.status == 200
+        @test vs_body(r2)["run"] == vs_body(r1)["run"] + 1
+        @test post_from("/api/stop", "http://localhost:$port").status == 200
+        @test vs_post(s, "/api/start").status == 200  # no Origin header: a same-origin form or a script, served
+        # A foreign host is refused even with the page's origin.
+        resp = HTTP.post(vs_url(s, "/api/start"), ["Host" => "evil.example:$port", "Origin" => "http://127.0.0.1:$port"],
+            Dict{String,String}(); status_exception=false, retry=false)
+        @test resp.status == 403
+    finally
+        stop_viewer(s)
+    end
+end
+
 @testset "a start waiting behind stop_viewer is refused" begin
     s = start_viewer(; port=0, autostep=true)
     run = Int(vs_body(vs_post(s, "/api/start"))["run"])

@@ -570,9 +570,12 @@ julia --project=julia --threads=2,1 julia/xxl_viewer.jl [--port 8766]
 
 It serves `http://127.0.0.1:8766/` (the Python viewer keeps 8765) until Ctrl+C. The server answers requests on an
 interactive thread and a background task steps the run on a default one, so the command refuses, with a one-line
-message and a non-zero exit, unless there is at least one thread of each kind and two in all. On this Julia plain
-`--threads=2` already gives 2 default and 1 interactive threads, but `--threads=2,1` says so. `.claude/launch.json` has
-the same command as `xxl-viewer`.
+message and a non-zero exit, unless there is at least one default and at least one interactive thread
+(`Threads.nthreads(:default) >= 1` and `Threads.nthreads(:interactive) >= 1`); `--threads=1,1` is enough. On this Julia
+plain `--threads=2` already gives 2 default and 1 interactive threads, but `--threads=2,1` says so. `.claude/launch.json`
+has the same command as `xxl-viewer`. It answers only requests addressed to `127.0.0.1:<port>` or `localhost:<port>`
+(any other Host header is 403), and refuses a POST whose Origin header names any other page (403), so another website
+open in the browser can neither start or stop a run nor read the viewer's frames.
 
 - **What it shows.** The landscape with the agents coloured by tribe, culture, wealth, disease or credit (a menu
   switches between them); marks that each fill exactly one cell, black where an agent was killed and gold where one
@@ -585,8 +588,10 @@ the same command as `xxl-viewer`.
   experiment.
 - **What you set.** The experiment (the VI-1 combat-study experiments), the raw seed, and the combat study's `h` and
   `k`. Start begins a run, and shows the model's own message if it refuses the settings (`h = 1` on `VI-1-assim`,
-  say). The stepper runs at most 50 periods ahead of the newest frame the page asked for, so a paused page keeps its
-  frame and the status reads "waiting".
+  say). The stepper runs at most 50 periods ahead of the period the page shows: the page reports the period on its
+  map with every status request (each second, and at once whenever it shows another period), whether that frame came
+  from the server or from the page's own cache. So a paused page keeps its frame, the status reads "waiting", and Play
+  moves the model on again.
 - **Faithfulness.** The viewer steps the same model the study does. Its series equal the combat study's CSVs for the
   same experiment, seed, `h` and `k` (`julia/test/test_xxl_viewer_run.jl`); its frame counts (agents, kills, tribe
   changes) equal the readings of the same period; and the encodings (colour modes, marks, legend) are fixed and

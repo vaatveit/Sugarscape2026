@@ -31,7 +31,10 @@ function disease_step(n::Integer)::UInt8
     return UInt8(s)
 end
 
-"""`tribe_code(a)`: 0 for blue, 1 for red (an agent without tags counts as blue, as the readings count it)."""
+"""
+`tribe_code(a)`: 0 for blue, 1 for red. An agent without tags (`tribe` `:none`) would get 0 here, though the readings
+count it in neither tribe; it cannot occur in the viewer, whose VI-1 experiments always give agents 11 tags.
+"""
 tribe_code(a::Agent)::UInt8 = tribe(a) === :red ? 0x01 : 0x00
 
 """`culture_ones(a)`: how many of the agent's tags are 1."""
@@ -88,9 +91,11 @@ function legend(m::Model)
             # Straight from the tribe blue to the tribe red through purple, no step lighter than its ends (mockup B).
             "culture" => ramp((BLUE_RGB, RED_RGB), ntags + 1),
             # Low to high, darkening; every agent colour stays at least 60 (RGB distance) from every landscape colour,
-            # so it stands out on the pale landscape (tested in julia/test/js/map.test.mjs).
-            "wealth" => ramp(((234, 179, 8), (234, 88, 12), (60, 10, 60)), 9),
-            "disease" => ["#9ca3af", "#f59e0b", "#ea580c", "#dc2626", "#991b1b", "#450a0a"],
+            # so it stands out on the pale landscape, and from the kill and switch mark colours, so a one-cell mark
+            # never reads as an agent (both tested in julia/test/js/map.test.mjs). Hence no amber: the low wealth
+            # bands start from coral and disease step 1 is coral, away from the switch mark's gold.
+            "wealth" => ramp(((248, 113, 113), (234, 88, 12), (60, 10, 60)), 9),
+            "disease" => ["#9ca3af", "#f87171", "#ea580c", "#dc2626", "#991b1b", "#450a0a"],
             "credit" => ["#9ca3af", "#16a34a", "#9333ea", "#0ea5e9"],
         ),
         "labels" => Dict(
