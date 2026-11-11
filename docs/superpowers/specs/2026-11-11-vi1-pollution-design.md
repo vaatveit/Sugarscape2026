@@ -157,8 +157,11 @@ non-pollution one never mixes legends.
 - **Study:** a pollution experiment's seed writes `seed<k>-pollution.csv` equal to the readings; a non-pollution
   experiment's seed writes the same files as before (no new file, no new fingerprint line; the fingerprint's checksum of
   `julia/src` changes with any code change, as always).
-- The harvest-and-burn check counts harvest and burn independently in the test (or through a test-only tally), with no
-  rule change; the conservation check uses a floating-point tolerance.
+- The harvest-and-burn arithmetic is already unit-tested (julia/test/test_movement.jl: formation and no pollution before
+  the start; julia/test/test_xxl_speed.jl: travel cost counts as consumption pollution; julia/test/test_xxl_combat.jl:
+  combat's harvest). An exact whole-world count would need a tally in the model, so the new tests check the
+  combination instead (planning call): identical to `VI-1-assim-k4` before the start, onset at the start, diffusion
+  starting at its period, and 100 passes conserving the total (with a floating-point tolerance).
 - **Viewer series = study:** for a short run of a pollution experiment, the viewer's three new series equal the
   study's `seed<k>-pollution.csv` (as the existing series equal the combat CSV in julia/test/test_xxl_viewer_run.jl).
 - **Viewer frames = model:** each cell's band in the frame is the band of the model's pollution at that period.
