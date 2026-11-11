@@ -560,6 +560,54 @@ Where a metric doesn't apply it is `nan`.
   runs nothing, so it can be used while a run is going.
 - **Agreement is statistical.** An xxl run's random stream differs from every other run's, in any language.
 
+## VI-1 with pollution
+
+Two experiments ask whether pollution makes a population migrate: whether agents leave polluted land, and come back
+once diffusion has cleaned it. Both are `VI-1-assim-k4` (the combat study's passing arm) with the book's pollution
+added and nothing else changed: the seeds, combat, culture rule, curve, `h`, sex, trade, credit, inheritance, disease
+and the xxl defaults that today's world applies. In `VI-1-pollution` pollution starts at t = 350 and diffusion at
+t = 450, so it meets a society that has settled. In `VI-1-pollution-t0` both start at t = 0, so the society grows
+up with pollution.
+
+| Setting (book config) | `VI-1-pollution` | `VI-1-pollution-t0` |
+|---|---|---|
+| `pollution` (α, β) | (1.0, 1.0), the book's P₁,₁ | (1.0, 1.0) |
+| `pollution_start` | 350 | 0 |
+| `pollution_stop` | none (pollution keeps being made after diffusion starts, as in II-8) | none |
+| `diffusion_period` | 1 (D₁) | 1 |
+| `diffusion_start` | 450 | 0 |
+| `diffusion_passes` | 1 in the book's world; the xl transform makes it 100 in xl and today's world (docs/xl.md) | same |
+| steps | 600 | 600 |
+
+The rates are the book's: production pollution is α × the sugar harvested, at the harvest site; consumption pollution
+is β × the sugar burned (metabolism, disease fees and the travel cost), at the agent's site. Spice is clean. Sugar
+taken in combat makes no production pollution (rule 7). Agents already score sites by resources ÷ (1 + pollution)
+(rules 1–3 and combat's site welfare), so no choice they make changes.
+
+- **Running them.** Through the combat study, as for the other VI-1 experiments:
+  `julia --project=julia julia/xxl_combat_study.jl --world today --exp VI-1-pollution …` (or `VI-1-pollution-t0`). The
+  worlds `book` and `xl` can be asked for too; only today's world is in the viewer. An experiment without pollution
+  writes exactly the files it wrote before.
+- **Timing.** The step taken from t = 350 to t = 351 is the first to pollute, so row t = 351 is the first polluted
+  reading; likewise the first diffused reading is t = 451. The charts' dotted lines sit at 350 and 450.
+- **Checkerboard.** Rule D averages a cell's four neighbours without the cell itself, so each pass moves pollution to
+  the opposite colour of the checkerboard. An even number of passes per period (100 in xl and today's world) brings
+  it back to the colour it was made on. So pollution stays on the colour it was made on, and the banded map can show a
+  checkerboard texture. That is the model's behaviour, not a viewer fault; no rule changes here.
+- **`seed<k>-pollution.csv`.** Written only for experiments with pollution, next to `seed<k>-combat.csv`, with the
+  columns `t`, `mean_pollution`, `agent_pollution` and `share_rich` (`periods + 1` rows). A seed counts as done only
+  when this file exists too. All three are read at the end of the period, where the combat readings are read.
+
+  | Column | Meaning |
+  |---|---|
+  | `mean_pollution` | The mean pollution over all cells of the world. |
+  | `agent_pollution` | The mean pollution of the cells the agents stand on. `nan` with no agents. |
+  | `share_rich` | The share of agents standing on rich land. `nan` with no agents. |
+
+  Rich land is the cells whose sugar capacity plus spice capacity is at or above the 75th percentile of that sum over
+  all cells, worked out once per run from the fixed capacities. Ties at the cut are included, so the share of cells
+  that counts as rich can exceed a quarter. In today's world the cut is a capacity of 5, which covers 32% of cells.
+
 ## Viewer
 
 A live browser view of one xxl VI-1 run, in today's world, stepped as the page asks for it:
@@ -584,17 +632,32 @@ open in the browser can neither start or stop a run nor read the viewer's frames
   or none; and "Show" kills and switches, kills only or switches only. The user chose these cell-size marks after the
   live check of 11-10, where crosses and rings several cells wide hid the agents. A cell with both a kill and a switch
   shows the kill. A cell can hold several events, and in the fading mode marks on one cell blend in order, oldest
-  first; a line under the map then says how many events fall on how many cells. Pollution comes with a later
-  experiment.
+  first; a line under the map then says how many events fall on how many cells.
+- **Pollution runs.** The experiment menu includes `VI-1-pollution` and `VI-1-pollution-t0` (previous section). For
+  those runs only, a "Ground shows" menu (resources, the default, or pollution) says what the empty cells show;
+  it is independent of the agent colours and the marks. On pollution, each empty cell takes the colour of its pollution
+  band: 0, below 1, 1–3, 3–10, 10–30, 30–100, 100–300, 300–1000, and 1000 or more (nine bands, spaced by powers of
+  about three because pollution has no sink and grows without bound). The server works the bands out from the model
+  and sends one per cell; the page only maps a band to a colour. Hovering a cell shows its band, and the legend lists
+  the bands. Two charts appear only for these runs: "Pollution" (the world's mean against the mean where agents stand,
+  so agents leaving fouled land shows as the second line falling below the first) and "On the richest land" (the share
+  of agents on rich land, on an axis from 0 to 1, with a caption giving the cut and the share of cells it covers).
+  Every chart marks the start of pollution and of diffusion with dotted lines ("pollution on", "diffusion on") when the
+  experiment has them. The dashed study-end line sits at the experiment's own steps: 600 for the pollution experiments,
+  500 for the others.
 - **What you set.** The experiment (the VI-1 combat-study experiments), the raw seed, and the combat study's `h` and
   `k`. Start begins a run, and shows the model's own message if it refuses the settings (`h = 1` on `VI-1-assim`,
   say). The stepper runs at most 50 periods ahead of the period the page shows: the page reports the period on its
   map with every status request (each second, and at once whenever it shows another period), whether that frame came
   from the server or from the page's own cache. So a paused page keeps its frame, the status reads "waiting", and Play
-  moves the model on again.
+  moves the model on again. A new run is drawn only with its own legend: the page asks for the legend by run id, and
+  the server answers 409 for a run that is no longer current, so switching between a pollution experiment and another
+  never mixes legends.
 - **Faithfulness.** The viewer steps the same model the study does. Its series equal the combat study's CSVs for the
   same experiment, seed, `h` and `k` (`julia/test/test_xxl_viewer_run.jl`); its frame counts (agents, kills, tribe
-  changes) equal the readings of the same period; and the encodings (colour modes, marks, legend) are fixed and
+  changes) equal the readings of the same period; for a pollution run its pollution series equal the study's
+  `seed<k>-pollution.csv` and each cell's band equals the model's
+  (`julia/test/test_xxl_pollution_readings.jl`, `julia/test/test_xxl_viewer_frame.jl`); and the encodings (colour modes, marks, legend) are fixed and
   tested (`julia/test/test_xxl_viewer_*.jl`, `julia/test/js/`).
 
 ## Stage 1: the scorecard and survival
