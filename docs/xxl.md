@@ -611,12 +611,14 @@ taken in combat makes no production pollution (rule 7). Agents already score sit
 
 ### Results (2026-11-11)
 
-**The short answer.** Agents leave polluted land and don't come back. Once pollution starts, a third of the agents on
-rich land move off it within about 150 periods. Diffusion doesn't bring them back: it only spreads pollution, nothing
-removes it, and agents keep making more, so the world's mean pollution never stops rising (*my reading* of why they
-stay away; the runs don't measure how clean any rich cell is). Two things followed that nobody asked about. The
-society got about 45% bigger, and its minority culture shrank: it was lost in every seed when pollution started at
-t = 0, and fell to a tenth of the agents when it started at t = 350. A control without pollution shows both are
+**The short answer.** Pollution barely moves agents off the rich land; it brings the poor land into use. When it
+starts, the number of agents on rich land dips by about 5% and is back above its old level by the time diffusion
+starts, much as in the book's II-8, where (in docs/book-notes.md's summary of pp.48–50) agents return to high-sugar
+regions after diffusion. Meanwhile the number on
+poorer land nearly triples, so the society ends about 45% bigger and the *share* on rich land falls from 0.71 to
+0.48. (A first reading of these runs took that falling share for an exodus; the counts below correct it.) Pollution
+also shrank the minority culture: it was lost in every seed when pollution started at t = 0, and fell to a tenth of
+the agents when it started at t = 350. A control without pollution shows the growth and the minority's fall are
 pollution's doing.
 
 **The runs.** Today's world, seeds 0–19, 600 periods, 5 workers, all run with the user's go-ahead
@@ -639,6 +641,9 @@ alive at t = 600.
 |---|---|---|---|
 | Share on rich land, t = 350 | 0.71 | 0.71 ¹ | 0.54 |
 | Share on rich land, t = 450 / 600 | 0.54 / 0.48 | – | 0.49 / 0.48 |
+| Agents on rich land, t = 350 / 400 / 500 / 600 | 43.6k / 41.9k / 45.1k / 46.2k | – | 41.7k / 43.0k / 44.9k / 45.4k |
+| Agents off rich land, t = 350 / 600 | 17.6k / 51.1k | – | 35.4k / 49.5k |
+| Agents on / off sugar capacity ≥ 3, t = 600 ² | 43.2k / 53.7k | 39.6k / 27.4k | 42.0k / 52.9k |
 | World mean pollution, t = 450 / 600 | 74 / 217 | 0 | 171 / 310 |
 | Where agents stand, t = 450 / 600 | 1.59 / 1.15 | – | 1.18 / 1.11 |
 | Population, t = 600 | 97,282 | 67,381 | 95,230 |
@@ -647,32 +652,76 @@ alive at t = 600.
 | Kills per period, t = 600 | 168 | 254 | 0 |
 
 ¹ The control writes no pollution table. Its share is the late run's, which is identical to it up to t = 350.
+² The main table's `on_peak_fraction` (sugar capacity ≥ 3), the one land reading the control has. Counts are
+population × share, medians over seeds.
 
-- **They leave.** In the late run the share of agents on rich land falls from 0.71 at t = 350 to a low of 0.46–0.48
-  in every seed, reached at t = 493–527 in 17 seeds and at the very end in the other 3. At t = 375 agents stand on
-  land twice as polluted as the world's mean (1.98 times it), which fits agents polluting where they live and then
-  moving away; the runs don't trace single agents, so that is *my reading*.
-- **They don't come back.** From that low to t = 600 the share rises by at most 0.02 in any seed. Diffusion evens
-  pollution out, so where agents stand falls towards the mean (1.15 times it by t = 600), but the mean keeps rising. With
-  pollution from the start, agents never crowd onto the rich land at all: about 0.72 from t = 25 to 250, while without
-  pollution the share is near 0.98 at t = 100–150 (¹). Both pollution runs end at 0.48.
+- **A small, short retreat.** In the late run the agents on rich land (about 80,500 cells, 54% occupied at t = 350)
+  fall to a low of 92–97% of their t = 350 number in each seed (median 95%); the median count is lowest around
+  t = 400. The count is rising again by
+  t = 425 (42.4k), is back above its old level when diffusion starts (43.9k at t = 450) and keeps climbing (45.1k at
+  t = 500, 48.1k at t = 550). At t = 375 agents stand on land twice as polluted as the world's mean (1.98 times it); diffusion brings
+  that down to 1.15 by t = 600 while the mean keeps rising.
+- **The poor land fills.** The agents off rich land go from 17.6k at t = 350 to 51.1k at t = 600. Without pollution
+  the poorer land stays thinly settled: on the sugar-capacity reading the control has 27.4k off the good land at
+  t = 600 against the late run's 53.7k, and 39.6k on it against 43.2k. So the share on rich land falls because the
+  society grows on the poor land, not because agents leave the rich land. With pollution from the start, agents never
+  crowd onto the rich land: its share is about 0.72 from t = 25 to 250, against near 0.98 without pollution (¹).
 - **A bigger society.** The control levels off near 67,000. The late run passes 82,000 by t = 450 and peaks near
   100,000 at t = 550. The run from the start falls twice as far at first: a median of 2,500 agents at t = 100,
   against the control's 4,900, and 2,168 in its smallest seed. It then catches the control at t = 300 and grows past
-  it. Why spreading out makes more agents is *my guess*, not tested: a child needs an empty site next to a parent,
-  and spread-out agents have more of them.
+  it. *My reading* of why: a site's goods are scored divided by 1 + pollution, so a polluted rich site can score no
+  better than a clean poor one, and agents settle land the control leaves empty. The runs don't record births or
+  site choices, so this isn't tested.
 - **One culture.** In the late run the minority follows the control until t = 500, then falls to 0.10 by t = 600, still
   falling. From the start it falls away from the control's from about t = 250 and is gone by t = 600 in every seed
   (10 of 20 at exactly zero, the largest 0.02); kills fall with it to none, since one culture has no one to fight.
   In the late run kills fall less, to 168 a period. The control keeps both cultures (0.36) and its war (254 kills a
   period).
 
+### Why the minority loses
+
+From the saved tables only (`seed<k>.csv`, `-combat.csv`, `-kills.csv`); no run was made for this.
+
+- **Not more contact.** With pollution the tribes mix *less*: the share of neighbour pairs across tribes over
+  t = 451–600 is 0.028 in the late run against 0.049 in the control, and tribe changes per agent are lower (52 against
+  87 per 1,000 agents a period).
+- **Mostly not deaths.** Over t = 451–600 the late run's minority shrinks 0.67% a period while the majority grows
+  0.25%. Kills, starvation and old age per head differ between the tribes by about 0.1% a period, a tenth of that gap.
+  With pollution from the start deaths count for more: over t = 251–450 the minority is killed at 2.2 times the
+  majority's rate per head (8.3 against 3.7 per 1,000): kills are 40% of its gap in growth, and kills and starvation together 46%.
+- **One converging culture.** A tribe is only which side of 5½ an agent's 11 tags fall on, and in the late run and the
+  control 5–11% of agents change tribe every period, so the label is fluid. What pollution changes is how fast the whole society's tags
+  converge: the mean closeness of tags between friends reaches 0.980 at t = 600 in the late run against the control's
+  0.947, and 1.000 (identical tags) with pollution from the start. The minority disappears because nearly everyone ends
+  up with nearly the same tags, on one side of the line.
+- **Why faster.** *My reading*, not tested: agents move more under pollution (79–87% of them a period after t = 400,
+  briefly 92% as diffusion starts, against 68–70% in the control), so each meets a changing set of neighbours and tags spread across the whole society
+  instead of staying in regional pockets. A possible amplifier with pollution from the start: combat's loot isn't
+  devalued by pollution while a site's goods are (`score` in julia/src/rules/welfare.jl), so where pollution is high,
+  combat moves are chosen mostly by whom an agent can rob, and the chance of hostility rises with tag distance. A
+  diagnostic run recording the tag-count distribution and tribe changes by direction would test both.
+
+### How pollution could fall
+
+Nothing in the model or the book removes pollution: rule P only adds (p.47), and rule D averages over neighbours on
+the torus, so the total is conserved (`diffuse!` in julia/src/landscape.jl; the sum check in
+test_landscape.jl's diffusion test). The book's only remedy is to stop making it: in IV-3 (pp.126–129) generation stops at t = 150
+and diffusion starts. Here that is `pollution_stop`, which the model and the Python original already have.
+
+- **With `pollution_stop` only.** The total freezes, and with 100 diffusion passes a period the field flattens towards
+  the world's mean. The mean stops rising but never falls. Flat pollution devalues every site by about the same
+  factor, so rich land regains its lead over poor land, but the world never gets cleaner.
+- **With a removal rule** (none in the book, so an xxl extension): the smallest is a decay of a fixed share δ of each
+  site's pollution every period (a new `pollution_decay`, default 0 so every existing run is unchanged), applied after
+  diffusion in `step!`. Then the mean falls as (1 − δ)^t once generation stops, and settles where making and decay
+  balance while it doesn't. Alternatives are decay only on empty sites, or absorption tied to sugar regrowth; both are
+  further from anything in the book.
+
 ### What this doesn't show
 
-- **Why the minority loses.** The readings show that it does, not why. *My guess*: spread-out agents meet the other
-  culture more evenly, so assimilation beats combat's separation. The runs record no reading that tests this.
-- **A return under other pollution rules.** Pollution never decays and never stops here, so the world's total only
-  grows. A run with `pollution_stop`, or a rule that removes pollution, might show agents coming back.
+- **Births and site choices.** The runs record neither, so why the poor land fills and why the minority converges
+  away are readings, not measurements.
+- **A fall in pollution.** Pollution never decays and never stops here, so the world's total only grows.
 - One map, 20 seeds, one setting of α, β and the diffusion period.
 
 ### Run time
