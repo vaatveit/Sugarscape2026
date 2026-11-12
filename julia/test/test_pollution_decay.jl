@@ -61,6 +61,20 @@ end
         @test isapprox(sum(m.landscape.pollution), before * 0.9; rtol=1e-12)
     end
 
+    @testset "after pollution_stop, with agents, the total falls by 1 - delta a period" begin
+        m = tiny_model(ones(Int, 5, 5); pollution=(1.0, 1.0), pollution_start=0, pollution_stop=2, pollution_decay=0.1)
+        put_agent(m, 2, 2; sugar=50.0)
+        step!(m)
+        step!(m)  # t = 0 and 1 make pollution
+        @test m.t == 2 && sum(m.landscape.pollution) > 0 && length(m.agents) == 1
+        for _ in 1:2  # t = 2 and 3: none is made, the agent still moves, harvests and burns
+            before = sum(m.landscape.pollution)
+            step!(m)
+            @test isapprox(sum(m.landscape.pollution), before * 0.9; rtol=1e-12)
+        end
+        @test length(m.agents) == 1
+    end
+
     @testset "0 leaves the field as it was" begin
         m = decay_model(; pollution_decay=0.0)
         old = copy(m.landscape.pollution)

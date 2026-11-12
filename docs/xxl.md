@@ -751,10 +751,12 @@ Nothing above removes pollution, so this adds a rule the book doesn't have.
   extinction study's checkpoint headers list every Julia field, so they gained `pollution_decay=0.0`.
 - **The rate.** The user asked for a fouled patch to be livable again about 50 periods after it is left, with "nearly
   all" of its pollution gone; taken as nine-tenths, that is δ = 0.045 (0.955^50 = 0.100; half gone in about 15
-  periods). Agents make about 2.5 units a period each, about 1 per cell at today's population, so the world's mean
-  should settle near 1 ÷ δ ≈ 21 within about 50 periods of the start, against 217 and rising at t = 600 without decay;
-  with 100 diffusion passes a period, pollution mostly stays within about 25 cells of where it is made. These are
-  estimates from the runs above, not yet measured.
+  periods). Agents make about 2.5 units a period each, so P ≈ 1 per cell a period at today's population; since a
+  period's pollution is made before that period's decay, the world's mean should settle near P (1 − δ) ÷ δ ≈ 21
+  within about 50 periods of the start, against 217 and rising at t = 600 without decay. With 100 diffusion passes a
+  period, pollution mostly stays within about 25 cells of where it is made. These are estimates from the runs above;
+  the one live run so far (seed 0, in the viewer) read 17 at t = 450 and 18 at t = 480, with the population still
+  growing.
 - **The experiment.** `VI-1-pollution-decay` is `VI-1-pollution` with the decay added and the run lengthened; nothing
   else changes. Pollution keeps being made while it decays (the user's choice), so the land settles into a balance;
   what the user expects to see is a rotation, agents fouling a patch, leaving it, and coming back once it recovers.
