@@ -655,12 +655,11 @@ alive at t = 600.
 ² The main table's `on_peak_fraction` (sugar capacity ≥ 3), the one land reading the control has. Counts are
 population × share, medians over seeds.
 
-- **A small, short retreat.** In the late run the agents on rich land (about 80,500 cells, 54% occupied at t = 350)
-  fall to a low of 92–97% of their t = 350 number in each seed (median 95%); the median count is lowest around
-  t = 400. The count is rising again by
-  t = 425 (42.4k), is back above its old level when diffusion starts (43.9k at t = 450) and keeps climbing (45.1k at
-  t = 500, 48.1k at t = 550). At t = 375 agents stand on land twice as polluted as the world's mean (1.98 times it); diffusion brings
-  that down to 1.15 by t = 600 while the mean keeps rising.
+- **A small, short retreat.** In the late run the agents on rich land (about 80,500 cells, 54% occupied at t = 350) fall
+  to a low of 92–97% of their t = 350 number in each seed (median 95%); the median count is lowest around t = 400. The
+  count is rising again by t = 425 (42.4k), is back above its old level when diffusion starts (43.9k at t = 450) and
+  keeps climbing (45.1k at t = 500, 48.1k at t = 550). At t = 375 agents stand on land twice as polluted as the world's
+  mean (1.98 times it); diffusion brings that down to 1.15 by t = 600 while the mean keeps rising.
 - **The poor land fills.** The agents off rich land go from 17.6k at t = 350 to 51.1k at t = 600. Without pollution
   the poorer land stays thinly settled: on the sugar-capacity reading the control has 27.4k off the good land at
   t = 600 against the late run's 53.7k, and 39.6k on it against 43.2k. So the share on rich land falls because the
@@ -685,27 +684,29 @@ From the saved tables only (`seed<k>.csv`, `-combat.csv`, `-kills.csv`); no run 
 - **Not more contact.** With pollution the tribes mix *less*: the share of neighbour pairs across tribes over
   t = 451–600 is 0.028 in the late run against 0.049 in the control, and tribe changes per agent are lower (52 against
   87 per 1,000 agents a period).
-- **Mostly not deaths.** Over t = 451–600 the late run's minority shrinks 0.67% a period while the majority grows
-  0.25%. Kills, starvation and old age per head differ between the tribes by about 0.1% a period, a tenth of that gap.
-  With pollution from the start deaths count for more: over t = 251–450 the minority is killed at 2.2 times the
-  majority's rate per head (8.3 against 3.7 per 1,000): kills are 40% of its gap in growth, and kills and starvation together 46%.
+- **Mostly not deaths.** Over t = 451–600 the late run's minority shrinks 0.67% a period while the majority grows 0.25%.
+  Kills, starvation and old age per head differ between the tribes by about 0.1% a period, a tenth of that gap. With
+  pollution from the start deaths count for more: over t = 251–450 the minority is killed at 2.2 times the majority's
+  rate per head (8.3 against 3.7 per 1,000): kills are 40% of its gap in growth, and kills and starvation together 46%.
 - **One converging culture.** A tribe is only which side of 5½ an agent's 11 tags fall on, and in the late run and the
-  control 5–11% of agents change tribe every period, so the label is fluid. What pollution changes is how fast the whole society's tags
-  converge: the mean closeness of tags between friends reaches 0.980 at t = 600 in the late run against the control's
-  0.947, and 1.000 (identical tags) with pollution from the start. The minority disappears because nearly everyone ends
-  up with nearly the same tags, on one side of the line.
+  control 5–11% of agents change tribe every period, so the label is fluid. What pollution changes is how fast the whole
+  society's tags converge: the mean closeness of tags between friends reaches 0.980 at t = 600 in the late run against
+  the control's 0.947, and 1.000 (identical tags) with pollution from the start. The minority disappears because nearly
+  everyone ends up with nearly the same tags, on one side of the line.
 - **Why faster.** *My reading*, not tested: agents move more under pollution (79–87% of them a period after t = 400,
-  briefly 92% as diffusion starts, against 68–70% in the control), so each meets a changing set of neighbours and tags spread across the whole society
-  instead of staying in regional pockets. A possible amplifier with pollution from the start: combat's loot isn't
-  devalued by pollution while a site's goods are (`score` in julia/src/rules/welfare.jl), so where pollution is high,
-  combat moves are chosen mostly by whom an agent can rob, and the chance of hostility rises with tag distance. A
-  diagnostic run recording the tag-count distribution and tribe changes by direction would test both.
+  briefly 92% as diffusion starts, against 68–70% in the control), so each meets a changing set of neighbours and tags
+  spread across the whole society instead of staying in regional pockets. A possible amplifier with pollution from the
+  start: combat's loot isn't devalued by pollution while a site's goods are (`score` in julia/src/rules/welfare.jl), so
+  where pollution is high, combat moves are chosen mostly by whom an agent can rob, and the chance of hostility rises
+  with tag distance. A diagnostic run recording the tag-count distribution and tribe changes by direction would test
+  both.
 
 ### How pollution could fall
 
 Nothing in the model or the book removes pollution: rule P only adds (p.47), and rule D averages over neighbours on
 the torus, so the total is conserved (`diffuse!` in julia/src/landscape.jl; the sum check in
-test_landscape.jl's diffusion test). The book's only remedy is to stop making it: in IV-3 (pp.126–129) generation stops at t = 150
+test_landscape.jl's diffusion test). The book's only remedy is to stop making it: in IV-3 (pp.126–129) generation stops
+at t = 150
 and diffusion starts. Here that is `pollution_stop`, which the model and the Python original already have.
 
 - **With `pollution_stop` only.** The total freezes, and with 100 diffusion passes a period the field flattens towards
