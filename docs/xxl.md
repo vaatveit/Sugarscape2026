@@ -727,7 +727,8 @@ and diffusion starts. Here that is `pollution_stop`, which the model and the Pyt
 
 - **Births and site choices.** The runs record neither, so why the poor land fills and why the minority converges
   away are readings, not measurements.
-- **A fall in pollution.** Pollution never decays and never stops here, so the world's total only grows.
+- **A fall in pollution.** Pollution never decays and never stops in these three runs, so the world's total only
+  grows. The decay run below is the one where it doesn't.
 - One map, 20 seeds, one setting of α, β and the diffusion period.
 
 ### Run time
@@ -754,9 +755,9 @@ Nothing above removes pollution, so this adds a rule the book doesn't have.
   periods). Agents make about 2.5 units a period each, so P ≈ 1 per cell a period at today's population; since a
   period's pollution is made before that period's decay, the world's mean should settle near P (1 − δ) ÷ δ ≈ 21
   within about 50 periods of the start, against 217 and rising at t = 600 without decay. With 100 diffusion passes a
-  period, pollution mostly stays within about 25 cells of where it is made. These are estimates from the runs above;
-  the one live run so far (seed 0, in the viewer) read 17 at t = 450 and 18 at t = 480, with the population still
-  growing.
+  period, pollution mostly stays within about 25 cells of where it is made. These were estimates from the runs above.
+  The study below bears out the mean (21.1 at t = 1000), but it takes about 350 periods to get there, not 50, because
+  the population keeps growing from 61,000 to 100,000.
 - **The experiment.** `VI-1-pollution-decay` is `VI-1-pollution` with the decay added and the run lengthened; nothing
   else changes. Pollution keeps being made while it decays (the user's choice), so the land settles into a balance;
   what the user expects to see is a rotation, agents fouling a patch, leaving it, and coming back once it recovers.
@@ -771,7 +772,69 @@ Nothing above removes pollution, so this adds a rule the book doesn't have.
   | steps | 600 | 1000 |
 
 - **Running it.** `julia --project=julia julia/xxl_combat_study.jl --world today --exp VI-1-pollution-decay …`, or
-  in the viewer. A 20-seed study would take about 1¾ hours with 5 workers, by the runs above.
+  in the viewer. The 20-seed study below took 1 h 53 min with 5 workers.
+
+### Decay results (2026-11-12)
+
+**The short answer.** Decay works as designed: the world's mean pollution settles at 21, as estimated, against 217 and
+rising at t = 600 without it. But it changes almost nothing about where agents live. They step back from rich land by
+about 4% when pollution starts (5% without decay), are back above their old number before diffusion starts, and then
+stay between about 47,000 and 49,000 for the rest of the run. The totals show no cycle of leaving and returning. The
+minority culture is mostly lost, as without decay: it is under 1% of agents at t = 1000, though 8 of 20 seeds keep 5%
+or more.
+
+**The run.** Today's world, seeds 0–19, 1000 periods, 5 workers, with the user's go-ahead
+(`results-julia-xxl/combat-today-VI-1-pollution-decay-s0-20-p1000/`). Every seed's main and combat tables for
+t = 0–350 are byte-identical to its `VI-1-pollution` seed (20 of 20), so all differences come from decay. Every seed is
+alive at t = 1000.
+
+**Readings** (medians over seeds; "No decay" is `VI-1-pollution`, "Control" is `VI-1-assim-k4`, both run only to
+t = 600, from "Results" above; counts on rich land in the no-decay run are population × share, since its pollution
+tables predate the count columns):
+
+| Reading | Decay | No decay | Control |
+|---|---|---|---|
+| World mean pollution, t = 450 / 600 / 1000 | 16.8 / 20.7 / 21.1 | 74 / 217 / – | 0 |
+| Pollution on rich land / elsewhere, t = 450 / 1000 | 30.9 / 10.1, 30.0 / 16.8 | – | – |
+| Where agents stand, t = 450 / 600 / 1000 | 1.68 / 1.27 / 1.25 | 1.59 / 1.15 / – | – |
+| Lowest count on rich land after t = 350, as share of t = 350 ³ | 0.96 (0.93–0.98), t ≈ 375 | 0.95 (0.92–0.97), t ≈ 395 | – |
+| Agents on rich land, t = 350 / 450 / 600 / 1000 | 43.6k / 46.6k / 47.7k / 48.7k | 43.6k / 43.9k / 46.2k / – | – |
+| Agents off rich land, t = 600 / 1000 | 50.5k / 51.9k | 51.1k / – | – |
+| Share on rich land, t = 600 / 1000 | 0.49 / 0.48 | 0.48 / – | – |
+| Population, t = 600 / 1000 | 98,409 / 100,836 | 97,282 / – | 67,381 / – |
+| Minority share, t = 500 / 600 / 1000 | 0.32 / 0.12 / 0.008 | 0.36 / 0.10 / – | 0.36 / 0.36 / – |
+| Seeds with the minority ≥ 5%, t = 600 / 1000 | 14 / 8 of 20 | 13 of 20 | 19 of 20 |
+| Kills per period, t = 600 / 1000 | 177 / 58 | 168 / – | 254 / – |
+| Share of agents moving a period, t = 600 / 1000 | 0.80 / 0.80 | 0.82 / – | 0.69 / – |
+
+³ Each seed's lowest count over the whole run after t = 350 (to t = 1000, or 600 without decay): the median, the
+range over seeds in brackets, and the median period of the low.
+
+- **Pollution settles.** The mean reaches 17 when diffusion starts and 21 by about t = 700, then stays within 20.9–21.2
+  to the end. Rich land stays about 1.8 times as polluted as the rest (30 against 17), and agents stand on land 1.25
+  times as polluted as the world's mean.
+- **A slightly smaller, shorter retreat.** In each seed the count on rich land falls to 93–98% of its t = 350 number,
+  lowest around t = 375; the median count is back above its t = 350 number from about t = 415, against about t = 450
+  without decay, where the low is 92–97% around t = 395. Pollution also builds more slowly with decay (the world's mean
+  is 9.9 at t = 375 against 17.1).
+- **No cycle in the totals.** From t = 600 to 1000 the count on rich land in a typical seed stays between 46.7k and 48.9k
+  (median of each seed's lowest and highest), and the share between 0.477 and 0.489. A rotation of agents fouling a
+  patch, leaving it and coming back once it recovers could still be happening patch by patch: the readings are totals
+  over all rich land, so they can't show it. The viewer can; a per-patch reading would measure it.
+- **The same society.** At t = 600 the population, the split between rich and poor land, and the land-capacity
+  reading are within a few percent of the no-decay run's, with a tenth of its pollution. So the growth on poor land
+  doesn't need much pollution: *my reading* is that a site's goods are scored divided by 1 + pollution, so even at 30
+  a rich site is devalued enough for clean poor sites to compete, and above that level more pollution changes little.
+- **The minority is mostly lost.** It falls from about t = 450, about 50 periods earlier than without decay (0.32 at
+  t = 500 against 0.36), and is 0.12 at t = 600 against the no-decay run's 0.10. It is about 1% by t = 800 and 0.008
+  at t = 1000, with 8 of 20 seeds keeping 5% or more. Friends' tag closeness reaches 0.997, and kills fall from about 480 a period at t = 350 to 58. Agents
+  move about as much as without decay (80% a period against the control's 69%). That is consistent with the untested
+  reading in "Why the minority loses" above, that tags converge faster because agents keep moving; it also suggests
+  that the amount of pollution, which decay cuts tenfold, matters less than its presence. The runs don't record what
+  moves agents, so this too is a reading.
+
+**What this doesn't show.** Whether agents rotate between patches (see above); how the no-decay run and the control
+would compare after t = 600, since neither was run that far; and any other rate of decay.
 
 ## Viewer
 
