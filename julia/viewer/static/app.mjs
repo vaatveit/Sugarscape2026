@@ -447,7 +447,7 @@ const LORENZ = { id: "lorenz", title: "Lorenz curve of wealth at the period on t
 const chartEls = new Map(); // chart id -> {canvas, value, caption (null for a chart without one)}
 let shownCharts = []; // the charts built: chartsFor the legend they were built with
 
-// The charts of the current legend (the seven of every run; the two pollution charts only with pollution) and the
+// The charts of the current legend (the seven of every run; the four pollution charts only with pollution) and the
 // Lorenz curve, built anew, so every chart and caption is its own run's.
 function buildCharts() {
   shownCharts = chartsFor(state.legend);
@@ -616,7 +616,9 @@ function drawLegend() {
     els.legendCells.replaceChildren(legendTitle("Ground: pollution"), bands,
       legendNote("Each cell's pollution, in bands fixed for all runs: white is none at all, any pollution at all is " +
         "the second band or darker, and the last band is open-ended. Agents and marks are drawn on top. Hover for a " +
-        "cell's band."));
+        "cell's band."),
+      ...(p.decay > 0 ? [legendNote(`Pollution decays ${Number((100 * p.decay).toFixed(1))}% a period: each period ` +
+        "every cell keeps the rest of its pollution, after diffusion.")] : []));
     return;
   }
 

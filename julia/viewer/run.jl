@@ -58,7 +58,8 @@ const SERIES_KEYS = ["t", "population", "n_blue", "n_red", "killed_blue", "kille
     "mean_price", "n_loans", "total_debt", "fraction_sick"]
 
 """The series a run with pollution has besides [`SERIES_KEYS`](@ref), from its pollution readings."""
-const POLLUTION_SERIES = ["mean_pollution", "agent_pollution", "share_rich"]
+const POLLUTION_SERIES = ["mean_pollution", "agent_pollution", "share_rich", "agents_rich", "agents_other",
+    "pollution_rich", "pollution_other"]
 
 """`series_keys(cfg)`: a run's series: [`SERIES_KEYS`](@ref), then with pollution [`POLLUTION_SERIES`](@ref)."""
 series_keys(cfg::Config) = cfg.pollution === nothing ? SERIES_KEYS : vcat(SERIES_KEYS, POLLUTION_SERIES)

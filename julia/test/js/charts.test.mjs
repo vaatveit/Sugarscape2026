@@ -48,23 +48,24 @@ test("xMax: periods 0 to newest on a nice scale that reaches 500 (the study's en
   assert.equal(xMax(501), 1000);
 });
 
-test("the nine charts of the spec draw the server's series keys", () => {
-  assert.equal(CHARTS.length, 9);
+test("the eleven charts of the specs draw the server's series keys", () => {
+  assert.equal(CHARTS.length, 11);
   const keys = CHARTS.flatMap((c) => c.panels.flatMap((p) => p.lines.map((l) => l.key)));
   assert.deepEqual(keys.sort(), [
-    "agent_pollution", "fraction_sick", "gini", "killed_blue", "killed_red", "mean_pollution", "mean_price", "n_blue",
-    "n_loans", "n_red", "share_rich", "total_debt", "trades", "tribe_changes",
+    "agent_pollution", "agents_other", "agents_rich", "fraction_sick", "gini", "killed_blue", "killed_red",
+    "mean_pollution", "mean_price", "n_blue", "n_loans", "n_red", "pollution_other", "pollution_rich", "share_rich",
+    "total_debt", "trades", "tribe_changes",
   ]);
 });
 
 // A legend's pollution entry as julia/viewer/encoding.jl's `pollution_legend` gives it for VI-1-pollution.
 const pollution = {
   palette: Array(9).fill("#ffffff"), labels: Array(9).fill(""), edges: [1, 3, 10, 30, 100, 300, 1000], start: 350,
-  diffusion_start: 450, rich_cut: 5, rich_share: 0.3218,
+  diffusion_start: 450, rich_cut: 5, rich_share: 0.3218, decay: 0,
 };
 
-test("the two pollution charts come last, are shown only with pollution, and draw what the spec says", () => {
-  const [p, r] = CHARTS.slice(-2);
+test("the two pollution charts come after the seven, are shown only with pollution, and draw what the spec says", () => {
+  const [p, r] = CHARTS.slice(-4, -2);
   assert.equal(p.id, "pollution");
   assert.equal(p.title, "Pollution");
   assert.equal(p.when, "pollution");
@@ -77,7 +78,7 @@ test("the two pollution charts come last, are shown only with pollution, and dra
   assert.equal(r.panels.length, 1);
   assert.equal(r.panels[0].fixed, 1);
   assert.deepEqual(r.panels[0].lines.map((l) => l.key), ["share_rich"]);
-  assert.ok(CHARTS.slice(0, -2).every((c) => c.when === undefined));
+  assert.ok(CHARTS.slice(0, -4).every((c) => c.when === undefined));
 });
 
 test("chartsFor: the charts a run's legend has series for", () => {
@@ -91,7 +92,7 @@ test("chartCaption: the richest land's cut and the share of the world it covers,
   assert.equal(chartCaption(rich, { pollution }), "cells with sugar + spice capacity ≥ 5: 32.2% of the world");
   assert.equal(chartCaption(rich, { pollution: null }), "");
   assert.equal(chartCaption(rich, null), "");
-  for (const c of CHARTS.slice(0, -1)) assert.equal(chartCaption(c, { pollution }), "");
+  for (const c of CHARTS.filter((c) => c.id !== "rich")) assert.equal(chartCaption(c, { pollution }), "");
 });
 
 test("markerPeriods: the study's end from the run's steps, 500 without them", () => {
@@ -115,4 +116,34 @@ test("markerPeriods: the starts of pollution and diffusion from the legend, none
   assert.deepEqual(markerPeriods({ studyEnd: 600, legend: { pollution: noDiffusion } }), [
     { t: 600, kind: "study-end", label: null }, { t: 350, kind: "pollution", label: "pollution on" },
   ]);
+});
+
+// docs/superpowers/specs/2026-11-11-pollution-decay-design.md, "The viewer".
+test("the two decay charts come last: agents on and off rich land, pollution on rich land and elsewhere", () => {
+  const [a, q] = CHARTS.slice(-2);
+  assert.equal(a.id, "rich_count");
+  assert.equal(a.title, "Agents on rich land");
+  assert.equal(a.when, "pollution");
+  assert.deepEqual(a.panels.map((p) => p.lines.map((l) => [l.key, l.label])),
+    [[["agents_rich", "on rich land"], ["agents_other", "elsewhere"]]]);
+  assert.equal(a.panels[0].fixed, undefined); // a count, on its own axis
+  assert.equal(q.id, "rich_pollution");
+  assert.equal(q.title, "Pollution on rich land and elsewhere");
+  assert.equal(q.when, "pollution");
+  assert.deepEqual(q.panels.map((p) => p.lines.map((l) => l.key)), [["pollution_rich", "pollution_other"]]);
+  const ids = (legend) => chartsFor(legend).map((c) => c.id);
+  assert.ok(ids({ pollution }).includes("rich_count") && ids({ pollution }).includes("rich_pollution"));
+  assert.ok(!ids({ pollution: null }).includes("rich_count") && !ids({ pollution: null }).includes("rich_pollution"));
+});
+
+test("markerPeriods: the pollution marker names the decay when there is one", () => {
+  const decaying = { ...pollution, decay: 0.045 };
+  assert.deepEqual(markerPeriods({ studyEnd: 1000, legend: { pollution: decaying } }), [
+    { t: 1000, kind: "study-end", label: null },
+    { t: 350, kind: "pollution", label: "pollution on, decays 4.5%" },
+    { t: 450, kind: "diffusion", label: "diffusion on" },
+  ]);
+  const t0 = { ...decaying, start: 0, diffusion_start: 0 }; // decay from the first period: no marker
+  assert.deepEqual(markerPeriods({ studyEnd: 1000, legend: { pollution: t0 } }),
+    [{ t: 1000, kind: "study-end", label: null }]);
 });

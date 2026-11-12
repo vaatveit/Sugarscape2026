@@ -100,6 +100,8 @@ end
     @test 0.3 < p["rich_share"] < 0.34
     pl = legend(viewer_config(viewer_defaults("VI-1-pollution")))["pollution"]
     @test (pl["start"], pl["diffusion_start"]) == (350, 450)
+    @test p["decay"] == 0.0 && pl["decay"] == 0.0  # the decay rate (docs/superpowers/specs/2026-11-11-pollution-decay-design.md)
+    @test legend(viewer_config(viewer_defaults("VI-1-pollution-decay")))["pollution"]["decay"] == 0.045
     # Apart from the new entry, the legend is the one without pollution.
     k4 = legend(viewer_config(vf_settings()))
     @test delete!(copy(lg), "pollution") == delete!(copy(k4), "pollution")

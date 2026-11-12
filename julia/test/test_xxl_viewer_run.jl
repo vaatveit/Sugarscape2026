@@ -99,7 +99,8 @@ end
     for _ in 1:VW_STEPS
         @test advance!(r)
     end
-    @test POLLUTION_SERIES == ["mean_pollution", "agent_pollution", "share_rich"]
+    @test POLLUTION_SERIES == ["mean_pollution", "agent_pollution", "share_rich", "agents_rich", "agents_other",
+        "pollution_rich", "pollution_other"]
     @test series_keys(r.model.config) == vcat(SERIES_KEYS, POLLUTION_SERIES)
     @test sort(collect(keys(r.series))) == sort(series_keys(r.model.config))
     @test r.series["t"] == collect(0.0:VW_STEPS)

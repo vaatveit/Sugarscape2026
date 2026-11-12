@@ -68,6 +68,16 @@ export const CHARTS = [
       `${percent(legend.pollution.rich_share)} of the world`,
     panels: [{ fixed: 1, lines: [{ key: "share_rich", label: "share of agents standing there", colour: NEUTRAL }] }],
   },
+  {
+    id: "rich_count", title: "Agents on rich land", when: "pollution",
+    panels: [{ lines: [{ key: "agents_rich", label: "on rich land", colour: BROWN },
+      { key: "agents_other", label: "elsewhere", colour: "#6b7280" }] }],
+  },
+  {
+    id: "rich_pollution", title: "Pollution on rich land and elsewhere", when: "pollution",
+    panels: [{ lines: [{ key: "pollution_rich", label: "rich land", colour: BROWN },
+      { key: "pollution_other", label: "elsewhere", colour: "#6b7280" }] }],
+  },
 ];
 
 /** chartsFor(legend) -> the CHARTS a run with this legend has series for: those without `when`, and those it has. */
@@ -84,14 +94,15 @@ export function chartCaption(chart, legend) {
 /**
  * markerPeriods(view) -> [{t, kind, label}]: the periods marked on every chart. The study's end ("study-end", no label)
  * at the run's experiment's steps (`view.studyEnd`, STUDY_END without it); with pollution in `view.legend`, the start of
- * pollution ("pollution", "pollution on") and of diffusion ("diffusion", "diffusion on"), each left out when it is 0
+ * pollution ("pollution", "pollution on", with ", decays 4.5%" when the legend's decay is above 0) and of diffusion ("diffusion", "diffusion on"), each left out when it is 0
  * (from the first period, so nothing to mark) or absent.
  */
 export function markerPeriods(view) {
   const markers = [{ t: view.studyEnd ?? STUDY_END, kind: "study-end", label: null }];
   const p = view.legend?.pollution;
   if (p) {
-    if (p.start) markers.push({ t: p.start, kind: "pollution", label: "pollution on" });
+    const decay = p.decay > 0 ? `, decays ${Number((100 * p.decay).toFixed(1))}%` : "";
+    if (p.start) markers.push({ t: p.start, kind: "pollution", label: `pollution on${decay}` });
     if (p.diffusion_start) markers.push({ t: p.diffusion_start, kind: "diffusion", label: "diffusion on" });
   }
   return markers;

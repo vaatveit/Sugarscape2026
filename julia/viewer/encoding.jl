@@ -102,7 +102,8 @@ const POLLUTION_PALETTE = ["#ffffff", "#f7f1dc", "#e9dbb0", "#dbc585", "#c7b168"
     "#525c1e"]
 
 # The pollution entry of the legend: `nothing` without pollution, else the bands, the start of pollution and of
-# diffusion (`nothing` without diffusion) and the rich land's cut and the share of cells it covers.
+# diffusion (`nothing` without diffusion), the rich land's cut and the share of cells it covers, and the decay rate
+# (`pollution_decay`, 0 without decay).
 function pollution_legend(m::Model)
     cfg = m.config
     cfg.pollution === nothing && return nothing
@@ -118,6 +119,7 @@ function pollution_legend(m::Model)
         "diffusion_start" => cfg.diffusion_period === nothing ? nothing : cfg.diffusion_start,
         "rich_cut" => cut,
         "rich_share" => count((ls.capacity .+ ls.spice_capacity) .>= cut) / length(ls.capacity),
+        "decay" => cfg.pollution_decay,
     )
 end
 
