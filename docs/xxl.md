@@ -596,14 +596,19 @@ taken in combat makes no production pollution (rule 7). Agents already score sit
   it back to the colour it was made on. So pollution stays on the colour it was made on, and the banded map can show a
   checkerboard texture. That is the model's behaviour, not a viewer fault; no rule changes here.
 - **`seed<k>-pollution.csv`.** Written only for experiments with pollution, next to `seed<k>-combat.csv`, with the
-  columns `t`, `mean_pollution`, `agent_pollution` and `share_rich` (`periods + 1` rows). A seed counts as done only
-  when this file exists too. All three are read at the end of the period, where the combat readings are read.
+  columns below after `t` (`periods + 1` rows). A seed counts as done only when this file exists too. All are read at
+  the end of the period, where the combat readings are read. The last four came with the decay rule (below) and are
+  written for every pollution experiment; files saved before then have only the first three.
 
   | Column | Meaning |
   |---|---|
   | `mean_pollution` | The mean pollution over all cells of the world. |
   | `agent_pollution` | The mean pollution of the cells the agents stand on. `nan` with no agents. |
   | `share_rich` | The share of agents standing on rich land. `nan` with no agents. |
+  | `agents_rich` | The number of agents standing on rich land. |
+  | `agents_other` | The number of agents standing on the other cells; with `agents_rich`, the population. |
+  | `pollution_rich` | The mean pollution over the rich cells. |
+  | `pollution_other` | The mean pollution over the other cells (`nan` if every cell is rich). |
 
   Rich land is the cells whose sugar capacity plus spice capacity is at or above the 75th percentile of that sum over
   all cells, worked out once per run from the fixed capacities. Ties at the cut are included, so the share of cells
@@ -713,10 +718,10 @@ and diffusion starts. Here that is `pollution_stop`, which the model and the Pyt
   the world's mean. The mean stops rising but never falls. Flat pollution devalues every site by about the same
   factor, so rich land regains its lead over poor land, but the world never gets cleaner.
 - **With a removal rule** (none in the book, so an xxl extension): the smallest is a decay of a fixed share δ of each
-  site's pollution every period (a new `pollution_decay`, default 0 so every existing run is unchanged), applied after
-  diffusion in `step!`. Then the mean falls as (1 − δ)^t once generation stops, and settles where making and decay
-  balance while it doesn't. Alternatives are decay only on empty sites, or absorption tied to sugar regrowth; both are
-  further from anything in the book.
+  site's pollution every period, applied after diffusion in `step!`. Then the mean falls as (1 − δ)^t once generation
+  stops, and settles where making and decay balance while it doesn't. That rule now exists as `pollution_decay`
+  ("Decay", below). Alternatives are decay only on empty sites, or absorption tied to sugar regrowth; both are further
+  from anything in the book.
 
 ### What this doesn't show
 
@@ -730,6 +735,41 @@ and diffusion starts. Here that is `pollution_stop`, which the model and the Pyt
 Same machine, 5 workers: 63 min for the late run, 51 min for the control and 57 min for the run from the start. A first
 try of the late run with 10 workers was stopped after 4 minutes, before any seed was done, because other work was
 holding about 7 GB and free memory fell to 2 GB.
+
+### Decay: `pollution_decay` and `VI-1-pollution-decay`
+
+The user wants to see agents leave polluted land and come back as it decays
+([docs/superpowers/specs/2026-11-11-pollution-decay-design.md](superpowers/specs/2026-11-11-pollution-decay-design.md)).
+Nothing above removes pollution, so this adds a rule the book doesn't have.
+
+- **The rule.** `pollution_decay` (δ, default 0) is a config field of the Julia port only, like `culture_rule`; the
+  Python original has no such field. At the end of every period, after growback and after diffusion, every site keeps
+  1 − δ of its pollution. It acts whether or not pollution is being made and whether or not diffusion runs that period,
+  so after a `pollution_stop` the world gets cleaner. At 0 nothing is touched, so every existing run is byte-identical.
+  It needs no scaling between worlds: the xl transform scales space (diffusion passes × 100), not time. `validate`
+  accepts 0 ≤ δ < 1. The combat study's fingerprints don't change (they take the Python registry's config text); the
+  extinction study's checkpoint headers list every Julia field, so they gained `pollution_decay=0.0`.
+- **The rate.** The user asked for a fouled patch to be livable again about 50 periods after it is left, with "nearly
+  all" of its pollution gone; taken as nine-tenths, that is δ = 0.045 (0.955^50 = 0.100; half gone in about 15
+  periods). Agents make about 2.5 units a period each, about 1 per cell at today's population, so the world's mean
+  should settle near 1 ÷ δ ≈ 21 within about 50 periods of the start, against 217 and rising at t = 600 without decay;
+  with 100 diffusion passes a period, pollution mostly stays within about 25 cells of where it is made. These are
+  estimates from the runs above, not yet measured.
+- **The experiment.** `VI-1-pollution-decay` is `VI-1-pollution` with the decay added and the run lengthened; nothing
+  else changes. Pollution keeps being made while it decays (the user's choice), so the land settles into a balance;
+  what the user expects to see is a rotation, agents fouling a patch, leaving it, and coming back once it recovers.
+
+  | Setting (book config) | `VI-1-pollution` | `VI-1-pollution-decay` |
+  |---|---|---|
+  | `pollution` (α, β) | (1.0, 1.0) | (1.0, 1.0) |
+  | `pollution_start` | 350 | 350 |
+  | `pollution_stop` | none | none |
+  | `pollution_decay` | 0 | 0.045 |
+  | `diffusion_period`, `diffusion_start` | 1, 450 | 1, 450 |
+  | steps | 600 | 1000 |
+
+- **Running it.** `julia --project=julia julia/xxl_combat_study.jl --world today --exp VI-1-pollution-decay …`, or
+  in the viewer. A 20-seed study would take about 1¾ hours with 5 workers, by the runs above.
 
 ## Viewer
 
@@ -756,18 +796,22 @@ open in the browser can neither start or stop a run nor read the viewer's frames
   live check of 11-10, where crosses and rings several cells wide hid the agents. A cell with both a kill and a switch
   shows the kill. A cell can hold several events, and in the fading mode marks on one cell blend in order, oldest
   first; a line under the map then says how many events fall on how many cells.
-- **Pollution runs.** The experiment menu includes `VI-1-pollution` and `VI-1-pollution-t0` (previous section). For
+- **Pollution runs.** The experiment menu includes `VI-1-pollution`, `VI-1-pollution-t0` and `VI-1-pollution-decay`
+  (previous section). For
   those runs only, a "Ground shows" menu (resources, the default, or pollution) says what the empty cells show;
   it is independent of the agent colours and the marks. On pollution, each empty cell takes the colour of its pollution
   band: 0, below 1, 1–3, 3–10, 10–30, 30–100, 100–300, 300–1000, and 1000 or more (nine bands, spaced by powers of
-  about three because pollution has no sink and grows without bound). The server works the bands out from the model
+  about three because without decay pollution grows without bound). The server works the bands out from the model
   and sends one per cell; the page only maps a band to a colour. Hovering a cell shows its band, and the legend lists
   the bands. Two charts appear only for these runs: "Pollution" (the world's mean against the mean where agents stand,
   so agents leaving fouled land shows as the second line falling below the first) and "On the richest land" (the share
-  of agents on rich land, on an axis from 0 to 1, with a caption giving the cut and the share of cells it covers).
-  Every chart marks the start of pollution and of diffusion with dotted lines ("pollution on", "diffusion on") when the
-  experiment has them. The dashed study-end line sits at the experiment's own steps: 600 for the pollution experiments,
-  500 for the others.
+  of agents on rich land, on an axis from 0 to 1, with a caption giving the cut and the share of cells it covers),
+  then "Agents on rich land" (the counts on rich land and elsewhere, which show whether the share moves because agents
+  leave or because the society grows elsewhere) and "Pollution on rich land and elsewhere" (the two means). Every chart
+  marks the start of pollution and of diffusion with dotted lines ("pollution on", "diffusion on") when the experiment
+  has them; with decay the first reads "pollution on, decays 4.5%", and the legend for the pollution ground states the
+  rate. The dashed study-end line sits at the experiment's own steps: 600 or 1000 for the pollution experiments, 500
+  for the others.
 - **What you set.** The experiment (the VI-1 combat-study experiments), the raw seed, and the combat study's `h` and
   `k`. Start begins a run, and shows the model's own message if it refuses the settings (`h = 1` on `VI-1-assim`,
   say). The stepper runs at most 50 periods ahead of the period the page shows: the page reports the period on its
