@@ -609,6 +609,78 @@ taken in combat makes no production pollution (rule 7). Agents already score sit
   all cells, worked out once per run from the fixed capacities. Ties at the cut are included, so the share of cells
   that counts as rich can exceed a quarter. In today's world the cut is a capacity of 5, which covers 32% of cells.
 
+### Results (2026-11-11)
+
+**The short answer.** Agents leave polluted land and don't come back. Once pollution starts, a third of the agents on
+rich land move off it within about 150 periods. Diffusion doesn't bring them back: it only spreads pollution, nothing
+removes it, and agents keep making more, so the world's mean pollution never stops rising (*my reading* of why they
+stay away; the runs don't measure how clean any rich cell is). Two things followed that nobody asked about. The
+society got about 45% bigger, and its minority culture shrank: it was lost in every seed when pollution started at
+t = 0, and fell to a tenth of the agents when it started at t = 350. A control without pollution shows both are
+pollution's doing.
+
+**The runs.** Today's world, seeds 0–19, 600 periods, 5 workers, all run with the user's go-ahead
+(`results-julia-xxl/combat-today-<exp>-s0-20-p600/`):
+
+| Run | Experiment | Pollution, diffusion from |
+|---|---|---|
+| Late | `VI-1-pollution` | t = 350, t = 450 |
+| Control | `VI-1-assim-k4` with `--periods 600` | none |
+| From the start | `VI-1-pollution-t0` | t = 0, t = 0 |
+
+`VI-1-assim-k4` had only been run to t = 500, so the control repeats it to 600. Its first 500 periods match the saved
+runs (median population 65,192 at t = 500 in both). Every late seed's main and combat tables for t = 0–350 are
+byte-identical to its control seed (20 of 20), so all differences come from pollution. Every seed of all three runs is
+alive at t = 600.
+
+**Readings** (medians over seeds; "where agents stand" is `agent_pollution` ÷ `mean_pollution`):
+
+| Reading | Late | Control | From the start |
+|---|---|---|---|
+| Share on rich land, t = 350 | 0.71 | 0.71 ¹ | 0.54 |
+| Share on rich land, t = 450 / 600 | 0.54 / 0.48 | – | 0.49 / 0.48 |
+| World mean pollution, t = 450 / 600 | 74 / 217 | 0 | 171 / 310 |
+| Where agents stand, t = 450 / 600 | 1.59 / 1.15 | – | 1.18 / 1.11 |
+| Population, t = 600 | 97,282 | 67,381 | 95,230 |
+| Minority share, t = 500 / 600 | 0.36 / 0.10 | 0.36 / 0.36 | 0.010 / 0.000 |
+| Seeds with the minority ≥ 5% at t = 600 | 13 of 20 | 19 of 20 | 0 of 20 |
+| Kills per period, t = 600 | 168 | 254 | 0 |
+
+¹ The control writes no pollution table. Its share is the late run's, which is identical to it up to t = 350.
+
+- **They leave.** In the late run the share of agents on rich land falls from 0.71 at t = 350 to a low of 0.46–0.48
+  in every seed, reached at t = 493–527 in 17 seeds and at the very end in the other 3. At t = 375 agents stand on
+  land twice as polluted as the world's mean (1.98 times it), which fits agents polluting where they live and then
+  moving away; the runs don't trace single agents, so that is *my reading*.
+- **They don't come back.** From that low to t = 600 the share rises by at most 0.02 in any seed. Diffusion evens
+  pollution out, so where agents stand falls towards the mean (1.15 times it by t = 600), but the mean keeps rising. With
+  pollution from the start, agents never crowd onto the rich land at all: about 0.72 from t = 25 to 250, while without
+  pollution the share is near 0.98 at t = 100–150 (¹). Both pollution runs end at 0.48.
+- **A bigger society.** The control levels off near 67,000. The late run passes 82,000 by t = 450 and peaks near
+  100,000 at t = 550. The run from the start falls twice as far at first: a median of 2,500 agents at t = 100,
+  against the control's 4,900, and 2,168 in its smallest seed. It then catches the control at t = 300 and grows past
+  it. Why spreading out makes more agents is *my guess*, not tested: a child needs an empty site next to a parent,
+  and spread-out agents have more of them.
+- **One culture.** In the late run the minority follows the control until t = 500, then falls to 0.10 by t = 600, still
+  falling. From the start it falls away from the control's from about t = 250 and is gone by t = 600 in every seed
+  (10 of 20 at exactly zero, the largest 0.02); kills fall with it to none, since one culture has no one to fight.
+  In the late run kills fall less, to 168 a period. The control keeps both cultures (0.36) and its war (254 kills a
+  period).
+
+### What this doesn't show
+
+- **Why the minority loses.** The readings show that it does, not why. *My guess*: spread-out agents meet the other
+  culture more evenly, so assimilation beats combat's separation. The runs record no reading that tests this.
+- **A return under other pollution rules.** Pollution never decays and never stops here, so the world's total only
+  grows. A run with `pollution_stop`, or a rule that removes pollution, might show agents coming back.
+- One map, 20 seeds, one setting of α, β and the diffusion period.
+
+### Run time
+
+Same machine, 5 workers: 63 min for the late run, 51 min for the control and 57 min for the run from the start. A first
+try of the late run with 10 workers was stopped after 4 minutes, before any seed was done, because other work was
+holding about 7 GB and free memory fell to 2 GB.
+
 ## Viewer
 
 A live browser view of one xxl VI-1 run, in today's world, stepped as the page asks for it:
