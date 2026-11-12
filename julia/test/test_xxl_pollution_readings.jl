@@ -14,8 +14,9 @@ using Sugarscape: CombatReadings, combat_period!, pollution_rows, POLLUTION_COLU
     @test rich_cut(ls) == 3
 end
 
-@testset "pollution readings: the three columns" begin
-    @test POLLUTION_COLUMNS == ["t", "mean_pollution", "agent_pollution", "share_rich"]
+@testset "pollution readings: the columns" begin
+    @test POLLUTION_COLUMNS == ["t", "mean_pollution", "agent_pollution", "share_rich", "agents_rich", "agents_other",
+        "pollution_rich", "pollution_other"]
     cap = reshape(collect(0:15), 4, 4)  # the capacity at (x, y) is x + 4y; the cut is 11
     m = tiny_model(cap; pollution=(1.0, 1.0))
     m.landscape.pollution .= cap
@@ -26,7 +27,9 @@ end
     m.t = 4
     combat_period!(r, m)
     _, rows = pollution_rows(r)
-    @test rows == [[4.0, 120 / 16, (3.0 + 15.0) / 2, 1 / 2]]
+    # rich cells: capacity 11-15, pollution 65 in all; the other 11 cells hold 55
+    @test rows == [[4.0, 120 / 16, (3.0 + 15.0) / 2, 1 / 2, 1.0, 1.0, 65 / 5, 55 / 11]]
+    @test rows[1][5] + rows[1][6] == length(m.agents)
     @test r.rich == (cap .>= 11)
 end
 
@@ -37,6 +40,20 @@ end
     combat_period!(r, m)
     row = pollution_rows(r)[2][1]
     @test row[2] == 1.0 && isnan(row[3]) && isnan(row[4])
+    @test row[5] == 0.0 && row[6] == 0.0  # no one on rich land or elsewhere
+    @test row[7] == 1.0 && row[8] == 1.0  # the pollution means need no agents
+end
+
+@testset "pollution readings: every cell rich" begin
+    m = tiny_model(fill(2, 4, 4); pollution=(1.0, 1.0))  # uniform capacity: every cell is at the cut
+    m.landscape.pollution .= reshape(1.0:16.0, 4, 4)
+    put_agent(m, 1, 1)
+    r = CombatReadings()
+    combat_period!(r, m)
+    row = pollution_rows(r)[2][1]
+    @test all(r.rich)
+    @test row[5] == 1.0 && row[6] == 0.0
+    @test row[7] == sum(1.0:16.0) / 16 && isnan(row[8])  # no other cells: NaN, not an error
 end
 
 @testset "pollution readings: without pollution there are none" begin
@@ -55,7 +72,8 @@ end
     path = pollution_path(folder, 0)
     @test basename(path) == "seed0-pollution.csv"
     lines = readlines(path)
-    @test lines[1] == "t,mean_pollution,agent_pollution,share_rich" && length(lines) == 6
+    @test lines[1] == "t,mean_pollution,agent_pollution,share_rich,agents_rich,agents_other,pollution_rich,pollution_other"
+    @test length(lines) == 6
     mean_p = [parse(Float64, split(l, ",")[2]) for l in lines[2:end]]
     @test mean_p[1] == 0 && mean_p[end] > 0
     @test combat_seed_done(folder, 0, 4; pollution=true) && combat_seed_done(folder, 0, 4)

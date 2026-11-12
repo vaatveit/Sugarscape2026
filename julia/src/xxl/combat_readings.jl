@@ -71,7 +71,8 @@ CombatReadings() = CombatReadings(
 )
 
 """The columns of a pollution row, [`pollution_rows`](@ref)."""
-const POLLUTION_COLUMNS = ["t", "mean_pollution", "agent_pollution", "share_rich"]
+const POLLUTION_COLUMNS = ["t", "mean_pollution", "agent_pollution", "share_rich", "agents_rich", "agents_other",
+    "pollution_rich", "pollution_other"]
 
 """
     rich_cut(ls) -> Int
@@ -215,7 +216,9 @@ function combat_period!(r::CombatReadings, m::Model)
     return nothing
 end
 
-# The period's pollution row: the land's mean pollution, the mean on the agents' cells and the share of agents on rich land.
+# The period's pollution row: the land's mean pollution, the mean on the agents' cells, the share of agents on rich land,
+# the agents on rich land and on the other cells (docs/superpowers/specs/2026-11-11-pollution-decay-design.md, "The
+# readings"), and the mean pollution over the rich cells and over the others (NaN for a set with no cells).
 function pollution_period!(r::CombatReadings, m::Model)
     ls = m.landscape
     if r.rich === nothing
@@ -229,9 +232,24 @@ function pollution_period!(r::CombatReadings, m::Model)
         on_cells += ls.pollution[a.x + 1, a.y + 1]
         on_rich += rich[a.x + 1, a.y + 1]
     end
+    p_rich, p_other, n_rich = 0.0, 0.0, 0
+    @inbounds for i in eachindex(ls.pollution)
+        if rich[i]
+            p_rich += ls.pollution[i]
+            n_rich += 1
+        else
+            p_other += ls.pollution[i]
+        end
+    end
+    n_other = length(ls.pollution) - n_rich
+    total = sum(ls.pollution)
     push!(
         r.pollution_rows,
-        Float64[m.t, sum(ls.pollution) / length(ls.pollution), n == 0 ? NaN : on_cells / n, n == 0 ? NaN : on_rich / n],
+        Float64[
+            m.t, total / length(ls.pollution), n == 0 ? NaN : on_cells / n, n == 0 ? NaN : on_rich / n,
+            on_rich, n - on_rich,
+            n_rich == 0 ? NaN : p_rich / n_rich, n_other == 0 ? NaN : p_other / n_other,
+        ],
     )
     return nothing
 end
