@@ -106,6 +106,10 @@ Base.@kwdef struct Config
     credit_reach::Float64 = 1.0
     lender_limit::Bool = false
     pollution_stop::Union{Nothing,Int} = nothing
+    # Pollution decay (docs/superpowers/specs/2026-11-11-pollution-decay-design.md): Julia-only, an xxl-era extension
+    # the book doesn't have. Every period, after diffusion, each site keeps 1 - pollution_decay of its pollution; the
+    # default 0 is the book's, and does nothing at all.
+    pollution_decay::Float64 = 0.0
 
     # Chapter V.
     disease_list::Int = 0
@@ -316,6 +320,7 @@ function validate(c::Config)
     c.pollution_stop !== nothing &&
         c.pollution_stop <= c.pollution_start &&
         bad("pollution_stop must come after pollution_start")
+    0 <= c.pollution_decay < 1 || bad("pollution_decay must be in [0, 1), not $(c.pollution_decay)")  # NaN fails too
     c.fertility_threshold <= 0 &&
         bad("fertility_threshold must be > 0, not $(c.fertility_threshold)")
     0 < c.child_share <= 1 || bad("child_share must lie in (0, 1], not $(c.child_share)")

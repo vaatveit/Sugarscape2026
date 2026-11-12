@@ -417,6 +417,8 @@ function step!(m::Model)
             diffuse!(ls)
         end
     end
+    # Pollution decay, after diffusion, every period; at 0 (the book's) nothing is touched, so runs stay bit-identical.
+    cfg.pollution_decay > 0 && (ls.pollution .*= 1 - cfg.pollution_decay)
     m.t += 1
     return m
 end
