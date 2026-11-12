@@ -5,10 +5,10 @@
 using Sugarscape: Model, Config, Loan, CombatReadings, COMBAT_COLUMNS, POLLUTION_COLUMNS, JULIA_COMBAT_EXPS,
     world_config, replace_config, metric_columns, collect_metrics, combat_period!, step!
 
-"""The experiments the viewer offers, in the order of its menu: the ten VI-1 ones of the combat study."""
+"""The experiments the viewer offers, in the order of its menu: the eleven VI-1 ones of the combat study."""
 const VIEWER_EXPS = [
     "VI-1-combat", "VI-1-distance", "VI-1-near", "VI-1-far", "VI-1-far-speed", "VI-1-assim", "VI-1-assim-random",
-    "VI-1-assim-k4", "VI-1-pollution", "VI-1-pollution-t0",
+    "VI-1-assim-k4", "VI-1-pollution", "VI-1-pollution-t0", "VI-1-pollution-decay",
 ]
 
 """How many of the newest frames a run keeps."""

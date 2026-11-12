@@ -163,14 +163,16 @@ const VI1_POLLUTION_VARIANT = "variant: VI-1-pollution pollution=(1,1) pollution
 const VI1_POLLUTION_T0_VARIANT = "variant: VI-1-pollution-t0 pollution=(1,1) pollution_start=0 diffusion_period=1 diffusion_start=0 steps=600 (pollution and diffusion from period 0)
 "
 
-# VI-1-assim-k4 under `id`, over 600 periods, with pollution (1, 1) from `pollution_start` and diffusion every period from
-# `diffusion_start` set in both configs, and `variant` appended to both fingerprints.
-function vi1_pollution_build(reg, id::String, variant::String, pollution_start::Int, diffusion_start::Int)
+# VI-1-assim-k4 under `id`, over `steps` periods (600 by default), with pollution (1, 1) from `pollution_start`, diffusion
+# every period from `diffusion_start` and pollution decay `decay` (0 by default) set in both configs, and `variant` appended
+# to both fingerprints.
+function vi1_pollution_build(reg, id::String, variant::String, pollution_start::Int, diffusion_start::Int;
+                             steps::Int=VI1_POLLUTION_STEPS, decay::Float64=0.0)
     k4 = vi1_assim_k4_experiment(reg)
     change(c) = replace_config(c; pollution=(1.0, 1.0), pollution_start=pollution_start,
-                               diffusion_period=1, diffusion_start=diffusion_start)
+                               diffusion_period=1, diffusion_start=diffusion_start, pollution_decay=decay)
     return Experiment(
-        id, k4.title, k4.rules, VI1_POLLUTION_STEPS, k4.seeds,
+        id, k4.title, k4.rules, steps, k4.seeds,
         change(k4.config), k4.fingerprint * variant,
         change(k4.xl_config), k4.xl_fingerprint * variant,
     )
@@ -193,3 +195,24 @@ from period 0.
 """
 vi1_pollution_t0_experiment(reg=load_registry()) =
     vi1_pollution_build(reg, VI1_POLLUTION_T0_ID, VI1_POLLUTION_T0_VARIANT, 0, 0)
+
+# VI-1-pollution-decay (docs/superpowers/specs/2026-11-11-pollution-decay-design.md, "The experiment"): VI-1-pollution with
+# pollution decaying 4.5% a period (nine-tenths gone in 50 periods), over 1000 periods.
+
+const VI1_POLLUTION_DECAY_ID = "VI-1-pollution-decay"
+const VI1_POLLUTION_DECAY_STEPS = 1000
+const VI1_POLLUTION_DECAY = 0.045
+const VI1_POLLUTION_DECAY_VARIANT = "variant: VI-1-pollution-decay pollution=(1,1) pollution_start=350 pollution_decay=0.045 diffusion_period=1 diffusion_start=450 steps=1000 (pollution decaying 4.5% a period on a settled society, then diffusion)
+"
+
+"""
+    vi1_pollution_decay_experiment(reg=load_registry()) -> Experiment
+
+VI-1-assim-k4 from `reg` as `VI-1-pollution-decay`: as [`vi1_pollution_experiment`](@ref) (pollution (1, 1) from period
+350, diffusion every period from period 450) with pollution decay 0.045 a period and 1000 periods, in both configs, and
+the variant line appended to both fingerprints.
+"""
+vi1_pollution_decay_experiment(reg=load_registry()) = vi1_pollution_build(
+    reg, VI1_POLLUTION_DECAY_ID, VI1_POLLUTION_DECAY_VARIANT, 350, 450;
+    steps=VI1_POLLUTION_DECAY_STEPS, decay=VI1_POLLUTION_DECAY,
+)

@@ -23,7 +23,7 @@ end
 
 @testset "viewer settings" begin
     @test VIEWER_EXPS == ["VI-1-combat", "VI-1-distance", "VI-1-near", "VI-1-far", "VI-1-far-speed", "VI-1-assim",
-        "VI-1-assim-random", "VI-1-assim-k4", "VI-1-pollution", "VI-1-pollution-t0"]
+        "VI-1-assim-random", "VI-1-assim-k4", "VI-1-pollution", "VI-1-pollution-t0", "VI-1-pollution-decay"]
     @test DEFAULT_EXP == "VI-1-assim-k4"
     s = viewer_defaults("VI-1-assim-k4")
     @test s.h == 0.5

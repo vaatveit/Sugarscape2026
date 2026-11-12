@@ -68,3 +68,31 @@ end
         @test m.landscape.pollution == old
     end
 end
+
+@testset "VI-1-pollution-decay: the experiment" begin
+    e, p = Sugarscape.vi1_pollution_decay_experiment(), Sugarscape.vi1_pollution_experiment()
+    k4 = Sugarscape.vi1_assim_k4_experiment()
+    @test e.id == "VI-1-pollution-decay" && Sugarscape.JULIA_COMBAT_EXPS[e.id]().id == e.id
+    @test e.steps == 1000 && e.seeds == p.seeds
+    for world in ("book", "xl", "today")
+        c, b = Sugarscape.world_config(e, world), Sugarscape.world_config(p, world)
+        @test c.pollution_decay == 0.045
+        # everything else is VI-1-pollution's
+        @test all(repr(getfield(c, f)) == repr(getfield(b, f)) for f in fieldnames(typeof(c)) if f != :pollution_decay)
+    end
+    @test startswith(e.fingerprint, k4.fingerprint) && startswith(e.xl_fingerprint, k4.xl_fingerprint)
+    @test occursin("variant: VI-1-pollution-decay ", e.fingerprint) && endswith(e.fingerprint, "\n")
+    @test occursin("variant: VI-1-pollution-decay ", e.xl_fingerprint)
+
+    @testset "identical to VI-1-pollution before pollution starts (today)" begin
+        a = Model(Sugarscape.world_config(e, "today"))
+        b = Model(Sugarscape.world_config(p, "today"))
+        for _ in 1:3
+            step!(a)
+            step!(b)
+        end
+        fields(m) = [(g.id, g.x, g.y, g.sugar, g.spice, g.tags) for g in sort!(collect(m.agents); by=g -> g.id)]
+        @test fields(a) == fields(b)
+        @test a.landscape.pollution == b.landscape.pollution
+    end
+end
